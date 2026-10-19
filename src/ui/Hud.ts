@@ -45,6 +45,8 @@ export class Hud {
   death = el('div', 'layer screen hidden');
   cine = el('div', 'layer');
   skip = el('div', 'layer', 'PRESS ANY KEY TO SKIP');
+  zone = el('div', 'layer');
+  private zoneT = 0;
   private hitT = 0;
   private feedT = 0;
   private dmgT = 0;
@@ -87,7 +89,7 @@ export class Hud {
       <div class="jp">東京 · 午前二時四十七分</div>
       <div class="loading">BUILDING THE CITY…</div>
       <div class="controls">
-        <b>WASD</b> MOVE · <b>MOUSE</b> LOOK · <b>LMB</b> FIRE · <b>R</b> RELOAD · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP · <b>ESC</b> RELEASE<br/>
+        <b>WASD</b> MOVE · <b>MOUSE</b> LOOK · <b>LMB</b> FIRE · <b>R</b> RELOAD · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP · <b>ESC</b> PAUSE<br/>
         HEADPHONES RECOMMENDED
       </div>`;
     this.pause.id = 'pause';
@@ -97,7 +99,8 @@ export class Hud {
     this.cine.innerHTML = `<div class="t1">NEON RAIN</div><div class="t2">東京 · 午前 2:47</div>
       <div class="t3">新宿区 歌舞伎町 — KABUKICHO, SHINJUKU<br/>RAINFALL 38MM/H · VISIBILITY LOW</div>`;
     this.skip.id = 'skip';
-    parent.append(this.root, this.banner, this.cine, this.skip, this.title, this.pause, this.death);
+    this.zone.id = 'zone';
+    parent.append(this.root, this.banner, this.cine, this.skip, this.zone, this.title, this.pause, this.death);
   }
 
   setReady() {
@@ -159,6 +162,13 @@ export class Hud {
     this.bannerTimer = dur;
   }
 
+  /** Small location card when entering a new area. */
+  zoneShow(name: string, jp: string) {
+    this.zone.innerHTML = `<div class="box"><span class="en">${name}</span><span class="jp">${jp}</span></div>`;
+    this.zone.classList.add('show');
+    this.zoneT = 2.6;
+  }
+
   showDeath(s: DeathStats) {
     const mm = Math.floor(s.time / 60);
     const ss = Math.floor(s.time % 60);
@@ -185,6 +195,10 @@ export class Hud {
     if (this.bannerTimer > 0) {
       this.bannerTimer -= dt;
       if (this.bannerTimer <= 0) this.banner.classList.remove('show');
+    }
+    if (this.zoneT > 0) {
+      this.zoneT -= dt;
+      if (this.zoneT <= 0) this.zone.classList.remove('show');
     }
   }
 }

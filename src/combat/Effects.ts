@@ -301,6 +301,37 @@ export class Effects {
     }
   }
 
+  /** Jagged electric arc between two points: a chain of short-lived bright beads. */
+  arc(from: THREE.Vector3, to: THREE.Vector3, color = new THREE.Color(0.55, 0.8, 1.0)) {
+    const d = to.clone().sub(from);
+    const len = d.length();
+    const n = Math.min(40, Math.max(6, Math.round(len * 5)));
+    const p = new THREE.Vector3();
+    const jag = new THREE.Vector3();
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const amp = Math.sin(t * Math.PI) * Math.min(0.6, len * 0.12);
+      jag.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(amp);
+      p.copy(from).addScaledVector(d, t).add(jag);
+      this.add.spawn({ x: p.x, y: p.y, z: p.z, r: color.r * 5, g: color.g * 5, b: color.b * 5, size: rand(0.04, 0.08), life: rand(0.08, 0.18) });
+    }
+    this.sparks(to, new THREE.Vector3(0, 1, 0), 10, color, 5);
+  }
+
+  /** Shattered lamp: glass glints falling and a pop of sparks. */
+  glass(pos: THREE.Vector3) {
+    for (let i = 0; i < 26; i++) {
+      this.add.spawn({
+        x: pos.x, y: pos.y, z: pos.z,
+        vx: rand(-2, 2), vy: rand(-1, 1.5), vz: rand(-2, 2),
+        r: 0.9, g: 1.0, b: 1.1, size: rand(0.01, 0.022), stretch: 0.01,
+        life: rand(0.5, 1.1), gravity: 11, drag: 0.6, bounce: 0.3,
+      });
+    }
+    this.sparks(pos, new THREE.Vector3(0, -1, 0), 14, new THREE.Color(0.8, 0.9, 1), 3);
+    this.add.spawn({ x: pos.x, y: pos.y, z: pos.z, r: 3, g: 3.2, b: 3.4, size: 0.6, life: 0.07 });
+  }
+
   tracer(from: THREE.Vector3, to: THREE.Vector3, color = new THREE.Color(1.0, 0.75, 0.4)) {
     const d = to.clone().sub(from);
     const len = d.length();

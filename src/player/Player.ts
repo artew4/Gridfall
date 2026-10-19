@@ -93,6 +93,8 @@ export class Player {
 
     this.col.resolveCircle(this.pos, this.radius, 1.8);
     const ground = this.col.groundHeightAt(this.pos.x, this.pos.z, this.radius * 0.6, this.pos.y);
+    // Stick to stairs and kerbs when walking down instead of briefly going airborne.
+    if (this.wasOnGround && this.vel.y <= 0 && this.pos.y > ground && this.pos.y - ground < 0.35) this.pos.y = ground;
     if (this.pos.y <= ground) {
       if (!this.wasOnGround && this.fallSpeed > 3) {
         this.landDip.impulse(-Math.min(this.fallSpeed, 8) * 0.25);

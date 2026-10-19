@@ -7,11 +7,11 @@ import {
   asphaltTexture,
   concreteTexture,
   facadeTexture,
+  pavingTexture,
   roadMarkTexture,
   skylineTexture,
   storefrontTexture,
 } from './Textures';
-import { mulberry32 } from '../core/math';
 
 export interface Mats {
   facade: THREE.MeshStandardMaterial[];
@@ -23,6 +23,7 @@ export interface Mats {
   store: Record<'shutter' | 'shop' | 'izakaya' | 'door', THREE.MeshStandardMaterial>;
   asphalt: THREE.MeshStandardMaterial;
   sidewalk: THREE.MeshStandardMaterial;
+  paving: THREE.MeshStandardMaterial;
 }
 
 export interface BuildCtx {
@@ -35,15 +36,21 @@ export interface BuildCtx {
   fog: THREE.FogExp2;
 }
 
-/** Street layout constants (metres). Street runs along z, player faces -z (north). */
-export const STREET = {
-  half: 6, // building faces at x = ±6
-  south: 33, // construction fence
-  north: -54, // far wall under the railway
-  overpassZ: -35,
-  leftAlley: { z0: -4, z1: -1, end: -26 },
-  rightAlley: { z0: -18, z1: -14, end: 26 },
-};
+/** Railway overpass: deck centre line and extent (the train runs along x). */
+export const RAIL = { z: -23.5, deckTop: 7.8, deckBottom: 6.4 };
+
+export type Face = 'n' | 's' | 'e' | 'w';
+
+export interface FaceSpec {
+  face: Face;
+  /** Storefronts along the ground floor, laid from the segment start. */
+  stores?: StoreKind[];
+  /** Upper-floor shopfronts on walkway level. */
+  upper?: StoreKind[];
+  /** Segment along the facade that gets details (defaults to the whole side). */
+  from?: number;
+  to?: number;
+}
 
 function makeMats(time: { value: number }): Mats {
   const facade = [0, 1, 2].map((v) => {
@@ -83,10 +90,13 @@ function makeMats(time: { value: number }): Mats {
   applyWet(asphalt, time, { puddles: true, wet: 0.9 });
   const sidewalk = new THREE.MeshStandardMaterial({ map: ct, color: 0x8a8890, roughness: 0.55, envMapIntensity: 1.0 });
   applyWet(sidewalk, time, { puddles: false, wet: 0.8 });
-  return { facade, concrete, darkConcrete, darkMetal, paintedMetal, black, store, asphalt, sidewalk };
+  const pt = pavingTexture();
+  const paving = new THREE.MeshStandardMaterial({ map: pt, roughness: 0.5, envMapIntensity: 1.2 });
+  applyWet(paving, time, { puddles: true, wet: 0.85 });
+  return { facade, concrete, darkConcrete, darkMetal, paintedMetal, black, store, asphalt, sidewalk, paving };
 }
 
-type StoreKind = keyof Mats['store'];
+export type StoreKind = keyof Mats['store'];
 
 export class City {
   mats: Mats;
@@ -97,109 +107,98 @@ export class City {
     this.ctx = { scene, builder: new StaticBuilder(), col, glows, time, mats: this.mats, fog };
   }
 
-  build() {
-    const rnd = mulberry32(42);
-    const L = -STREET.half;
-    const R = STREET.half;
-    const D = 26; // building depth
-
-    // ---- Buildings lining the street: [x side, z0, z1, height, variant, storefronts...]
-    const left: [number, number, number, number, StoreKind[]][] = [
-      [12, 36, 13, 0, ['izakaya', 'izakaya', 'shutter', 'door', 'shop', 'shutter']],
-      [-1, 12, 24, 1, ['door', 'shutter', 'shop']],
-      [-20, -4, 18, 2, ['shutter', 'shop', 'door', 'shutter']],
-      [-33, -20, 28, 0, ['door', 'shutter', 'shutter']],
-      [-56, -37, 20, 1, ['shutter', 'door', 'shutter', 'shutter']],
-    ];
-    const right: [number, number, number, number, StoreKind[]][] = [
-      [14, 36, 11, 2, ['shop', 'door', 'shutter', 'shutter', 'shop']],
-      [-14, 14, 21, 0, ['shutter', 'shop', 'door', 'shutter', 'door', 'shop', 'shutter']],
-      [-33, -18, 16, 1, ['door', 'shutter', 'shop']],
-      [-56, -37, 24, 2, ['shutter', 'shutter', 'door', 'shutter']],
-    ];
-    for (const [z0, z1, h, v, stores] of left) this.building(L - D, L, z0, z1, h, v, -1, stores, rnd);
-    for (const [z0, z1, h, v, stores] of right) this.building(R, R + D, z0, z1, h, v, 1, stores, rnd);
-
-    // End blocks closing the street (south and north) and alley end walls.
-    this.building(-34, 34, 36, 54, 16, 1, 0, [], rnd);
-    this.building(-34, 34, -74, -54, 36, 0, 0, [], rnd);
-    this.building(-34, STREET.leftAlley.end, STREET.leftAlley.z0, STREET.leftAlley.z1, 14, 2, 0, [], rnd);
-    this.building(STREET.rightAlley.end, 34, STREET.rightAlley.z0, STREET.rightAlley.z1, 12, 1, 0, [], rnd);
-    // Gap fillers between south block and street ends.
-    this.col.add(-6, 0, 33.6, 6, 3, 36, 'metal'); // construction fence line (visual added in props)
-
-    this.ground();
-    this.overpass();
-    this.ctx.builder.build(this.scene);
-  }
-
-  /** side: -1 = left block (street face at maxX), 1 = right block (street face at minX), 0 = no storefronts. */
-  private building(x0: number, x1: number, z0: number, z1: number, h: number, variant: number, side: number, stores: StoreKind[], rnd: () => number) {
+  /**
+   * A city block: one box with detailed facades on the listed sides (ledges, parapet, storefronts,
+   * awnings), plus rooftop clutter. Bare sides stay plain (they face other blocks).
+   */
+  block(x0: number, x1: number, z0: number, z1: number, h: number, variant: number, faces: FaceSpec[], rnd: () => number) {
     const b = this.ctx.builder;
     const m = this.mats;
     const w = x1 - x0;
     const d = z1 - z0;
-    const geo = worldBox(w, h, d, 16, rnd() * 4, 0);
-    b.add(geo, m.facade[variant], (x0 + x1) / 2, h / 2, (z0 + z1) / 2);
+    b.add(worldBox(w, h, d, 16, rnd() * 4, 0), m.facade[variant], (x0 + x1) / 2, h / 2, (z0 + z1) / 2);
     this.col.add(x0, 0, z0, x1, h, z1, 'concrete');
-    if (side === 0) return;
-
-    const faceX = side < 0 ? x1 : x0;
-    const out = -side; // direction pointing into the street
-    // Floor ledges give the facade depth and catch neon on their edges.
-    for (let y = 4.2; y < h - 1; y += 3.2) {
-      b.add(worldBox(0.16, 0.14, d, 2), m.darkConcrete, faceX + out * 0.08, y, (z0 + z1) / 2);
-    }
-    // Parapet.
-    b.add(worldBox(0.3, 0.9, d, 2), m.darkConcrete, faceX + out * 0.1, h + 0.45, (z0 + z1) / 2);
-    // Ground-floor band above the storefronts.
-    b.add(worldBox(0.3, 0.5, d, 2), m.darkConcrete, faceX + out * 0.15, 4.05, (z0 + z1) / 2);
-
-    // Storefronts, 4m each, laid from the south end of the block.
-    const n = Math.min(stores.length, Math.floor(d / 4));
-    const plane = new THREE.PlaneGeometry(4, 3.8);
-    for (let i = 0; i < n; i++) {
-      const zc = z1 - 2 - i * 4;
-      if (zc - 2 < z0) break;
-      const kind = stores[i];
-      b.add(plane, m.store[kind], faceX + out * 0.02, 1.9, zc, 0, out > 0 ? Math.PI / 2 : -Math.PI / 2, 0);
-      // Pillars between shops.
-      b.add(worldBox(0.3, 3.8, 0.35, 1), m.darkConcrete, faceX + out * 0.12, 1.9, zc + 2);
-      // Awnings over lit shops.
-      if (kind === 'shop' && rnd() < 0.8) {
-        b.add(worldBox(1.1, 0.08, 3.8, 1), m.paintedMetal, faceX + out * 0.55, 3.55, zc, 0, 0, out * 0.12);
-      }
-    }
-    // Rooftop water tanks for silhouette.
-    if (h < 22 && rnd() < 0.7) {
-      const tank = new THREE.CylinderGeometry(1.1, 1.1, 2.2, 10);
-      b.add(tank, m.paintedMetal, faceX - out * 4, h + 2.2, z0 + d * (0.3 + rnd() * 0.4));
-      b.add(worldBox(2.4, 1.2, 2.4, 1), m.darkMetal, faceX - out * 4, h + 0.6, z0 + d * 0.5);
+    for (const f of faces) this.facade(x0, x1, z0, z1, h, f, rnd);
+    // Rooftop water tank for the silhouette.
+    if (h < 24 && w > 5 && d > 5 && rnd() < 0.6) {
+      const tx = x0 + w * (0.3 + rnd() * 0.4);
+      const tz = z0 + d * (0.3 + rnd() * 0.4);
+      b.add(new THREE.CylinderGeometry(1.1, 1.1, 2.2, 10), m.paintedMetal, tx, h + 2.2, tz);
+      b.add(worldBox(2.4, 1.2, 2.4, 1), m.darkMetal, tx, h + 0.6, tz);
     }
   }
 
-  private ground() {
+  private facade(x0: number, x1: number, z0: number, z1: number, h: number, f: FaceSpec, rnd: () => number) {
     const b = this.ctx.builder;
     const m = this.mats;
-    // Asphalt.
-    const g = new THREE.PlaneGeometry(80, 140);
-    const uv = g.attributes.uv as THREE.BufferAttribute;
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (80 / 7), uv.getY(i) * (140 / 7));
-    g.rotateX(-Math.PI / 2);
-    const ground = new THREE.Mesh(g, m.asphalt);
-    ground.position.set(0, 0, -10);
+    const alongX = f.face === 'n' || f.face === 's';
+    const sign = f.face === 's' || f.face === 'e' ? 1 : -1;
+    const wall = f.face === 'n' ? z0 : f.face === 's' ? z1 : f.face === 'w' ? x0 : x1;
+    const a0 = f.from ?? (alongX ? x0 : z0);
+    const a1 = f.to ?? (alongX ? x1 : z1);
+    const len = a1 - a0;
+    const mid = (a0 + a1) / 2;
+    const at = (a: number, y: number, out: number): [number, number, number] => (alongX ? [a, y, wall + sign * out] : [wall + sign * out, y, a]);
+    const strip = (along: number, hh: number, thick: number, tile = 2) => (alongX ? worldBox(along, hh, thick, tile) : worldBox(thick, hh, along, tile));
+    // Floor ledges give depth and catch neon on their edges.
+    for (let y = 7.4; y < h - 1; y += 3.2) b.add(strip(len, 0.14, 0.16), m.darkConcrete, ...at(mid, y, 0.08));
+    b.add(strip(len, 0.9, 0.3), m.darkConcrete, ...at(mid, h + 0.45, 0.1));
+    b.add(strip(len, 0.5, 0.3), m.darkConcrete, ...at(mid, 4.05, 0.15));
+    // Shopfronts face outwards.
+    const ry = alongX ? (sign > 0 ? 0 : Math.PI) : sign > 0 ? Math.PI / 2 : -Math.PI / 2;
+    const lay = (stores: StoreKind[] | undefined, y: number, hgt: number, plane: THREE.PlaneGeometry) => {
+      if (!stores) return;
+      const n = Math.min(stores.length, Math.floor(len / 4));
+      for (let i = 0; i < n; i++) {
+        const a = a0 + 2 + i * 4 + (len - n * 4) / 2;
+        const kind = stores[i];
+        b.add(plane, m.store[kind], ...at(a, y, 0.02), 0, ry, 0);
+        b.add(strip(0.35, hgt, 0.3, 1), m.darkConcrete, ...at(a + 2, y, 0.12));
+        if (i === 0) b.add(strip(0.35, hgt, 0.3, 1), m.darkConcrete, ...at(a - 2, y, 0.12));
+        if (kind === 'shop' && y < 3 && rnd() < 0.8) {
+          const aw = alongX ? worldBox(3.8, 0.08, 1.1, 1) : worldBox(1.1, 0.08, 3.8, 1);
+          const tilt = 0.12;
+          b.add(aw, m.paintedMetal, ...at(a, 3.55, 0.55), alongX ? -sign * tilt : 0, 0, alongX ? 0 : sign * tilt);
+        }
+      }
+    };
+    lay(f.stores, 1.9, 3.8, this.storePlane);
+    lay(f.upper, 6.0, 2.9, this.upperPlane);
+  }
+
+  private storePlane = new THREE.PlaneGeometry(4, 3.8);
+  private upperPlane = new THREE.PlaneGeometry(4, 2.9);
+
+  /** Asphalt everywhere, granite paving on the plaza, raised sidewalks with kerbs along the streets. */
+  ground(plaza: { x0: number; z0: number; x1: number; z1: number }, sidewalks: { x0: number; z0: number; x1: number; z1: number }[]) {
+    const b = this.ctx.builder;
+    const m = this.mats;
+    const plane = (w: number, d: number, tile: number) => {
+      const g = new THREE.PlaneGeometry(w, d);
+      const uv = g.attributes.uv as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (w / tile), uv.getY(i) * (d / tile));
+      g.rotateX(-Math.PI / 2);
+      return g;
+    };
+    const ground = new THREE.Mesh(plane(140, 140, 7), m.asphalt);
+    ground.position.set(0, 0, -5);
     this.scene.add(ground);
-
-    // Sidewalks with curbs (solid low boxes the player steps onto).
-    const len = STREET.south + 1 - STREET.north;
-    const zc = (STREET.south + 1 + STREET.north) / 2;
-    for (const s of [-1, 1]) {
-      const x = s * (STREET.half - 0.8);
-      b.add(worldBox(1.6, 0.12, len, 1.5), m.sidewalk, x, 0.06, zc);
-      b.add(worldBox(0.14, 0.13, len, 1), m.darkConcrete, s * (STREET.half - 1.6), 0.065, zc);
+    const pw = plaza.x1 - plaza.x0;
+    const pd = plaza.z1 - plaza.z0;
+    const paving = new THREE.Mesh(plane(pw, pd, 6), m.paving);
+    paving.position.set((plaza.x0 + plaza.x1) / 2, 0.006, (plaza.z0 + plaza.z1) / 2);
+    this.scene.add(paving);
+    for (const s of sidewalks) {
+      const w = s.x1 - s.x0;
+      const d = s.z1 - s.z0;
+      b.add(worldBox(w, 0.12, d, 1.5), m.sidewalk, (s.x0 + s.x1) / 2, 0.06, (s.z0 + s.z1) / 2);
+      this.col.add(s.x0, 0, s.z0, s.x1, 0.12, s.z1, 'concrete');
     }
+  }
 
-    // Road markings: edge lines, crosswalk and a worn 止まれ.
+  /** Painted markings: lane lines, a crosswalk and the worn 止まれ. */
+  markings(lines: { x: number; z0: number; z1: number }[], crosswalks: { x: number; z: number; across: 'x' | 'z'; n: number }[], stops: { x: number; z: number; ry: number }[]) {
+    const b = this.ctx.builder;
     const markMat = new THREE.MeshStandardMaterial({
       color: 0xd8d8d0,
       roughness: 0.3,
@@ -209,13 +208,20 @@ export class City {
       polygonOffsetFactor: -1,
       envMapIntensity: 0.6,
     });
-    const line = new THREE.PlaneGeometry(0.15, len - 2);
-    line.rotateX(-Math.PI / 2);
-    for (const s of [-1, 1]) b.add(line, markMat, s * 4.05, 0.012, zc);
-    const stripe = new THREE.PlaneGeometry(0.5, 2.6);
-    stripe.rotateX(-Math.PI / 2);
-    stripe.rotateY(Math.PI / 2);
-    for (let i = 0; i < 6; i++) b.add(stripe, markMat, 0, 0.012, -10.3 + i * -0.9 + 0.0);
+    for (const l of lines) {
+      const g = new THREE.PlaneGeometry(0.15, l.z1 - l.z0);
+      g.rotateX(-Math.PI / 2);
+      b.add(g, markMat, l.x, 0.012, (l.z0 + l.z1) / 2);
+    }
+    for (const c of crosswalks) {
+      const stripe = new THREE.PlaneGeometry(0.5, 2.6);
+      stripe.rotateX(-Math.PI / 2);
+      for (let i = 0; i < c.n; i++) {
+        const o = (i - (c.n - 1) / 2) * 0.9;
+        if (c.across === 'x') b.add(stripe, markMat, c.x + o, 0.012, c.z);
+        else b.add(stripe, markMat, c.x, 0.012, c.z + o, 0, Math.PI / 2, 0);
+      }
+    }
     const stopMat = new THREE.MeshStandardMaterial({
       map: roadMarkTexture(),
       transparent: true,
@@ -226,40 +232,33 @@ export class City {
     });
     const stop = new THREE.PlaneGeometry(3.4, 1.9);
     stop.rotateX(-Math.PI / 2);
-    const stopMesh = new THREE.Mesh(stop, stopMat);
-    stopMesh.position.set(-1.9, 0.013, -8.0);
-    this.scene.add(stopMesh);
-    const stop2 = stopMesh.clone();
-    stop2.position.set(1.9, 0.013, 22);
-    stop2.rotation.y = Math.PI;
-    this.scene.add(stop2);
+    for (const st of stops) {
+      const mesh = new THREE.Mesh(stop, stopMat);
+      mesh.position.set(st.x, 0.013, st.z);
+      mesh.rotation.y = st.ry;
+      this.scene.add(mesh);
+    }
   }
 
-  private overpass() {
+  /** Railway overpass along x with pillars at the given x positions. */
+  overpass(pillars: number[]) {
     const b = this.ctx.builder;
     const m = this.mats;
-    const z = STREET.overpassZ;
-    // Deck, side girders and rails.
-    b.add(worldBox(80, 1.4, 5, 3), m.concrete, 0, 7.1, z);
-    b.add(worldBox(80, 0.9, 0.3, 2), m.darkConcrete, 0, 8.25, z - 2.4);
-    b.add(worldBox(80, 0.9, 0.3, 2), m.darkConcrete, 0, 8.25, z + 2.4);
-    for (let x = -38; x <= 38; x += 3) {
-      b.add(worldBox(0.4, 0.5, 4.6, 1), m.darkMetal, x, 6.15, z);
-    }
+    const z = RAIL.z;
+    b.add(worldBox(160, 1.4, 5, 3), m.concrete, 0, 7.1, z);
+    b.add(worldBox(160, 0.9, 0.3, 2), m.darkConcrete, 0, 8.25, z - 2.4);
+    b.add(worldBox(160, 0.9, 0.3, 2), m.darkConcrete, 0, 8.25, z + 2.4);
+    for (let x = -78; x <= 78; x += 3) b.add(worldBox(0.4, 0.5, 4.6, 1), m.darkMetal, x, 6.15, z);
     for (const s of [-1, 1]) {
-      b.add(worldBox(80, 0.12, 0.12, 1), m.darkMetal, 0, 7.86, z + s * 0.75);
-      // Catenary masts.
-      for (let x = -36; x <= 36; x += 12) {
-        b.add(worldBox(0.2, 3.5, 0.2, 1), m.darkMetal, x, 9.6, z + s * 2.2);
-      }
+      b.add(worldBox(160, 0.12, 0.12, 1), m.darkMetal, 0, 7.86, z + s * 0.75);
+      for (let x = -72; x <= 72; x += 12) b.add(worldBox(0.2, 3.5, 0.2, 1), m.darkMetal, x, 9.6, z + s * 2.2);
     }
-    b.add(worldBox(80, 0.05, 0.05, 1), m.black, 0, 11.2, z);
-    // Pillars.
-    for (const s of [-1, 1]) {
-      b.add(worldBox(1.2, 6.4, 1.8, 2), m.concrete, s * 5.3, 3.2, z);
-      this.col.addCentered(s * 5.3, 3.2, z, 1.2, 6.4, 1.8, 'concrete');
+    b.add(worldBox(160, 0.05, 0.05, 1), m.black, 0, 11.2, z);
+    for (const x of pillars) {
+      b.add(worldBox(1.2, 6.4, 1.8, 2), m.concrete, x, 3.2, z);
+      this.col.addCentered(x, 3.2, z, 1.2, 6.4, 1.8, 'concrete');
     }
-    this.col.add(-40, 6.4, z - 2.5, 40, 8.6, z + 2.5, 'concrete');
+    this.col.add(-80, RAIL.deckBottom, z - 2.5, 80, 8.6, z + 2.5, 'concrete');
   }
 
   /** Distant skyline cards and a sky dome, both untouched by fog. */

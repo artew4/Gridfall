@@ -164,7 +164,7 @@ export function createStreak(g: Glow, time: { value: number }, fog: THREE.FogExp
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.copy(r.anchor);
-  mesh.position.y = 0.015;
+  mesh.position.y = r.anchor.y + 0.015;
   mesh.scale.set(r.width, 1, r.length);
   mesh.renderOrder = 2;
   mesh.frustumCulled = false;

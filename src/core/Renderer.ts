@@ -85,6 +85,8 @@ export class Renderer {
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.05;
     r.outputColorSpace = THREE.SRGBColorSpace;
+    // Count draw calls over the whole composer frame, not just its last pass.
+    r.info.autoReset = false;
     container.appendChild(r.domElement);
     this.renderer = r;
 
@@ -113,6 +115,17 @@ export class Renderer {
     return this.renderer.domElement;
   }
 
+  /** Highest pixel ratio we ever render at. */
+  readonly maxPixelRatio = Math.min(window.devicePixelRatio, 1.5);
+
+  /** Adaptive resolution: lowered when the frame rate sags, restored when there's headroom. */
+  setPixelRatio(pr: number) {
+    const v = Math.max(1, Math.min(this.maxPixelRatio, pr));
+    if (Math.abs(v - this.renderer.getPixelRatio()) < 0.01) return;
+    this.renderer.setPixelRatio(v);
+    this.resize();
+  }
+
   resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -128,6 +141,7 @@ export class Renderer {
   }
 
   render(time: number) {
+    this.renderer.info.reset();
     this.grade.uniforms.uTime.value = time;
     this.composer.render();
   }

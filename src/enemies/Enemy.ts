@@ -21,6 +21,10 @@ export interface EnemyCtx {
   coverPoints: THREE.Vector3[];
   occupied: Set<THREE.Vector3>;
   enemies: Enemy[];
+  /** Playable XZ extent; anything outside is recovered to the nav graph. */
+  bounds: THREE.Box2;
+  /** Rooftop sniper spots (floor positions). */
+  perches: THREE.Vector3[];
   damagePlayer(dmg: number, from: THREE.Vector3): void;
 }
 
@@ -60,6 +64,9 @@ export abstract class Enemy {
   protected leanZ = new Spring(140, 10);
   protected walkPhase = Math.random() * 6;
   protected seed = Math.random() * 100;
+  /** Electrocuted: frozen in place and twitching. */
+  stun = 0;
+  protected fallV = 0;
   private path: number[] = [];
   private pathT = 0;
   private dieT = 0;
@@ -128,6 +135,8 @@ export abstract class Enemy {
 
   protected onHit(_ctx: EnemyCtx) {}
 
+  protected onStunned() {}
+
   protected die(ctx: EnemyCtx) {
     this.alive = false;
     this.state = 'dying';
@@ -157,9 +166,10 @@ export abstract class Enemy {
 
   /** Returns the immediate steering target towards goal, using the waypoint graph when blocked. */
   protected steerTarget(goal: THREE.Vector3, ctx: EnemyCtx, dt: number): THREE.Vector3 {
-    const from = new THREE.Vector3(this.pos.x, 1, this.pos.z);
-    const to = new THREE.Vector3(goal.x, 1, goal.z);
-    if (ctx.nav.clear(from, to)) {
+    const from = new THREE.Vector3(this.pos.x, this.pos.y + 1, this.pos.z);
+    const to = new THREE.Vector3(goal.x, goal.y + 1, goal.z);
+    // Straight at the goal only on the same level; otherwise the graph knows where the stairs are.
+    if (Math.abs(to.y - from.y) < 1 && ctx.nav.clear(from, to)) {
       this.path.length = 0;
       return goal;
     }
@@ -170,14 +180,37 @@ export abstract class Enemy {
       const b = ctx.nav.nearestVisible(to);
       this.path = a >= 0 && b >= 0 ? ctx.nav.path(a, b) : [];
     }
-    // Skip waypoints we can already see past.
-    while (this.path.length > 1 && ctx.nav.clear(from, ctx.nav.nodes[this.path[1]])) this.path.shift();
+    // Skip waypoints we can already see past (never across levels, or we'd cut under a walkway).
+    const level = (n: THREE.Vector3) => Math.abs(n.y - from.y) < 1;
+    while (this.path.length > 1 && level(ctx.nav.nodes[this.path[1]]) && ctx.nav.clear(from, ctx.nav.nodes[this.path[1]])) this.path.shift();
     if (this.path.length) {
       const n = ctx.nav.nodes[this.path[0]];
       if (Math.hypot(n.x - this.pos.x, n.z - this.pos.z) < 0.8) this.path.shift();
       return n;
     }
     return goal;
+  }
+
+  /** Follows stairs and walkways; recovers if anything ever pushes us off the map. */
+  protected followGround(ctx: EnemyCtx, dt: number) {
+    const g = ctx.col.groundHeightAt(this.pos.x, this.pos.z, this.radius * 0.6, this.pos.y);
+    if (this.pos.y > g && this.pos.y - g < 0.6) {
+      this.pos.y = g;
+      this.fallV = 0;
+    } else if (this.pos.y > g) {
+      this.fallV -= 15 * dt;
+      this.pos.y = Math.max(g, this.pos.y + this.fallV * dt);
+    } else {
+      this.pos.y = g;
+      this.fallV = 0;
+    }
+    const b = ctx.bounds;
+    if (this.pos.y < -1 || this.pos.x < b.min.x || this.pos.x > b.max.x || this.pos.z < b.min.y || this.pos.z > b.max.y) {
+      const i = ctx.nav.nearestVisible(new THREE.Vector3(this.pos.x, this.pos.y + 1, this.pos.z));
+      const n = ctx.nav.nodes[i >= 0 ? i : 0];
+      this.pos.set(n.x, n.y - 1, n.z);
+      this.vel.set(0, 0, 0);
+    }
   }
 
   protected move(desired: THREE.Vector3, ctx: EnemyCtx, dt: number) {
@@ -200,13 +233,14 @@ export abstract class Enemy {
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;
     ctx.col.resolveCircle(this.pos, this.radius, 1.8);
+    this.followGround(ctx, dt);
     // Never overlap the player.
     const p = ctx.player.pos;
     const dx = this.pos.x - p.x;
     const dz = this.pos.z - p.z;
     const d = Math.hypot(dx, dz);
     const min = this.radius + ctx.player.radius;
-    if (d < min && d > 1e-4) {
+    if (d < min && d > 1e-4 && Math.abs(this.pos.y - p.y) < 1.5) {
       this.pos.x = p.x + (dx / d) * min;
       this.pos.z = p.z + (dz / d) * min;
     }
@@ -220,6 +254,13 @@ export abstract class Enemy {
     this.leanZ.update(dt);
     if (this.state === 'dying') {
       this.updateDeath(dt, ctx);
+    } else if (this.stun > 0) {
+      this.stun -= dt;
+      this.flash = Math.max(this.flash, Math.random() < 0.5 ? 0.8 : 0.2);
+      this.leanX.impulse((Math.random() - 0.5) * 6);
+      this.leanZ.impulse((Math.random() - 0.5) * 6);
+      this.move(new THREE.Vector3(), ctx, dt);
+      this.onStunned();
     } else {
       this.think(dt, ctx);
       const hs = Math.hypot(this.vel.x, this.vel.z);
@@ -248,8 +289,10 @@ export abstract class Enemy {
     const t = this.dieT;
     const r = this.rig;
     this.vel.multiplyScalar(Math.max(0, 1 - dt * 4));
-    this.pos.addScaledVector(this.vel, dt);
+    this.pos.x += this.vel.x * dt;
+    this.pos.z += this.vel.z * dt;
     ctx.col.resolveCircle(this.pos, this.radius, 1.8);
+    this.followGround(ctx, dt);
     const fall = easeOut(clamp(t / 0.55, 0, 1));
     r.root.rotation.x = -fall * 1.45;
     r.body.rotation.set(0, 0, 0);
@@ -262,7 +305,7 @@ export abstract class Enemy {
       const k = (t - 0.45) / 0.9;
       for (const p of r.parts) p.visible = Math.random() > k * 1.1;
       r.glowMat.color.copy(this.glowBase).multiplyScalar(Math.random() < 0.5 ? 0 : 1.5);
-      if (Math.random() < 0.3) ctx.fx.sparks(new THREE.Vector3(this.pos.x + rand(-0.5, 0.5), 0.2, this.pos.z + rand(-0.5, 0.5)), UP, 2, this.accent, 3);
+      if (Math.random() < 0.3) ctx.fx.sparks(new THREE.Vector3(this.pos.x + rand(-0.5, 0.5), this.pos.y + 0.2, this.pos.z + rand(-0.5, 0.5)), UP, 2, this.accent, 3);
     }
     if (t > 1.4) {
       r.root.visible = false;
@@ -336,7 +379,7 @@ export class Runner extends Enemy {
         }
         desired.multiplyScalar(this.speed * (this.stagger > 0 ? 0.3 : 1));
         this.faceTowards(this.pos.clone().add(this.vel), dt, 12);
-        if (dist < 1.9 && ctx.player.alive) {
+        if (dist < 1.9 && Math.abs(p.y - this.pos.y) < 1.2 && ctx.player.alive) {
           this.setState('windup');
           ctx.audio.swipe(this.chest);
         }
@@ -347,7 +390,7 @@ export class Runner extends Enemy {
         desired.set(p.x - this.pos.x, 0, p.z - this.pos.z).normalize().multiplyScalar(1.2);
         if (this.stateT > 0.36) {
           this.setState('strike');
-          if (dist < 2.5 && ctx.player.alive) ctx.damagePlayer(14 + ctx.difficulty, this.chest.clone());
+          if (dist < 2.5 && Math.abs(p.y - this.pos.y) < 1.2 && ctx.player.alive) ctx.damagePlayer(14 + ctx.difficulty, this.chest.clone());
           ctx.audio.swipe(this.chest);
         }
         break;
@@ -416,9 +459,12 @@ export class Gunner extends Enemy {
   private laser: THREE.Mesh;
   private laserMat: THREE.MeshBasicMaterial;
   private aimPoint = new THREE.Vector3();
+  /** Rooftop sniper: holds its perch, strafing a little, instead of moving between covers. */
+  perch: THREE.Vector3 | null = null;
 
-  constructor(spawn: THREE.Vector3, difficulty: number, scene: THREE.Scene) {
+  constructor(spawn: THREE.Vector3, difficulty: number, scene: THREE.Scene, perch: THREE.Vector3 | null = null) {
     super(buildGunner(), 150, spawn, 'gunner');
+    this.perch = perch;
     this.speed = 3.1 + difficulty * 0.1;
     this.rig.body.userData.baseY = 1.0;
     this.laserMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -431,6 +477,10 @@ export class Gunner extends Enemy {
   }
 
   private pickCover(ctx: EnemyCtx) {
+    if (this.perch) {
+      this.setState('cooldown');
+      return;
+    }
     if (this.cover) ctx.occupied.delete(this.cover);
     const head = new THREE.Vector3(ctx.player.pos.x, ctx.player.pos.y + 1.5, ctx.player.pos.z);
     let best: THREE.Vector3 | null = null;
@@ -439,7 +489,7 @@ export class Gunner extends Enemy {
       if (ctx.occupied.has(c)) continue;
       const d = c.distanceTo(ctx.player.pos);
       if (d < 7 || d > 30) continue;
-      if (!ctx.col.lineOfSight(new THREE.Vector3(c.x, 1.5, c.z), head)) continue;
+      if (!ctx.col.lineOfSight(new THREE.Vector3(c.x, c.y + 1.5, c.z), head)) continue;
       const score = c.distanceTo(this.pos) + Math.abs(d - 15) * 0.5 + Math.random() * 4;
       if (score < bestScore) {
         bestScore = score;
@@ -481,12 +531,17 @@ export class Gunner extends Enemy {
         this.faceTowards(p, dt, 6);
         if (this.stateT < 0.05) this.strafe = Math.random() < 0.5 ? -1 : 1;
         desired.set(-(p.z - this.pos.z), 0, p.x - this.pos.x).normalize().multiplyScalar(this.strafe * 1.0);
+        if (this.perch) {
+          // Pace along the parapet, never far from the perch.
+          const off = Math.hypot(this.pos.x - this.perch.x, this.pos.z - this.perch.z);
+          if (off > 1.6) desired.set(this.perch.x - this.pos.x, 0, this.perch.z - this.pos.z).normalize().multiplyScalar(1.2);
+        }
         if (dist < 5) desired.add(new THREE.Vector3(this.pos.x - p.x, 0, this.pos.z - p.z).normalize().multiplyScalar(2.5));
         if (this.stateT > rand(1.2, 2.0) - ctx.difficulty * 0.05 && sees && ctx.player.alive) {
           this.setState('aim');
           ctx.audio.gunnerCharge(this.chest);
         }
-        if (this.noSight > 1.6) this.pickCover(ctx);
+        if (this.noSight > 1.6 && !this.perch) this.pickCover(ctx);
         break;
       case 'aim': {
         this.faceTowards(p, dt, 8);
@@ -543,6 +598,11 @@ export class Gunner extends Enemy {
 
   protected onHit() {
     if (this.state === 'aim' && Math.random() < 0.5) this.setState('cooldown');
+  }
+
+  protected onStunned() {
+    this.laser.visible = false;
+    if (this.state === 'aim' || this.state === 'fire') this.setState('cooldown');
   }
 
   protected onDeath(ctx: EnemyCtx) {

@@ -7,6 +7,8 @@ export class Input {
   mouseClicked = false;
   locked = false;
   onLockChange: (locked: boolean) => void = () => {};
+  /** The browser refused pointer lock (e.g. re-locking too soon after Esc). */
+  onLockError: () => void = () => {};
   onAnyKey: () => void = () => {};
 
   constructor(private element: HTMLElement) {
@@ -41,12 +43,13 @@ export class Input {
       if (!this.locked) this.mouseDown = false;
       this.onLockChange(this.locked);
     });
+    document.addEventListener('pointerlockerror', () => this.onLockError());
   }
 
   requestLock() {
     if (this.locked) return;
     const p = this.element.requestPointerLock() as unknown as Promise<void> | undefined;
-    if (p && typeof p.catch === 'function') p.catch(() => {});
+    if (p && typeof p.catch === 'function') p.catch(() => this.onLockError());
   }
 
   key(code: string) {
