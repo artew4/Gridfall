@@ -484,6 +484,21 @@ export class AudioEngine {
     this.tone(z, 'sawtooth', 2600, 700, 0.3, 0.001, 0.07, t);
   }
 
+  /** Holster: cloth rustle and a soft clip; draw: a quick metallic slide. */
+  holster(away: boolean) {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(null, 0.08);
+    if (away) {
+      this.burst(o, this.pink, 'bandpass', 1400, 0.8, 0.16, 0.02, 0.18, t, 700);
+      this.tone(o, 'square', 1800, 1700, 0.04, 0.001, 0.012, t + 0.16);
+    } else {
+      this.burst(o, this.white, 'bandpass', 2600, 1.4, 0.14, 0.005, 0.1, t, 5200);
+      this.tone(o, 'square', 2600, 2500, 0.05, 0.001, 0.012, t + 0.09);
+      this.metal(o, 3200, 0.025, 0.08, [1, 2.3], t + 0.1);
+    }
+  }
+
   dryFire() {
     if (!this.started) return;
     const o = this.out(null, 0.05);
@@ -807,6 +822,85 @@ export class AudioEngine {
       o.connect(og).connect(p);
       o.start(t);
       o.stop(t + 400 * 0.18);
+    }
+  }
+
+  /**
+   * Speech-like babble: a buzzy glottal source through two moving formant filters, chopped into
+   * syllables. Not words, just the cadence of a voice (barks, radio chatter, announcements).
+   */
+  private voice(dest: AudioNode, t: number, syllables: number, pitch: number, rate = 7, peak = 0.12, shout = false) {
+    const src = this.ctx.createOscillator();
+    src.type = 'sawtooth';
+    const dur = syllables / rate + 0.1;
+    src.frequency.setValueAtTime(pitch, t);
+    for (let i = 0; i < syllables; i++) src.frequency.setValueAtTime(pitch * (shout ? 1.25 : 1) * rand(0.88, 1.15), t + i / rate);
+    src.frequency.linearRampToValueAtTime(pitch * (shout ? 1.1 : 0.85), t + dur);
+    const f1 = this.filter('bandpass', 600, 6);
+    const f2 = this.filter('bandpass', 1500, 8);
+    const vowels: [number, number][] = [[750, 1150], [500, 1800], [350, 2200], [600, 1000], [450, 900]];
+    for (let i = 0; i < syllables; i++) {
+      const [a, b] = vowels[Math.floor(Math.random() * vowels.length)];
+      f1.frequency.setTargetAtTime(a, t + i / rate, 0.02);
+      f2.frequency.setTargetAtTime(b, t + i / rate, 0.02);
+    }
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    for (let i = 0; i < syllables; i++) {
+      const s = t + i / rate;
+      g.gain.linearRampToValueAtTime(peak * rand(0.6, 1), s + 0.025);
+      g.gain.linearRampToValueAtTime(peak * 0.15, s + 0.8 / rate);
+    }
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    src.connect(f1).connect(g);
+    src.connect(f2).connect(g);
+    g.connect(dest);
+    src.start(t);
+    src.stop(t + dur + 0.05);
+    return dur;
+  }
+
+  /** Radio squelch click + hiss tail. */
+  private squelch(dest: AudioNode, t: number) {
+    this.burst(dest, this.white, 'bandpass', 2400, 1, 0.08, 0.002, 0.06, t);
+    this.tone(dest, 'square', 1200, 1200, 0.03, 0.001, 0.02, t);
+  }
+
+  /**
+   * Security voices. Barks come from the guard's position; radio traffic plays through the player's
+   * earpiece-like band-limited channel (no position) so it reads as information, not a location.
+   */
+  radio(pos: V3 | null, kind: string) {
+    if (!this.started) return;
+    const t = this.now();
+    if (kind === 'door') {
+      const o = this.out(pos, 0.4);
+      this.metal(o, 160, 0.25, 0.9, [1, 1.52, 2.3]);
+      this.burst(o, this.white, 'lowpass', 900, 0.7, 0.2, 0.01, 0.3, t);
+      return;
+    }
+    const band = this.filter('bandpass', 1500, 0.9);
+    const drive = this.ctx.createWaveShaper();
+    const c = new Float32Array(256);
+    for (let i = 0; i < 256; i++) c[i] = Math.tanh(((i / 255) * 2 - 1) * 3);
+    drive.curve = c;
+    band.connect(drive);
+    if (pos) {
+      // Bark from the guard plus a quieter radio echo.
+      const o = this.out(pos, 0.3);
+      drive.connect(o);
+      const shout = kind === 'freeze' || kind === 'contact';
+      const n = kind === 'huh' ? 2 : kind === 'freeze' ? 3 : 5;
+      const d = this.voice(band, t, n, shout ? 165 : 120, shout ? 6 : 7, shout ? 0.32 : 0.16, shout);
+      if (kind !== 'huh') this.squelch(o, t + d + 0.02);
+    } else {
+      const o = this.out(null, 0.05, this.ui);
+      const g = this.ctx.createGain();
+      g.gain.value = 0.55;
+      drive.connect(g).connect(o);
+      this.squelch(o, t);
+      const d = this.voice(band, t + 0.08, 9, 110, 8, 0.12);
+      this.squelch(o, t + 0.12 + d);
     }
   }
 

@@ -116,3 +116,38 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 #zone .box { display: flex; align-items: baseline; gap: 16px; padding: 6px 16px; border-top: 1px solid var(--cyan-faint); border-bottom: 1px solid var(--cyan-faint); background: linear-gradient(90deg, transparent, rgba(4, 10, 20, 0.45), transparent); }
 #zone .en { font-size: 12px; letter-spacing: 0.55em; color: #e8fbff; }
 #zone .jp { font-family: var(--jp); font-size: 12px; letter-spacing: 0.45em; color: var(--cyan-dim); }
+
+/* ---------- Story HUD ---------- */
+#story { z-index: 5; }
+.wanted { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 14px; border-top: 1px solid var(--cyan-faint); border-bottom: 1px solid var(--cyan-faint); background: linear-gradient(90deg, transparent, rgba(4, 10, 20, 0.5), transparent); font-size: 11px; letter-spacing: 0.4em; color: var(--cyan); transition: color 0.4s, border-color 0.4s; }
+.wanted .jp { font-family: var(--jp); margin-left: 10px; letter-spacing: 0.3em; opacity: 0.7; }
+.wanted .eye { width: 16px; height: 9px; border: 1.5px solid currentColor; border-radius: 50% / 50%; position: relative; }
+.wanted .eye::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: currentColor; }
+.wanted.unnoticed .eye { opacity: 0.45; }
+.wanted .meter { width: 54px; height: 2px; background: var(--cyan-faint); }
+.wanted .meter i { display: block; height: 100%; width: 0; background: currentColor; transition: width 0.15s linear; }
+.wanted.unnoticed .meter { opacity: 0; }
+.wanted.suspicious { color: #ffd65a; border-color: rgba(255, 214, 90, 0.35); }
+.wanted.alerted { color: #ffa040; border-color: rgba(255, 160, 64, 0.4); }
+.wanted.search { color: #ff9a5a; border-color: rgba(255, 154, 90, 0.4); }
+.wanted.pursuit { color: var(--red); border-color: rgba(255, 59, 92, 0.5); animation: pulse 0.9s ease-in-out infinite; }
+.objective { position: absolute; top: 22px; left: 26px; max-width: 34vw; font-size: 11px; letter-spacing: 0.22em; color: #e8fbff; line-height: 1.6; }
+.objective .tag { display: block; font-size: 9px; letter-spacing: 0.5em; color: var(--cyan-dim); margin-bottom: 2px; }
+.objective .jp { display: block; font-family: var(--jp); font-size: 10px; color: var(--cyan-dim); letter-spacing: 0.3em; }
+.objective.flash { animation: objflash 1.6s ease-out; }
+@keyframes objflash { 0% { color: #fff; text-shadow: 0 0 14px rgba(120, 235, 255, 0.9); } 100% { text-shadow: none; } }
+.radio { position: absolute; left: 26px; bottom: 120px; display: flex; flex-direction: column; gap: 4px; font-size: 10px; letter-spacing: 0.22em; max-width: 46vw; }
+.radio .line { color: var(--cyan); transition: opacity 0.3s; }
+.radio .line::before { content: '◢ '; opacity: 0.6; }
+.radio .warn { color: #ffb060; }
+.radio .alert { color: var(--red); }
+.radio .story { color: #f0e6ff; font-size: 12px; letter-spacing: 0.12em; }
+.radio .story::before { content: ''; }
+.prompt { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); padding: 5px 12px; font-size: 11px; letter-spacing: 0.3em; color: #f2fdff; border: 1px solid var(--cyan-dim); background: rgba(4, 10, 20, 0.55); opacity: 0; transition: opacity 0.2s; }
+.prompt.on { opacity: 1; }
+.prompt b { color: var(--cyan); font-weight: 400; margin-right: 8px; }
+.arcs { position: absolute; left: 50%; top: 50%; width: 320px; height: 320px; margin: -160px 0 0 -160px; }
+#hud.holstered .crosshair { opacity: 0.22; }
+#hud.holstered .ammo { opacity: 0; }
+#hud.story .wave { display: none; }
+#hud .crosshair, #hud .ammo { transition: opacity 0.25s; }
