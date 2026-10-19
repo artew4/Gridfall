@@ -87,3 +87,32 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 #cine .t2 { margin-top: 16px; font-family: var(--jp); font-size: 14px; letter-spacing: 0.9em; color: rgba(255,140,210,0.85); }
 #cine .t3 { position: absolute; bottom: 16%; left: 9%; font-size: 11px; letter-spacing: 0.4em; color: var(--cyan-dim); text-align: left; line-height: 2; }
 #skip { z-index: 8; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 30px 15vh 0; font-size: 10px; letter-spacing: 0.4em; color: rgba(255,255,255,0.35); opacity: 0; }
+
+/* ---------- Pause menu ---------- */
+#pausemenu { z-index: 12; display: flex; align-items: center; justify-content: center; background: rgba(2, 3, 10, 0.62); backdrop-filter: blur(4px); pointer-events: auto; transition: opacity 0.25s ease; }
+.pm-panel { width: min(420px, 90vw); padding: 30px 34px 22px; border: 1px solid var(--cyan-faint); border-left: 2px solid var(--cyan-dim); background: linear-gradient(180deg, rgba(8, 14, 26, 0.92), rgba(4, 6, 14, 0.92)); box-shadow: 0 0 40px rgba(34, 232, 255, 0.06), inset 0 0 30px rgba(34, 232, 255, 0.03); }
+.pm-title { font-size: 26px; font-weight: 200; letter-spacing: 0.55em; color: #e8fbff; margin-bottom: 22px; }
+.pm-title .jp, .pm-btn .jp, .pm-sep .jp { font-family: var(--jp); font-size: 11px; letter-spacing: 0.4em; color: var(--cyan-dim); margin-left: 14px; }
+.pm-btn { display: block; width: 100%; margin: 8px 0; padding: 11px 14px; text-align: left; font-family: var(--mono); font-size: 13px; letter-spacing: 0.4em; color: var(--cyan); background: rgba(120, 235, 255, 0.03); border: 1px solid var(--cyan-faint); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s; }
+.pm-btn:hover, .pm-btn:focus-visible { outline: none; color: #fff; border-color: var(--cyan); background: rgba(120, 235, 255, 0.09); box-shadow: 0 0 14px rgba(34, 232, 255, 0.25); }
+.pm-btn.primary { color: #f2fdff; border-color: var(--cyan-dim); }
+.pm-btn.toggle b { font-weight: 400; color: #fff; }
+.pm-btn.toggle.on { border-color: rgba(255, 59, 92, 0.6); }
+.pm-btn.toggle.on b { color: var(--red); }
+.pm-hint { min-height: 14px; font-size: 10px; letter-spacing: 0.35em; color: rgba(255, 140, 210, 0.85); }
+.pm-sep { display: flex; align-items: center; margin: 22px 0 8px; font-size: 10px; letter-spacing: 0.5em; color: var(--cyan-dim); }
+.pm-sep::after { content: ''; flex: 1; height: 1px; margin-left: 12px; background: var(--cyan-faint); }
+.pm-slider { display: grid; grid-template-columns: 72px 1fr 34px; align-items: center; gap: 12px; margin: 10px 0; font-size: 11px; letter-spacing: 0.3em; color: var(--cyan); cursor: pointer; }
+.pm-slider .val { text-align: right; color: #e8fbff; }
+.pm-slider input { --fill: 50%; appearance: none; -webkit-appearance: none; height: 3px; background: linear-gradient(90deg, var(--cyan) var(--fill), var(--cyan-faint) var(--fill)); outline: none; cursor: pointer; }
+.pm-slider input::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: #e8fbff; border: none; box-shadow: 0 0 8px rgba(34, 232, 255, 0.8); transform: rotate(45deg); }
+.pm-slider input::-moz-range-thumb { width: 11px; height: 11px; background: #e8fbff; border: none; border-radius: 0; box-shadow: 0 0 8px rgba(34, 232, 255, 0.8); transform: rotate(45deg); }
+.pm-slider input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6), 0 0 12px rgba(34, 232, 255, 1); }
+.pm-foot { margin-top: 16px; font-size: 9px; letter-spacing: 0.3em; color: var(--cyan-faint); font-family: var(--mono); }
+
+/* ---------- Zone toast ---------- */
+#zone { z-index: 6; display: flex; justify-content: center; align-items: flex-start; padding-top: 11vh; opacity: 0; transition: opacity 0.8s ease; }
+#zone.show { opacity: 1; }
+#zone .box { display: flex; align-items: baseline; gap: 16px; padding: 6px 16px; border-top: 1px solid var(--cyan-faint); border-bottom: 1px solid var(--cyan-faint); background: linear-gradient(90deg, transparent, rgba(4, 10, 20, 0.45), transparent); }
+#zone .en { font-size: 12px; letter-spacing: 0.55em; color: #e8fbff; }
+#zone .jp { font-family: var(--jp); font-size: 12px; letter-spacing: 0.45em; color: var(--cyan-dim); }

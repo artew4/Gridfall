@@ -667,3 +667,107 @@ export function blurredCopy(t: THREE.Texture, blur = 10): THREE.Texture {
   ctx.filter = 'none';
   return tex(c);
 }
+
+/** Perforated steel plate for railing panels (opaque: holes are just darker). */
+export function perforatedTexture(): THREE.Texture {
+  const S = 128;
+  const { c, ctx } = canvas(S, S);
+  ctx.fillStyle = '#8c9098';
+  ctx.fillRect(0, 0, S, S);
+  ctx.fillStyle = '#16181c';
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      ctx.beginPath();
+      ctx.arc(x * 16 + 8 + (y % 2) * 8, y * 16 + 8, 4.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  return tex(c, true, true);
+}
+
+/** Large granite paving for the plaza, with dark joints and worn tiles. */
+export function pavingTexture(): THREE.Texture {
+  const S = 512;
+  const rnd = mulberry32(31);
+  const { c, ctx } = canvas(S, S);
+  noiseFill(ctx, S, S, [92, 90, 98], 22, rnd);
+  const n = 4;
+  const t = S / n;
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const k = 0.8 + rnd() * 0.4;
+      ctx.fillStyle = `rgba(${k > 1 ? 255 : 0},${k > 1 ? 255 : 0},${k > 1 ? 255 : 0},${Math.abs(k - 1) * 0.35})`;
+      ctx.fillRect(x * t, y * t, t, t);
+    }
+  }
+  ctx.fillStyle = '#1c1b20';
+  for (let i = 0; i <= n; i++) {
+    ctx.fillRect(i * t - 2, 0, 4, S);
+    ctx.fillRect(0, i * t - 2, S, 4);
+  }
+  grime(ctx, S, S, rnd, 30);
+  return tex(c, true, true);
+}
+
+/** Chain-link fence with alpha. */
+export function chainLinkTexture(): THREE.Texture {
+  const S = 64;
+  const { c, ctx } = canvas(S, S);
+  ctx.clearRect(0, 0, S, S);
+  ctx.strokeStyle = 'rgba(190,195,205,0.95)';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(S, S);
+  ctx.moveTo(S, 0);
+  ctx.lineTo(0, S);
+  ctx.stroke();
+  return tex(c, true, true);
+}
+
+/** Tall rooftop billboard: a looping strip of ads scrolled in the shader via texture offset. */
+export function billboardTexture(): THREE.Texture {
+  const W = 256;
+  const H = 1024;
+  const { c, ctx } = canvas(W, H);
+  const ads: [string, string, string][] = [
+    ['#ff2fa8', '#13001a', 'ネオ東京'],
+    ['#22e8ff', '#001018', '電脳'],
+    ['#ffd23a', '#1a1000', '夜市'],
+    ['#9d6bff', '#0c0018', '未来'],
+  ];
+  const h = H / ads.length;
+  ads.forEach(([fg, bg, text], i) => {
+    const y = i * h;
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, y, W, h);
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, 'rgba(255,255,255,0.0)');
+    g.addColorStop(0.5, fg + '55');
+    g.addColorStop(1, 'rgba(255,255,255,0.0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, y, W, h);
+    ctx.fillStyle = fg;
+    ctx.font = `bold 72px ${JP_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const chars = [...text];
+    chars.forEach((ch, k) => ctx.fillText(ch, W / 2, y + h / 2 + (k - (chars.length - 1) / 2) * 76));
+    ctx.fillRect(16, y + 10, W - 32, 4);
+    ctx.fillRect(16, y + h - 14, W - 32, 4);
+  });
+  const t = tex(c, true);
+  t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+/** Green hologram cross for the medkit. */
+export function crossTexture(): THREE.Texture {
+  const S = 128;
+  const { c, ctx } = canvas(S, S);
+  ctx.clearRect(0, 0, S, S);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(S * 0.38, S * 0.12, S * 0.24, S * 0.76);
+  ctx.fillRect(S * 0.12, S * 0.38, S * 0.76, S * 0.24);
+  return tex(c);
+}

@@ -9,38 +9,67 @@ const HASH_GLSL = /* glsl */ `
   }
 `;
 
-/** Shelter and open-area tests shared by rain and splashes (the overpass keeps the street below dry). */
+export const MAX_AREAS = 16;
+
+/** Rain-relevant geometry: where rain is blocked, where it lands above the ground, and open ground. */
+export interface RainAreas {
+  open: [number, number, number, number][];
+  surfaces: { x0: number; z0: number; x1: number; z1: number; y: number }[];
+  shelters: { x0: number; z0: number; x1: number; z1: number; y: number }[];
+}
+
+/** Shelter and surface tests shared by rain and splashes (walkways and the overpass keep what's below dry). */
 const AREA_GLSL = /* glsl */ `
-  uniform vec4 uShelter; // xmin, zmin, xmax, zmax of the overpass
-  uniform float uShelterY;
+  uniform vec4 uShel[${MAX_AREAS}]; // xmin, zmin, xmax, zmax
+  uniform float uShelY[${MAX_AREAS}];
+  uniform vec4 uSurf[${MAX_AREAS}];
+  uniform float uSurfY[${MAX_AREAS}];
+  uniform vec4 uOpen[${MAX_AREAS}];
+  float inRect(vec2 p, vec4 r) { return step(r.x, p.x) * step(p.x, r.z) * step(r.y, p.y) * step(p.y, r.w); }
   float sheltered(vec3 p) {
-    return (p.x > uShelter.x && p.x < uShelter.z && p.z > uShelter.y && p.z < uShelter.w && p.y < uShelterY) ? 1.0 : 0.0;
+    float s = 0.0;
+    for (int i = 0; i < ${MAX_AREAS}; i++) s = max(s, inRect(p.xz, uShel[i]) * step(p.y, uShelY[i]));
+    return s;
   }
-  // Open ground: main street + the two side alleys.
-  float openGround(vec2 p) {
-    float street = step(abs(p.x), 6.0) * step(p.y, 33.4) * step(-54.0, p.y);
-    float la = step(-26.0, p.x) * step(p.x, -6.0) * step(-4.0, p.y) * step(p.y, -1.0);
-    float ra = step(6.0, p.x) * step(p.x, 26.0) * step(-18.0, p.y) * step(p.y, -14.0);
-    return clamp(street + la + ra, 0.0, 1.0);
-  }
+  // Ground plus anything raised that rain lands on (walkway decks, kerbs).
   float groundY(vec2 p) {
-    float a = abs(p.x);
-    return (a > 4.4 && a < 6.0 && p.y > -54.0 && p.y < 34.0) ? 0.135 : 0.02;
+    float y = 0.02;
+    for (int i = 0; i < ${MAX_AREAS}; i++) y = max(y, inRect(p, uSurf[i]) * (uSurfY[i] + 0.01));
+    return y;
+  }
+  float openGround(vec2 p) {
+    float o = 0.0;
+    for (int i = 0; i < ${MAX_AREAS}; i++) o = max(o, inRect(p, uOpen[i]));
+    for (int i = 0; i < ${MAX_AREAS}; i++) o = max(o, inRect(p, uSurf[i]));
+    return o;
   }
 `;
+
+const rectArray = (list: { x0: number; z0: number; x1: number; z1: number }[] | [number, number, number, number][]) =>
+  Array.from({ length: MAX_AREAS }, (_, i) => {
+    const r = list[i];
+    if (!r) return new THREE.Vector4(1e5, 1e5, -1e5, -1e5);
+    return Array.isArray(r) ? new THREE.Vector4(r[0], r[1], r[2], r[3]) : new THREE.Vector4(r.x0, r.z0, r.x1, r.z1);
+  });
 
 export class Rain {
   uniforms: Record<string, THREE.IUniform>;
   meshes: THREE.Mesh[] = [];
 
-  constructor(scene: THREE.Scene, glows: Glows, time: { value: number }, fog: THREE.FogExp2) {
+  constructor(scene: THREE.Scene, glows: Glows, time: { value: number }, fog: THREE.FogExp2, areas: RainAreas) {
+    if (areas.shelters.length > MAX_AREAS || areas.surfaces.length > MAX_AREAS || areas.open.length > MAX_AREAS) {
+      console.warn('Rain: too many areas, extra ones ignored');
+    }
     this.uniforms = {
       uTime: time,
       uCam: { value: new THREE.Vector3() },
       uWind: { value: new THREE.Vector2(1.2, 0.4) },
       uFogDensity: { value: fog.density },
-      uShelter: { value: new THREE.Vector4(-40, -37.5, 40, -32.5) },
-      uShelterY: { value: 6.4 },
+      uShel: { value: rectArray(areas.shelters) },
+      uShelY: { value: Array.from({ length: MAX_AREAS }, (_, i) => areas.shelters[i]?.y ?? -1e5) },
+      uSurf: { value: rectArray(areas.surfaces) },
+      uSurfY: { value: Array.from({ length: MAX_AREAS }, (_, i) => areas.surfaces[i]?.y ?? 0) },
+      uOpen: { value: rectArray(areas.open) },
       uIntensity: { value: 1 },
       ...glows.uniforms,
     };
@@ -109,7 +138,7 @@ export class Rain {
           vUv = uv;
           float near = smoothstep(0.5, 2.8, dist);
           float fogF = exp(-uFogDensity * uFogDensity * dist * dist * 0.7);
-          float alive = (1.0 - sheltered(p)) * step(0.0, p.y);
+          float alive = (1.0 - sheltered(p)) * step(groundY(p.xz) - 0.02, p.y);
           vAlpha = near * fogF * alive * uIntensity;
           vCol = vec3(0.16, 0.17, 0.22) + glowLight(p) * 2.2;
           gl_Position = projectionMatrix * mv;

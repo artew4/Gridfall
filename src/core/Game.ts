@@ -3,16 +3,21 @@ import { Renderer } from './Renderer';
 import { Input } from './Input';
 import { clamp, damp, rand } from './math';
 import { AudioEngine } from '../audio/AudioEngine';
+import { MusicDirector } from '../audio/music/MusicDirector';
 import { CollisionWorld, type RayHit } from '../world/Collision';
 import { Glows } from '../world/Glows';
 import { City } from '../world/City';
-import { buildSigns, type SignGlow } from '../world/Signs';
-import { buildProps } from '../world/Props';
+import type { SignGlow } from '../world/Signs';
+import { buildDistrict, type DistrictResult } from '../world/District';
+import { Fountain } from '../world/Fountain';
+import { Events } from '../world/Events';
 import { createStreak, updateStreaks } from '../world/Ground';
 import { Rain, Steam } from '../world/Rain';
 import { Train } from '../world/Train';
 import { smokeTexture } from '../world/Textures';
+import { zoneAt, type Zone } from '../world/Zones';
 import { Effects } from '../combat/Effects';
+import { Interactives } from '../gameplay/Interactives';
 import { Player } from '../player/Player';
 import { Weapon } from '../player/Weapon';
 import { Projectiles } from '../enemies/Projectiles';
@@ -20,11 +25,12 @@ import { Nav } from '../enemies/Nav';
 import { Waves } from '../enemies/Waves';
 import type { Enemy, EnemyCtx, EnemyHit } from '../enemies/Enemy';
 import { Hud, jpNumber } from '../ui/Hud';
+import { PauseMenu } from '../ui/PauseMenu';
+import { loadSettings, saveSettings, type Settings } from '../ui/Settings';
 import { Intro } from '../cinematic/Intro';
 
 type State = 'title' | 'intro' | 'play' | 'paused' | 'dead';
 
-const PLAYER_START = { x: 0, z: 10, yaw: 0 };
 const FOG_COLOR = new THREE.Color(0x0d0b19);
 
 export class Game {
@@ -37,24 +43,31 @@ export class Game {
   renderer: Renderer;
   input: Input;
   audio = new AudioEngine();
+  music = new MusicDirector();
   col = new CollisionWorld();
   glows = new Glows();
   hud: Hud;
+  menu: PauseMenu;
+  settings: Settings;
   state: State = 'title';
   private stateBeforePause: State = 'play';
 
   private city!: City;
+  district!: DistrictResult;
   private rain!: Rain;
   private train!: Train;
+  private fountain!: Fountain;
+  private events!: Events;
+  private interactives!: Interactives;
   private streaks: THREE.Mesh[] = [];
   private signs: SignGlow[] = [];
   private hums: { glow: SignGlow; h: ReturnType<AudioEngine['addHum']>; last: number }[] = [];
   private fx!: Effects;
-  private player!: Player;
+  player!: Player;
   private weapon!: Weapon;
   private projectiles!: Projectiles;
-  private nav!: Nav;
-  private waves = new Waves();
+  nav!: Nav;
+  waves = new Waves();
   private intro: Intro | null = null;
   private coverPoints: THREE.Vector3[] = [];
   private occupied = new Set<THREE.Vector3>();
@@ -69,20 +82,28 @@ export class Game {
   private deadT = 0;
   private stats = { shots: 0, hits: 0, start: 0 };
   private clock = new THREE.Timer();
-  private elapsed = 0;
+  elapsed = 0;
   private ready = false;
-  private ctx!: EnemyCtx;
+  ctx!: EnemyCtx;
+  private zone: Zone | null = null;
+  private zoneCandidate: Zone | null = null;
+  private zoneT = 0;
+  private wind = 0;
+  private perf = { acc: 0, frames: 0, fps: 60, lowT: 0, highT: 0 };
   private tmpHit: RayHit = { dist: 0, point: new THREE.Vector3(), normal: new THREE.Vector3(), surface: 'concrete' };
 
   constructor(container: HTMLElement) {
     this.scene.fog = this.fog;
     this.scene.background = FOG_COLOR;
-    this.camera.position.set(-3.2, 0.32, 29);
-    this.camera.lookAt(0, 0, 18);
+    this.camera.position.set(-1.5, 0.6, 42);
+    this.camera.lookAt(0, 3, 20);
     this.weaponScene.add(this.weaponCamera);
     this.renderer = new Renderer(container, this.scene, this.camera, this.weaponScene, this.weaponCamera);
     this.input = new Input(this.renderer.canvas);
     this.hud = new Hud(document.body);
+    this.settings = loadSettings();
+    this.menu = new PauseMenu(document.body, this.settings);
+    this.applySettings();
     this.renderer.grade.uniforms.uFade.value = 1;
   }
 
@@ -91,6 +112,12 @@ export class Game {
       await document.fonts.ready;
     } catch {
       /* fonts API unavailable: fall back silently */
+    }
+    // Optional music files are fetched while the city builds (procedural score otherwise).
+    try {
+      this.music.preload(new OfflineAudioContext(2, 1, 44100));
+    } catch {
+      /* no OfflineAudioContext: procedural only */
     }
     // Let the title paint before the heavy procedural build.
     await new Promise((r) => setTimeout(r, 30));
@@ -110,17 +137,18 @@ export class Game {
     s.add(moon);
 
     this.city = new City(s, this.col, this.glows, this.time, this.fog);
-    this.city.build();
-    this.signs = buildSigns(this.city.ctx);
-    const props = buildProps(this.city.ctx);
+    const d = buildDistrict(this.city, () => this.wind);
+    this.district = d;
+    this.signs = d.signs;
+    this.fountain = new Fountain(this.city.ctx, this.glows);
     this.city.ctx.builder.build(s);
-    this.coverPoints = props.coverPoints;
+    this.coverPoints = d.coverPoints;
     this.city.buildSky();
 
-    // Bake an environment map of the lit street once: wet and metal surfaces reflect neon for free.
+    // Bake an environment map of the lit district once: wet and metal surfaces reflect neon for free.
     this.glows.update(0, new THREE.Vector3());
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
-    const env = pmrem.fromScene(s, 0.02, 0.1, 300, { position: new THREE.Vector3(0, 3, 0) } as never).texture;
+    const env = pmrem.fromScene(s, 0.02, 0.1, 300, { position: new THREE.Vector3(0, 3, 4) } as never).texture;
     s.environment = env;
     s.environmentIntensity = 0.9;
     this.weaponScene.environment = env;
@@ -135,21 +163,45 @@ export class Game {
     }
     this.train = new Train(s, this.glows);
     this.train.onPass = (dir) => this.audio.trainPass(dir);
+    this.train.onWarn = () => this.audio.stationChime();
+    this.train.onBell = () => this.audio.crossingBell({ x: 0, y: 8.5, z: -21 });
+
+    this.fx = new Effects(s, this.fog);
+    this.fx.onShellBounce = (p, k) => this.audio.shellBounce(p, k);
+    this.events = new Events(this.glows, this.fx, this.audio, this.signs, d.transformers, d.vents, d.trackside);
+    this.interactives = new Interactives(s, this.glows, this.fx, this.audio, d.cabinets, d.medkits, d.breakables);
+    this.interactives.onKill = () => this.waves.kills++;
+
     this.glows.buildHalos(s);
-    this.rain = new Rain(s, this.glows, this.time, this.fog);
-    new Steam(s, this.glows, this.time, props.steamEmitters, smokeTexture(), this.fog);
+    this.rain = new Rain(s, this.glows, this.time, this.fog, {
+      open: d.open,
+      surfaces: d.arch.surfaces.concat([
+        { x0: -5, z0: 15, x1: -3.6, z1: 48, y: 0.12 },
+        { x0: 3.6, z0: 15, x1: 5, z1: 48, y: 0.12 },
+        { x0: -6, z0: -58, x1: -4.6, z1: -15, y: 0.12 },
+        { x0: 4.6, z0: -58, x1: 6, z1: -15, y: 0.12 },
+      ]),
+      shelters: d.arch.shelters.concat([{ x0: -80, z0: -26, x1: 80, z1: -21, y: 6.4 }]),
+    });
+    new Steam(s, this.glows, this.time, d.steamEmitters, smokeTexture(), this.fog);
 
     this.muzzleLight = new THREE.PointLight(0xffa860, 0, 14, 2);
     s.add(this.muzzleLight);
 
-    this.fx = new Effects(s, this.fog);
-    this.fx.onShellBounce = (p, k) => this.audio.shellBounce(p, k);
     this.player = new Player(this.col, this.audio);
-    this.player.reset(PLAYER_START.x, PLAYER_START.z, PLAYER_START.yaw);
+    this.player.reset(d.start.x, d.start.z, d.start.yaw);
     this.weapon = new Weapon(this.weaponScene, this.weaponCamera, this.audio);
     this.projectiles = new Projectiles(s, this.col, this.fx, this.audio);
     this.projectiles.onPlayerHit = (dmg, from) => this.damagePlayer(dmg, from);
-    this.nav = new Nav(this.col);
+    this.nav = new Nav(this.col, d.nav);
+
+    // Only spawn on open ground that the nav graph can reach: never inside walls or off-map.
+    this.waves.spawns = d.spawns.filter((p) => {
+      const ok = !this.col.blocked(p, 0.5) && Math.abs(this.col.groundHeightAt(p.x, p.z, 0.3, p.y + 0.1) - p.y) < 0.05 && this.nav.nearestVisible(new THREE.Vector3(p.x, p.y + 1, p.z)) >= 0;
+      if (!ok) console.warn('[district] rejected spawn', p.toArray());
+      return ok;
+    });
+    this.waves.perches = d.perches;
 
     this.ctx = {
       scene: s,
@@ -164,7 +216,9 @@ export class Game {
       coverPoints: this.coverPoints,
       occupied: this.occupied,
       enemies: this.waves.enemies,
-      damagePlayer: (d, f) => this.damagePlayer(d, f),
+      bounds: d.bounds,
+      perches: d.perches,
+      damagePlayer: (dmg, f) => this.damagePlayer(dmg, f),
     };
     this.waves.onWaveStart = (n) => {
       this.hud.bannerShow(`WAVE ${String(n).padStart(2, '0')}`, `第${jpNumber(n)}波`);
@@ -176,25 +230,34 @@ export class Game {
       this.player.health = Math.min(this.player.maxHealth, this.player.health + 35);
     };
     this.waves.onSpawn = (e, at) => {
-      if (e.kind === 'gunner') this.audio.clang(at.clone().setY(1.5), 0.7);
+      if (e.kind === 'gunner') this.audio.clang(at.clone().setY(at.y + 1.5), 0.7);
     };
+    this.waves.onSniper = () => this.music.accent();
+    this.waves.onLastEnemy = () => this.music.accent();
 
     // Compile everything up front so the first shot doesn't hitch.
     this.renderer.renderer.compile(s, this.camera);
+  }
+
+  // ------------------------------------------------------------------ UI, pause and pointer lock
+  private applySettings() {
+    const s = this.settings;
+    this.audio.setVolume('master', s.master / 100);
+    this.audio.setVolume('music', s.music / 100);
+    this.audio.setVolume('sfx', s.sfx / 100);
+    this.audio.setMuted(s.muted);
   }
 
   private bindUi() {
     this.hud.title.addEventListener('click', () => {
       if (!this.ready || this.state !== 'title') return;
       this.audio.start();
+      this.applySettings();
+      this.music.start(this.audio);
       this.startAudioWorld();
       this.hud.show(this.hud.title, false);
       this.input.requestLock();
       this.startIntro();
-    });
-    this.hud.pause.addEventListener('click', () => {
-      this.audio.start();
-      this.input.requestLock();
     });
     this.hud.death.addEventListener('click', () => {
       if (this.state === 'dead' && this.deadT > 1.2) this.restart();
@@ -202,15 +265,26 @@ export class Game {
     this.renderer.canvas.addEventListener('click', () => {
       if (this.state === 'play' || this.state === 'intro') this.input.requestLock();
     });
+    this.menu.onResume = () => {
+      this.audio.start();
+      this.input.requestLock();
+    };
+    this.menu.onRestart = () => {
+      this.menu.show(false);
+      this.music.setPaused(false);
+      this.restart();
+    };
+    this.menu.onChange = (s) => {
+      this.applySettings();
+      saveSettings(s);
+    };
+    this.input.onLockError = () => {
+      if (this.state === 'paused') this.menu.setHint('BROWSER BLOCKED THE MOUSE — CLICK RESUME AGAIN');
+    };
+    // Esc releases the pointer (browser behaviour): that is the pause. Resume only once the lock is back.
     this.input.onLockChange = (locked) => {
-      if (!locked && this.state === 'play') {
-        this.stateBeforePause = this.state;
-        this.state = 'paused';
-        this.hud.show(this.hud.pause, true);
-      } else if (locked && this.state === 'paused') {
-        this.state = this.stateBeforePause;
-        this.hud.show(this.hud.pause, false);
-      }
+      if (!locked && (this.state === 'play' || this.state === 'intro')) this.pause();
+      else if (locked && this.state === 'paused') this.resume();
     };
     this.input.onAnyKey = () => {
       if (this.state === 'intro' && this.intro && this.intro.t > 0.4) this.intro.skip();
@@ -220,15 +294,33 @@ export class Game {
     });
   }
 
+  private pause() {
+    if (this.state === 'paused') return;
+    this.stateBeforePause = this.state;
+    this.state = 'paused';
+    this.menu.show(true);
+    this.music.setPaused(true);
+  }
+
+  private resume() {
+    this.state = this.stateBeforePause;
+    this.menu.show(false);
+    this.music.setPaused(false);
+  }
+
   private startAudioWorld() {
     for (const g of this.signs) {
       if (g.hum) this.hums.push({ glow: g, h: this.audio.addHum(g.pos, 100 + Math.random() * 20), last: 1 });
     }
+    this.audio.addLoop({ x: 0, y: 1, z: 0 }, 'fountain');
+    this.audio.addLoop(this.district.pachinko, 'pachinko');
   }
 
   private startIntro() {
     this.state = 'intro';
     this.intro = new Intro(this.scene, this.audio, this.projectiles.light);
+    // A train rolls over the plaza while the camera glides in.
+    this.train.startNow(1, -190);
     this.hud.show(this.hud.skip, true);
     this.hud.skip.style.opacity = '1';
   }
@@ -240,15 +332,13 @@ export class Game {
     this.hud.skip.style.opacity = '0';
     this.hud.cine.style.opacity = '0';
     this.hud.show(this.hud.root, true);
-    this.player.reset(PLAYER_START.x, PLAYER_START.z, PLAYER_START.yaw);
+    const st = this.district.start;
+    this.player.reset(st.x, st.z, st.yaw);
     this.weapon.raiseTarget = 1;
     this.stats = { shots: 0, hits: 0, start: this.elapsed };
+    this.zone = null;
     this.waves.startNext();
-    if (!this.input.locked) {
-      this.state = 'paused';
-      this.stateBeforePause = 'play';
-      this.hud.show(this.hud.pause, true);
-    }
+    if (!this.input.locked) this.pause();
   }
 
   private restart() {
@@ -258,6 +348,8 @@ export class Game {
     this.fx.clear();
     this.projectiles.clear();
     this.weapon.reset();
+    this.interactives.reset();
+    this.events.reset();
     this.timeScale = 1;
     this.damageFx = 0;
     this.renderer.grade.uniforms.uFade.value = 0;
@@ -321,6 +413,8 @@ export class Game {
     } else if (wh) {
       this.fx.impact(wh.point, wh.normal, wh.surface);
       this.audio.hitSurface(wh.point, wh.surface);
+      // Cabinets, lamps and other shootable props.
+      wh.collider?.onHit?.(wh);
     }
 
     // Camera kick: a bit of permanent climb plus a springy punch.
@@ -346,10 +440,10 @@ export class Game {
 
     // ---- State logic
     if (this.state === 'title') {
-      // Slow ambient drift behind the title.
+      // Slow ambient drift behind the title, looking up Lantern Street towards the plaza.
       const t = this.elapsed;
-      this.camera.position.set(-3.2 + Math.sin(t * 0.05) * 0.6, 0.6 + Math.sin(t * 0.13) * 0.1, 27 - Math.sin(t * 0.04) * 2);
-      this.camera.lookAt(0.5, 2.4, 0);
+      this.camera.position.set(-1.5 + Math.sin(t * 0.05) * 0.6, 0.6 + Math.sin(t * 0.13) * 0.1, 42 - Math.sin(t * 0.04) * 2);
+      this.camera.lookAt(0.5, 3, 20);
       this.renderer.grade.uniforms.uFade.value = damp(this.renderer.grade.uniforms.uFade.value, 0.25, 1.5, rawDt);
     } else if (this.state === 'intro' && this.intro) {
       const f = this.intro.update(dt, this.camera);
@@ -371,6 +465,7 @@ export class Game {
       this.ctx.difficulty = this.waves.difficulty;
       this.waves.update(dt, this.ctx);
       this.projectiles.update(dt, this.player);
+      this.interactives.update(dt, this.elapsed, this.ctx);
       if (this.state === 'play' && !this.player.alive) {
         this.state = 'dead';
         this.deadT = 0;
@@ -392,6 +487,7 @@ export class Game {
           });
         }
       }
+      if (this.state === 'play') this.updateZone(dt);
       // HUD.
       this.hud.setHealth(this.player.health, this.player.maxHealth);
       this.hud.setAmmo(this.weapon.ammo, this.weapon.reloading);
@@ -400,6 +496,7 @@ export class Game {
     }
 
     if (!paused) this.updateWorld(dt, rawDt);
+    this.updateMusic(dt);
     this.hud.update(rawDt);
     this.audio.updateListener(this.camera);
     if (!paused) this.audio.update(dt, this.camera.position);
@@ -408,7 +505,62 @@ export class Game {
     this.weaponCamera.fov = 58;
     this.weaponCamera.updateProjectionMatrix();
     this.renderer.render(this.elapsed);
+    this.adaptQuality(rawDt);
     input.endFrame();
+  }
+
+  private updateMusic(dt: number) {
+    const s = this.state === 'paused' ? this.stateBeforePause : this.state;
+    this.music.update(dt, {
+      mode: s === 'play' ? 'play' : s === 'dead' ? 'dead' : 'menu',
+      fighting: this.waves.state === 'fighting',
+      wave: this.waves.wave,
+      alive: this.waves.enemies.filter((e) => e.alive).length,
+      hp: this.player ? this.player.health / this.player.maxHealth : 1,
+    });
+  }
+
+  /** Location card when the player settles in a new area (debounced so corners don't spam it). */
+  private updateZone(dt: number) {
+    const p = this.player.pos;
+    const z = zoneAt(p.x, p.y, p.z);
+    if (z !== this.zoneCandidate) {
+      this.zoneCandidate = z;
+      this.zoneT = 0;
+    }
+    this.zoneT += dt;
+    if (z && z !== this.zone && this.zoneT > 0.5) {
+      this.zone = z;
+      this.hud.zoneShow(z.name, z.jp);
+    }
+  }
+
+  /** Keeps 60 fps: drops render resolution after sustained slow frames, restores it with headroom. */
+  private adaptQuality(rawDt: number) {
+    const p = this.perf;
+    p.acc += rawDt;
+    p.frames++;
+    if (p.acc < 0.5) return;
+    p.fps = p.frames / p.acc;
+    p.acc = 0;
+    p.frames = 0;
+    if (this.state !== 'play' && this.state !== 'intro') return;
+    const pr = this.renderer.renderer.getPixelRatio();
+    if (p.fps < 50) {
+      p.lowT += 0.5;
+      p.highT = 0;
+      if (p.lowT >= 3 && pr > 1) {
+        this.renderer.setPixelRatio(pr - 0.25);
+        p.lowT = 0;
+      }
+    } else if (p.fps > 58) {
+      p.highT += 0.5;
+      p.lowT = 0;
+      if (p.highT >= 10 && pr < this.renderer.maxPixelRatio) {
+        this.renderer.setPixelRatio(pr + 0.25);
+        p.highT = 0;
+      }
+    } else p.lowT = p.highT = 0;
   }
 
   private updateWorld(dt: number, rawDt: number) {
@@ -416,8 +568,13 @@ export class Game {
     this.glows.update(this.elapsed, camPos);
     updateStreaks(this.streaks, camPos);
     this.rain.update(this.elapsed, camPos);
+    const w = this.rain.uniforms.uWind.value as THREE.Vector2;
+    this.wind = (w.x - 1.0) / 1.4;
     this.train.update(dt);
     this.fx.update(dt);
+    this.district.kit.update(this.elapsed, dt);
+    this.district.billboard.offset.y = (this.elapsed * 0.035) % 1;
+    this.events.update(dt, this.elapsed, camPos, this.train.rumble);
 
     // Neon hum follows each sign's flicker; a sudden drop throws sparks.
     for (const h of this.hums) {
@@ -456,12 +613,13 @@ export class Game {
     this.muzzleT -= dt;
     this.muzzleLight.intensity = this.muzzleT > 0 ? 45 * (this.muzzleT / 0.06) : 0;
 
-    // Thunder: sky flash, then the roll arrives a moment later.
+    // Thunder: sky flash (kept short and soft so it never hides enemies), then the roll a moment later.
     this.thunderT -= dt;
     if (this.thunderT <= 0) {
       this.thunderT = rand(40, 80);
       this.thunderFlash = 1;
       this.pendingThunder = rand(0.6, 1.6);
+      this.events.thunder();
     }
     if (this.pendingThunder > 0) {
       this.pendingThunder -= dt;
@@ -469,12 +627,41 @@ export class Game {
     }
     this.thunderFlash = Math.max(0, this.thunderFlash - dt * 3);
     const flick = this.thunderFlash > 0 ? (Math.random() < 0.7 ? 1 : 0.3) : 0;
-    this.hemi.intensity = 0.55 + this.thunderFlash * flick * 5;
+    this.hemi.intensity = 0.55 + this.thunderFlash * flick * 3.5;
+
+    // The fountain water answers lightning and the passing train.
+    this.fountain.update(this.elapsed, Math.min(1, this.thunderFlash * flick + this.train.rumble * 0.35));
 
     const g = this.renderer.grade.uniforms;
     this.damageFx = Math.max(0, this.damageFx - rawDt * 1.2);
     const low = this.player && this.player.alive && this.player.health < 30 ? 0.25 + Math.sin(this.elapsed * 6) * 0.1 : 0;
     g.uDamage.value = Math.max(this.damageFx, low);
-    g.uFlash.value = this.thunderFlash * flick;
+    g.uFlash.value = this.thunderFlash * flick * 0.7;
+  }
+
+  /** DEV: simulated walk of every route plus enemy reachability (see src/dev/RouteCheck.ts). */
+  async checkRoutes() {
+    if (!import.meta.env.DEV) return null;
+    const { runRouteCheck } = await import('../dev/RouteCheck');
+    return runRouteCheck(this);
+  }
+
+  /** DEV: current debug snapshot. */
+  debug() {
+    return {
+      state: this.state,
+      elapsed: +this.elapsed.toFixed(2),
+      wave: this.waves.wave,
+      waveState: this.waves.state,
+      alive: this.waves.enemies.filter((e) => e.alive).length,
+      music: { state: this.music.state, backend: this.music.kind, tracks: this.music.activeTracks() },
+      fps: +this.perf.fps.toFixed(1),
+      pixelRatio: this.renderer.renderer.getPixelRatio(),
+      drawCalls: this.renderer.renderer.info.render.calls,
+      triangles: this.renderer.renderer.info.render.triangles,
+      lights: this.scene.children.filter((o) => (o as THREE.PointLight).isPointLight).length,
+      player: this.player.pos.toArray().map((v) => +v.toFixed(2)),
+      zone: this.zone?.id ?? null,
+    };
   }
 }

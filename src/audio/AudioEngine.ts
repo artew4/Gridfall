@@ -7,9 +7,18 @@ type V3 = { x: number; y: number; z: number };
  * Everything audible is synthesised here with Web Audio: rain beds, neon hum, sirens,
  * a layered gunshot through a procedurally generated "narrow alley" reverb, footsteps and UI cues.
  */
+export type VolumeGroup = 'master' | 'music' | 'sfx';
+
 export class AudioEngine {
   ctx!: AudioContext;
   started = false;
+  /** Music plugs in here: after the volume group, before the master (never muffled by damage). */
+  musicIn!: GainNode;
+  private volumes: Record<VolumeGroup, number> = { master: 0.8, music: 0.6, sfx: 0.85 };
+  private muted = false;
+  private masterVol!: GainNode;
+  private musicVol!: GainNode;
+  private sfxVol!: GainNode;
   private master!: GainNode;
   private muffle!: BiquadFilterNode;
   private sfx!: GainNode;
@@ -22,6 +31,7 @@ export class AudioEngine {
   private dripTimer = 0;
   private sirenTimer = 18;
   private carTimer = 6;
+  private hornTimer = 11;
   private hums: { gain: GainNode; base: number }[] = [];
 
   start() {
@@ -40,17 +50,27 @@ export class AudioEngine {
     this.muffle = ctx.createBiquadFilter();
     this.muffle.type = 'lowpass';
     this.muffle.frequency.value = 20000;
+    // Graph: [sfx, amb, reverb] → muffle → sfxVol ─┐
+    //                                       ui → sfxVol ├→ compressor → fade-in → masterVol → out
+    //                                 musicIn → musicVol ┘
     this.master = ctx.createGain();
     this.master.gain.value = 0;
     this.master.gain.setTargetAtTime(0.9, ctx.currentTime, 1.5);
-    this.muffle.connect(comp).connect(this.master).connect(ctx.destination);
+    this.masterVol = ctx.createGain();
+    this.musicVol = ctx.createGain();
+    this.sfxVol = ctx.createGain();
+    this.musicIn = ctx.createGain();
+    comp.connect(this.master).connect(this.masterVol).connect(ctx.destination);
+    this.muffle.connect(this.sfxVol).connect(comp);
+    this.musicIn.connect(this.musicVol).connect(comp);
+    this.applyVolumes(true);
 
     this.sfx = ctx.createGain();
     this.amb = ctx.createGain();
     this.ui = ctx.createGain();
     this.sfx.connect(this.muffle);
     this.amb.connect(this.muffle);
-    this.ui.connect(this.master);
+    this.ui.connect(this.sfxVol);
 
     // Alley reverb: convolver with discrete wall reflections, plus a short slapback echo.
     const conv = ctx.createConvolver();
@@ -77,6 +97,29 @@ export class AudioEngine {
     this.pink = this.noiseBuffer('pink');
     this.brown = this.noiseBuffer('brown');
     this.startAmbience();
+  }
+
+  /** Slider value 0..1 → gain (squared for a more even perceived taper). */
+  setVolume(group: VolumeGroup, v: number) {
+    this.volumes[group] = Math.max(0, Math.min(1, v));
+    this.applyVolumes();
+  }
+
+  setMuted(m: boolean) {
+    this.muted = m;
+    this.applyVolumes();
+  }
+
+  private applyVolumes(instant = false) {
+    if (!this.started) return;
+    const t = this.now();
+    const set = (g: GainNode, v: number) => {
+      if (instant) g.gain.value = v;
+      else g.gain.setTargetAtTime(v, t, 0.03);
+    };
+    set(this.masterVol, this.muted ? 0 : this.volumes.master ** 2);
+    set(this.musicVol, this.volumes.music ** 2);
+    set(this.sfxVol, this.volumes.sfx ** 2);
   }
 
   private noiseBuffer(kind: 'white' | 'pink' | 'brown'): AudioBuffer {
@@ -323,6 +366,11 @@ export class AudioEngine {
     if (this.sirenTimer <= 0) {
       this.sirenTimer = rand(35, 70);
       this.siren();
+    }
+    this.hornTimer -= dt;
+    if (this.hornTimer <= 0) {
+      this.hornTimer = rand(14, 32);
+      this.carHorn();
     }
   }
 
@@ -618,6 +666,148 @@ export class AudioEngine {
     const o = this.out(pos, 0.05);
     this.burst(o, this.pink, 'lowpass', heavy ? 500 : 900, 0.6, heavy ? 0.25 : 0.12, 0.004, 0.1);
     if (heavy) this.metal(o, 300, 0.03, 0.08, [1, 2.2]);
+  }
+
+  /** Shot electrical cabinet building up. */
+  electricCharge(pos: V3) {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(pos, 0.3);
+    const bp = this.filter('bandpass', 900, 3);
+    bp.frequency.setValueAtTime(400, t);
+    bp.frequency.exponentialRampToValueAtTime(3200, t + 0.4);
+    bp.connect(o);
+    this.tone(bp, 'sawtooth', 60, 240, 0.4, 0.35, 0.08, t);
+    this.burst(o, this.white, 'highpass', 4000, 0.7, 0.12, 0.3, 0.1, t);
+  }
+
+  /** The cabinet discharging: a heavy zap and crackle. */
+  discharge(pos: V3) {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(pos, 1.0);
+    this.burst(o, this.white, 'lowpass', 8000, 0.7, 0.9, 0.001, 0.4, t, 400);
+    this.tone(o, 'sawtooth', 120, 40, 0.6, 0.001, 0.5, t);
+    this.tone(o, 'square', 2400, 300, 0.15, 0.001, 0.25, t);
+    for (let i = 0; i < 10; i++) this.burst(o, this.white, 'highpass', 2500, 0.7, rand(0.1, 0.3), 0.001, 0.02, t + 0.05 + i * rand(0.02, 0.06));
+  }
+
+  glassBreak(pos: V3) {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(pos, 0.4);
+    this.burst(o, this.white, 'highpass', 3000, 0.7, 0.5, 0.001, 0.12, t);
+    for (let i = 0; i < 9; i++) this.metal(o, rand(3500, 7500), 0.05, rand(0.05, 0.15), [1, 1.5], t + 0.03 + i * rand(0.02, 0.07));
+    this.burst(o, this.white, 'highpass', 5000, 0.7, 0.15, 0.001, 0.03, t + 0.08);
+  }
+
+  pickup() {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(null, 0.4, this.ui);
+    [659.25, 987.77, 1318.5].forEach((f, i) => this.tone(o, 'triangle', f, f, 0.09, 0.005, 0.35, t + i * 0.07));
+    this.burst(o, this.white, 'bandpass', 2000, 1, 0.08, 0.05, 0.25, t, 6000);
+  }
+
+  /** Railway crossing bell (fumikiri): one strike, called on a fixed beat while the signals blink. */
+  crossingBell(pos: V3) {
+    if (!this.started) return;
+    const o = this.out(pos, 0.6, this.amb);
+    this.metal(o, 745, 0.09, 0.4, [1, 2.01, 2.76, 4.05]);
+  }
+
+  /** Distant station melody before a train arrives. */
+  stationChime() {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out({ x: -30, y: 12, z: -60 }, 1.4, this.amb);
+    const lp = this.filter('lowpass', 2400);
+    lp.connect(o);
+    const notes = [659.25, 830.61, 987.77, 1318.5, 987.77, 1108.7, 1318.5];
+    notes.forEach((f, i) => {
+      this.tone(lp, 'triangle', f, f, 0.18, 0.01, 0.5, t + i * 0.22);
+      this.tone(lp, 'sine', f * 2, f * 2, 0.05, 0.01, 0.3, t + i * 0.22);
+    });
+  }
+
+  steamHiss(pos: V3) {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(pos, 0.2, this.amb);
+    const src = this.noise(this.white);
+    const f = this.filter('highpass', 2500);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.18, t + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 2.2);
+    src.connect(f).connect(g).connect(o);
+    src.stop(t + 2.3);
+  }
+
+  /** Far-off car horn somewhere in the city. */
+  carHorn() {
+    if (!this.started) return;
+    const t = this.now();
+    const pan = this.ctx.createStereoPanner();
+    pan.pan.value = rand(-0.9, 0.9);
+    const lp = this.filter('lowpass', 900);
+    lp.connect(pan).connect(this.amb);
+    const s = this.ctx.createGain();
+    s.gain.value = 1.0;
+    pan.connect(s).connect(this.reverbSend);
+    const dur = rand(0.3, 0.8);
+    for (const f of [rand(330, 360), rand(415, 440)]) this.tone(lp, 'square', f, f, 0.025, 0.02, dur, t);
+    if (Math.random() < 0.4) for (const f of [345, 430]) this.tone(lp, 'square', f, f, 0.02, 0.02, 0.25, t + dur + 0.15);
+  }
+
+  /** Continuous positional loops: the fountain and a pachinko parlour door. */
+  addLoop(pos: V3, kind: 'fountain' | 'pachinko') {
+    if (!this.started) return;
+    const ctx = this.ctx;
+    const p = ctx.createPanner();
+    p.panningModel = 'equalpower';
+    p.distanceModel = 'inverse';
+    p.refDistance = kind === 'fountain' ? 3 : 2;
+    p.rolloffFactor = 1.4;
+    p.positionX.value = pos.x;
+    p.positionY.value = pos.y;
+    p.positionZ.value = pos.z;
+    p.connect(this.amb);
+    if (kind === 'fountain') {
+      const a = this.noise(this.white, true);
+      const bp = this.filter('bandpass', 1800, 0.6);
+      const g = ctx.createGain();
+      g.gain.value = 0.09;
+      a.connect(bp).connect(g).connect(p);
+      const b = this.noise(this.pink, true);
+      const lp = this.filter('lowpass', 500);
+      const g2 = ctx.createGain();
+      g2.gain.value = 0.12;
+      b.connect(lp).connect(g2).connect(p);
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.31;
+      const lg = ctx.createGain();
+      lg.gain.value = 0.03;
+      lfo.connect(lg).connect(g.gain);
+      lfo.start();
+    } else {
+      const a = this.noise(this.pink, true);
+      const bp = this.filter('bandpass', 2600, 1.2);
+      const g = ctx.createGain();
+      g.gain.value = 0.05;
+      a.connect(bp).connect(g).connect(p);
+      // A cheesy jingle loop under the ball noise.
+      const o = ctx.createOscillator();
+      o.type = 'square';
+      const og = ctx.createGain();
+      og.gain.value = 0.006;
+      const t = this.now();
+      const mel = [784, 988, 1175, 988, 1319, 1175, 988, 784];
+      for (let i = 0; i < 400; i++) o.frequency.setValueAtTime(mel[i % mel.length], t + i * 0.18);
+      o.connect(og).connect(p);
+      o.start(t);
+      o.stop(t + 400 * 0.18);
+    }
   }
 
   // ------------------------------------------------------------------ UI cues

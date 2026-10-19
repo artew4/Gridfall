@@ -23,6 +23,7 @@ export class Weapon {
   maxAmmo = MAG;
   reloading = false;
   private reloadT = 0;
+  private autoReloadT = 0;
   private reloadStage = 0;
   private cooldown = 0;
   private flashT = 0;
@@ -194,7 +195,8 @@ export class Weapon {
     this.bloom = Math.min(1, this.bloom + 0.3);
     this.audio.gunshot();
     this.ammoDisplay.draw(this.ammo, MAG, false);
-    if (this.ammo === 0) setTimeout(() => this.startReload(), 250);
+    // Auto-reload on empty after the same short beat as before, but on the game clock (pauses with it).
+    if (this.ammo === 0) this.autoReloadT = 0.25;
     return true;
   }
 
@@ -209,10 +211,15 @@ export class Weapon {
   reset() {
     this.ammo = MAG;
     this.reloading = false;
+    this.autoReloadT = 0;
     this.ammoDisplay.draw(this.ammo, MAG, false);
   }
 
   update(dt: number, player: Player, mouseDX: number, mouseDY: number, time: number) {
+    if (this.autoReloadT > 0) {
+      this.autoReloadT -= dt;
+      if (this.autoReloadT <= 0) this.startReload();
+    }
     this.cooldown -= dt;
     this.bloom = Math.max(0, this.bloom - dt * 1.8);
     this.raise = damp(this.raise, this.raiseTarget, 5, dt);
