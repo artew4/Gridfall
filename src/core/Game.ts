@@ -31,6 +31,7 @@ import { Intro } from '../cinematic/Intro';
 import { Security } from '../stealth/Security';
 import { StoryHud, type ThreatMark } from '../ui/StoryHud';
 import { SEARCH_TIME } from '../stealth/AlertSystem';
+import { Crowd } from '../city/Crowd';
 
 export type Mode = 'story' | 'arcade';
 
@@ -58,7 +59,9 @@ export class Game {
   mode: Mode = new URLSearchParams(location.search).get('mode') === 'arcade' ? 'arcade' : 'story';
   private stateBeforePause: State = 'play';
   security!: Security;
+  crowd!: Crowd;
   storyHud: StoryHud;
+  private chatterT = 2;
 
   private city!: City;
   district!: DistrictResult;
@@ -246,6 +249,13 @@ export class Game {
     this.security.doors = d.doors;
     this.security.onRadio = (text, tone) => this.storyHud.radioLine(text, tone);
     this.events.onSteam = (v) => this.security.addBlocker(v.clone().setY(v.y + 1.6), 2.4, 4.5);
+    this.crowd = new Crowd(s, this.col, this.nav, d.pois);
+    this.security.civilianBlocks = (a, b) => this.crowd.blocks(a, b);
+    this.security.onShot = (at) => this.crowd.onGunshot(at, this.elapsed);
+    this.crowd.onReport = (pos) => this.security.civilianReport(pos);
+    this.crowd.onCalling = () => this.storyHud.radioLine('A WITNESS IS CALLING SECURITY — GET OUT OF SIGHT', 'warn');
+    this.crowd.onScream = (pos) => this.audio.scream(pos);
+    this.crowd.onAbandon = () => this.storyHud.radioLine('THE WITNESS HUNG UP', 'info');
     this.waves.onSniper = () => this.music.accent();
     this.waves.onLastEnemy = () => this.music.accent();
 
@@ -356,6 +366,8 @@ export class Game {
       this.weapon.setHolstered(true, true);
       this.security.clear();
       for (const p of this.district.patrols) this.security.spawnPatrol(p);
+      this.crowd.setVisible(true);
+      this.crowd.reset(this.player.pos);
       this.ctx.enemies = this.security.guards;
       this.storyHud.clear();
       this.storyHud.show(true);
@@ -368,6 +380,8 @@ export class Game {
       this.weapon.setHolstered(false, true);
       this.ctx.enemies = this.waves.enemies;
       this.storyHud.show(false);
+      this.crowd.setVisible(false);
+      this.crowd.civs.length = 0;
       this.waves.startNext();
     }
     if (!this.input.locked) this.pause();
@@ -426,6 +440,13 @@ export class Game {
         eh = h;
       }
     }
+    // Bystanders are in the way too.
+    const ch = this.mode === 'story' ? this.crowd.raycast(origin, dir, maxDist) : null;
+    if (ch && ch.dist < maxDist) {
+      maxDist = ch.dist;
+      target = null;
+      eh = null;
+    }
     const muzzle = cam.localToWorld(new THREE.Vector3(0.15, -0.1, -0.55));
     const end = origin.clone().addScaledVector(dir, maxDist);
     this.fx.tracer(muzzle, end);
@@ -444,6 +465,11 @@ export class Game {
         if (this.mode === 'arcade') this.waves.kills++;
         this.player.trauma = Math.min(1, this.player.trauma + 0.12);
       }
+    } else if (ch && ch.dist <= maxDist) {
+      const pt = origin.clone().addScaledVector(dir, ch.dist);
+      this.fx.enemyHit(pt, dir, new THREE.Color(0.6, 0.1, 0.1));
+      this.audio.hitEnemy(pt, false);
+      this.crowd.hit(ch.civ, dir);
     } else if (wh) {
       this.fx.impact(wh.point, wh.normal, wh.surface);
       this.audio.hitSurface(wh.point, wh.surface);
@@ -499,7 +525,9 @@ export class Game {
       this.player.applyCamera(this.camera, this.elapsed);
       if (this.mode === 'story') {
         this.security.update(dt);
+        this.crowd.update(dt, this.elapsed, this.player, this.weapon.visible, this.security.alert.level === 'pursuit');
         this.updateStoryHud(rawDt);
+        this.ambientChatter(dt);
       } else {
         this.ctx.difficulty = this.waves.difficulty;
         this.waves.update(dt, this.ctx);
@@ -575,6 +603,18 @@ export class Game {
     if (z && z !== this.zone && this.zoneT > 0.5) {
       this.zone = z;
       this.hud.zoneShow(z.name, z.jp);
+    }
+  }
+
+  /** Snippets of conversation from calm people nearby. */
+  private ambientChatter(dt: number) {
+    this.chatterT -= dt;
+    if (this.chatterT > 0) return;
+    this.chatterT = rand(1.2, 3.5);
+    const near = this.crowd.civs.filter((c) => (c.state === 'chat' || c.state === 'idle' || c.state === 'walk') && c.pos.distanceTo(this.player.pos) < 14);
+    if (near.length) {
+      const c = near[Math.floor(Math.random() * near.length)];
+      this.audio.chatter(c.pos.clone().setY(c.pos.y + 1.5));
     }
   }
 
@@ -736,6 +776,7 @@ export class Game {
       mode: this.mode,
       holstered: this.weapon.holstered,
       alert: this.security?.alert.level,
+      civilians: this.crowd ? Object.entries(this.crowd.civs.reduce((m: Record<string, number>, c) => ((m[c.state] = (m[c.state] ?? 0) + 1), m), {})) : null,
       guards: this.security?.guards.map((g) => ({ s: g.gstate, susp: +g.suspicion.toFixed(2), p: g.pos.toArray().map((v) => +v.toFixed(1)), r: g.reinforcement })),
     };
   }

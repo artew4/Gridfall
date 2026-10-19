@@ -860,6 +860,24 @@ export class AudioEngine {
     return dur;
   }
 
+  /** A frightened civilian. */
+  scream(pos: V3) {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(pos, 0.4);
+    const g = this.ctx.createGain();
+    g.gain.value = 1.4;
+    g.connect(o);
+    this.voice(g, t, 2, rand(260, 340), 3, 0.2, true);
+  }
+
+  /** Snippet of someone talking nearby (crowd life). */
+  chatter(pos: V3) {
+    if (!this.started) return;
+    const o = this.out(pos, 0.15, this.amb);
+    this.voice(o, this.now(), 3 + Math.floor(Math.random() * 6), rand(105, 230), rand(6, 8), 0.05);
+  }
+
   /** Radio squelch click + hiss tail. */
   private squelch(dest: AudioNode, t: number) {
     this.burst(dest, this.white, 'bandpass', 2400, 1, 0.08, 0.002, 0.06, t);
