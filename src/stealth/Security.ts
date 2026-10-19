@@ -42,6 +42,8 @@ export class Security {
   onRadio: (text: string, tone: 'info' | 'warn' | 'alert') => void = () => {};
   onLevel: (level: AlertLevel, prev: AlertLevel) => void = () => {};
   civilianBlocks: (from: THREE.Vector3, to: THREE.Vector3) => boolean = () => false;
+  /** Every shot fired by anyone (civilians react to all gunfire). */
+  onShot: (at: THREE.Vector3) => void = () => {};
   stats = { guardsDown: 0, reinforcements: 0 };
 
   constructor(
@@ -176,6 +178,7 @@ export class Security {
 
   /** Something loud happened (shots). Guards in earshot react; civilians are told separately. */
   gunshot(at: THREE.Vector3, byPlayer: boolean) {
+    this.onShot(at);
     if (!byPlayer) return;
     let heard = false;
     for (const g of this.guards) {

@@ -9,4 +9,7 @@ game.init().catch((err) => {
   if (l) l.textContent = 'FAILED TO INITIALISE — SEE CONSOLE';
 });
 
-if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = game;
+if (import.meta.env.DEV) {
+  (window as unknown as { __game: Game }).__game = game;
+  void import('./dev/DevTools').then((m) => m.installDevTools(game));
+}

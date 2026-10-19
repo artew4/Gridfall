@@ -71,6 +71,8 @@ export interface DistrictResult {
   patrols: { route: THREE.Vector3[]; post?: boolean }[];
   doors: THREE.Vector3[];
   storyStart: { x: number; z: number; yaw: number };
+  /** Where civilians linger. Yaw: direction faced (atan2 of facing x, z). */
+  pois: { pos: THREE.Vector3; yaw: number; kind: 'shop' | 'shelter' | 'wait' | 'chat' }[];
 }
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -612,5 +614,30 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
       new THREE.Vector3(21, 0, -17),
     ],
     storyStart: { x: -11, z: 25.5, yaw: Math.PI / 2 },
+    pois: [
+      // Lantern Street shopfronts (west faces -x, east faces +x).
+      ...[29, 33, 37.5, 41].map((z) => ({ pos: v(-3.0, 0, z), yaw: -Math.PI / 2, kind: 'shop' as const })),
+      ...[18, 26.5, 31, 39].map((z) => ({ pos: v(3.0, 0, z), yaw: Math.PI / 2, kind: 'shop' as const })),
+      // Neon Alley: under the tech deck, and the south shops.
+      ...[21, 27, 35].map((x) => ({ pos: v(x, 0, -2.2), yaw: Math.PI, kind: 'shelter' as const })),
+      ...[26, 30, 41].map((x) => ({ pos: v(x, 0, 1.2), yaw: 0, kind: 'shop' as const })),
+      // Plaza: under the walkways out of the rain, the ramen stall, the vending machines.
+      ...[-6, 0, 6].map((x) => ({ pos: v(x, 0, -13.6), yaw: Math.PI, kind: 'shelter' as const })),
+      { pos: v(-13.4, 0, -6), yaw: -Math.PI / 2, kind: 'shelter' as const },
+      { pos: v(13.3, 0, -3), yaw: Math.PI / 2, kind: 'shelter' as const },
+      { pos: v(-8.8, 0, 12.4), yaw: Math.PI, kind: 'wait' as const },
+      { pos: v(-7.2, 0, 12.4), yaw: Math.PI, kind: 'wait' as const },
+      { pos: v(13.6, 0, -10), yaw: Math.PI / 2, kind: 'shop' as const },
+      { pos: v(4, 0, 13.2), yaw: 0, kind: 'shop' as const },
+      // Under the railway, Railway Street shops.
+      { pos: v(-2, 0, -23), yaw: 0, kind: 'shelter' as const },
+      ...[-33, -41].map((z) => ({ pos: v(-3.9, 0, z), yaw: -Math.PI / 2, kind: 'shop' as const })),
+      ...[-36, -47].map((z) => ({ pos: v(3.9, 0, z), yaw: Math.PI / 2, kind: 'shop' as const })),
+      // Chatting groups.
+      { pos: v(5, 0, -5.5), yaw: 0.3, kind: 'chat' as const },
+      { pos: v(0.5, 0, 35), yaw: 1.2, kind: 'chat' as const },
+      { pos: v(31, 0, 0.6), yaw: 0, kind: 'chat' as const },
+      { pos: v(-1, 0, -42), yaw: 2, kind: 'chat' as const },
+    ],
   };
 }
