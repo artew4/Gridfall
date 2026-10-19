@@ -38,6 +38,8 @@ export class Weapon {
   private swayY = 0;
   private raise = 0; // 0 = lowered out of view, 1 = ready
   raiseTarget = 0;
+  /** Weapon put away: hidden, cannot fire, draws less attention. */
+  holstered = false;
   bloom = 0;
   private sprintBlend = 0;
   private ammoDisplay = makeAmmoDisplay();
@@ -168,7 +170,38 @@ export class Weapon {
   }
 
   get canFire() {
-    return !this.reloading && this.cooldown <= 0 && this.raise > 0.9;
+    return !this.holstered && !this.reloading && this.cooldown <= 0 && this.raise > 0.9;
+  }
+
+  /** The gun can be seen by others (drawn, or still coming up). */
+  get visible() {
+    return !this.holstered && this.raise > 0.35;
+  }
+
+  /** 0 = put away, 1 = ready. */
+  get readiness() {
+    return this.raise;
+  }
+
+  /** H: put the gun away or draw it. A reload in progress is abandoned (the magazine stays as it was). */
+  toggleHolster() {
+    this.setHolstered(!this.holstered);
+  }
+
+  setHolstered(h: boolean, silent = false) {
+    if (h === this.holstered) return;
+    this.holstered = h;
+    if (h) {
+      if (this.reloading) {
+        this.reloading = false;
+        this.ammoDisplay.draw(this.ammo, MAG, false);
+      }
+      this.autoReloadT = 0;
+      this.raiseTarget = 0;
+    } else {
+      this.raiseTarget = 1;
+    }
+    if (!silent) this.audio.holster(h);
   }
 
   /** Returns true when a round actually left the barrel. */
@@ -201,7 +234,7 @@ export class Weapon {
   }
 
   startReload() {
-    if (this.reloading || this.ammo === MAG || this.raise < 0.5) return;
+    if (this.holstered || this.reloading || this.ammo === MAG || this.raise < 0.5) return;
     this.reloading = true;
     this.reloadT = 0;
     this.reloadStage = 0;
@@ -222,7 +255,10 @@ export class Weapon {
     }
     this.cooldown -= dt;
     this.bloom = Math.max(0, this.bloom - dt * 1.8);
-    this.raise = damp(this.raise, this.raiseTarget, 5, dt);
+    // Drawing is quick (ready in ~0.25 s) so combat never waits on it; holstering is a touch slower.
+    const target = this.holstered ? 0 : this.raiseTarget;
+    this.raise = damp(this.raise, target, this.holstered ? 8 : this.raiseTarget > this.raise ? 10 : 5, dt);
+    this.root.visible = this.raise > 0.015;
     this.kickZ.update(dt);
     this.kickRot.update(dt);
     this.kickSide.update(dt);

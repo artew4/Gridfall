@@ -28,6 +28,11 @@ import { Hud, jpNumber } from '../ui/Hud';
 import { PauseMenu } from '../ui/PauseMenu';
 import { loadSettings, saveSettings, type Settings } from '../ui/Settings';
 import { Intro } from '../cinematic/Intro';
+import { Security } from '../stealth/Security';
+import { StoryHud, type ThreatMark } from '../ui/StoryHud';
+import { SEARCH_TIME } from '../stealth/AlertSystem';
+
+export type Mode = 'story' | 'arcade';
 
 type State = 'title' | 'intro' | 'play' | 'paused' | 'dead';
 
@@ -50,7 +55,10 @@ export class Game {
   menu: PauseMenu;
   settings: Settings;
   state: State = 'title';
+  mode: Mode = new URLSearchParams(location.search).get('mode') === 'arcade' ? 'arcade' : 'story';
   private stateBeforePause: State = 'play';
+  security!: Security;
+  storyHud: StoryHud;
 
   private city!: City;
   district!: DistrictResult;
@@ -101,6 +109,8 @@ export class Game {
     this.renderer = new Renderer(container, this.scene, this.camera, this.weaponScene, this.weaponCamera);
     this.input = new Input(this.renderer.canvas);
     this.hud = new Hud(document.body);
+    this.storyHud = new StoryHud(document.body);
+    this.storyHud.show(false);
     this.settings = loadSettings();
     this.menu = new PauseMenu(document.body, this.settings);
     this.applySettings();
@@ -232,6 +242,10 @@ export class Game {
     this.waves.onSpawn = (e, at) => {
       if (e.kind === 'gunner') this.audio.clang(at.clone().setY(at.y + 1.5), 0.7);
     };
+    this.security = new Security(this.ctx, this.glows, () => this.weapon.visible, { radio: (pos, kind) => this.audio.radio(pos, kind) });
+    this.security.doors = d.doors;
+    this.security.onRadio = (text, tone) => this.storyHud.radioLine(text, tone);
+    this.events.onSteam = (v) => this.security.addBlocker(v.clone().setY(v.y + 1.6), 2.4, 4.5);
     this.waves.onSniper = () => this.music.accent();
     this.waves.onLastEnemy = () => this.music.accent();
 
@@ -332,18 +346,37 @@ export class Game {
     this.hud.skip.style.opacity = '0';
     this.hud.cine.style.opacity = '0';
     this.hud.show(this.hud.root, true);
-    const st = this.district.start;
-    this.player.reset(st.x, st.z, st.yaw);
-    this.weapon.raiseTarget = 1;
+    this.hud.root.classList.toggle('story', this.mode === 'story');
     this.stats = { shots: 0, hits: 0, start: this.elapsed };
     this.zone = null;
-    this.waves.startNext();
+    if (this.mode === 'story') {
+      const st = this.district.storyStart;
+      this.player.reset(st.x, st.z, st.yaw);
+      this.weapon.raiseTarget = 1;
+      this.weapon.setHolstered(true, true);
+      this.security.clear();
+      for (const p of this.district.patrols) this.security.spawnPatrol(p);
+      this.ctx.enemies = this.security.guards;
+      this.storyHud.clear();
+      this.storyHud.show(true);
+      this.storyHud.setObjective('Stay out of sight. Find a way out of the district.', '地区から脱出せよ');
+      this.storyHud.radioLine('H — HOLSTER / DRAW · A DRAWN WEAPON DRAWS ATTENTION', 'info');
+    } else {
+      const st = this.district.start;
+      this.player.reset(st.x, st.z, st.yaw);
+      this.weapon.raiseTarget = 1;
+      this.weapon.setHolstered(false, true);
+      this.ctx.enemies = this.waves.enemies;
+      this.storyHud.show(false);
+      this.waves.startNext();
+    }
     if (!this.input.locked) this.pause();
   }
 
   private restart() {
     this.hud.show(this.hud.death, false);
     this.waves.reset(this.scene);
+    this.security.clear();
     this.occupied.clear();
     this.fx.clear();
     this.projectiles.clear();
@@ -384,7 +417,8 @@ export class Game {
     let maxDist = wh ? wh.dist : 200;
     let target: Enemy | null = null;
     let eh: EnemyHit | null = null;
-    for (const e of this.waves.enemies) {
+    if (this.mode === 'story') this.security.gunshot(origin, true);
+    for (const e of this.ctx.enemies) {
       const h = e.raycast(origin, dir);
       if (h && h.dist < maxDist) {
         maxDist = h.dist;
@@ -407,7 +441,7 @@ export class Game {
       this.hud.hitmarker(killed);
       this.audio.hitmarker(killed);
       if (killed) {
-        this.waves.kills++;
+        if (this.mode === 'arcade') this.waves.kills++;
         this.player.trauma = Math.min(1, this.player.trauma + 0.12);
       }
     } else if (wh) {
@@ -458,12 +492,18 @@ export class Game {
       const controls = this.state === 'play' && input.locked;
       this.player.update(dt, input, controls, this.elapsed);
       if (controls && this.player.alive) {
+        if (input.pressed.has('KeyH')) this.weapon.toggleHolster();
         if (input.pressed.has('KeyR')) this.weapon.startReload();
         if (input.mouseDown && this.weapon.tryFire()) this.shoot();
       }
       this.player.applyCamera(this.camera, this.elapsed);
-      this.ctx.difficulty = this.waves.difficulty;
-      this.waves.update(dt, this.ctx);
+      if (this.mode === 'story') {
+        this.security.update(dt);
+        this.updateStoryHud(rawDt);
+      } else {
+        this.ctx.difficulty = this.waves.difficulty;
+        this.waves.update(dt, this.ctx);
+      }
       this.projectiles.update(dt, this.player);
       this.interactives.update(dt, this.elapsed, this.ctx);
       if (this.state === 'play' && !this.player.alive) {
@@ -479,9 +519,10 @@ export class Game {
         if (this.deadT > 1.2 && this.hud.death.classList.contains('hidden')) {
           this.timeScale = 0.15;
           this.hud.show(this.hud.root, false);
+          this.storyHud.show(false);
           this.hud.showDeath({
             wave: this.waves.wave,
-            kills: this.waves.kills,
+            kills: this.mode === 'story' ? this.security.stats.guardsDown : this.waves.kills,
             accuracy: this.stats.shots ? this.stats.hits / this.stats.shots : 0,
             time: this.elapsed - this.stats.start,
           });
@@ -492,6 +533,7 @@ export class Game {
       this.hud.setHealth(this.player.health, this.player.maxHealth);
       this.hud.setAmmo(this.weapon.ammo, this.weapon.reloading);
       this.hud.setWave(this.waves.wave, this.waves.remaining, this.waves.state === 'break');
+      this.hud.root.classList.toggle('holstered', this.weapon.holstered);
       this.hud.setSpread(4 + this.player.moveAmount * 6 + this.weapon.bloom * 12 + (this.player.onGround ? 0 : 10));
     }
 
@@ -511,11 +553,12 @@ export class Game {
 
   private updateMusic(dt: number) {
     const s = this.state === 'paused' ? this.stateBeforePause : this.state;
+    const story = this.mode === 'story' && this.security;
     this.music.update(dt, {
       mode: s === 'play' ? 'play' : s === 'dead' ? 'dead' : 'menu',
-      fighting: this.waves.state === 'fighting',
-      wave: this.waves.wave,
-      alive: this.waves.enemies.filter((e) => e.alive).length,
+      fighting: story ? this.security.alert.level === 'pursuit' : this.waves.state === 'fighting',
+      wave: story ? 0 : this.waves.wave,
+      alive: story ? this.security.hostiles() : this.waves.enemies.filter((e) => e.alive).length,
       hp: this.player ? this.player.health / this.player.maxHealth : 1,
     });
   }
@@ -533,6 +576,34 @@ export class Game {
       this.zone = z;
       this.hud.zoneShow(z.name, z.jp);
     }
+  }
+
+  /** Wanted status and the arcs around the crosshair for guards that are noticing or attacking. */
+  private updateStoryHud(dt: number) {
+    const a = this.security.alert;
+    const t = this.elapsed;
+    let meter = 0;
+    const marks: ThreatMark[] = [];
+    const p = this.player.pos;
+    for (const g of this.security.guards) {
+      if (!g.alive) continue;
+      const d = g.pos.distanceTo(p);
+      if (d > 45) continue;
+      meter = Math.max(meter, g.suspicion);
+      const attacking = g.threat >= 3;
+      // Arcs only for guards that are noticing you or shooting at you (no wallhack for idle patrols).
+      if (!(g.suspicion > 0.05 && !g.hostile) && !attacking) continue;
+      const ang = Math.atan2(g.pos.x - p.x, g.pos.z - p.z);
+      let rel = -(ang - (this.player.yaw + Math.PI));
+      rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+      marks.push({ angle: rel, level: attacking ? 3 : 1, k: g.suspicion });
+    }
+    if (a.level === 'search') meter = a.searchLeft(t) / SEARCH_TIME;
+    else if (a.level === 'pursuit') meter = 1;
+    else if (a.level === 'alerted') meter = 0.5;
+    this.storyHud.setWanted(a.level, meter);
+    this.storyHud.drawThreats(marks);
+    this.storyHud.update(dt);
   }
 
   /** Keeps 60 fps: drops render resolution after sustained slow frames, restores it with headroom. */
@@ -662,6 +733,10 @@ export class Game {
       lights: this.scene.children.filter((o) => (o as THREE.PointLight).isPointLight).length,
       player: this.player.pos.toArray().map((v) => +v.toFixed(2)),
       zone: this.zone?.id ?? null,
+      mode: this.mode,
+      holstered: this.weapon.holstered,
+      alert: this.security?.alert.level,
+      guards: this.security?.guards.map((g) => ({ s: g.gstate, susp: +g.suspicion.toFixed(2), p: g.pos.toArray().map((v) => +v.toFixed(1)), r: g.reinforcement })),
     };
   }
 }

@@ -67,7 +67,13 @@ export interface DistrictResult {
   vents: THREE.Vector3[];
   /** Loudest positional loops. */
   pachinko: THREE.Vector3;
+  /** Story mode: security patrol routes, reinforcement entry doors, the fugitive's starting alley. */
+  patrols: { route: THREE.Vector3[]; post?: boolean }[];
+  doors: THREE.Vector3[];
+  storyStart: { x: number; z: number; yaw: number };
 }
+
+const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
 export function buildDistrict(city: City, wind: () => number): DistrictResult {
   const ctx = city.ctx;
@@ -585,5 +591,26 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
     transformers: poles.map((t) => new THREE.Vector3(t[1].x + 0.35, 7.6, t[1].z)),
     vents: [new THREE.Vector3(-30, 3.4, -5.5), new THREE.Vector3(-21.4, 3.2, 6), new THREE.Vector3(19.4, 2.2, -10), new THREE.Vector3(-44.4, 2.4, -5.4), new THREE.Vector3(5.2, 0.1, -4.5)],
     pachinko: new THREE.Vector3(36, 1.5, 1.8),
+    patrols: [
+      // Plaza loop around the fountain.
+      { route: [v(-7, 0, -10), v(7, 0, -10), v(11, 0, 0), v(5, 0, 9.5), v(-5, 0, 9.5), v(-11, 0, 0)] },
+      // Upper walkway sweep.
+      { route: [v(-13.5, DECK, -13.5), v(13.5, DECK, -13.5), v(13.5, DECK, -2.1), v(24, DECK, -2.1), v(13.5, DECK, -2.1), v(13.5, DECK, -13.5)] },
+      // Railway Street beat.
+      { route: [v(0, 0, -19), v(1.5, 0, -38), v(-1.5, 0, -50), v(0, 0, -30)] },
+      // Neon Alley.
+      { route: [v(17, 0, 0.5), v(40, 0, 0.5)] },
+      // A post by the torii, watching Lantern Street.
+      { route: [v(2.2, 0, 42.5)], post: true },
+    ],
+    doors: [
+      new THREE.Vector3(45.5, 0, -0.4),
+      new THREE.Vector3(-43, 0, -3.3),
+      new THREE.Vector3(0, 0, -54),
+      new THREE.Vector3(20.5, 0, -24),
+      new THREE.Vector3(0, 0, 46.5),
+      new THREE.Vector3(21, 0, -17),
+    ],
+    storyStart: { x: -11, z: 25.5, yaw: Math.PI / 2 },
   };
 }

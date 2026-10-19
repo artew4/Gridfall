@@ -16,6 +16,8 @@ export class Events {
   private glitches: { g: Glow; mode: Glow['mode']; t: number }[] = [];
   private flash: Glow;
   private shakeBase: { o: THREE.Object3D; p: THREE.Vector3; r: THREE.Euler }[];
+  /** A steam valve vented here (the cloud blocks sight for a few seconds). */
+  onSteam: (at: THREE.Vector3) => void = () => {};
 
   constructor(
     glows: Glows,
@@ -76,6 +78,7 @@ export class Events {
           });
         }
         this.audio.steamHiss(v);
+        this.onSteam(v);
       }
     }
 

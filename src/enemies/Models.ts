@@ -157,3 +157,37 @@ export function buildGunner(): Rig {
   }
   return { root, body, torso, head, armL, armR, foreL, foreR, legL, legR, kneeL, kneeR, weapon, muzzle, armorMat, clothMat, glowMat, parts };
 }
+
+export const GUARD_ACCENT = new THREE.Color(0.35, 0.7, 1.0);
+const guardArmor = new THREE.MeshStandardMaterial({ color: 0x2b3a52, metalness: 0.55, roughness: 0.38, envMapIntensity: 1.3 });
+const guardCloth = new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.8, metalness: 0.08 });
+const guardWhite = new THREE.MeshStandardMaterial({ color: 0xc8d2e0, roughness: 0.45, metalness: 0.2, envMapIntensity: 1.1 });
+
+/**
+ * Shinjuku Security Bureau officer: the gunner frame in navy and white with a cyan visor, a cap brim
+ * and a red/blue shoulder beacon, so the silhouette never reads as a civilian. Faces +z.
+ */
+export function buildGuard(): Rig {
+  const rig = buildGunner();
+  rig.armorMat.copy(guardArmor);
+  rig.clothMat.copy(guardCloth);
+  rig.glowMat.color.copy(GUARD_ACCENT).multiplyScalar(4);
+  const white = guardWhite.clone();
+  const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    parent.add(m);
+    rig.parts.push(m);
+    return m;
+  };
+  // Cap brim and white chest band with a badge.
+  add(rig.head, boxGeo(0.3, 0.03, 0.14), white, 0, 0.3, 0.14);
+  add(rig.head, boxGeo(0.29, 0.04, 0.32), white, 0, 0.28, 0);
+  add(rig.torso, boxGeo(0.53, 0.06, 0.37), white, 0, 0.56, 0);
+  const beacon = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 0.2, 0.2) });
+  add(rig.torso, boxGeo(0.06, 0.04, 0.04), beacon, -0.36, 0.76, 0.05);
+  rig.root.userData.beacon = beacon;
+  rig.root.userData.white = white;
+  rig.root.scale.setScalar(0.96);
+  return rig;
+}
