@@ -1,4 +1,4 @@
-import type { MusicState } from './Songs';
+import type { MusicState } from './MusicDirector';
 
 /** What the director needs from a music source (procedural synthesis or pre-rendered files). */
 export interface MusicBackend {

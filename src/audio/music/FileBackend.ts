@@ -1,4 +1,4 @@
-import type { MusicState } from './Songs';
+import type { MusicState } from './MusicDirector';
 import { fadeCurve, RANK, type MusicBackend } from './MusicBackend';
 
 /**

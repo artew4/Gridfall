@@ -39,6 +39,8 @@ import { EndScreen } from '../ui/EndScreen';
 import { CAR_CENTRES, TRACK_Z } from '../world/Metro';
 import { Mission } from '../story/Mission';
 import { Marker } from '../ui/Marker';
+import { Minimap, type Blip } from '../ui/Minimap';
+import type { Guard } from '../stealth/Guard';
 
 export type Mode = 'story' | 'arcade';
 
@@ -101,6 +103,13 @@ export class Game {
   fx!: Effects;
   mission!: Mission;
   marker!: Marker;
+  minimap!: Minimap;
+  /** What the player knows about each guard: last seen/heard position and when. */
+  private known = new Map<Guard, { x: number; y: number; z: number; t: number; hot: boolean }>();
+  private knowT = 0;
+  private frustum = new THREE.Frustum();
+  private projM = new THREE.Matrix4();
+  stationKnown = false;
   private holdT = 0;
   player!: Player;
   weapon!: Weapon;
@@ -296,6 +305,16 @@ export class Game {
 
     this.marker = new Marker(s);
     this.mission = new Mission(this);
+    this.minimap = new Minimap(this.hud.root, {
+      street: d.open.map(([x0, z0, x1, z1]) => ({ x0, z0, x1, z1 })),
+      upper: d.arch.decks,
+      under: d.metro.rooms,
+      stairs: d.arch.stairs.map((st) => ({ x0: st.x0, z0: st.z0, x1: st.x1, z1: st.z1 })),
+    });
+    // Hearing counts as knowing roughly where they are.
+    this.security.onHeard = (g) => {
+      if (g.pos.distanceTo(this.player.pos) < 30) this.known.set(g, { x: g.pos.x, y: g.pos.y, z: g.pos.z, t: this.elapsed, hot: g.threat >= 3 });
+    };
 
     // Compile everything up front so the first shot doesn't hitch.
     this.renderer.renderer.compile(s, this.camera);
@@ -433,6 +452,9 @@ export class Game {
       this.ctx.enemies = this.security.guards;
       this.storyHud.clear();
       this.storyHud.show(true);
+      this.minimap.show(true);
+      this.known.clear();
+      this.stationKnown = false;
       this.mission.start(fromCheckpoint);
       if (!fromCheckpoint) this.storyHud.radioLine('H — HOLSTER / DRAW · E — INTERACT · A DRAWN WEAPON DRAWS ATTENTION', 'info');
       else this.storyHud.radioLine('CHECKPOINT', 'info');
@@ -444,6 +466,7 @@ export class Game {
       this.ctx.enemies = this.waves.enemies;
       this.setStationOpen(false);
       this.storyHud.show(false);
+      this.minimap.show(false);
       this.marker.set(null);
       this.crowd.setVisible(false);
       this.crowd.civs.length = 0;
@@ -605,6 +628,7 @@ export class Game {
         this.updateStoryHud(rawDt);
         this.ambientChatter(dt);
         this.updateInteraction(dt);
+        this.updateKnowledge(rawDt);
         const md = this.marker.update(this.camera.position, this.elapsed);
         this.storyHud.setDistance(md);
         this.hud.setClock(fmt(this.rail.tt.now));
@@ -663,14 +687,43 @@ export class Game {
 
   private updateMusic(dt: number) {
     const s = this.state === 'paused' ? this.stateBeforePause : this.state;
-    const story = this.mode === 'story' && this.security;
-    this.music.update(dt, {
-      mode: s === 'play' ? 'play' : s === 'dead' ? 'dead' : 'menu',
-      fighting: story ? this.security.alert.level === 'pursuit' : this.waves.state === 'fighting',
-      wave: story ? 0 : this.waves.wave,
-      alive: story ? this.security.hostiles() : this.waves.enemies.filter((e) => e.alive).length,
-      hp: this.player ? this.player.health / this.player.maxHealth : 1,
-    });
+    this.music.update(dt, { mode: s === 'play' ? 'play' : s === 'dead' ? 'dead' : 'menu', intensity: this.musicIntensity() });
+  }
+
+  /** How tense the moment is, from what the player is going through (never from hidden information). */
+  private musicIntensity(): number {
+    if (!this.player) return 0;
+    const hp = this.player.health / this.player.maxHealth;
+    if (this.mode === 'arcade') {
+      if (this.waves.state !== 'fighting') return 0.15;
+      const alive = this.waves.enemies.filter((e) => e.alive).length;
+      return Math.min(1, 0.72 + alive * 0.03 + (hp < 0.3 ? 0.1 : 0));
+    }
+    const a = this.security.alert;
+    let x = 0.06;
+    switch (a.level) {
+      case 'suspicious':
+        x = 0.3 + 0.18 * Math.max(0, ...this.security.guards.map((g) => (g.alive && !g.hostile ? g.suspicion : 0)));
+        break;
+      case 'alerted':
+        x = 0.42;
+        break;
+      case 'search':
+        x = 0.34 + 0.2 * (a.searchLeft(this.elapsed) / SEARCH_TIME);
+        break;
+      case 'pursuit': {
+        const p = this.player.pos;
+        const fighting = this.security.guards.some((g) => g.alive && g.gstate === 'combat' && g.pos.distanceTo(p) < 30);
+        const close = this.security.hostiles(30);
+        x = fighting ? 0.86 + Math.min(0.14, close * 0.03) : 0.64;
+        break;
+      }
+    }
+    // The last train is close: a little more urgency.
+    const esc = this.rail.tt.escapeService();
+    if (esc && !esc.suspended && this.rail.tt.secondsUntil(esc) < 60) x = Math.max(x, 0.42);
+    if (hp < 0.3 && a.level === 'pursuit') x = Math.min(1, x + 0.08);
+    return x;
   }
 
   /** Location card when the player settles in a new area (debounced so corners don't spam it). */
@@ -831,6 +884,41 @@ export class Game {
     this.hud.show(this.hud.title, true);
   }
 
+  /**
+   * Minimap knowledge: guards the player can actually see (on screen, line of sight) or has just heard.
+   * Old sightings fade out at their last known spot.
+   */
+  private updateKnowledge(dt: number) {
+    this.knowT -= dt;
+    if (this.knowT <= 0) {
+      this.knowT = 0.1;
+      this.projM.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+      this.frustum.setFromProjectionMatrix(this.projM);
+      const eye = this.camera.position;
+      for (const g of this.security.guards) {
+        if (!g.alive) {
+          this.known.delete(g);
+          continue;
+        }
+        const chest = g.chest.clone();
+        if (chest.distanceTo(eye) > 55 || !this.frustum.containsPoint(chest)) continue;
+        if (!this.col.lineOfSight(eye, chest)) continue;
+        this.known.set(g, { x: g.pos.x, y: g.pos.y, z: g.pos.z, t: this.elapsed, hot: g.threat >= 3 });
+      }
+    }
+    const blips: Blip[] = [];
+    for (const [g, k] of this.known) {
+      const age = this.elapsed - k.t;
+      if (age > 9 || g.dead || g.gone) {
+        this.known.delete(g);
+        continue;
+      }
+      blips.push({ x: k.x, y: k.y, z: k.z, fresh: 1 - age / 9, hot: k.hot && age < 2 });
+    }
+    if (!this.stationKnown && (this.mission.act >= 2 || this.player.pos.distanceTo(new THREE.Vector3(9.1, 0, 4)) < 18)) this.stationKnown = true;
+    this.minimap.draw(this.player.pos, this.player.yaw, this.marker.target, blips, this.stationKnown ? new THREE.Vector3(9.1, 0, 4) : null);
+  }
+
   /** Snippets of conversation from calm people nearby. */
   /** Lockdown on/off: station shutters, the stair links in the nav graph, where civilians may walk. */
   setStationOpen(open: boolean) {
@@ -864,12 +952,14 @@ export class Game {
       if (d > 45) continue;
       meter = Math.max(meter, g.suspicion);
       const attacking = g.threat >= 3;
-      // Arcs only for guards that are noticing you or shooting at you (no wallhack for idle patrols).
-      if (!(g.suspicion > 0.05 && !g.hostile) && !attacking) continue;
       const ang = Math.atan2(g.pos.x - p.x, g.pos.z - p.z);
       let rel = -(ang - (this.player.yaw + Math.PI));
       rel = Math.atan2(Math.sin(rel), Math.cos(rel));
-      marks.push({ angle: rel, level: attacking ? 3 : 1, k: g.suspicion });
+      // A hunter close behind you who can see you: you'd hear him (footsteps, radio).
+      const behind = g.hostile && g.sees && d < 15 && Math.abs(rel) > 0.9;
+      // Arcs only for guards that are noticing you, hunting you up close, or shooting at you (no wallhack).
+      if (!(g.suspicion > 0.05 && !g.hostile) && !attacking && !behind) continue;
+      marks.push({ angle: rel, level: attacking ? 3 : behind ? 2 : 1, k: g.suspicion });
     }
     if (a.level === 'search') meter = a.searchLeft(t) / SEARCH_TIME;
     else if (a.level === 'pursuit') meter = 1;
@@ -1008,7 +1098,7 @@ export class Game {
       wave: this.waves.wave,
       waveState: this.waves.state,
       alive: this.waves.enemies.filter((e) => e.alive).length,
-      music: { state: this.music.state, backend: this.music.kind, tracks: this.music.activeTracks() },
+      music: { state: this.music.state, backend: this.music.kind, tracks: this.music.activeTracks(), ...this.music.debug() },
       fps: +this.perf.fps.toFixed(1),
       pixelRatio: this.renderer.renderer.getPixelRatio(),
       drawCalls: this.renderer.renderer.info.render.calls,
