@@ -782,6 +782,7 @@ export class Game {
       // HUD.
       this.hud.setHealth(this.player.health, this.player.maxHealth);
       this.hud.setAmmo(this.weapon.ammo, this.weapon.reloading);
+      this.hud.setArmed(this.weapon.visible);
       this.hud.setWave(this.waves.wave, this.waves.remaining, this.waves.state === 'break');
       this.hud.root.classList.toggle('holstered', this.weapon.holstered);
       this.hud.setSpread(4 + this.player.moveAmount * 6 + this.weapon.bloom * 12 + (this.player.onGround ? 0 : 10));
