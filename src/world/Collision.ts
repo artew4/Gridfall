@@ -336,16 +336,17 @@ export class CollisionWorld {
       bestSign = sign;
       cylN = null;
     }
-    // Ground plane.
+    // Ground plane (the street surface), from above or from the station below; open stairwells
+    // (holes) let rays through.
     let surface: Surface = 'concrete';
     const normal = out?.normal ?? new THREE.Vector3();
-    if (dir.y < -1e-6 && oy > -0.5) {
+    if ((dir.y < -1e-6 && oy > -0.5) || (dir.y > 1e-6 && oy < -0.5)) {
       const tg = -oy / dir.y;
       if (tg > 0 && tg < best && !this.inHole(ox + dir.x * tg, oz + dir.z * tg)) {
         best = tg;
         bestC = null;
         bestAxis = 1;
-        bestSign = 1;
+        bestSign = dir.y < 0 ? 1 : -1;
         cylN = null;
         surface = 'concrete';
       }

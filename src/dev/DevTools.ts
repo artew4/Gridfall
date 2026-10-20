@@ -49,6 +49,10 @@ export function installDevTools(game: Game) {
     shoot() {
       g.shoot();
     },
+    /** Perception scenarios against the real map geometry. */
+    async vision() {
+      return (await import('./VisionCheck')).checkVision(game);
+    },
     v: (x: number, y: number, z: number) => new THREE.Vector3(x, y, z),
     /** Collects `fn()` every `ms` into window.__log (for observations longer than one call). */
     record(fn: () => unknown, ms = 1000) {

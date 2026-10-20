@@ -13,7 +13,7 @@ export interface Known {
 /** Seconds of no confirmed contact before pursuit turns into a search. */
 export const PURSUIT_LOSS = 7;
 /** Search duration after contact is lost. */
-export const SEARCH_TIME = 38;
+export const SEARCH_TIME = 25;
 /** How long an unconfirmed report keeps security alerted. */
 export const ALERTED_TIME = 30;
 /** Civilian reports closer together than this are merged. */

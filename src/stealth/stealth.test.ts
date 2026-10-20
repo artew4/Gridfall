@@ -1,59 +1,109 @@
 import { describe, expect, it } from 'vitest';
 import { AlertSystem, PURSUIT_LOSS, REPORT_COOLDOWN, SEARCH_TIME } from './AlertSystem';
-import { CONFIRMED, DECAY, stepSuspicion, suspicionRate, type SightInput } from './Perception';
+import { CONFIRMED, FOV_COS, SUSPICIOUS, VISION, sightZone, stepSuspicion, suspicionRate, visionRange, type SightInput } from './Perception';
 
-const base: SightInput = { dist: 8, cos: 1, los: true, weaponDrawn: false, sprinting: false, light: 1, hunting: false, remembers: false };
+const base: SightInput = { dist: 8, zone: 'cone', visible: 3, weaponDrawn: false, sprinting: false, light: 1, hunting: false, remembers: false, engaged: false, firing: false };
+const deg = (d: number) => Math.cos((d * Math.PI) / 180);
 
 /** Seconds of continuous sight needed to reach a positive ID. */
 function timeToConfirm(i: SightInput) {
   let s = 0;
-  for (let t = 0; t < 60; t += 0.1) {
-    s = stepSuspicion(s, suspicionRate(i), 0.1);
-    if (s >= CONFIRMED) return t + 0.1;
+  for (let t = 0; t < 60; t += 0.05) {
+    s = stepSuspicion(s, suspicionRate(i), 0.05);
+    if (s >= CONFIRMED) return t + 0.05;
   }
   return Infinity;
 }
 
-describe('Perception', () => {
-  it('sees nothing through walls', () => {
-    expect(suspicionRate({ ...base, los: false, weaponDrawn: true })).toBe(0);
+describe('Perception: view cone (3D)', () => {
+  const R = VISION.range;
+  it('the cone is 85° wide: inside at 40°, outside at 45°', () => {
+    expect(sightZone(deg(40), 0, 10, R)).toBe('cone');
+    expect(sightZone(deg(45), 0, 10, R)).toBe(null);
+    expect(FOV_COS).toBeCloseTo(Math.cos((42.5 * Math.PI) / 180));
   });
 
-  it('does not see behind itself beyond peripheral range', () => {
-    expect(suspicionRate({ ...base, cos: -1, dist: 8, weaponDrawn: true })).toBe(0);
-    expect(suspicionRate({ ...base, cos: -1, dist: 2, weaponDrawn: true })).toBeGreaterThan(0);
+  it('nobody behind the guard is seen beyond touch range', () => {
+    expect(sightZone(-1, 0, 3, R)).toBe(null);
+    expect(sightZone(-1, 0, 8, R)).toBe(null);
+    expect(sightZone(-1, 0, 1.2, R)).toBe('touch');
   });
 
-  it('a holstered stranger is anonymous beyond 10 m when nobody is hunting', () => {
+  it('side vision is short-range and slow', () => {
+    expect(sightZone(deg(70), 0, 4, R)).toBe('peripheral');
+    expect(sightZone(deg(70), 0, 7, R)).toBe(null);
+    const front = suspicionRate({ ...base, dist: 4, zone: 'cone', weaponDrawn: true });
+    const side = suspicionRate({ ...base, dist: 4, zone: 'peripheral', weaponDrawn: true });
+    expect(side).toBeLessThan(front * 0.5);
+  });
+
+  it('range is limited: 16 m direct, 9 m for a holstered stranger, 22 m once engaged', () => {
+    expect(sightZone(1, 0, 17, R)).toBe(null);
+    expect(visionRange({ ...base, weaponDrawn: true })).toBe(16);
+    expect(visionRange(base)).toBe(9);
+    expect(visionRange({ ...base, hunting: true })).toBe(16);
+    expect(visionRange({ ...base, engaged: true })).toBe(22);
     expect(suspicionRate({ ...base, dist: 12 })).toBe(0);
-    expect(suspicionRate({ ...base, dist: 12, weaponDrawn: true })).toBeGreaterThan(0);
+    expect(suspicionRate({ ...base, dist: 30, weaponDrawn: true, remembers: true })).toBe(0);
   });
 
-  it('a drawn weapon is identified much faster than a holstered one', () => {
-    const armed = timeToConfirm({ ...base, dist: 8, weaponDrawn: true });
-    const holstered = timeToConfirm({ ...base, dist: 5 });
-    expect(armed).toBeLessThan(1);
-    expect(holstered).toBeGreaterThan(2);
+  it('a player straight above or below is outside the vertical view', () => {
+    // Roof 8.5 m up, 3 m away horizontally: 63° up — out of view.
+    expect(sightZone(1, 8.5 - 0.65, 3, R)).toBe(null);
+    // Same roof seen from across the street (12 m): 33° up — in view.
+    expect(sightZone(1, 8.5 - 0.65, 12, R)).toBe('cone');
+    // Looking down steeply from a walkway is allowed further than looking up.
+    expect(sightZone(1, -3.5, 3, R)).toBe('cone');
+    expect(sightZone(1, -6, 2, R)).toBe(null);
+  });
+});
+
+describe('Perception: recognition', () => {
+  it('nothing visible, nothing gained (walls, floors)', () => {
+    expect(suspicionRate({ ...base, visible: 0, weaponDrawn: true })).toBe(0);
+    expect(suspicionRate({ ...base, zone: null, weaponDrawn: true })).toBe(0);
   });
 
-  it('gives the player a moment to break line of sight at range', () => {
-    // Armed at 25 m: suspicious first, confirmed only after a noticeable delay.
-    expect(timeToConfirm({ ...base, dist: 25, weaponDrawn: true })).toBeGreaterThan(1);
+  it('a drawn weapon is identified in 0.7–1.5 s across the cone', () => {
+    expect(timeToConfirm({ ...base, dist: 3, weaponDrawn: true })).toBeGreaterThanOrEqual(0.65);
+    expect(timeToConfirm({ ...base, dist: 3, weaponDrawn: true })).toBeLessThan(0.8);
+    const edge = timeToConfirm({ ...base, dist: 15.5, weaponDrawn: true });
+    expect(edge).toBeGreaterThan(1.3);
+    expect(edge).toBeLessThan(1.6);
+  });
+
+  it('there is always time to react: the suspicious stage comes well before identification', () => {
+    const r = suspicionRate({ ...base, dist: 10, weaponDrawn: true });
+    expect(SUSPICIOUS / r).toBeGreaterThan(0.25);
+    expect((CONFIRMED - SUSPICIOUS) / r).toBeGreaterThan(0.6);
+  });
+
+  it('a holstered stranger takes longer than a drawn weapon', () => {
+    const armed = timeToConfirm({ ...base, dist: 6, weaponDrawn: true });
+    const holstered = timeToConfirm({ ...base, dist: 6 });
+    expect(holstered).toBeGreaterThan(armed * 1.8);
   });
 
   it('holstering does not erase a positive identification', () => {
-    expect(timeToConfirm({ ...base, dist: 20, remembers: true })).toBeLessThan(0.5);
+    expect(timeToConfirm({ ...base, dist: 14, remembers: true })).toBeLessThan(0.6);
   });
 
-  it('darkness slows detection at range only', () => {
-    const lit = suspicionRate({ ...base, dist: 15, weaponDrawn: true, light: 1 });
-    const dark = suspicionRate({ ...base, dist: 15, weaponDrawn: true, light: 0 });
+  it('a sliver of the body is much slower to recognise than the whole figure', () => {
+    const full = suspicionRate({ ...base, weaponDrawn: true, visible: 3 });
+    const one = suspicionRate({ ...base, weaponDrawn: true, visible: 1 });
+    expect(one).toBeLessThan(full * 0.4);
+  });
+
+  it('darkness slows detection at range only; a muzzle flash ignores it', () => {
+    const lit = suspicionRate({ ...base, dist: 12, weaponDrawn: true, light: 1 });
+    const dark = suspicionRate({ ...base, dist: 12, weaponDrawn: true, light: 0 });
     expect(dark).toBeLessThan(lit);
     expect(suspicionRate({ ...base, dist: 4, weaponDrawn: true, light: 0 })).toBe(suspicionRate({ ...base, dist: 4, weaponDrawn: true, light: 1 }));
+    expect(suspicionRate({ ...base, dist: 12, firing: true, light: 0 })).toBeGreaterThan(dark);
   });
 
   it('suspicion decays when sight is lost', () => {
-    expect(stepSuspicion(0.5, 0, 1)).toBeCloseTo(0.5 - DECAY);
+    expect(stepSuspicion(0.5, 0, 1)).toBeCloseTo(0.5 - VISION.decay);
     expect(stepSuspicion(0.05, 0, 1)).toBe(0);
   });
 });
