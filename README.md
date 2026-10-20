@@ -1,4 +1,4 @@
-# NEON RAIN 4.0: Three Settings (Tokyo visual slice)
+# NEON RAIN 4.1: Three Settings (Tokyo and Desert visual overhaul)
 
 One night in Shinjuku. One gun you'd rather keep holstered. One last train. Or an outpost in the dunes, and a sandstorm coming. Or a walled firebase deep in the rainforest, and a road up to its gate.
 
@@ -221,7 +221,7 @@ Each track can also set `beatsPerBar` (default 4) and `offset` (seconds before b
 |---|---|---|---|---|
 | Power Saving | 30 | 0.85× CSS pixels | 3 levels | off |
 | Balanced (default) | 60 | up to 1.25× | 3 levels | on |
-| High Quality | 120 | up to 1.5× | 5 levels | on |
+| High Quality | 120 | up to 1.5× | 3 levels | on |
 
 - The frame cap (30/60/90/120) can also be set on its own.
 - Game speed doesn't depend on the cap: everything is time-based.
@@ -229,6 +229,7 @@ Each track can also set `beatsPerBar` (default 4) and `offset` (seconds before b
 - A paused game draws nothing.
 - In a hidden tab, rendering stops, audio is suspended and a running game pauses. It stays paused until you resume.
 - Resolution adapts down if the frame rate can't hold the cap.
+- A preset changes resolution and frame rate, never the look (4.1): bloom shape and grading belong to the setting. Light flicker is timed in seconds, not frames, so signs flicker the same at 30, 60 or 120 FPS.
 
 ### Tokyo look (4.0)
 The world renders through one post chain: scene → viewmodel → UnrealBloom → grade (aberration, split-tone, vignette, grain, fades) → OutputPass (ACES filmic, sRGB). The HUD, crosshair and menus are HTML over the canvas, so bloom and grading never touch them.
@@ -238,7 +239,13 @@ The world renders through one post chain: scene → viewmodel → UnrealBloom �
 - **Street AO:** alleys, wall feet and the ground under walkways are darker, from a small occlusion texture baked from the map at load (15 ms).
 - **No real-time shadows in Tokyo** (none in 3.7 either): night light comes from neon, and a muzzle-flash shadow would need six extra scene renders per shot.
 
-Desert Outpost and Deep Jungle keep their 3.7 look.
+### Desert look (4.1)
+- **Harsh sun:** 1.6× brighter (sunlit ground ~59% brighter than 3.7; the shade, lit only by the sky, stays as it was), with a glare corona round the sun disc.
+- **"Wasteland" grade:** a bleach bypass (drained midtones, crushed deep shadows, a contrast push), then amber-yellow pushed into the sunlit range.
+- **Bloom only above the brightest sand:** threshold 1.0. Sunlit sand never blooms; the sun, glints on the (now glossier) metal debris and vehicles, and sunlit specks in the dust do.
+- **Heat haze:** a shimmer in a band just below the horizon in clear weather, outdoors only. The gun never wobbles.
+
+Deep Jungle keeps its 3.7 look.
 
 ## Dev checks
 
@@ -276,7 +283,7 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - `await __dev.colliders(true)`: the collision overlay around the camera.
   - `await __dev.bench(3)`: fixed benchmark scenarios for the loaded setting (Tokyo, the desert or the jungle). Compare the results with `docs/BENCH-3.2.json` … `docs/BENCH-4.0.json`. A measurement only counts if the window stayed focused, visible and in play (`valid`); an unfocused window or Chrome's Energy Saver caps the frame rate.
   - `await __dev.bench(3, { pipelines: ['v4', 'raw', 'v37'] })` (4.0): every scenario in each render pipeline, interleaved.
-  - **F8** (dev server only) cycles the render pipeline: 4.0 → RAW (no composer, the same materials) → 3.7 (the old look and materials) → 4.0. `__dev.pipeline('v37')` does the same from the console.
+  - **F8** (dev server only) cycles the render pipeline: 4.0 → RAW (no composer, the same materials) → 3.7 (the old look and materials) → 4.0. In the desert it switches the 4.1 additions (sun, grade, glare, glints, metals, haze) the same way. `__dev.pipeline('v37')` does the same from the console.
   - `__game.safety.recoveries`: how often the out-of-bounds safety net fired. It should stay 0, and each recovery is logged as `[safety]`.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
 

@@ -160,9 +160,13 @@ The jungle runs Arcade Survival on a map built for a future linear assault missi
 ## Render look per level (4.0)
 
 `LevelLook` (applied by `Renderer.setLook` on load) now carries, besides exposure, bloom, shadows and the shadow tint:
-- `grade?`: the teal/orange split-tone (`split`, `teal`, `warm`, `sat`). Absent means off, the 3.7 grade.
+- `grade?`: the teal/orange split-tone (`split`, `teal`, `warm`, `sat`, and `hi`, the highlight range: default 0.22–1.6 for a night scene, 0.1–0.8 in the desert). 4.1 adds a bleach bypass (`desat`, `crush`, `contrast`), which runs before the split. Absent means off, the 3.7 grade.
 - `legacy?`: the look before 4.0, used only by the DEV comparison.
 
 `LevelRuntime.setVisual?(v4)` switches a level's own 4.0 additions (Tokyo: the AO bake, the wet model and the reflection catchers) for the comparison. `Game.setPipeline('v4' | 'raw' | 'v37')` sets both and recompiles; F8 (DevTools) cycles it.
 
 Tokyo's 4.0 additions are module-level uniforms (`WET4`, `CATCHERS` in `Ground.ts`). `TokyoLevel.dispose()` resets them, so another level never inherits them.
+
+### 4.1 additions
+- **`Renderer.haze = { px, horizon }`:** the heat haze, applied in the grade pass. A level sets it each frame (the desert does) and resets it in `dispose()`. The grade masks out the viewmodel's projected screen box.
+- **Presets never change the look:** every preset uses three bloom levels (a unit test holds this). Light flicker must use `heldNoise(t, seed)` (`core/math.ts`), never `Math.random()` per frame (a unit test holds the sign modes to the same rate at 60 and 120 FPS).
