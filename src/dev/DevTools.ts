@@ -49,6 +49,17 @@ export function installDevTools(game: Game) {
     shoot() {
       g.shoot();
     },
+    /** World overlay: cones, lines of sight, goals, search points, last known position. */
+    async ai(on = true) {
+      const { AIDebug } = await import('./AIDebug');
+      const w = window as unknown as { __aiDebug?: InstanceType<typeof AIDebug> };
+      w.__aiDebug ??= new AIDebug(game);
+      w.__aiDebug.set(on);
+    },
+    /** Headless pursuit scenarios (escape, hide, shots, re-detection). */
+    async pursuit() {
+      return (await import('./PursuitCheck')).checkPursuit(game);
+    },
     /** Perception scenarios against the real map geometry. */
     async vision() {
       return (await import('./VisionCheck')).checkVision(game);
