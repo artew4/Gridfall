@@ -27,6 +27,7 @@ export const ROOFTOPS: Zone[] = [
 ];
 
 export const STATION: Zone[] = [
+  { id: 'train', name: 'ON THE TRAIN', jp: '車内', rects: [[-40, 33.6, 40, 37]] },
   { id: 'platform', name: 'SAKURA LINE · PLATFORM 1', jp: '桜線 1番線', rects: [[-40, 27, 40, 33]] },
   { id: 'concourse', name: 'SAKURA LINE · CONCOURSE', jp: '桜線 改札', rects: [[-14, 15, 14, 27]] },
   { id: 'maintenance', name: 'MAINTENANCE', jp: '保守室', rects: [[-36, -2, -24, 27]] },

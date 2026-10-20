@@ -35,6 +35,7 @@ export class AudioEngine {
   private rainFilter!: BiquadFilterNode;
   private rainGain!: GainNode;
   private under = -1;
+  private rumble: { g: GainNode; lp: BiquadFilterNode; whine: OscillatorNode; wg: GainNode } | null = null;
   private hums: { gain: GainNode; base: number }[] = [];
 
   start() {
@@ -897,6 +898,88 @@ export class AudioEngine {
     if (!this.started) return;
     const o = this.out(pos, 0.15, this.amb);
     this.voice(o, this.now(), 3 + Math.floor(Math.random() * 6), rand(105, 230), rand(6, 8), 0.05);
+  }
+
+  /** Station PA: two-tone chime and an announcement-like voice cadence through a hall reverb. */
+  announce(seconds = 2.6) {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out({ x: 0, y: -3, z: 25 }, 1.2, this.amb);
+    const g = this.ctx.createGain();
+    g.gain.value = 1.6;
+    g.connect(o);
+    for (const [f, d] of [[830.6, 0], [659.3, 0.34]] as const) {
+      this.tone(g, 'sine', f, f, 0.12, 0.005, 0.9, t + d);
+      this.tone(g, 'sine', f * 2, f * 2, 0.025, 0.005, 0.5, t + d);
+    }
+    const band = this.filter('bandpass', 1300, 0.7);
+    band.connect(g);
+    this.voice(band, t + 0.9, Math.round(seconds * 7), 150, 7, 0.1);
+  }
+
+  /** Door open/close chime of the train. */
+  doorChime(pos: V3, open: boolean) {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(pos, 0.4, this.amb);
+    const notes = open ? [987.8, 783.99] : [783.99, 987.8, 783.99];
+    notes.forEach((f, i) => this.tone(o, 'triangle', f, f, 0.08, 0.005, 0.35, t + i * 0.22));
+    // Pneumatic hiss of the doors.
+    this.burst(o, this.white, 'highpass', 3000, 0.7, 0.12, 0.05, 0.6, t + 0.1);
+  }
+
+  /** An original, short departure melody (hassha merodii) on a bell-like synth. */
+  departureMelody() {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out({ x: 0, y: -3, z: 30 }, 1.0, this.amb);
+    const g = this.ctx.createGain();
+    g.gain.value = 1.4;
+    g.connect(o);
+    const mel = [76, 79, 83, 81, 79, 76, 74, 76, 79, 81, 83, 88];
+    mel.forEach((n, i) => {
+      const f = 440 * Math.pow(2, (n - 69) / 12);
+      const at = t + i * 0.24;
+      this.tone(g, 'sine', f, f, 0.08, 0.004, 0.45, at);
+      this.tone(g, 'sine', f * 3.01, f * 3.01, 0.015, 0.002, 0.18, at);
+    });
+  }
+
+  /** Doors-closing warning: three beeps and a short phrase. */
+  doorWarning(pos: V3) {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(pos, 0.3, this.amb);
+    for (let i = 0; i < 3; i++) this.tone(o, 'square', 1450, 1450, 0.03, 0.002, 0.18, t + i * 0.36);
+    const band = this.filter('bandpass', 1400, 0.8);
+    band.connect(o);
+    this.voice(band, t + 1.2, 6, 165, 7, 0.08);
+  }
+
+  /** Continuous train noise: set every frame from speed and how much of it reaches the listener. */
+  metroRumble(level: number, speed: number) {
+    if (!this.started) return;
+    if (!this.rumble) {
+      const src = this.noise(this.brown, true);
+      const lp = this.filter('lowpass', 300);
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      src.connect(lp).connect(g).connect(this.amb);
+      const whine = this.ctx.createOscillator();
+      whine.type = 'sawtooth';
+      const wg = this.ctx.createGain();
+      wg.gain.value = 0;
+      const wf = this.filter('bandpass', 900, 6);
+      whine.connect(wf).connect(wg).connect(this.amb);
+      whine.start();
+      this.rumble = { g, lp, whine, wg };
+    }
+    const t = this.now();
+    const r = this.rumble;
+    r.g.gain.setTargetAtTime(level * 0.5, t, 0.15);
+    r.lp.frequency.setTargetAtTime(200 + speed * 30, t, 0.2);
+    r.whine.frequency.setTargetAtTime(120 + speed * 28, t, 0.2);
+    r.wg.gain.setTargetAtTime(level * Math.min(1, speed / 6) * 0.03, t, 0.2);
   }
 
   /** Radio squelch click + hiss tail. */

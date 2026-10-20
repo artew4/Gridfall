@@ -91,6 +91,9 @@ export class Train {
   warn = 0;
   active = false;
   rumble = 0;
+  speed = SPEED;
+  /** Camera is right next to/inside the train (ending): far softer light and windows. */
+  cinematic = false;
   onPass: (dir: number) => void = () => {};
   onWarn: () => void = () => {};
   onBell: () => void = () => {};
@@ -240,7 +243,8 @@ export class Train {
   private forcedDir: 1 | -1 | 0 = 0;
 
   /** Puts the train on the overpass right now at `x` (the intro needs it mid-frame on cue). */
-  startNow(dir: 1 | -1, x: number) {
+  startNow(dir: 1 | -1, x: number, speed = SPEED) {
+    this.speed = speed;
     this.active = true;
     this.warn = 0;
     this.dir = dir;
@@ -295,7 +299,7 @@ export class Train {
       this.patches.uniforms.uVis.value = 0;
       return;
     }
-    this.x += this.dir * SPEED * dt;
+    this.x += this.dir * this.speed * dt;
     this.group.position.x = this.x;
     const len = (CARS - 1) * PITCH;
     const centre = this.x + len / 2;
@@ -303,7 +307,7 @@ export class Train {
     const lx = clamp(centre, -24, 24);
     const vis = Math.max(0, 1 - Math.abs(centre - lx) / 70);
     this.light.position.x = lx;
-    this.light.intensity = 140 * vis;
+    this.light.intensity = 140 * vis * (this.cinematic ? 0.15 : 1);
     this.glow.pos.set(lx, 8.8, RAIL.z + 2);
     this.glow.base = 1.1 * vis;
     this.rumble = clamp(1 - Math.abs(centre) / 110, 0, 1);
@@ -331,10 +335,12 @@ export class Train {
     this.arc.base = arcOn * 2;
     this.arc.haloStrength = arcOn * 0.9 * (Math.abs(this.arc.pos.x) < 50 ? 1 : 0);
     // Windows flicker slightly as the pickup bounces.
-    const fl = 2.6 * (Math.random() < 0.02 ? 0.4 : 1);
+    const fl = (this.cinematic ? 1.1 : 2.6) * (Math.random() < 0.02 ? 0.4 : 1);
     for (const m of this.windowMats) m.emissiveIntensity = fl;
     if ((this.dir > 0 && this.x > 160) || (this.dir < 0 && this.x < -320)) {
       this.active = false;
+      this.speed = SPEED;
+      this.cinematic = false;
       this.timer = rand(30, 48);
     }
   }

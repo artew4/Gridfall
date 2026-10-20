@@ -112,7 +112,7 @@ export class City {
    * A city block: one box with detailed facades on the listed sides (ledges, parapet, storefronts,
    * awnings), plus rooftop clutter. Bare sides stay plain (they face other blocks).
    */
-  block(x0: number, x1: number, z0: number, z1: number, h: number, variant: number, faces: FaceSpec[], rnd: () => number, opts: { tank?: boolean; y0?: number } = {}) {
+  block(x0: number, x1: number, z0: number, z1: number, h: number, variant: number, faces: FaceSpec[], rnd: () => number, opts: { tank?: boolean; y0?: number; walk?: boolean } = {}) {
     const b = this.ctx.builder;
     const m = this.mats;
     const w = x1 - x0;
@@ -121,6 +121,12 @@ export class City {
     b.add(worldBox(w, h - y0, d, 16, rnd() * 4, 0), m.facade[variant], (x0 + x1) / 2, (h + y0) / 2, (z0 + z1) / 2);
     this.col.add(x0, y0, z0, x1, h, z1, 'concrete');
     for (const f of faces) this.facade(x0, x1, z0, z1, h, f, rnd);
+    // Roof cap: tar and concrete, not the facade's windows (walkable roofs get their own wet deck).
+    if (!opts.walk && h > 3) {
+      const g = new THREE.PlaneGeometry(w, d);
+      g.rotateX(-Math.PI / 2);
+      b.add(g, m.darkConcrete, (x0 + x1) / 2, h + 0.01, (z0 + z1) / 2);
+    }
     // Rooftop water tank for the silhouette (not on roofs people walk on).
     const tankRoll = rnd();
     if (opts.tank !== false && h < 24 && w > 5 && d > 5 && tankRoll < 0.6) {

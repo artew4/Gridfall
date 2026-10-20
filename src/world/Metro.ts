@@ -104,7 +104,7 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
   const railMat = new THREE.MeshStandardMaterial({ color: 0x8a8c90, roughness: 0.3, metalness: 0.9 });
   const yellow = new THREE.MeshStandardMaterial({ color: 0xe8c21a, roughness: 0.6 });
   const glassMat = new THREE.MeshStandardMaterial({ color: 0xa8d8e0, roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.3, envMapIntensity: 1.4, depthWrite: false });
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0xd0d4d8, roughness: 0.4, metalness: 0.6 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x7c8288, roughness: 0.4, metalness: 0.6 });
 
   // ------------------------------------------------------------------ walls (generated from room edges)
   const touching = (r: Room, edge: 'n' | 's' | 'w' | 'e'): [number, number][] => {
@@ -182,7 +182,7 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
   for (const x of [-8, 8]) pillar(x, 20);
 
   // ------------------------------------------------------------------ ticket gates (z ≈ 23)
-  const gateMat = new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.35, metalness: 0.3 });
+  const gateMat = new THREE.MeshStandardMaterial({ color: 0xa8acb2, roughness: 0.35, metalness: 0.3 });
   const greenMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 2.6, 0.8) });
   const redMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.8, 0.3, 0.3) });
   for (let x = -6.4; x <= 6.41; x += 1.6) {
