@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import type { CollisionWorld } from '../../world/Collision';
 import { mulberry32 } from '../../core/math';
-import { JUNGLE_EXTENT, PAD_IN, jungleHeight, noise } from './Terrain';
-import type { TreeInfo } from './Ruins';
+import { JUNGLE_EXTENT, STRIP, baseDist, jungleHeight, noise } from './Terrain';
+import type { Interior, TreeInfo } from './Base';
 import { mistTexture } from './textures';
 
 /*
@@ -12,6 +12,9 @@ import { mistTexture } from './textures';
   bullets and sight pass through): they hide bodies, they don't stop rounds. A vertex-shader sway
   keeps them alive at zero CPU cost.
 */
+
+/** Rooms the mist shader can mask out. */
+const MAX_ROOMS = 6;
 
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -148,7 +151,8 @@ export interface FoliageResult {
 
 /**
  * Builds the undergrowth (bushes, ferns, sedge, big-leaf plants), the slim trees' crowns, hanging
- * vines, the high canopy and two sheets of ground mist.
+ * vines, the high canopy and two sheets of ground mist. The compound and its cleared strip stay bare
+ * (keep-clear rects); the canopy opens over the base; the mist stays out of the rooms.
  */
 export function buildFoliage(
   scene: THREE.Scene,
@@ -158,6 +162,7 @@ export function buildFoliage(
   spawns: THREE.Vector3[],
   fogColor: THREE.Color,
   quality: number,
+  rooms: Interior[] = [],
 ): FoliageResult {
   const rnd = mulberry32(777);
   const group = new THREE.Group();
@@ -171,23 +176,22 @@ export function buildFoliage(
     keepClear.some(([a0, b0, a1, b1]) => x > a0 - r && x < a1 + r && z > b0 - r && z < b1 + r) ||
     col.blocked(_p.set(x, jungleHeight(x, z), z), r, 0.6);
 
-  /** Density 0..1 of the undergrowth at a point: thin in the clearing, thick in the forest and around spawns. */
+  /** Density 0..1 of the undergrowth at a point: none on the cleared strip, thick in the forest and around spawns. */
   const density = (x: number, z: number) => {
-    const r = Math.hypot(x, z);
-    const forest = THREE.MathUtils.smoothstep(r, PAD_IN - 4, PAD_IN + 8);
+    const forest = THREE.MathUtils.smoothstep(baseDist(x, z), STRIP - 1, STRIP + 8);
     const patch = noise(x * 0.08 + 3, z * 0.08 - 9);
     let d = 0.15 + forest * (0.35 + patch * 0.7);
     for (const s of spawns) if (Math.abs(s.x - x) < 9 && Math.abs(s.z - z) < 9) d = Math.max(d, 1 - Math.hypot(s.x - x, s.z - z) / 9);
     return Math.min(1, d);
   };
 
-  /** Scatters `n` candidates of one kind over the map, keeping those the density accepts. */
-  const scatter = (n: number, minR: number, accept: (x: number, z: number) => boolean) => {
+  /** Scatters `n` candidates of one kind over the map (at least `minD` out from the wall), keeping those the density accepts. */
+  const scatter = (n: number, minD: number, accept: (x: number, z: number) => boolean) => {
     const out: THREE.Vector3[] = [];
     const ext = JUNGLE_EXTENT - 1;
     for (let i = 0; i < n * 6 && out.length < n; i++) {
       const x = (rnd() * 2 - 1) * ext, z = (rnd() * 2 - 1) * ext;
-      if (Math.hypot(x, z) < minR) continue;
+      if (baseDist(x, z) < minD) continue;
       if (!accept(x, z)) continue;
       out.push(new THREE.Vector3(x, jungleHeight(x, z), z));
     }
@@ -219,7 +223,7 @@ export function buildFoliage(
 
   const q = Math.max(0.35, quality);
   // ------------------------------------------------------------------ bushes
-  const bushPts = scatter(Math.round(1100 * q), PAD_IN - 6, (x, z) => rnd() < density(x, z) && !blockedSpot(x, z, 0.5))
+  const bushPts = scatter(Math.round(1100 * q), STRIP - 1, (x, z) => rnd() < density(x, z) && !blockedSpot(x, z, 0.5))
     .map((p) => ({ p, s: 0.9 + rnd() * 1.3, yaw: rnd() * 6.28, color: tint(0.22 + rnd() * 0.08, 0.45 + rnd() * 0.2, 0.17 + rnd() * 0.1) }));
   // Dense walls of undergrowth right round the spawns (where the hunters come out of).
   for (const s of spawns) {
@@ -234,17 +238,17 @@ export function buildFoliage(
   instanced('bushes', bushGeo, leafMat(0.05), bushPts, true);
 
   // ------------------------------------------------------------------ ferns
-  const fernPts = scatter(Math.round(1500 * q), 0, (x, z) => rnd() < 0.25 + density(x, z) * 0.75 && !blockedSpot(x, z, 0.2))
+  const fernPts = scatter(Math.round(1500 * q), STRIP - 3, (x, z) => rnd() < 0.25 + density(x, z) * 0.75 && !blockedSpot(x, z, 0.2))
     .map((p) => ({ p, s: 0.7 + rnd() * 0.9, yaw: rnd() * 6.28, color: tint(0.25 + rnd() * 0.06, 0.55, 0.22 + rnd() * 0.1) }));
   instanced('ferns', fernGeometry(), leafMat(0.12, THREE.DoubleSide), fernPts, false);
 
   // ------------------------------------------------------------------ sedge
-  const grassPts = scatter(Math.round(2600 * q), 0, (x, z) => rnd() < 0.5 + density(x, z) * 0.5 && !blockedSpot(x, z, 0.1))
+  const grassPts = scatter(Math.round(2600 * q), STRIP - 4, (x, z) => rnd() < 0.5 + density(x, z) * 0.5 && !blockedSpot(x, z, 0.1))
     .map((p) => ({ p, s: 0.8 + rnd() * 0.8, yaw: rnd() * 6.28, color: tint(0.2 + rnd() * 0.07, 0.4 + rnd() * 0.2, 0.2 + rnd() * 0.12) }));
   instanced('grass', grassGeometry(rnd), leafMat(0.18, THREE.DoubleSide), grassPts, false);
 
   // ------------------------------------------------------------------ big-leaf plants
-  const bigPts = scatter(Math.round(380 * q), PAD_IN - 3, (x, z) => rnd() < density(x, z) && !blockedSpot(x, z, 0.5))
+  const bigPts = scatter(Math.round(380 * q), STRIP, (x, z) => rnd() < density(x, z) && !blockedSpot(x, z, 0.5))
     .map((p) => ({ p, s: 1.0 + rnd() * 0.9, yaw: rnd() * 6.28, color: tint(0.27 + rnd() * 0.05, 0.5, 0.2 + rnd() * 0.08) }));
   instanced('bigleaf', bigLeafGeometry(), leafMat(0.08, THREE.DoubleSide), bigPts, true);
 
@@ -268,7 +272,7 @@ export function buildFoliage(
   for (const t of trees) if (t.giant) canopyPts.push({ p: new THREE.Vector3(t.x, t.y + t.h - 4, t.z), s: 9 + rnd() * 6, yaw: rnd() * 6.28, color: tint(0.26, 0.4, 0.09 + rnd() * 0.05) });
   for (let i = 0; i < Math.round(110 * q); i++) {
     const x = (rnd() * 2 - 1) * 78, z = (rnd() * 2 - 1) * 78;
-    if (Math.hypot(x, z) < 16) continue;
+    if (baseDist(x, z) < 4) continue;
     canopyPts.push({ p: new THREE.Vector3(x, 34 + rnd() * 10, z), s: 8 + rnd() * 8, yaw: rnd() * 6.28, color: tint(0.26, 0.4, 0.08 + rnd() * 0.05) });
   }
   instanced('canopy', crownGeo, leafMat(0.006), canopyPts, false);
@@ -288,7 +292,7 @@ export function buildFoliage(
       const a = rnd() * Math.PI * 2, d = nearTree ? t.r + 0.8 + rnd() * 5 : 0;
       const x = nearTree ? t.x + Math.cos(a) * d : (rnd() * 2 - 1) * 62;
       const z = nearTree ? t.z + Math.sin(a) * d : (rnd() * 2 - 1) * 62;
-      if (Math.hypot(x, z) < PAD_IN - 2) continue;
+      if (baseDist(x, z) < STRIP) continue;
       const g = jungleHeight(x, z);
       const top = g + 16 + rnd() * 14;
       // Most end well above head height; a few trail down to the ground.
@@ -307,9 +311,11 @@ export function buildFoliage(
 
   // ------------------------------------------------------------------ ground mist
   // Two sheets following the ground (0.3 m and 1.1 m up), drifting noise in the alpha, faded out
-  // close to the camera so you never see the sheet's edge when you walk through it. The temple
-  // terraces stand above it.
+  // close to the camera so you never see the sheet's edge when you walk through it. Masked out of
+  // the rooms (it would roll across the barracks floor otherwise).
   const mistTex = mistTexture();
+  // Rooms the mist stays out of (x0, z0, x1, z1); unused slots sit far off the map.
+  const roomRects = Array.from({ length: MAX_ROOMS }, (_, i) => (rooms[i] ? new THREE.Vector4(rooms[i].x0, rooms[i].z0, rooms[i].x1, rooms[i].z1) : new THREE.Vector4(1e5, 1e5, 1e5, 1e5)));
   const mists: THREE.ShaderMaterial[] = [];
   const mistMesh = (y: number, opacity: number, scale: number, drift: [number, number]) => {
     const size = 150, segs = 75;
@@ -320,7 +326,7 @@ export function buildFoliage(
     const mat = new THREE.ShaderMaterial({
       uniforms: THREE.UniformsUtils.merge([
         THREE.UniformsLib.fog,
-        { tMist: { value: mistTex }, uTime: { value: 0 }, uColor: { value: fogColor.clone().multiplyScalar(1.15) }, uOpacity: { value: opacity }, uScale: { value: scale }, uDrift: { value: new THREE.Vector2(...drift) } },
+        { tMist: { value: mistTex }, uTime: { value: 0 }, uColor: { value: fogColor.clone().multiplyScalar(1.15) }, uOpacity: { value: opacity }, uScale: { value: scale }, uDrift: { value: new THREE.Vector2(...drift) }, uRooms: { value: roomRects } },
       ]),
       vertexShader: `
         #include <fog_pars_vertex>
@@ -338,8 +344,13 @@ export function buildFoliage(
         uniform float uTime, uOpacity, uScale;
         uniform vec2 uDrift;
         uniform vec3 uColor;
+        uniform vec4 uRooms[${MAX_ROOMS}];
         varying vec3 vWorld;
         void main() {
+          for (int i = 0; i < ${MAX_ROOMS}; i++) {
+            vec4 r = uRooms[i];
+            if (vWorld.x > r.x && vWorld.x < r.z && vWorld.z > r.y && vWorld.z < r.w) discard;
+          }
           vec2 uv = vWorld.xz * uScale;
           float a = texture2D(tMist, uv + uDrift * uTime).r;
           float b = texture2D(tMist, uv * 2.3 - uDrift.yx * uTime * 1.4).r;

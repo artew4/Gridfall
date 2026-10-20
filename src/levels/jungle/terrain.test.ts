@@ -1,13 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { JUNGLE_EXTENT, JUNGLE_TERRAIN, OUTLIERS, PAD_IN, jungleHeight } from './Terrain';
+import { BASE, JUNGLE_EXTENT, JUNGLE_TERRAIN, ROAD, STRIP, jungleHeight, roadX } from './Terrain';
 
 describe('jungle terrain', () => {
-  it('the temple clearing is exactly flat', () => {
-    for (let x = -PAD_IN; x <= PAD_IN; x += 0.7) for (let z = -PAD_IN; z <= PAD_IN; z += 0.7) if (Math.hypot(x, z) < PAD_IN - 0.01) expect(jungleHeight(x, z)).toBe(0);
+  it('the compound and the cleared strip round its walls are exactly flat', () => {
+    for (let x = BASE.x0 - STRIP + 0.01; x <= BASE.x1 + STRIP; x += 0.7) {
+      for (let z = BASE.z0 - STRIP + 0.01; z <= BASE.z1 + STRIP; z += 0.7) {
+        // Only the box and the square-ish strip (rounded corners are blended).
+        const inX = x >= BASE.x0 && x <= BASE.x1, inZ = z >= BASE.z0 && z <= BASE.z1;
+        if (inX || inZ) expect(jungleHeight(x, z)).toBe(0);
+      }
+    }
   });
 
-  it('the outlying watch platforms and their stairs stand on flat ground', () => {
-    for (const o of OUTLIERS) for (let x = -9; x <= 9; x += 0.5) for (let z = -9; z <= 9; z += 0.5) if (Math.hypot(x, z) <= 9.5) expect(jungleHeight(o.x + x, o.z + z)).toBe(0);
+  it('the approach road is flat across its width up to where the cliff bank starts', () => {
+    for (let z = ROAD.z0; z <= 48; z += 0.5) for (let k = -1; k <= 1; k += 0.25) expect(jungleHeight(roadX(z) + k * ROAD.half, z)).toBe(0);
+  });
+
+  it('the road meets the gate on its axis', () => {
+    expect(Math.abs(roadX(ROAD.z0))).toBeLessThan(1e-9);
   });
 
   it('slopes stay walkable everywhere players and enemies go (< 22°), and under maxHeight', () => {

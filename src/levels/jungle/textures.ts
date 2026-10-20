@@ -237,3 +237,139 @@ export function mistTexture() {
   for (let i = 0; i < 120; i++) blob(g, S, rnd() * S, rnd() * S, 18 + rnd() * 50, `rgba(255,255,255,${0.12 + rnd() * 0.18})`);
   return finish(c, false);
 }
+
+/**
+ * Cast concrete (the base's T-walls, bunkers and buildings): panel joints every `panel` of the tile,
+ * form-tie holes, rain streaks down from the top, and green-black mould creeping up from the
+ * foot (v = 0 is the bottom of a wall with world-scaled UVs, so the mould sits at the ground).
+ */
+export function concreteTexture(base = '#7d7f76', panels = 2) {
+  const S = 512;
+  const { c, g } = canvas(S);
+  const rnd = mulberry32(101 + panels);
+  g.fillStyle = base;
+  g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 40; i++) blob(g, S, rnd() * S, rnd() * S, 20 + rnd() * 70, rnd() < 0.5 ? 'rgba(255,255,240,0.07)' : 'rgba(20,22,18,0.1)');
+  // Streaks from the top, mould at the foot.
+  for (let i = 0; i < 70; i++) {
+    const x = rnd() * S, w = 2 + rnd() * 8, l = S * (0.15 + rnd() * 0.5);
+    const grd = g.createLinearGradient(0, 0, 0, l);
+    grd.addColorStop(0, 'rgba(30,32,26,0.28)');
+    grd.addColorStop(1, 'rgba(30,32,26,0)');
+    g.fillStyle = grd;
+    g.fillRect(x, 0, w, l);
+  }
+  for (let i = 0; i < 160; i++) blob(g, S, rnd() * S, S - rnd() * S * 0.22, 6 + rnd() * 22, rnd() < 0.6 ? 'rgba(45,62,30,0.35)' : 'rgba(18,22,14,0.3)');
+  g.fillStyle = 'rgba(15,16,13,0.65)';
+  for (let k = 0; k < panels; k++) g.fillRect((k * S) / panels, 0, 3, S);
+  g.fillRect(0, S - 3, S, 3);
+  g.fillStyle = 'rgba(15,16,13,0.5)';
+  for (let k = 0; k < panels; k++) for (const y of [0.25, 0.75]) for (const x of [0.25, 0.75]) {
+    g.beginPath();
+    g.arc(((k + x) * S) / panels, y * S, 4, 0, Math.PI * 2);
+    g.fill();
+  }
+  for (let i = 0; i < 14000; i++) {
+    g.fillStyle = rnd() < 0.5 ? 'rgba(230,230,215,0.1)' : 'rgba(10,10,8,0.16)';
+    g.fillRect(rnd() * S, rnd() * S, 1, 1);
+  }
+  return finish(c);
+}
+
+/** Painted steel plate (gate leaves, vehicle bodies, containers): ribs, rust bleeding from seams. */
+export function steelTexture(paint = '#4b5235', ribs = 8) {
+  const S = 256;
+  const { c, g } = canvas(S);
+  const rnd = mulberry32(111 + ribs);
+  g.fillStyle = paint;
+  g.fillRect(0, 0, S, S);
+  for (let k = 0; k < ribs; k++) {
+    const x = (k * S) / ribs;
+    g.fillStyle = 'rgba(0,0,0,0.3)';
+    g.fillRect(x, 0, 2, S);
+    g.fillStyle = 'rgba(255,255,230,0.08)';
+    g.fillRect(x + 3, 0, 2, S);
+  }
+  for (let i = 0; i < 26; i++) {
+    const x = rnd() * S, l = 10 + rnd() * 60;
+    const grd = g.createLinearGradient(0, 0, 0, l);
+    grd.addColorStop(0, 'rgba(110,55,25,0.5)');
+    grd.addColorStop(1, 'rgba(110,55,25,0)');
+    g.fillStyle = grd;
+    g.fillRect(x, rnd() * S, 2 + rnd() * 4, l);
+  }
+  for (let i = 0; i < 20; i++) blob(g, S, rnd() * S, rnd() * S, 8 + rnd() * 26, 'rgba(20,20,15,0.22)');
+  for (let i = 0; i < 6000; i++) {
+    g.fillStyle = rnd() < 0.5 ? 'rgba(240,240,220,0.07)' : 'rgba(0,0,0,0.14)';
+    g.fillRect(rnd() * S, rnd() * S, 1, 1);
+  }
+  return finish(c);
+}
+
+/** The compound's ground: compacted laterite and gravel, puddles, tyre-worn darker patches. */
+export function gravelTexture() {
+  const S = 512;
+  const { c, g } = canvas(S);
+  const rnd = mulberry32(121);
+  g.fillStyle = '#6e5a44';
+  g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 50; i++) blob(g, S, rnd() * S, rnd() * S, 20 + rnd() * 70, rnd() < 0.5 ? 'rgba(130,90,60,0.25)' : 'rgba(40,34,26,0.3)');
+  for (let i = 0; i < 9000; i++) {
+    const r = 1 + rnd() * 2.4;
+    g.fillStyle = ['#8a8070', '#5e584c', '#9b8f7a', '#4a443a', '#7a5a40'][Math.floor(rnd() * 5)];
+    g.globalAlpha = 0.5 + rnd() * 0.4;
+    g.fillRect(rnd() * S, rnd() * S, r, r * (0.6 + rnd() * 0.6));
+  }
+  g.globalAlpha = 1;
+  for (let i = 0; i < 10; i++) blob(g, S, rnd() * S, rnd() * S, 10 + rnd() * 30, 'rgba(30,38,34,0.45)');
+  return finish(c);
+}
+
+/** The approach road: two wheel ruts of red mud through a grassy, leaf-strewn crown (u across, v along). */
+export function roadTexture() {
+  const S = 256;
+  const { c, g } = canvas(S);
+  const rnd = mulberry32(131);
+  g.fillStyle = '#5c4630';
+  g.fillRect(0, 0, S, S);
+  const band = (x0: number, x1: number, col: string) => {
+    g.fillStyle = col;
+    g.fillRect(x0 * S, 0, (x1 - x0) * S, S);
+  };
+  band(0, 0.12, 'rgba(45,58,28,0.8)');
+  band(0.88, 1, 'rgba(45,58,28,0.8)');
+  band(0.42, 0.58, 'rgba(55,66,32,0.6)');
+  band(0.17, 0.36, 'rgba(70,40,24,0.45)');
+  band(0.64, 0.83, 'rgba(70,40,24,0.45)');
+  for (let i = 0; i < 30; i++) blob(g, S, rnd() * S, rnd() * S, 6 + rnd() * 20, rnd() < 0.5 ? 'rgba(25,30,28,0.4)' : 'rgba(110,80,50,0.25)');
+  for (let i = 0; i < 1600; i++) {
+    g.fillStyle = ['#4a3a20', '#56422a', '#36401f'][Math.floor(rnd() * 3)];
+    g.globalAlpha = 0.3 + rnd() * 0.3;
+    const x = rnd() < 0.5 ? rnd() * 0.15 * S : S - rnd() * 0.15 * S;
+    g.fillRect(rnd() < 0.7 ? x : rnd() * S, rnd() * S, 2 + rnd() * 4, 1.5 + rnd() * 2);
+  }
+  g.globalAlpha = 1;
+  return finish(c);
+}
+
+/** A helipad marking: white H in a circle on a dark painted square (one decal, not tiled). */
+export function helipadTexture() {
+  const S = 512;
+  const { c, g } = canvas(S);
+  g.fillStyle = '#3b3d36';
+  g.fillRect(0, 0, S, S);
+  g.strokeStyle = '#d8d6c8';
+  g.lineWidth = 22;
+  g.beginPath();
+  g.arc(S / 2, S / 2, S * 0.4, 0, Math.PI * 2);
+  g.stroke();
+  g.fillStyle = '#d8d6c8';
+  g.fillRect(S * 0.33, S * 0.27, S * 0.07, S * 0.46);
+  g.fillRect(S * 0.6, S * 0.27, S * 0.07, S * 0.46);
+  g.fillRect(S * 0.33, S * 0.465, S * 0.34, S * 0.07);
+  const rnd = mulberry32(141);
+  for (let i = 0; i < 40; i++) blob(g, S, rnd() * S, rnd() * S, 10 + rnd() * 40, rnd() < 0.5 ? 'rgba(20,20,15,0.35)' : 'rgba(80,70,50,0.25)');
+  const t = finish(c);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}
