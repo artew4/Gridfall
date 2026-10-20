@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Glows, Glow } from './Glows';
 import { RAIL } from './City';
-import { clamp, mulberry32, rand } from '../core/math';
+import { clamp, heldNoise, mulberry32, rand } from '../core/math';
 
 const CARS = 8;
 const CAR_L = 19;
@@ -87,6 +87,8 @@ export class Train {
   x = -400;
   dir = 1;
   timer = 6;
+  /** Running time for held flicker noise. */
+  private clock = 0;
   /** Seconds of warning (signals + bells) before the train enters. */
   warn = 0;
   active = false;
@@ -255,6 +257,7 @@ export class Train {
   }
 
   update(dt: number) {
+    this.clock += dt;
     // Crossing signals: alternating blink during warning and while the train is near.
     const near = this.active && Math.abs(this.x + ((CARS - 1) * PITCH) / 2) < 120;
     const signalsOn = this.warn > 0 || near;
@@ -331,12 +334,13 @@ export class Train {
     this.patches.uniforms.uX1.value = this.x + len + CAR_L / 2;
     this.patches.uniforms.uVis.value = 1;
     // Random pantograph arcs.
-    const arcOn = Math.random() < 0.04 ? 1 : 0;
-    this.arc.pos.set(this.x + Math.floor(Math.random() * 4) * 2 * PITCH, 11.6, RAIL.z);
+    // Held per 1/60 s step (heldNoise), so the arcs flash as often at 120 FPS as at 60.
+    const arcOn = heldNoise(this.clock, 1.7) < 0.04 ? 1 : 0;
+    this.arc.pos.set(this.x + Math.floor(heldNoise(this.clock, 2.9) * 4) * 2 * PITCH, 11.6, RAIL.z);
     this.arc.base = arcOn * 2;
     this.arc.haloStrength = arcOn * 0.9 * (Math.abs(this.arc.pos.x) < 50 ? 1 : 0);
     // Windows flicker slightly as the pickup bounces.
-    const fl = (this.cinematic ? 1.1 : 2.6) * (Math.random() < 0.02 ? 0.4 : 1);
+    const fl = (this.cinematic ? 1.1 : 2.6) * (heldNoise(this.clock, 3.3) < 0.02 ? 0.4 : 1);
     for (const m of this.windowMats) m.emissiveIntensity = fl;
     if ((this.dir > 0 && this.x > 160) || (this.dir < 0 && this.x < -320)) {
       this.active = false;

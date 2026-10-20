@@ -3,6 +3,7 @@ import type { BuildCtx } from './City';
 import { GLOW_GLSL, type Glow } from './Glows';
 import { WET_NOISE_GLSL } from './Ground';
 import { signTexture } from './Textures';
+import { heldNoise } from '../core/math';
 
 const BASIN_R = 4.2;
 const WATER_Y = 0.52;
@@ -293,7 +294,7 @@ export class Fountain {
     this.rings.forEach((r, n) => {
       r.rotation.set(Math.PI / 2 + Math.sin(t * 0.3 + n) * 0.25, t * (0.2 + n * 0.12) * (n % 2 ? -1 : 1), Math.cos(t * 0.23 + n * 2) * 0.2);
       r.position.y = 5.2 + n * 0.45 + Math.sin(t * 0.8 + n) * 0.08;
-      this.ringMat[n].opacity = 0.6 + 0.25 * Math.sin(t * 2.3 + n * 1.7) + (Math.random() < 0.01 ? -0.5 : 0);
+      this.ringMat[n].opacity = 0.6 + 0.25 * Math.sin(t * 2.3 + n * 1.7) + (heldNoise(t, n + 5.5) < 0.01 ? -0.5 : 0);
     });
     this.textMat.color.setScalar(2.0 + Math.sin(t * 3.1) * 0.15);
   }

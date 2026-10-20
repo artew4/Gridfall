@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Game } from '../../core/Game';
-import { damp, rand } from '../../core/math';
+import { damp, heldNoise, rand } from '../../core/math';
 import { City } from '../../world/City';
 import type { SignGlow } from '../../world/Signs';
 import { buildDistrict, type DistrictResult } from '../../world/District';
@@ -359,7 +359,7 @@ export class TokyoLevel implements LevelRuntime {
       if (this.pendingThunder <= 0) game.audio.thunder();
     }
     this.thunderFlash = Math.max(0, this.thunderFlash - dt * 3);
-    const flick = this.thunderFlash > 0 ? (Math.random() < 0.7 ? 1 : 0.3) : 0;
+    const flick = this.thunderFlash > 0 ? (heldNoise(f.elapsed, 4.1) < 0.7 ? 1 : 0.3) : 0;
     this.hemi.intensity = 0.55 + this.thunderFlash * flick * 3.5;
     this.flash = this.thunderFlash * flick;
 
