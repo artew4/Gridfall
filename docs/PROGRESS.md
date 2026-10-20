@@ -199,8 +199,48 @@ Validation (Chrome, Apple M5, charging, rAF 123 Hz; presets applied in memory, s
 - **Collisions (desert):** the `colliders()` overlay matches; `world()` 0 findings, 123,810 reachable cells, 10 zones; `stress({samples: 3000})` 0 of 96,000.
 - **Tests and build:** 78 unit tests pass (2 new: flicker rate, preset bloom levels); no dev code in the bundle.
 
+## 4.2: Jungle visual overhaul ("Oppressive jungle")
+Branch `feature/visual-overhaul-jungle-4.2`, based on 4.1 (`74e3c37`). Numbers: `docs/BENCH-4.2.json`.
+
+| Step | Commit | Notes |
+|---|---|---|
+| Phases 1–3 | 2a1ee68 | grade (shadow hue, crush, bleach, yellow-green highlights), FogExp2 #485a46 / 0.03, wet mud, wet leaves, five geometric light shafts |
+| Phases 4–5 | (this commit) | validation, benchmark, docs |
+
+**Look, by data:** the jungle's linear HDR is dim (scene median 0.03–0.1, p95 0.11–0.26; only bulbs exceed 1). So the grade ranges were set to: darks end at 0.07, highlight push 0.08–0.4. Bloom threshold stays 0.95: the shafts add at most 0.21 and don't bloom; they are a soft glow by construction.
+
+**Light shafts:**
+- five open cones from 34 m down to the ground, aimed from the sun's own position;
+- additive, depthWrite off, edge falloff `|n·v|^2.2`, faded in from the canopy and near the camera, taken away by the fog (not blended toward it);
+- each lands on a fleck painted into the sun cookie, so the ground under it is lit.
+
+**Validation** (Chrome, Apple M5, charging; Balanced applied in memory, saved settings unchanged):
+- **Bench, 4.2 / 3.7 / raw interleaved, 6 scenarios, all valid:**
+  - 4.2 holds 59.6–60.3 FPS;
+  - GPU: 4.2 5.8–6.4 ms, 3.7 5.3–6.2 ms, raw 4.8–5.4 ms;
+  - draw calls +1 to +5 (the shafts in view).
+- **Shafts alone:**
+  - yard +0.1 ms;
+  - worst case +0.5 ms (standing at a shaft's foot looking up it, 4 in view), still 60 FPS;
+  - watchtower within noise.
+- **Mud alone** (ground materials recompiled without the patch): within noise (on ≤ off in both views).
+- **High** (in memory): 111–113 FPS at 2184×1423, GPU 4.1–4.3 ms.
+- **Teardown, Tokyo → Desert → Jungle → Menu, 3 rounds:**
+  - one render state per setting across rounds (exposure, bloom, every grade uniform, fog colour and density, background, env intensity, sight range);
+  - the shafts only exist in the jungle;
+  - textures 111/40/53 every round.
+- **Collisions:**
+  - `world()`: 0 findings;
+  - `stress({samples: 3000})`: 0 of 96,000;
+  - 539 colliders, none at any shaft foot;
+  - `resolveCircle` doesn't move a body at a shaft, and rays through and down the shafts hit only the ground or walls beyond.
+- **Tests and build:** 81 unit tests pass (3 new: shafts can't be raycast, are soft and depth-free, and lean to the sun); no dev code in the bundle.
+
+**Gameplay note:** the thicker fog shortens the enemies' sight in the jungle from 49 m to 43 m (it has always been tied to the fog).
+
 ## Next
 Human playtest:
+- 4.2 items: is the jungle oppressive or just dark? Are the shafts cinematic or too strong up close? Does the mud read as wet in motion? Is the fog too thick for spotting enemies?
 - 4.1 items: is High now steady, the desert's harshness (too bleached?), the sun glare and glints, the heat haze in motion (too subtle or too much?), storms with the new grade.
 - 4.0 items: does the teal/orange read as cinematic or as a filter, is the bloom too tight now, do the puddle reflections and the street AO read in motion, F8 side by side; and the frame rate with the charger in.
 - 3.7 items: does the road pull you to the gate, is the cleared strip a fair kill zone, do defenders out of the barracks feel like a garrison, are the guards readable in the mist, the doorways and stairs by feel, the watchtower and comms roof as positions.

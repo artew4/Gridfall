@@ -170,3 +170,9 @@ Tokyo's 4.0 additions are module-level uniforms (`WET4`, `CATCHERS` in `Ground.t
 ### 4.1 additions
 - **`Renderer.haze = { px, horizon }`:** the heat haze, applied in the grade pass. A level sets it each frame (the desert does) and resets it in `dispose()`. The grade masks out the viewmodel's projected screen box.
 - **Presets never change the look:** every preset uses three bloom levels (a unit test holds this). Light flicker must use `heldNoise(t, seed)` (`core/math.ts`), never `Math.random()` per frame (a unit test holds the sign modes to the same rate at 60 and 120 FPS).
+
+### 4.2 additions
+- **Grade:** `LookGrade.shadow` (multiplicative hue of the darks, default 1,1,1) and `lo` (luminance where the darks end, default 0.14), applied inside the split-tone. The jungle uses them; Tokyo and the desert keep the defaults (`setLook` resets them on every load).
+- **Geometric light shafts (`levels/jungle/GodRays.ts`):** additive cones, depthWrite off, never given to the CollisionWorld, tagged `soft`, `raycast` disabled (a unit test holds this). They live in the scene graph, so `disposeScene` frees them with the level.
+- **Mud (`levels/jungle/Mud.ts`):** `applyMud(mat, on, kind)` chains onto a ground material's `onBeforeCompile`. The switch is a per-level uniform object, not a module-level one (Vite HMR can load a module twice and split module-level state).
+- **Cookie flecks:** the jungle builds two sun cookies (3.7 dapple, and 4.2 with a fleck under each shaft) and two environment maps. `setVisual` swaps both, and `dispose()` frees both.

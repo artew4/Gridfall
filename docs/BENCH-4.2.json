@@ -1,0 +1,328 @@
+{
+ "version": "4.2 (feature/visual-overhaul-jungle-4.2, 2a1ee68)",
+ "machine": "Apple M5, Chrome, ANGLE Metal, 120 Hz display, DPR 2, charging",
+ "method": "__dev.bench(3, { pipelines: ['v4','v37','raw'] }) on Balanced (pixel ratio 1.25, 60 FPS cap, 3 bloom levels; saved settings unchanged), interleaved per placement with the order rotated. All measurements valid (focused, visible, in play). Component costs: __dev.perf(3) alternating on/off twice (on,off,off,on) at the same placement.",
+ "columns": [
+  "fps",
+  "gpuMsPerFrame",
+  "cpuMsPerFrame",
+  "frameMsP95",
+  "drawCalls"
+ ],
+ "jungle_balanced_interleaved": {
+  "roadApproach": {
+   "v4": [
+    60,
+    6.36,
+    2.54,
+    23.9,
+    111
+   ],
+   "v37": [
+    60,
+    6.06,
+    2.52,
+    23.1,
+    106
+   ],
+   "raw": [
+    59.3,
+    4.85,
+    2.36,
+    23.8,
+    100
+   ]
+  },
+  "undergrowth": {
+   "v4": [
+    60,
+    5.79,
+    2.5,
+    23.3,
+    109
+   ],
+   "v37": [
+    60,
+    5.92,
+    2.45,
+    23.6,
+    104
+   ],
+   "raw": [
+    60,
+    5.35,
+    2.06,
+    23.1,
+    98
+   ]
+  },
+  "yard": {
+   "v4": [
+    60.3,
+    6.18,
+    2.22,
+    23.1,
+    96
+   ],
+   "v37": [
+    60,
+    6.19,
+    2.45,
+    23.7,
+    92
+   ],
+   "raw": [
+    60,
+    5.22,
+    2.22,
+    23.4,
+    85
+   ]
+  },
+  "barracks": {
+   "v4": [
+    60.2,
+    6.02,
+    2.09,
+    23.4,
+    66
+   ],
+   "v37": [
+    60,
+    5.32,
+    2.0,
+    23.8,
+    65
+   ],
+   "raw": [
+    60,
+    4.78,
+    1.89,
+    23.8,
+    55
+   ]
+  },
+  "watchtower": {
+   "v4": [
+    59.6,
+    5.85,
+    2.26,
+    24.5,
+    92
+   ],
+   "v37": [
+    60,
+    6.23,
+    2.37,
+    23.7,
+    88
+   ],
+   "raw": [
+    60,
+    5.13,
+    2.24,
+    23.7,
+    81
+   ]
+  },
+  "fight": {
+   "v4": [
+    60.3,
+    6.28,
+    2.49,
+    23.6,
+    120
+   ],
+   "v37": [
+    60,
+    6.1,
+    1.89,
+    23.6,
+    119
+   ],
+   "raw": [
+    60,
+    5.34,
+    2.79,
+    23.5,
+    79
+   ]
+  }
+ },
+ "god_rays_gpu_ms": {
+  "columns": "[gpuMs, fps, drawCalls] per run",
+  "yard": {
+   "on": [
+    [
+     6.17,
+     59.7,
+     96
+    ],
+    [
+     5.95,
+     60,
+     96
+    ]
+   ],
+   "off": [
+    [
+     6.05,
+     60,
+     92
+    ],
+    [
+     5.9,
+     59.9,
+     92
+    ]
+   ]
+  },
+  "inShaft_worst_case (standing at a shaft foot, looking up along it, 4 shafts in view)": {
+   "on": [
+    [
+     6.11,
+     60,
+     78
+    ],
+    [
+     6.15,
+     60.3,
+     78
+    ]
+   ],
+   "off": [
+    [
+     5.78,
+     60,
+     74
+    ],
+    [
+     5.44,
+     60,
+     74
+    ]
+   ]
+  },
+  "watchtower": {
+   "on": [
+    [
+     5.97,
+     60,
+     92
+    ],
+    [
+     5.72,
+     60,
+     92
+    ]
+   ],
+   "off": [
+    [
+     6.15,
+     60,
+     88
+    ],
+    [
+     6.03,
+     60,
+     88
+    ]
+   ]
+  }
+ },
+ "wet_mud_gpu_ms": {
+  "note": "off = ground materials recompiled without the mud patch",
+  "roadRuts": {
+   "on": [
+    5.97,
+    6.49
+   ],
+   "off": [
+    6.22,
+    6.55
+   ]
+  },
+  "yardDown": {
+   "on": [
+    5.98,
+    6.01
+   ],
+   "off": [
+    6.13,
+    6.07
+   ]
+  }
+ },
+ "jungle_high_fixed": {
+  "note": "High applied in memory (pixel ratio 1.5, 120 cap); foliage stayed at the Balanced density it was built with",
+  "yard": [
+   112.5,
+   4.2
+  ],
+  "inShaft": [
+   110.7,
+   4.13
+  ],
+  "watchtower": [
+   111.3,
+   4.34
+  ],
+  "columns": [
+   "fps",
+   "gpuMs"
+  ],
+  "resolution": "2184x1423"
+ },
+ "hdr_luminance_v4_scene_only": {
+  "note": "linear HDR before bloom/grade/ACES, 480x270",
+  "road": {
+   "p50": 0.054,
+   "p95": 0.112,
+   "max": 0.604
+  },
+  "yard": {
+   "p50": 0.098,
+   "p95": 0.236,
+   "max": 1.6
+  },
+  "tower": {
+   "p50": 0.028,
+   "p95": 0.227,
+   "max": 0.445
+  },
+  "forest": {
+   "p50": 0.094,
+   "p95": 0.262,
+   "max": 1.431
+  },
+  "motor": {
+   "p50": 0.071,
+   "p95": 0.124,
+   "max": 2.695
+  },
+  "god_rays_added_yard": {
+   "share_of_frame_pct": 28.2,
+   "p50": 0.082,
+   "max": 0.209
+  }
+ },
+ "teardown": "3 rounds of Tokyo (story) -> Desert -> Jungle -> Menu: one distinct render state per setting (exposure, bloom, every grade uniform incl. uShadowMul/uLo, fog colour and density, background, env intensity, sight range); shafts (group + 5 meshes) present only in the jungle; textures 111/40/53 per setting every round.",
+ "collision": {
+  "world": "0 findings (clusters [], entries []), 62,896 reachable of 96,967 standable cells",
+  "stress": "0 failures in 96,000 runs (3000 samples)",
+  "colliders": 539,
+  "colliders_at_shaft_feet": [
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "note": "buildGodRays never receives the CollisionWorld; unit test: three.js raycasts through and along a shaft hit nothing"
+ },
+ "notes": [
+  "P95 ~23 ms at a 60 cap on a 120 Hz display is pacing (every second refresh), as in every 3.x/4.x session.",
+  "v37 and v4 both run the mud shader (the uniform only scales it), so the bench's v4-v37 delta excludes the mud; its own cost is in wet_mud_gpu_ms.",
+  "GPU ms are lower at the 120 cap than at 60 on this machine (clocks), so compare within one cap."
+ ]
+}
