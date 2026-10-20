@@ -4,7 +4,7 @@ import type { Glows } from '../world/Glows';
 import { zoneAt } from '../world/Zones';
 import { AlertSystem, type AlertLevel } from './AlertSystem';
 import { SUSPICIOUS } from './Perception';
-import { Guard } from './Guard';
+import { Guard, type SearchRole } from './Guard';
 import { rand } from '../core/math';
 
 export interface PatrolSpec {
@@ -21,8 +21,15 @@ interface Blocker {
 
 const HEAR_OPEN = 42;
 const HEAR_WALLED = 24;
-const RESPONDERS = 4;
+/** Guards sent by dispatch to a fresh sighting (the first response). */
+const RESPONDERS = 3;
+/** Officers only hear dispatch about incidents within this distance. */
+const RADIO_RANGE = 60;
+/** While someone has eyes on him, dispatch repeats the position this often. */
+const RADIO_EVERY = 3;
 const MAX_GUARDS = 12;
+/** Search roles handed out in order when contact is lost. */
+const ROLES: SearchRole[] = ['sweep', 'probe', 'hold', 'probe', 'sweep', 'hold'];
 
 /**
  * The Shinjuku Security Bureau: owns every guard, runs their perception on a staggered 10 Hz tick,
@@ -38,6 +45,10 @@ export class Security {
   budgetPerEpisode = 2;
   private blockers: Blocker[] = [];
   private secondWaveT = -1;
+  private radioT = -Infinity;
+  private lastPlayerShotT = -Infinity;
+  /** Movement of the fugitive at the last confirmed sighting (which way he went). */
+  lastVel = new THREE.Vector3();
   /** Radio line for the HUD feed. */
   onRadio: (text: string, tone: 'info' | 'warn' | 'alert') => void = () => {};
   onLevel: (level: AlertLevel, prev: AlertLevel) => void = () => {};
@@ -60,6 +71,11 @@ export class Security {
   // ------------------------------------------------------------------ queries used by guards
   playerArmed() {
     return this.armed();
+  }
+
+  /** The player fired within the last moment (muzzle flash visible). */
+  playerFiring(t: number) {
+    return t - this.lastPlayerShotT < 0.6;
   }
 
   /** Line of sight that also respects steam clouds. */
@@ -94,17 +110,47 @@ export class Security {
     return this.civilianBlocks(from, to);
   }
 
-  /** Points to check around a last known position (nav nodes nearby, shuffled). */
-  searchPoints(c: THREE.Vector3, n: number): THREE.Vector3[] {
-    const nodes = this.ctx.nav.nodes
-      .filter((p) => Math.abs(p.y - 1 - c.y) < 1.5 && Math.hypot(p.x - c.x, p.z - c.z) < 16)
-      .map((p) => new THREE.Vector3(p.x, p.y - 1, p.z));
-    for (let i = nodes.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [nodes[i], nodes[j]] = [nodes[j], nodes[i]];
+  /**
+   * Nav points to check around a last known position, by role: `sweep` close around it, `probe`
+   * further out and favouring the direction he was heading (including stairs to other levels),
+   * `hold` a vantage point near it to watch. Points other searchers already have are avoided.
+   */
+  searchPoints(c: THREE.Vector3, n: number, role: SearchRole, radius: number, self?: Guard): THREE.Vector3[] {
+    const dir = this.lastVel.lengthSq() > 0.25 ? this.lastVel.clone().setY(0).normalize() : null;
+    const taken: THREE.Vector3[] = [];
+    for (const g of this.guards) if (g !== self && g.alive && g.gstate === 'search') taken.push(...g.searchPts);
+    const cand: { p: THREE.Vector3; s: number }[] = [];
+    for (const nd of this.ctx.nav.nodes) {
+      const x = nd.x, y = nd.y - 1, z = nd.z;
+      const dh = Math.hypot(x - c.x, z - c.z);
+      const dy = y - c.y;
+      if (dh > radius) continue;
+      const otherLevel = Math.abs(dy) > 1.5;
+      if (otherLevel && (role !== 'probe' || dh > radius * 0.8 || Math.abs(dy) > 10)) continue;
+      let sc = Math.random() * 0.6;
+      if (role === 'sweep') sc += 1 - dh / radius;
+      else if (role === 'probe') {
+        if (dh < 5) continue;
+        if (dir) sc += 1.2 * ((x - c.x) * dir.x + (z - c.z) * dir.z) / dh;
+        if (otherLevel) sc += 0.5;
+      } else if (dh < 3 || dh > 9) continue;
+      if (taken.some((q) => q.distanceToSquared(new THREE.Vector3(x, y, z)) < 9)) sc -= 1;
+      cand.push({ p: new THREE.Vector3(x, y, z), s: sc });
     }
-    const out = [c.clone(), ...nodes.slice(0, n - 1)];
-    return out;
+    cand.sort((a, b) => b.s - a.s);
+    const out = cand.slice(0, n).map((c) => c.p);
+    if (role === 'sweep') out.unshift(c.clone());
+    if (!out.length && role === 'hold') return this.searchPoints(c, n, 'sweep', radius, self);
+    return out.slice(0, Math.max(1, n));
+  }
+
+  /** Contact lost: everyone hunting splits the area up by role around the last known position. */
+  private organiseSearch() {
+    const k = this.alert.lastKnown;
+    if (!k) return;
+    const c = new THREE.Vector3(k.x, k.y, k.z);
+    const hunters = this.guards.filter((g) => g.alive && !g.gone && g.hostile && g.gstate !== 'combat').sort((a, b) => a.pos.distanceTo(c) - b.pos.distanceTo(c));
+    hunters.forEach((g, i) => g.beginSearchAround(c, ROLES[i % ROLES.length], i < 3 ? 10 : 14));
   }
 
   // ------------------------------------------------------------------ spawning
@@ -203,33 +249,43 @@ export class Security {
   }
 
   // ------------------------------------------------------------------ events
-  /** A guard has positively identified the fugitive. */
+  /** A guard has positively identified the fugitive: what *he* saw goes on the radio. */
   confirm(g: Guard) {
-    const p = this.ctx.player.pos;
+    const p = g.lastSeenPos;
     const before = this.alert.level;
     this.alert.sighting(p.x, p.y, p.z, this.ctx.time);
+    this.lastVel.copy(g.lastSeenVel);
     g.bark('contact');
     if (before !== 'pursuit') {
       this.onRadio(`CONTACT — FUGITIVE SIGHTED · ${place(p)}`, 'alert');
-      this.broadcast(p);
+      this.broadcast(p.clone(), g);
+      this.radioT = this.ctx.time;
     }
   }
 
-  /** Ongoing visual contact (keeps the pursuit alive, refreshes the shared position). */
-  contact(_g: Guard) {
-    const p = this.ctx.player.pos;
+  /** Ongoing visual contact by a guard: keeps the pursuit alive and the shared record current. */
+  contact(g: Guard) {
+    const p = g.lastSeenPos;
     this.alert.sighting(p.x, p.y, p.z, this.ctx.time);
+    this.lastVel.copy(g.lastSeenVel);
   }
 
-  /** Nearest free guards converge on the reported position; the rest keep their posts. */
-  private broadcast(at: THREE.Vector3) {
+  /**
+   * The nearest free guards within radio range converge on a snapshot of the reported position,
+   * each to a different side of it so they don't arrive in a clump. The rest keep their posts.
+   */
+  private broadcast(at: THREE.Vector3, from?: Guard) {
     const free = this.guards
-      .filter((g) => g.alive && !g.gone && g.gstate !== 'combat')
+      .filter((g) => g !== from && g.alive && !g.gone && g.gstate !== 'combat')
       .map((g) => ({ g, d: g.pos.distanceTo(at) }))
-      .filter((x) => x.d < 70)
+      .filter((x) => x.d < RADIO_RANGE)
       .sort((a, b) => a.d - b.d)
       .slice(0, RESPONDERS);
-    for (const { g } of free) g.pursue(at.clone().add(new THREE.Vector3(rand(-2, 2), 0, rand(-2, 2))));
+    const t = this.ctx.time;
+    free.forEach(({ g }, i) => {
+      const a = (i / Math.max(1, free.length)) * Math.PI * 2 + rand(-0.4, 0.4);
+      g.pursue(at.clone().add(new THREE.Vector3(Math.sin(a) * 3, 0, Math.cos(a) * 3)), t);
+    });
   }
 
   /** Something loud happened (shots). Guards in earshot react; civilians are told separately. */
@@ -237,6 +293,7 @@ export class Security {
     this.onShot(at);
     if (by) this.onHeard(by);
     if (!byPlayer) return;
+    this.lastPlayerShotT = this.ctx.time;
     let heard = false;
     for (const g of this.guards) {
       if (!g.alive || g.gone || g.gstate === 'combat') continue;
@@ -245,8 +302,9 @@ export class Security {
       const clear = this.ctx.col.lineOfSight(g.eye.clone(), at);
       if (!clear && d > HEAR_WALLED) continue;
       heard = true;
-      // Hearing is approximate: they head for the general area.
-      g.hearShot(at.clone().add(new THREE.Vector3(rand(-3, 3), 0, rand(-3, 3))));
+      // Hearing is approximate, and less precise the further (or more muffled) the shot.
+      const err = 1.5 + d * (clear ? 0.1 : 0.2);
+      g.hearShot(at.clone().add(new THREE.Vector3(rand(-err, err), 0, rand(-err, err))), this.ctx.time);
     }
     if (heard) {
       const fresh = this.alert.report(at.x, at.y, at.z, this.ctx.time, 'gunshot');
@@ -290,7 +348,10 @@ export class Security {
       for (let i = 0; i < n; i++) this.reinforce(at);
       this.secondWaveT = t + 22;
     }
-    if (l === 'search') this.onRadio('CONTACT LOST — SEARCH THE AREA', 'info');
+    if (l === 'search') {
+      this.onRadio('CONTACT LOST — SEARCH THE AREA', 'info');
+      this.organiseSearch();
+    }
     if (l === 'unnoticed' && (prev === 'search' || prev === 'alerted')) {
       this.onRadio('ALL UNITS — RESUME PATROL', 'info');
       for (const g of this.guards) if (g.alive && (g.hostile || g.gstate === 'investigate')) g.setG('return');
@@ -302,12 +363,22 @@ export class Security {
   update(dt: number) {
     const ctx = this.ctx;
     const t = ctx.time;
-    // Staggered perception: each guard looks ~10 times a second, offset from the others.
+    // Staggered perception: 8 Hz near the player, 3 Hz far away, offset from each other.
     for (const g of this.guards) {
       g.percT += dt;
-      if (g.percT >= 0.1) {
+      if (g.percT >= g.perceptionInterval(ctx)) {
         g.perceive(ctx, g.percT);
         g.percT = 0;
+      }
+    }
+    // While someone has eyes on him, dispatch repeats a snapshot to the hunters in range.
+    if (this.alert.level === 'pursuit' && this.alert.lastKnown && t - this.alert.contactT < 0.35 && t - this.radioT > RADIO_EVERY) {
+      this.radioT = t;
+      const k = this.alert.lastKnown;
+      const at = new THREE.Vector3(k.x, k.y, k.z);
+      for (const g of this.guards) {
+        if (!g.alive || g.gone || (g.gstate !== 'pursuit' && g.gstate !== 'search')) continue;
+        if (g.pos.distanceTo(at) < RADIO_RANGE) g.radioUpdate(at, t);
       }
     }
     for (const g of this.guards) g.update(dt, ctx);
@@ -345,6 +416,8 @@ export class Security {
     this.alert.reset();
     this.budget = this.budgetPerEpisode;
     this.secondWaveT = -1;
+    this.radioT = this.lastPlayerShotT = -Infinity;
+    this.lastVel.set(0, 0, 0);
     this.stats = { guardsDown: 0, reinforcements: 0 };
   }
 }

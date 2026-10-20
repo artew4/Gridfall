@@ -169,6 +169,9 @@ export abstract class Enemy {
   }
 
   /** Returns the immediate steering target towards goal, using the waypoint graph when blocked. */
+  /** The last route request for the current goal found no path (goal unreachable from here). */
+  noRoute = false;
+
   protected steerTarget(goal: THREE.Vector3, ctx: EnemyCtx, dt: number): THREE.Vector3 {
     const from = new THREE.Vector3(this.pos.x, this.pos.y + 1, this.pos.z);
     const to = new THREE.Vector3(goal.x, goal.y + 1, goal.z);
@@ -191,12 +194,14 @@ export abstract class Enemy {
     }
     if (this.forcePathT <= 0 && Math.abs(to.y - from.y) < 1 && ctx.nav.clear(from, to)) {
       this.path.length = 0;
+      this.noRoute = false;
       return goal;
     }
     this.pathT -= dt;
     if (this.pathT <= 0 || this.path.length === 0) {
       this.pathT = 0.6 + Math.random() * 0.3;
       this.path = ctx.nav.route(from, to);
+      this.noRoute = this.path.length === 0;
     }
     // Skip waypoints we can already see past (never across levels, or we'd cut under a walkway).
     const level = (n: THREE.Vector3) => Math.abs(n.y - from.y) < 1;

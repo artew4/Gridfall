@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Enemy, type EnemyCtx } from '../enemies/Enemy';
 import { buildGuard, GUARD_ACCENT } from '../enemies/Models';
 import { clamp, damp, rand } from '../core/math';
-import { CONFIRMED, SUSPICIOUS, stepSuspicion, suspicionRate } from './Perception';
+import { CONFIRMED, SUSPICIOUS, VISION, perceptionInterval, sightZone, stepSuspicion, suspicionRate, visionRange } from './Perception';
 import type { Security } from './Security';
 
 export type GuardState = 'patrol' | 'suspicious' | 'investigate' | 'combat' | 'pursuit' | 'search' | 'return' | 'emerge';
@@ -10,15 +10,22 @@ export type GuardState = 'patrol' | 'suspicious' | 'investigate' | 'combat' | 'p
 const WALK = 1.5;
 const HURRY = 2.6;
 const RUN = 4.4;
-/** After losing sight a guard still "saw where he went" for this long. */
-const TRACK_TIME = 1.5;
+/** On losing sight, a guard heads for where the fugitive was going: last seen + velocity × this. */
+const PREDICT = 1.2;
 /** Without sight for this long in combat, the guard starts chasing the last known position. */
 const LOSE_SIGHT = 1.1;
 const MEMORY = 60;
 
 const _eye = new THREE.Vector3();
-const _head = new THREE.Vector3();
-const _chest = new THREE.Vector3();
+const _sample = new THREE.Vector3();
+
+export type SearchRole = 'sweep' | 'probe' | 'hold';
+
+/** Second-hand or uncertain information: where, and when it was received. */
+export interface Lead {
+  pos: THREE.Vector3;
+  t: number;
+}
 
 /**
  * Security Bureau officer. Patrols a route, gets suspicious, investigates, identifies, calls it in,
@@ -52,13 +59,30 @@ export class Guard extends Enemy {
   suspicion = 0;
   /** Perception tick accumulator (randomised so guards don't all look on the same frame). */
   percT = Math.random() * 0.1;
+  /** Direct visual contact on the last perception tick. */
   sees = false;
+  /** Body samples with a clear line on the last tick (debug / tests). */
+  visibleSamples = 0;
+  /** Recognition range on the last tick (what the minimap cone shows). */
+  range: number = VISION.calmRange;
+  /** Own sighting: where and when this guard last saw the fugitive, and how he was moving. */
   lastSeenT = -Infinity;
   lastSeenPos = new THREE.Vector3();
+  lastSeenVel = new THREE.Vector3();
   rememberUntil = -Infinity;
-  private trackUntil = -Infinity;
+  /** Approximate sound location (shots), never exact. */
+  heard: Lead | null = null;
+  /** Latest position received over the radio (a snapshot, not a live feed). */
+  radio: Lead | null = null;
+  /** Current navigation destination. */
   goal = new THREE.Vector3();
-  private searchPts: THREE.Vector3[] = [];
+  /** Search plan: role, centre, current radius and the points still to check. */
+  searchRole: SearchRole = 'sweep';
+  searchCentre = new THREE.Vector3();
+  searchRadius = 10;
+  searchPts: THREE.Vector3[] = [];
+  /** Seconds the current goal has had no route. */
+  private noRouteT = 0;
   private scanBase = 0;
   private stuckT = 0;
   private stuckRef = new THREE.Vector3();
@@ -99,6 +123,11 @@ export class Guard extends Enemy {
     return _eye.set(this.pos.x, this.pos.y + 1.75, this.pos.z);
   }
 
+  /** Where the guard is looking: body plus the head's scan (what perception and the minimap use). */
+  get lookYaw() {
+    return this.yaw + this.rig.head.rotation.y;
+  }
+
   /** Remembers the player's face (positively identified within the last minute). */
   remembers(t: number) {
     return t < this.rememberUntil;
@@ -120,44 +149,53 @@ export class Guard extends Enemy {
     }
   }
 
-  // ------------------------------------------------------------------ perception (≈10 Hz)
+  // ------------------------------------------------------------------ perception (3–8 Hz)
+  /** Seconds until the next perception tick should run. */
+  perceptionInterval(ctx: EnemyCtx) {
+    return perceptionInterval(this.pos.distanceTo(ctx.player.pos));
+  }
+
   perceive(ctx: EnemyCtx, dt: number) {
     if (!this.alive || this.gstate === 'emerge') return;
     const t = ctx.time;
     const p = ctx.player;
     const eye = this.eye;
-    const head = _head.set(p.pos.x, p.pos.y + 1.6, p.pos.z);
-    const chest = _chest.set(p.pos.x, p.pos.y + 1.05, p.pos.z);
-    const dx = head.x - eye.x;
-    const dz = head.z - eye.z;
-    const dist = Math.hypot(dx, head.y - eye.y, dz);
-    // Facing: body yaw, plus the head while scanning.
-    const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
-    const hd = Math.hypot(dx, dz) || 1;
-    const cos = (fx * dx + fz * dz) / hd;
-    let los = false;
-    if (p.alive && dist < 34) los = this.sec.sightLine(eye, head) || this.sec.sightLine(eye, chest);
-    const remembers = this.remembers(t);
-    const rate = suspicionRate({
-      dist,
-      cos,
-      los,
+    const ri = {
       weaponDrawn: this.sec.playerArmed(),
-      sprinting: p.sprinting,
-      light: this.sec.lightAt(p.pos),
       hunting: this.sec.alert.hunting(t),
-      remembers,
-    });
+      remembers: this.remembers(t),
+      engaged: this.gstate === 'combat',
+      firing: this.sec.playerFiring(t),
+    };
+    this.range = visionRange(ri);
+    let zone: ReturnType<typeof sightZone> = null;
+    let visible = 0;
+    let dist = Infinity;
+    if (p.alive) {
+      const dx = p.pos.x - eye.x, dz = p.pos.z - eye.z;
+      const dh = Math.hypot(dx, dz);
+      const dy = p.pos.y + 1.1 - eye.y;
+      dist = Math.hypot(dh, dy);
+      // Cheap tests first (range, cone); rays only for a target that could be seen.
+      if (dist <= this.range + 0.5) {
+        const look = this.lookYaw;
+        const cosH = dh > 1e-3 ? (Math.sin(look) * dx + Math.cos(look) * dz) / dh : 1;
+        zone = sightZone(cosH, dy, dh, this.range);
+        if (zone) for (const h of VISION.samples) if (this.sec.sightLine(eye, _sample.set(p.pos.x, p.pos.y + h, p.pos.z))) visible++;
+      }
+    }
+    const rate = suspicionRate({ ...ri, dist, zone, visible, sprinting: p.sprinting, light: zone && visible ? this.sec.lightAt(p.pos) : 0 });
     this.sees = rate > 0;
-    // Once engaged, keep tracking him at combat range even outside the cone.
-    if (!this.sees && this.hostile && los && dist < 28 && (cos > 0.2 || dist < 8)) this.sees = true;
+    this.visibleSamples = visible;
     if (this.sees) {
       this.lastSeenT = t;
       this.lastSeenPos.copy(p.pos);
+      this.lastSeenVel.set(p.vel.x, 0, p.vel.z);
     }
-    this.suspicion = stepSuspicion(this.suspicion, this.hostile && this.sees ? 4 : rate, dt);
+    // Once identified, a guard keeps him identified while he stays in view.
+    this.suspicion = stepSuspicion(this.suspicion, this.hostile && this.sees ? Math.max(rate, 3) : rate, dt);
 
-    if (this.sees && (this.suspicion >= CONFIRMED || (remembers && this.suspicion > 0.5))) {
+    if (this.sees && (this.suspicion >= CONFIRMED || (ri.remembers && this.suspicion > 0.5))) {
       if (!this.hostile) this.sec.confirm(this);
       this.rememberUntil = t + MEMORY;
       this.sec.contact(this);
@@ -166,6 +204,15 @@ export class Guard extends Enemy {
       this.setG('suspicious');
       this.bark('huh');
     }
+  }
+
+  /** Where the fugitive was heading when this guard lost him. */
+  predictedPos(out = new THREE.Vector3()) {
+    const v = this.lastSeenVel;
+    const l = Math.min(6, v.length() * PREDICT);
+    out.copy(this.lastSeenPos);
+    if (l > 0.1) out.addScaledVector(v, l / v.length());
+    return out;
   }
 
   // ------------------------------------------------------------------ orders from Security
@@ -177,24 +224,32 @@ export class Guard extends Enemy {
     this.speed = hurry ? HURRY : WALK + 0.4;
   }
 
-  /** Radio: fugitive's last known position — converge on it. */
-  pursue(at: THREE.Vector3) {
+  /** Radio: a snapshot of the fugitive's last known position — converge on it. */
+  pursue(at: THREE.Vector3, t = -Infinity) {
     if (!this.alive || this.gstate === 'combat') return;
+    this.radio = { pos: at.clone(), t };
     this.goal.copy(at);
     this.setG('pursuit');
   }
 
-  hearShot(at: THREE.Vector3) {
+  /** Updated sighting from dispatch while chasing; ignored if this guard's own sighting is newer. */
+  radioUpdate(at: THREE.Vector3, t: number) {
+    if (!this.alive || this.gstate === 'combat' || this.lastSeenT >= t) return;
+    this.pursue(at, t);
+  }
+
+  /** A shot heard: only roughly where (the caller adds distance-dependent error). */
+  hearShot(at: THREE.Vector3, t: number) {
+    this.heard = { pos: at.clone(), t };
     if (!this.alive || this.gstate === 'combat') return;
     this.yaw = Math.atan2(at.x - this.pos.x, at.z - this.pos.z);
-    if (this.sec.alert.level === 'pursuit' || this.sec.alert.level === 'search') this.pursue(at);
+    if (this.sec.alert.level === 'pursuit' || this.sec.alert.level === 'search') this.pursue(at, t);
     else this.investigate(at, true);
   }
 
   // ------------------------------------------------------------------ behaviour (per frame)
   protected think(dt: number, ctx: EnemyCtx) {
     const t = ctx.time;
-    const p = ctx.player;
     this.gstateT += dt;
     this.barkT -= dt;
     const desired = new THREE.Vector3();
@@ -251,8 +306,8 @@ export class Guard extends Enemy {
         this.threat = 2;
         this.combat(dt, ctx, desired);
         if (t - this.lastSeenT > LOSE_SIGHT) {
-          this.trackUntil = this.lastSeenT + TRACK_TIME;
-          this.goal.copy(this.lastSeenPos);
+          // Head for where he was going, not where he is: nobody can see that.
+          this.predictedPos(this.goal);
           this.setG('pursuit');
           this.bark('lost');
         }
@@ -261,13 +316,8 @@ export class Guard extends Enemy {
 
       case 'pursuit': {
         this.threat = 2;
-        // Saw which way he went: the goal follows him for a moment after he breaks sight.
-        if (t < this.trackUntil) this.goal.copy(p.pos);
-        else {
-          const k = this.sec.alert.lastKnown;
-          if (k && k.t > this.lastSeenT + 0.5 && this.gstateT > 0.5) this.goal.set(k.x, k.y, k.z);
-        }
-        if (this.walkTo(this.goal, RUN, desired, ctx, dt, 1.6) || this.gstateT > 30) this.beginSearch(ctx);
+        // The goal only changes with new information (own sighting or a radio update).
+        if (this.walkTo(this.goal, RUN, desired, ctx, dt, 1.6) || this.gstateT > 30 || this.unreachable(dt, ctx)) this.beginSearch(ctx);
         break;
       }
 
@@ -277,13 +327,21 @@ export class Guard extends Enemy {
           this.waitT -= dt;
           this.scan(dt, 1.6);
           if (this.waitT <= 0) this.searchPts.shift();
-        } else if (!this.searchPts.length || (this.sec.alert.level !== 'search' && this.sec.alert.level !== 'pursuit' && this.gstateT > 6)) {
+        } else if (this.sec.alert.level !== 'search' && this.sec.alert.level !== 'pursuit' && this.gstateT > 6) {
           this.setG('return');
           this.bark('clear');
-        } else if (this.walkTo(this.searchPts[0], HURRY, desired, ctx, dt, 1.0) || this.stuckT > 4) {
-          this.waitT = rand(2, 3.5);
+        } else if (!this.searchPts.length) {
+          // Nothing here: widen the search around the same centre.
+          this.searchRadius = Math.min(26, this.searchRadius + 6);
+          this.searchRole = this.searchRole === 'hold' ? 'sweep' : this.searchRole;
+          this.searchPts = this.sec.searchPoints(this.searchCentre, 3, this.searchRole, this.searchRadius, this);
+          if (!this.searchPts.length) this.setG('return');
+        } else if (this.walkTo(this.searchPts[0], HURRY, desired, ctx, dt, 1.0) || this.stuckT > 4 || this.unreachable(dt, ctx)) {
+          // Holders watch their spot for a while; the others take a quick look and move on.
+          this.waitT = this.searchRole === 'hold' && this.searchPts.length === 1 ? rand(8, 12) : rand(2, 3.5);
           this.scanBase = this.yaw;
           this.stuckT = 0;
+          this.noRouteT = 0;
         }
         break;
       }
@@ -316,9 +374,25 @@ export class Guard extends Enemy {
     this.bark('search');
   }
 
-  private beginSearchAround(c: THREE.Vector3) {
-    this.searchPts = this.sec.searchPoints(c, 4);
+  /** Search around a point in a role (Security hands roles out when contact is lost). */
+  beginSearchAround(c: THREE.Vector3, role: SearchRole = 'sweep', radius = 10) {
+    if (!this.alive || this.gstate === 'combat') return;
+    this.searchRole = role;
+    this.searchCentre.copy(c);
+    this.searchRadius = radius;
+    this.searchPts = this.sec.searchPoints(c, role === 'hold' ? 1 : 4, role, radius, this);
+    this.waitT = 0;
+    this.noRouteT = 0;
     this.setG('search');
+  }
+
+  /** True once the current goal has had no route for a while (e.g. behind a closed shutter). */
+  private unreachable(dt: number, ctx: EnemyCtx) {
+    void ctx;
+    this.noRouteT = this.noRoute ? this.noRouteT + dt : 0;
+    if (this.noRouteT < 1.5) return false;
+    this.noRouteT = 0;
+    return true;
   }
 
   /** Head/body sweep while standing. */
@@ -364,25 +438,27 @@ export class Guard extends Enemy {
   // ------------------------------------------------------------------ combat
   private combat(dt: number, ctx: EnemyCtx, desired: THREE.Vector3) {
     const p = ctx.player;
+    // Without sight he works from where he last saw him.
+    const tp = this.sees ? p.pos : this.lastSeenPos;
     const head = new THREE.Vector3(p.pos.x, p.pos.y + 1.4, p.pos.z);
-    const dist = this.pos.distanceTo(p.pos);
+    const dist = this.pos.distanceTo(tp);
     this.csT += dt;
-    this.faceTowards(p.pos, dt, 7);
+    this.faceTowards(tp, dt, 7);
     // Hold a standoff ring around the player, offset by a personal flank angle so the squad spreads.
-    const away = new THREE.Vector3(this.pos.x - p.pos.x, 0, this.pos.z - p.pos.z).normalize();
+    const away = new THREE.Vector3(this.pos.x - tp.x, 0, this.pos.z - tp.z).normalize();
     const ang = this.flank * 0.9;
     const ring = new THREE.Vector3(away.x * Math.cos(ang) - away.z * Math.sin(ang), 0, away.x * Math.sin(ang) + away.z * Math.cos(ang));
-    const spot = p.pos.clone().addScaledVector(ring, this.standoff);
+    const spot = tp.clone().addScaledVector(ring, this.standoff);
     spot.y = this.pos.y;
     const sees = this.sees;
     switch (this.cs) {
       case 'move': {
-        if (Math.abs(dist - this.standoff) > 3 && Math.abs(p.pos.y - this.pos.y) < 1.5) {
+        if (Math.abs(dist - this.standoff) > 3 && Math.abs(tp.y - this.pos.y) < 1.5) {
           const tgt = this.steerTarget(spot, ctx, dt);
           desired.set(tgt.x - this.pos.x, 0, tgt.z - this.pos.z).normalize().multiplyScalar(dist < 5 ? RUN : 2.6);
-        } else if (Math.abs(p.pos.y - this.pos.y) >= 1.5 && !sees) {
-          // Different level and no shot: take the stairs.
-          const tgt = this.steerTarget(p.pos, ctx, dt);
+        } else if (Math.abs(tp.y - this.pos.y) >= 1.5 && !sees) {
+          // Different level and no shot: take the stairs to where he was seen.
+          const tgt = this.steerTarget(tp, ctx, dt);
           desired.set(tgt.x - this.pos.x, 0, tgt.z - this.pos.z).normalize().multiplyScalar(RUN);
         }
         if (this.csT > rand(0.8, 1.6) && sees && ctx.player.alive) {
@@ -465,9 +541,13 @@ export class Guard extends Enemy {
   }
 
   protected onHit(ctx: EnemyCtx) {
-    // Getting shot is a positive identification, wherever it came from.
+    // Getting shot: with a line to the shooter he sees the muzzle flash; otherwise only roughly where.
+    const p = ctx.player.pos;
+    const clear = this.sec.sightLine(this.eye, _sample.set(p.x, p.y + 1.4, p.z));
     this.lastSeenT = ctx.time;
-    this.lastSeenPos.copy(ctx.player.pos);
+    this.lastSeenPos.copy(p);
+    this.lastSeenVel.set(0, 0, 0);
+    if (!clear) this.lastSeenPos.add(new THREE.Vector3(rand(-4, 4), 0, rand(-4, 4)));
     this.suspicion = 1;
     if (!this.hostile) this.sec.confirm(this);
     this.rememberUntil = ctx.time + MEMORY;
