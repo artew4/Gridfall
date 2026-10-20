@@ -40,8 +40,8 @@ import { EndScreen } from '../ui/EndScreen';
 import { CAR_CENTRES, TRACK_Z } from '../world/Metro';
 import { Mission } from '../story/Mission';
 import { Marker } from '../ui/Marker';
-import { Minimap, type Blip } from '../ui/Minimap';
-import type { Guard } from '../stealth/Guard';
+import { Minimap } from '../ui/Minimap';
+import { PlayerIntel, intelRange } from '../stealth/PlayerIntel';
 
 export type Mode = 'story' | 'arcade';
 
@@ -98,7 +98,8 @@ export class Game {
   marker!: Marker;
   minimap!: Minimap;
   /** What the player knows about each guard: last seen/heard position and when. */
-  private known = new Map<Guard, { x: number; y: number; z: number; t: number; hot: boolean }>();
+  /** What the player knows about security (minimap). */
+  intel!: PlayerIntel;
   private knowT = 0;
   private frustum = new THREE.Frustum();
   private projM = new THREE.Matrix4();
@@ -297,6 +298,7 @@ export class Game {
 
     this.marker = new Marker(s);
     this.mission = new Mission(this);
+    this.intel = new PlayerIntel(this.col);
     this.minimap = new Minimap(this.hud.root, {
       street: d.open.map(([x0, z0, x1, z1]) => ({ x0, z0, x1, z1 })),
       upper: d.arch.decks,
@@ -305,7 +307,7 @@ export class Game {
     });
     // Hearing counts as knowing roughly where they are.
     this.security.onHeard = (g) => {
-      if (g.pos.distanceTo(this.player.pos) < 30) this.known.set(g, { x: g.pos.x, y: g.pos.y, z: g.pos.z, t: this.elapsed, hot: g.threat >= 3 });
+      if (g.pos.distanceTo(this.player.pos) < 30) this.intel.heard(g, this.elapsed);
     };
 
     // Compile everything up front so the first shot doesn't hitch.
@@ -446,7 +448,7 @@ export class Game {
       this.storyHud.clear();
       this.storyHud.show(true);
       this.minimap.show(true);
-      this.known.clear();
+      this.intel.clear();
       this.stationKnown = false;
       this.mission.start(fromCheckpoint);
       if (!fromCheckpoint) this.storyHud.radioLine('H — HOLSTER / DRAW · E — INTERACT · A DRAWN WEAPON DRAWS ATTENTION', 'info');
@@ -857,6 +859,7 @@ export class Game {
    * Old sightings fade out at their last known spot.
    */
   private updateKnowledge(dt: number) {
+    const t = this.elapsed;
     this.knowT -= dt;
     if (this.knowT <= 0) {
       this.knowT = 0.1;
@@ -864,25 +867,16 @@ export class Game {
       this.frustum.setFromProjectionMatrix(this.projM);
       const eye = this.camera.position;
       for (const g of this.security.guards) {
-        if (!g.alive) {
-          this.known.delete(g);
-          continue;
-        }
+        if (!g.alive) continue;
+        // Openly noticing or attacking him: he can tell where that one is and where he looks.
+        const engaging = g.sees && g.suspicion > 0.05;
         const chest = g.chest.clone();
-        if (chest.distanceTo(eye) > 55 || !this.frustum.containsPoint(chest)) continue;
-        if (!this.col.lineOfSight(eye, chest)) continue;
-        this.known.set(g, { x: g.pos.x, y: g.pos.y, z: g.pos.z, t: this.elapsed, hot: g.threat >= 3 });
+        const inView = chest.distanceTo(eye) < 55 && this.frustum.containsPoint(chest) && this.col.lineOfSight(eye, chest);
+        if (inView || engaging) this.intel.observe(g, t);
       }
     }
-    const blips: Blip[] = [];
-    for (const [g, k] of this.known) {
-      const age = this.elapsed - k.t;
-      if (age > 9 || g.dead || g.gone) {
-        this.known.delete(g);
-        continue;
-      }
-      blips.push({ x: k.x, y: k.y, z: k.z, fresh: 1 - age / 9, hot: k.hot && age < 2 });
-    }
+    const player = { weaponDrawn: this.weapon.visible, hunting: this.security.alert.hunting(t), firing: this.security.playerFiring(t) };
+    const blips = this.intel.blips(t, this.player.pos.y, (k) => intelRange(k, player));
     if (!this.stationKnown && (this.mission.act >= 2 || this.player.pos.distanceTo(new THREE.Vector3(9.1, 0, 4)) < 18)) this.stationKnown = true;
     this.minimap.draw(this.player.pos, this.player.yaw, this.marker.target, blips, this.stationKnown ? new THREE.Vector3(9.1, 0, 4) : null);
   }

@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { R } from '../world/Rects';
+import type { ConeBlip } from '../stealth/PlayerIntel';
 
 export type Floor = 'under' | 'street' | 'upper';
 
@@ -10,15 +11,7 @@ export interface MapData {
   stairs: R[];
 }
 
-export interface Blip {
-  x: number;
-  z: number;
-  y: number;
-  /** 0..1: how fresh the information is (fades out). */
-  fresh: number;
-  /** Attacking (red) or just known (orange). */
-  hot: boolean;
-}
+export type Blip = ConeBlip;
 
 const PX = 4; // texture pixels per metre
 const X0 = -50;
@@ -147,19 +140,49 @@ export class Minimap {
       g.arc(x, y, 7, 0, Math.PI * 2);
       g.stroke();
     }
-    // Known threats.
+    // Known guards: view cones first (under everything), then the dots.
+    for (const b of blips) {
+      if (!b.cone) continue;
+      const [x0, y0] = toScreen(b.x, b.z);
+      if (Math.hypot(x0 - SIZE / 2, y0 - SIZE / 2) > R + 70) continue;
+      const { yaw: cy, half, dists, dashed } = b.cone;
+      g.beginPath();
+      g.moveTo(x0, y0);
+      dists.forEach((d, i) => {
+        const a = cy - half + (2 * half * i) / (dists.length - 1);
+        const [x, y] = toScreen(b.x + Math.sin(a) * d, b.z + Math.cos(a) * d);
+        g.lineTo(x, y);
+      });
+      g.closePath();
+      const k = 0.35 + 0.65 * b.fresh;
+      g.fillStyle = `rgba(${b.color},${(dashed ? 0.08 : 0.2) * k})`;
+      g.fill();
+      g.setLineDash(dashed ? [3, 3] : []);
+      g.strokeStyle = `rgba(${b.color},${0.55 * k})`;
+      g.lineWidth = 1;
+      g.stroke();
+      g.setLineDash([]);
+    }
     for (const b of blips) {
       const [x, y] = toScreen(b.x, b.z);
       if (Math.hypot(x - SIZE / 2, y - SIZE / 2) > R + 4) continue;
       g.globalAlpha = 0.25 + 0.75 * b.fresh;
-      g.fillStyle = b.hot ? '#ff3b5c' : '#ff9a4a';
+      const col = b.hot ? '#ff3b5c' : `rgb(${b.color})`;
       g.beginPath();
       g.arc(x, y, b.hot ? 4 : 3.2, 0, Math.PI * 2);
-      g.fill();
-      const dy = b.y - player.y;
-      if (Math.abs(dy) > 2.5) {
+      if (b.sameFloor) {
+        g.fillStyle = col;
+        g.fill();
+      } else {
+        // Another floor: hollow, with an arrow up or down.
+        g.strokeStyle = col;
+        g.lineWidth = 1.5;
+        g.stroke();
+        g.fillStyle = col;
         g.font = '9px sans-serif';
-        g.fillText(dy > 0 ? '▲' : '▼', x + 7, y);
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText(b.dir > 0 ? '▲' : '▼', x + 8, y);
       }
     }
     g.globalAlpha = 1;
