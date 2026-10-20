@@ -156,3 +156,13 @@ The jungle runs Arcade Survival on a map built for a future linear assault missi
   - long stairs (3.65 m and 4.5 m up) have a mid nav node; they're walled on both sides, so the node can't auto-link to the ground beside them;
   - a 2.2 m screen over the comms roof's parapet beside its stair, so a runner on the stair never sees (and chases straight at) a target on the roof.
 - **Room-aware atmosphere:** `shade` rects (rooms, carport, depot net, watchtower roof) zero the viewmodel's sun; the mist is masked out of the rooms.
+
+## Render look per level (4.0)
+
+`LevelLook` (applied by `Renderer.setLook` on load) now carries, besides exposure, bloom, shadows and the shadow tint:
+- `grade?`: the teal/orange split-tone (`split`, `teal`, `warm`, `sat`). Absent means off, the 3.7 grade.
+- `legacy?`: the look before 4.0, used only by the DEV comparison.
+
+`LevelRuntime.setVisual?(v4)` switches a level's own 4.0 additions (Tokyo: the AO bake, the wet model and the reflection catchers) for the comparison. `Game.setPipeline('v4' | 'raw' | 'v37')` sets both and recompiles; F8 (DevTools) cycles it.
+
+Tokyo's 4.0 additions are module-level uniforms (`WET4`, `CATCHERS` in `Ground.ts`). `TokyoLevel.dispose()` resets them, so another level never inherits them.

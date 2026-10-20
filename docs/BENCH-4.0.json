@@ -1,0 +1,36 @@
+{
+  "version": "4.0 (feature/visual-overhaul-tokyo-4.0, d59e6ba): Tokyo in three render pipelines, interleaved per scenario",
+  "machine": "Apple M5, Chrome, ANGLE Metal, 120 Hz display, DPR 2. ON BATTERY, 18-20%: Chrome capped requestAnimationFrame at ~31 Hz (Energy Saver) in every pipeline",
+  "method": "__dev.bench(3, { pipelines: ['v4', 'raw', 'v37'] }) on Balanced applied in memory (pixel ratio 1.25, 60 cap, 3 bloom levels; saved settings unchanged). Per scenario, all three pipelines measured in rotated order; a measurement is valid only if the window stayed focused, visible and in play. All 24 were valid. FPS is capped by the browser here, so per-frame CPU and GPU time are the cost measure; 60 FPS is NOT VERIFIED in this session.",
+  "pipelines": {
+    "v4": "composer with the 4.0 look (bloom 0.7/0.9/1.0, teal/orange), 4.0 wet model, reflection catchers, street AO",
+    "raw": "no composer: the world straight to the canvas (ACES + sRGB by the renderer), the same 4.0 materials",
+    "v37": "composer with the 3.7 look (bloom 0.85/0.65/0.92, no split-tone), 3.7 wet model, no catchers, no AO"
+  },
+  "columns": ["fps", "frameMsP95", "cpuMsPerFrame", "gpuMsPerFrame", "drawCalls"],
+  "tokyo": {
+    "plaza": { "v4": [30.3, 38.8, 5.04, 5.52, 250], "raw": [31, 38.8, 5.16, 5.69, 237], "v37": [31, 37.3, 5.04, 5.78, 195] },
+    "rooftop": { "v4": [30.6, 35.8, 5.37, 5.99, 331], "raw": [31, 35.9, 5.4, 5.38, 320], "v37": [31, 36.4, 5.46, 5.82, 331] },
+    "metroConcourse": { "v4": [31.3, 35.6, 4.46, 4.76, 151], "raw": [30.7, 36.1, 4.15, 4.23, 139], "v37": [31, 35.8, 4.09, 4.96, 151] },
+    "platform": { "v4": [31, 35.7, 4.39, 5.05, 159], "raw": [30.9, 35.3, 4.32, 4.41, 148], "v37": [30.3, 36.9, 4.46, 5.11, 159] },
+    "platformTrain": { "v4": [30.3, 35.9, 5.16, 4.97, 269], "raw": [30.7, 35.9, 5.09, 4.59, 257], "v37": [30.6, 36, 5.15, 5.05, 268] },
+    "overpassTrain": { "v4": [30.3, 34.9, 5.05, 5.14, 199], "raw": [30.6, 35.4, 4.71, 4.35, 152], "v37": [30.7, 35.8, 4.92, 5.02, 222] },
+    "pursuit": { "v4": [30.3, 36.1, 6.01, 5.72, 276], "raw": [30.9, 35.5, 5.91, 5.56, 299], "v37": [30.6, 36.4, 6.01, 5.7, 313] },
+    "firefight": { "v4": [31, 36.3, 6.93, 5.69, 448], "raw": [31.2, 37, 6.68, 5.7, 392], "v37": [30.9, 36.3, 6.78, 5.91, 443] }
+  },
+  "components_gpu_ms_mean_of_2": {
+    "lanternStreet": { "v4": 6.18, "v37": 5.78, "raw": 5.82, "v4_noCatchers": 6.45, "v4_noAO": 5.61 },
+    "plaza": { "v4": 6.09, "v37": 5.87, "raw": 5.53, "v4_noCatchers": 5.67, "v4_noAO": 5.77 },
+    "metro": { "v4": 5.32, "v37": 5.16, "raw": 4.53, "v4_noCatchers": 5.16, "v4_noAO": 5.15 }
+  },
+  "rejected_variant_real_pointlight_catchers_gpu_ms_mean_of_2": {
+    "plaza": { "v4": 6.83, "v4_noCatchers": 6.05, "v37": 5.86 },
+    "metro": { "v4": 7.08, "v4_noCatchers": 5.0, "v37": 4.95 }
+  },
+  "notes": [
+    "Run-to-run noise is about ±0.3 ms GPU here; differences between v4 and v37 are within it in every scenario.",
+    "The composer chain (bloom, grade, output) costs ~0–0.8 ms over raw.",
+    "The 'raw' draw counts are lower because no post passes are drawn; the scenario counts also differ with what moves (train, crowd) during each 3 s window.",
+    "Under the Energy Saver cap the CPU and GPU may also run at reduced clocks; compare with a plugged-in run before reading absolute values against BENCH-3.x."
+  ]
+}
