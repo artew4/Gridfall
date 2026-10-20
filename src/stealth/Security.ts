@@ -146,6 +146,62 @@ export class Security {
     return g;
   }
 
+  /**
+   * A squad sent to a known position (they followed the informant): spawns out of sight near it,
+   * already hunting, and puts security into pursuit. Doesn't use the reinforcement budget.
+   */
+  ambush(at: THREE.Vector3, n: number) {
+    const p = this.ctx.player.pos;
+    const eye = new THREE.Vector3(p.x, p.y + 1.6, p.z);
+    const doors = this.doors
+      .filter((d) => d.distanceTo(p) > 18 && !this.ctx.col.lineOfSight(eye, new THREE.Vector3(d.x, d.y + 1.5, d.z)))
+      .sort((a, b) => a.distanceTo(at) - b.distanceTo(at));
+    for (let i = 0; i < n && doors.length; i++) {
+      const door = doors[i % doors.length];
+      const g = new Guard(door.clone().add(new THREE.Vector3(rand(-0.6, 0.6), 0, rand(-0.6, 0.6))), [door.clone()], this, this.ctx.scene);
+      g.reinforcement = true;
+      g.exit = door.clone();
+      g.rememberUntil = this.ctx.time + 60;
+      g.yaw = Math.atan2(at.x - door.x, at.z - door.z);
+      g.pursue(at);
+      this.guards.push(g);
+      this.ctx.scene.add(g.rig.root);
+    }
+    // The squad is the response: no extra reinforcements for this episode.
+    const per = this.budgetPerEpisode;
+    this.budgetPerEpisode = 0;
+    this.alert.sighting(at.x, at.y, at.z, this.ctx.time);
+    this.budgetPerEpisode = per;
+    this.secondWaveT = -1;
+  }
+
+  /** District-wide alarm at a position (the relay): every free guard converges or searches. */
+  alarm(at: THREE.Vector3) {
+    this.alert.sighting(at.x, at.y, at.z, this.ctx.time);
+    for (const g of this.guards) {
+      if (!g.alive || g.gone || g.gstate === 'combat') continue;
+      g.rememberUntil = this.ctx.time + 45;
+      g.pursue(at.clone().add(new THREE.Vector3(rand(-4, 4), 0, rand(-4, 4))));
+    }
+  }
+
+  /** Sends the `n` unaware guards furthest from a point off duty (they walk to a door and leave). */
+  retireFar(n: number, from: THREE.Vector3) {
+    const calm = this.guards
+      .filter((g) => g.alive && !g.gone && !g.hostile && !g.reinforcement)
+      .sort((a, b) => b.pos.distanceTo(from) - a.pos.distanceTo(from))
+      .slice(0, n);
+    for (const g of calm) {
+      g.reinforcement = true;
+      g.exit = this.doors.slice().sort((a, b) => a.distanceTo(g.pos) - b.distanceTo(g.pos))[0]?.clone() ?? g.pos.clone();
+      g.setG('return');
+    }
+  }
+
+  get active() {
+    return this.guards.filter((g) => g.alive && !g.gone).length;
+  }
+
   // ------------------------------------------------------------------ events
   /** A guard has positively identified the fugitive. */
   confirm(g: Guard) {

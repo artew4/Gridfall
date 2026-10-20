@@ -447,7 +447,7 @@ export class Crowd {
       c.sawGun = Math.max(0, c.sawGun - dt * 0.4);
       c.lostSight += dt;
     }
-    const calm = c.state === 'walk' || c.state === 'idle' || c.state === 'chat';
+    const calm = (c.state === 'walk' || c.state === 'idle' || c.state === 'chat') && !c.pinned;
     if (calm && c.sawGun > 0.7) {
       this.setState(c, 'alarmed');
       c.threat.copy(player.pos);
@@ -669,6 +669,40 @@ export class Crowd {
       else this.parts.phone.setMatrixAt(i, zero);
     }
     for (const k in this.parts) this.parts[k].instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * Turns one civilian into a scripted character standing at a spot (the informant). Returns its
+   * index; it never wanders or gets recycled until released.
+   */
+  pin(pos: THREE.Vector3, yaw: number, coat: number): number {
+    const i = this.civs.length - 1;
+    const c = this.civs[i];
+    c.pinned = true;
+    c.pos.copy(pos);
+    c.yaw = yaw;
+    c.vel.set(0, 0, 0);
+    c.path = [];
+    c.goal = null;
+    c.umbrella = false;
+    c.phone = false;
+    c.state = 'chat';
+    c.node = this.nearestNode(pos);
+    this.parts.torso.setColorAt(i, new THREE.Color(coat));
+    this.parts.armL.setColorAt(i, new THREE.Color(coat));
+    this.parts.armR.setColorAt(i, new THREE.Color(coat));
+    this.parts.torso.instanceColor!.needsUpdate = true;
+    this.parts.armL.instanceColor!.needsUpdate = true;
+    this.parts.armR.instanceColor!.needsUpdate = true;
+    return i;
+  }
+
+  /** The scripted character runs off (and becomes an ordinary frightened civilian). */
+  release(i: number, threat: THREE.Vector3) {
+    const c = this.civs[i];
+    c.threat.copy(threat);
+    c.fear = 1;
+    this.flee(c);
   }
 
   reset(avoid: THREE.Vector3) {

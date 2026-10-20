@@ -35,6 +35,7 @@ export class StoryHud {
   private wLabel = el('div', 'wl');
   private wMeter = el('div', 'meter', '<i></i>');
   private objective = el('div', 'objective');
+  private dist = el('span', 'dist');
   private radio = el('div', 'radio');
   private hint = el('div', 'prompt');
   private arcs = el('canvas', 'arcs');
@@ -67,9 +68,16 @@ export class StoryHud {
 
   setObjective(text: string, jp = '') {
     this.objective.innerHTML = text ? `<span class="tag">OBJECTIVE</span>${text}${jp ? `<span class="jp">${jp}</span>` : ''}` : '';
+    this.objective.querySelector('.tag')?.appendChild(this.dist);
     this.objective.classList.remove('flash');
     void this.objective.offsetWidth;
     if (text) this.objective.classList.add('flash');
+  }
+
+  /** Distance to the objective marker (hidden when there is none). */
+  setDistance(d: number) {
+    const t = d < 0 ? '' : ` · ${Math.round(d)} M`;
+    if (this.dist.textContent !== t) this.dist.textContent = t;
   }
 
   radioLine(text: string, tone: 'info' | 'warn' | 'alert' | 'story' = 'info') {

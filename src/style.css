@@ -167,3 +167,16 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 @keyframes roll { 0% { transform: translateY(92px); } 100% { transform: translateY(-330px); } }
 .end-buttons { margin-top: 20px; display: flex; gap: 14px; width: min(460px, 90vw); }
 .end-buttons .pm-btn { flex: 1; text-align: center; }
+.objective .dist { color: #ffd27a; letter-spacing: 0.3em; }
+.death-full { width: auto !important; margin-top: 18px !important; padding: 8px 18px !important; font-size: 11px !important; }
+
+/* ---------- Main menu ---------- */
+#title { cursor: default; }
+.mainmenu, .controlsPanel { margin-top: 46px; width: min(360px, 86vw); transition: opacity 0.4s; }
+.mainmenu.hidden, .controlsPanel.hidden { display: none; }
+.mainmenu .pm-btn { margin: 9px 0; }
+.controlsPanel { width: min(520px, 90vw); }
+.cp-grid { display: grid; grid-template-columns: auto 1fr; gap: 9px 22px; text-align: left; font-size: 11px; letter-spacing: 0.25em; }
+.cp-grid b { color: #f2fdff; font-weight: 400; }
+.cp-grid span { color: var(--cyan-dim); }
+.cp-notes { margin: 18px 0 10px; font-size: 10px; line-height: 1.8; letter-spacing: 0.18em; color: var(--cyan-dim); text-align: left; }

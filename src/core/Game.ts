@@ -37,6 +37,8 @@ import { fmt } from '../rail/Timetable';
 import { Ending } from '../story/Ending';
 import { EndScreen } from '../ui/EndScreen';
 import { CAR_CENTRES, TRACK_Z } from '../world/Metro';
+import { Mission } from '../story/Mission';
+import { Marker } from '../ui/Marker';
 
 export type Mode = 'story' | 'arcade';
 
@@ -49,6 +51,8 @@ export interface Interactable {
   label: string;
   enabled: () => boolean;
   action: () => void;
+  /** Seconds E must be held (default: a single press). */
+  hold?: number;
 }
 
 const FOG_COLOR = new THREE.Color(0x0d0b19);
@@ -94,9 +98,12 @@ export class Game {
   private streaks: THREE.Mesh[] = [];
   private signs: SignGlow[] = [];
   private hums: { glow: SignGlow; h: ReturnType<AudioEngine['addHum']>; last: number }[] = [];
-  private fx!: Effects;
+  fx!: Effects;
+  mission!: Mission;
+  marker!: Marker;
+  private holdT = 0;
   player!: Player;
-  private weapon!: Weapon;
+  weapon!: Weapon;
   private projectiles!: Projectiles;
   nav!: Nav;
   waves = new Waves();
@@ -287,6 +294,9 @@ export class Game {
     this.waves.onSniper = () => this.music.accent();
     this.waves.onLastEnemy = () => this.music.accent();
 
+    this.marker = new Marker(s);
+    this.mission = new Mission(this);
+
     // Compile everything up front so the first shot doesn't hitch.
     this.renderer.renderer.compile(s, this.camera);
   }
@@ -301,18 +311,30 @@ export class Game {
   }
 
   private bindUi() {
-    this.hud.title.addEventListener('click', () => {
+    // Main menu.
+    this.hud.title.addEventListener('click', (e) => {
       if (!this.ready || this.state !== 'title') return;
+      const el = (e.target as HTMLElement).closest<HTMLElement>('[data-mode],[data-act]');
+      if (!el) return;
       this.audio.start();
       this.applySettings();
+      this.audio.uiBlip();
+      const act = el.dataset.act;
+      if (act === 'settings') return this.menu.show(true, 'settings');
+      if (act === 'controls') return this.hud.showControls(true);
+      if (act === 'back') return this.hud.showControls(false);
+      this.mode = el.dataset.mode === 'arcade' ? 'arcade' : 'story';
       this.music.start(this.audio);
       this.startAudioWorld();
       this.hud.show(this.hud.title, false);
       this.input.requestLock();
       this.startIntro();
     });
-    this.hud.death.addEventListener('click', () => {
-      if (this.state === 'dead' && this.deadT > 1.2) this.restart();
+    this.hud.death.addEventListener('click', (e) => {
+      if (this.state !== 'dead' || this.deadT <= 1.2) return;
+      // Story: retry from the checkpoint (the RESTART STORY button starts over).
+      const full = (e.target as HTMLElement).closest('[data-act="full"]');
+      this.restart(this.mode === 'story' && !full);
     });
     this.renderer.canvas.addEventListener('click', () => {
       if (this.state === 'play' || this.state === 'intro') this.input.requestLock();
@@ -324,11 +346,11 @@ export class Game {
     this.menu.onRestart = () => {
       this.menu.show(false);
       this.music.setPaused(false);
-      this.restart();
+      this.restart(false);
     };
     this.endScreen.onRestart = () => {
       this.endScreen.hide();
-      this.restart();
+      this.restart(false);
     };
     this.endScreen.onMenu = () => this.toTitle();
     this.menu.onChange = (s) => {
@@ -378,14 +400,21 @@ export class Game {
 
   private startIntro() {
     this.state = 'intro';
-    this.intro = new Intro(this.scene, this.audio, this.projectiles.light);
+    const st = this.district.storyStart;
+    this.intro = new Intro(
+      this.scene,
+      this.audio,
+      this.projectiles.light,
+      this.mode === 'story' ? { end: new THREE.Vector3(st.x, 1.65, st.z), endLook: new THREE.Vector3(st.x - 10, 1.65, st.z) } : {},
+    );
+    this.hud.setCine(this.mode);
     // A train rolls over the plaza while the camera glides in.
     this.train.startNow(1, -190);
     this.hud.show(this.hud.skip, true);
     this.hud.skip.style.opacity = '1';
   }
 
-  private beginPlay() {
+  private beginPlay(fromCheckpoint = false) {
     this.state = 'play';
     this.intro?.dispose();
     this.intro = null;
@@ -393,23 +422,20 @@ export class Game {
     this.hud.cine.style.opacity = '0';
     this.hud.show(this.hud.root, true);
     this.hud.root.classList.toggle('story', this.mode === 'story');
-    this.stats = { shots: 0, hits: 0, start: this.elapsed };
+    if (!fromCheckpoint) this.stats = { shots: 0, hits: 0, start: this.elapsed };
     this.zone = null;
     if (this.mode === 'story') {
       const st = this.district.storyStart;
       this.player.reset(st.x, st.z, st.yaw);
       this.weapon.raiseTarget = 1;
       this.weapon.setHolstered(true, true);
-      this.security.clear();
-      this.setStationOpen(false);
-      for (const p of this.district.patrols) this.security.spawnPatrol(p);
       this.crowd.setVisible(true);
-      this.crowd.reset(this.player.pos);
       this.ctx.enemies = this.security.guards;
       this.storyHud.clear();
       this.storyHud.show(true);
-      this.storyHud.setObjective('Stay out of sight. Find a way out of the district.', '地区から脱出せよ');
-      this.storyHud.radioLine('H — HOLSTER / DRAW · A DRAWN WEAPON DRAWS ATTENTION', 'info');
+      this.mission.start(fromCheckpoint);
+      if (!fromCheckpoint) this.storyHud.radioLine('H — HOLSTER / DRAW · E — INTERACT · A DRAWN WEAPON DRAWS ATTENTION', 'info');
+      else this.storyHud.radioLine('CHECKPOINT', 'info');
     } else {
       const st = this.district.start;
       this.player.reset(st.x, st.z, st.yaw);
@@ -418,6 +444,7 @@ export class Game {
       this.ctx.enemies = this.waves.enemies;
       this.setStationOpen(false);
       this.storyHud.show(false);
+      this.marker.set(null);
       this.crowd.setVisible(false);
       this.crowd.civs.length = 0;
       this.waves.startNext();
@@ -425,7 +452,7 @@ export class Game {
     if (!this.input.locked) this.pause();
   }
 
-  private restart() {
+  private restart(fromCheckpoint = false) {
     this.hud.show(this.hud.death, false);
     this.waves.reset(this.scene);
     this.security.clear();
@@ -442,7 +469,7 @@ export class Game {
     this.damageFx = 0;
     this.renderer.grade.uniforms.uFade.value = 0;
     this.input.requestLock();
-    this.beginPlay();
+    this.beginPlay(fromCheckpoint && this.mode === 'story');
   }
 
   private damagePlayer(dmg: number, from: THREE.Vector3) {
@@ -566,7 +593,7 @@ export class Game {
       this.player.update(dt, input, controls, this.elapsed);
       if (controls && this.player.alive) {
         if (input.pressed.has('KeyH')) this.weapon.toggleHolster();
-        if (input.pressed.has('KeyE') && this.focus) this.focus.action();
+        if (input.pressed.has('KeyE') && this.focus && !this.focus.hold) this.focus.action();
         if (input.pressed.has('KeyR')) this.weapon.startReload();
         if (input.mouseDown && this.weapon.tryFire()) this.shoot();
       }
@@ -574,9 +601,13 @@ export class Game {
       if (this.mode === 'story') {
         this.security.update(dt);
         this.crowd.update(dt, this.elapsed, this.player, this.weapon.visible, this.security.alert.level === 'pursuit');
+        this.mission.update(dt);
         this.updateStoryHud(rawDt);
         this.ambientChatter(dt);
-        this.updateInteraction();
+        this.updateInteraction(dt);
+        const md = this.marker.update(this.camera.position, this.elapsed);
+        this.storyHud.setDistance(md);
+        this.hud.setClock(fmt(this.rail.tt.now));
       } else {
         this.ctx.difficulty = this.waves.difficulty;
         this.waves.update(dt, this.ctx);
@@ -599,6 +630,7 @@ export class Game {
           this.storyHud.show(false);
           this.hud.showDeath({
             title: this.failReason || undefined,
+            story: this.mode === 'story',
             wave: this.waves.wave,
             kills: this.mode === 'story' ? this.security.stats.guardsDown : this.waves.kills,
             accuracy: this.stats.shots ? this.stats.hits / this.stats.shots : 0,
@@ -659,6 +691,7 @@ export class Game {
   // ------------------------------------------------------------------ rail, interaction, ending
   private onRail(e: RailEvent) {
     const story = this.mode === 'story' && this.state === 'play';
+    if (this.mode === 'story') this.mission.onRail(e);
     const doorPos = { x: CAR_CENTRES[1], y: -4.5, z: TRACK_Z - 1.5 };
     switch (e.type) {
       case 'approach':
@@ -701,7 +734,7 @@ export class Game {
   }
 
   /** Nearest usable thing in front of the player, shown as a prompt. */
-  private updateInteraction() {
+  private updateInteraction(dt: number) {
     const p = this.player.pos;
     const fwd = this.player.forward(new THREE.Vector3());
     let best: Interactable | null = null;
@@ -717,10 +750,22 @@ export class Game {
         best = it;
       }
     }
+    if (best !== this.focus) this.holdT = 0;
     this.focus = best;
+    let label = best ? `<b>E</b>${best.label}` : null;
+    if (best?.hold) {
+      if (this.input.key('KeyE') && this.input.locked) {
+        this.holdT += dt;
+        label = `<b>E</b>${best.label} ${'▮'.repeat(Math.ceil((this.holdT / best.hold) * 10)).padEnd(10, '▯')}`;
+        if (this.holdT >= best.hold) {
+          this.holdT = 0;
+          best.action();
+        }
+      } else this.holdT = 0;
+    }
     // A local's doors are open and we're inside: say what that means.
     const inLocal = this.rail.train.inside(p) && this.rail.train.doorK > 0.5 && !this.rail.tt.active()?.s.escape;
-    this.storyHud.setHint(best ? `<b>E</b>${best.label}` : inLocal ? 'THIS LOCAL STOPS AT A SECURITY CHECKPOINT' : null);
+    this.storyHud.setHint(label ?? (inLocal ? 'THIS LOCAL STOPS AT A SECURITY CHECKPOINT' : null));
   }
 
   private readBoard() {
@@ -778,6 +823,7 @@ export class Game {
     this.crowd.setVisible(false);
     this.crowd.civs.length = 0;
     this.rail.reset();
+    this.marker.set(null);
     this.ending = null;
     this.timeScale = 1;
     this.renderer.grade.uniforms.uLetterbox.value = 0;

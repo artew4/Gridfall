@@ -16,6 +16,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''):
 
 export interface DeathStats {
   title?: string;
+  /** Story mode: retry from checkpoint / restart story. */
+  story?: boolean;
   wave: number;
   kills: number;
   accuracy: number;
@@ -86,13 +88,27 @@ export class Hud {
     this.title.id = 'title';
     this.title.innerHTML = `
       <h1>NEON RAIN</h1>
-      <div class="sub">TOKYO AFTER MIDNIGHT</div>
-      <div class="jp">東京 · 午前二時四十七分</div>
+      <div class="sub">ONE NIGHT · ONE CITY · ONE WAY OUT</div>
+      <div class="jp">東京 · 午前零時二十四分</div>
       <div class="loading">BUILDING THE CITY…</div>
-      <div class="controls">
-        <b>WASD</b> MOVE · <b>MOUSE</b> LOOK · <b>LMB</b> FIRE · <b>R</b> RELOAD · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP · <b>ESC</b> PAUSE<br/>
-        HEADPHONES RECOMMENDED
-      </div>`;
+      <div class="mainmenu hidden">
+        <button class="pm-btn primary" data-mode="story">STORY ESCAPE<span class="jp">脱出</span></button>
+        <button class="pm-btn" data-mode="arcade">ARCADE SURVIVAL<span class="jp">生存</span></button>
+        <button class="pm-btn" data-act="settings">SETTINGS<span class="jp">設定</span></button>
+        <button class="pm-btn" data-act="controls">CONTROLS<span class="jp">操作</span></button>
+      </div>
+      <div class="controlsPanel hidden">
+        <div class="cp-grid">
+          <b>W A S D</b><span>MOVE</span><b>MOUSE</b><span>LOOK</span>
+          <b>LMB</b><span>FIRE (WEAPON DRAWN)</span><b>R</b><span>RELOAD</span>
+          <b>H</b><span>HOLSTER / DRAW</span><b>E</b><span>INTERACT (HOLD FOR SOME)</span>
+          <b>SHIFT</b><span>SPRINT</span><b>SPACE</b><span>JUMP · VAULT LOW RAILINGS</span>
+          <b>ESC</b><span>PAUSE · SETTINGS</span>
+        </div>
+        <div class="cp-notes">A drawn weapon gets you noticed by security and civilians. Break line of sight to lose a pursuit; they search the last place they saw you.</div>
+        <button class="pm-btn" data-act="back">BACK<span class="jp">戻る</span></button>
+      </div>
+      <div class="controls">HEADPHONES RECOMMENDED</div>`;
     this.pause.id = 'pause';
     this.pause.innerHTML = '<div class="big">PAUSED</div><div class="hint">CLICK TO RESUME</div>';
     this.death.id = 'death';
@@ -105,11 +121,14 @@ export class Hud {
   }
 
   setReady() {
-    const l = this.title.querySelector('.loading');
-    if (l) {
-      l.className = 'enter';
-      l.textContent = 'CLICK TO ENTER';
-    }
+    this.title.querySelector('.loading')?.remove();
+    this.title.querySelector('.mainmenu')!.classList.remove('hidden');
+  }
+
+  /** Main menu: show the controls page or the buttons. */
+  showControls(on: boolean) {
+    this.title.querySelector('.mainmenu')!.classList.toggle('hidden', on);
+    this.title.querySelector('.controlsPanel')!.classList.toggle('hidden', !on);
   }
 
   show(e: HTMLElement, on: boolean) {
@@ -163,6 +182,21 @@ export class Hud {
     this.bannerTimer = dur;
   }
 
+  /** Opening title card per mode. */
+  setCine(mode: 'story' | 'arcade') {
+    this.cine.innerHTML =
+      mode === 'story'
+        ? `<div class="t1">NEON RAIN</div><div class="t2">ONE NIGHT · ONE CITY · ONE WAY OUT</div>
+      <div class="t3">新宿区 三丁目 — SANCHŌME, SHINJUKU · 00:24<br/>SECURITY LOCKDOWN IN EFFECT · YOU ARE WANTED</div>`
+        : `<div class="t1">NEON RAIN</div><div class="t2">東京 · 午前 2:47</div>
+      <div class="t3">ARCADE SURVIVAL · ONE STREET. ONE GUN.<br/>RAINFALL 38MM/H · VISIBILITY LOW</div>`;
+  }
+
+  setClock(t: string) {
+    const b = this.clockEl.querySelector('b');
+    if (b && b.textContent !== t) b.textContent = t;
+  }
+
   /** Small location card when entering a new area. */
   zoneShow(name: string, jp: string) {
     this.zone.innerHTML = `<div class="box"><span class="en">${name}</span><span class="jp">${jp}</span></div>`;
@@ -181,7 +215,7 @@ export class Hud {
         <span>ACCURACY</span><span>${Math.round(s.accuracy * 100)}%</span>
         <span>SURVIVED</span><span>${mm}:${String(ss).padStart(2, '0')}</span>
       </div>
-      <div class="hint">CLICK TO RISE AGAIN</div>`;
+      ${s.story ? '<div class="hint">CLICK TO RETRY FROM THE CHECKPOINT</div><button class="pm-btn death-full" data-act="full">RESTART STORY</button>' : '<div class="hint">CLICK TO RISE AGAIN</div>'}`;
     this.show(this.death, true);
   }
 
