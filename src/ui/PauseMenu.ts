@@ -1,4 +1,5 @@
 import type { Settings } from './Settings';
+import { FPS_CAPS, PRESETS, type QualityPreset } from '../core/Performance';
 
 type SliderKey = 'master' | 'music' | 'sfx';
 
@@ -36,6 +37,12 @@ export class PauseMenu {
           )
           .join('')}
         <button class="pm-btn toggle" data-act="mute"></button>
+        <div class="pm-sep"><span>GRAPHICS</span><span class="jp">画質</span></div>
+        <div class="pm-row">${(Object.keys(PRESETS) as QualityPreset[])
+          .map((q) => `<button class="pm-btn pm-chip" data-quality="${q}">${PRESETS[q].label}</button>`)
+          .join('')}</div>
+        <button class="pm-btn toggle" data-act="fps"></button>
+        <div class="pm-note"></div>
         <div class="pm-foot">SETTINGS ARE SAVED · 設定は保存されます</div>
       </div>`;
     parent.appendChild(this.root);
@@ -53,6 +60,15 @@ export class PauseMenu {
     // Keep every pointer event inside the menu.
     for (const ev of ['mousedown', 'mouseup', 'click', 'pointerdown']) this.root.addEventListener(ev, (e) => e.stopPropagation());
     this.root.addEventListener('click', (e) => {
+      const q = (e.target as HTMLElement).closest<HTMLElement>('[data-quality]')?.dataset.quality as QualityPreset | undefined;
+      if (q) {
+        // A preset brings its own frame cap; the cap can still be changed afterwards.
+        this.settings.quality = q;
+        this.settings.fps = PRESETS[q].fps;
+        this.sync();
+        this.onChange(this.settings);
+        return;
+      }
       const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
       if (act === 'resume') {
         if (this.mode === 'settings') {
@@ -69,6 +85,11 @@ export class PauseMenu {
           return;
         }
         this.onRestart();
+      } else if (act === 'fps') {
+        const i = FPS_CAPS.indexOf(this.settings.fps);
+        this.settings.fps = FPS_CAPS[(i + 1) % FPS_CAPS.length];
+        this.sync();
+        this.onChange(this.settings);
       } else if (act === 'mute') {
         this.settings.muted = !this.settings.muted;
         this.sync();
@@ -87,6 +108,10 @@ export class PauseMenu {
     }
     this.muteBtn.innerHTML = this.settings.muted ? 'SOUND: <b>MUTED</b><span class="jp">消音</span>' : 'SOUND: <b>ON</b><span class="jp">音あり</span>';
     this.muteBtn.classList.toggle('on', this.settings.muted);
+    for (const b of Array.from(this.root.querySelectorAll<HTMLElement>('[data-quality]'))) b.classList.toggle('on', b.dataset.quality === this.settings.quality);
+    this.root.querySelector('[data-act="fps"]')!.innerHTML = `FRAME RATE: <b>${this.settings.fps} FPS</b><span class="jp">${this.settings.fps <= 30 ? '省電力' : this.settings.fps <= 60 ? '標準' : '高'}</span>`;
+    this.root.querySelector('.pm-note')!.textContent =
+      this.settings.quality === 'power' ? '30 FPS, LOWER RESOLUTION — RUNS COOLEST' : this.settings.quality === 'high' ? 'FULL RESOLUTION AND RATE — MOST GPU WORK' : 'RECOMMENDED';
   }
 
   setHint(text: string) {

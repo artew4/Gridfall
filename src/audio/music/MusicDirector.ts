@@ -79,6 +79,10 @@ export class MusicDirector {
     /* The layered score handles peaks through intensity; nothing extra needed. */
   }
 
+  setSuspended(on: boolean) {
+    this.score?.setSuspended(on);
+  }
+
   setPaused(p: boolean) {
     this.score?.setDuck(p);
     this.file?.setDuck(p);
