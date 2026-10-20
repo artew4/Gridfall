@@ -109,6 +109,35 @@ export class AudioEngine {
     this.applyVolumes();
   }
 
+  private ducked = false;
+  /** Dialogue on screen: the music steps back a little (about -5 dB), smoothly. */
+  duckMusic(on: boolean) {
+    if (!this.started || on === this.ducked) return;
+    this.ducked = on;
+    this.musicIn.gain.setTargetAtTime(on ? 0.56 : 1, this.ctx.currentTime, 0.6);
+  }
+
+  /** New objective: a soft two-note chime; objective complete: a rising third first. */
+  objective(completed: boolean) {
+    if (!this.started) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime + 0.02;
+    const notes = completed ? [659.3, 830.6, 987.8] : [740, 987.8];
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = f;
+      const at = t + i * 0.11;
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(0.07, at + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0008, at + 0.9);
+      o.connect(g).connect(this.ui);
+      o.start(at);
+      o.stop(at + 0.95);
+    });
+  }
+
   /** Hidden tab: stop the audio thread entirely (nothing plays, nothing is computed). */
   setSuspended(on: boolean) {
     if (!this.started) return;

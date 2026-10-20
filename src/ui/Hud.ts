@@ -101,9 +101,9 @@ export class Hud {
         <div class="cp-grid">
           <b>W A S D</b><span>MOVE</span><b>MOUSE</b><span>LOOK</span>
           <b>LMB</b><span>FIRE (WEAPON DRAWN)</span><b>R</b><span>RELOAD</span>
-          <b>H</b><span>HOLSTER / DRAW</span><b>E</b><span>INTERACT (HOLD FOR SOME)</span>
+          <b>X</b><span>HOLSTER / DRAW</span><b>E</b><span>INTERACT (HOLD FOR SOME)</span>
           <b>SHIFT</b><span>SPRINT</span><b>SPACE</b><span>JUMP · VAULT LOW RAILINGS</span>
-          <b>ESC</b><span>PAUSE · SETTINGS</span>
+          <b>TAB</b><span>OBJECTIVE OVERVIEW (HOLD)</span><b>ESC</b><span>PAUSE · SETTINGS</span>
         </div>
         <div class="cp-notes">A drawn weapon gets you noticed by security and civilians. Break line of sight to lose a pursuit; they search the last place they saw you.</div>
         <button class="pm-btn" data-act="back">BACK<span class="jp">戻る</span></button>

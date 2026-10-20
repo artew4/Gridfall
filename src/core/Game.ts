@@ -3,6 +3,7 @@ import { Renderer } from './Renderer';
 import { Input } from './Input';
 import { InteractionController, type Interactable } from './Interaction';
 import { FramePacer, PRESETS, effectiveCap } from './Performance';
+import { KEYS } from './Bindings';
 import { clamp, damp, rand } from './math';
 import { AudioEngine } from '../audio/AudioEngine';
 import { MusicDirector } from '../audio/music/MusicDirector';
@@ -40,7 +41,7 @@ import { Ending } from '../story/Ending';
 import { EndScreen } from '../ui/EndScreen';
 import { CAR_CENTRES, TRACK_Z } from '../world/Metro';
 import { Mission } from '../story/Mission';
-import { Marker } from '../ui/Marker';
+import { StoryPresenter } from '../story/StoryPresenter';
 import { Minimap } from '../ui/Minimap';
 import { PlayerIntel, intelRange } from '../stealth/PlayerIntel';
 
@@ -96,7 +97,8 @@ export class Game {
   private hums: { glow: SignGlow; h: ReturnType<AudioEngine['addHum']>; last: number }[] = [];
   fx!: Effects;
   mission!: Mission;
-  marker!: Marker;
+  /** Objectives, subtitles, guidance, hints (story mode). */
+  story!: StoryPresenter;
   minimap!: Minimap;
   /** What the player knows about each guard: last seen/heard position and when. */
   /** What the player knows about security (minimap). */
@@ -343,7 +345,7 @@ export class Game {
     this.waves.onSniper = () => this.music.accent();
     this.waves.onLastEnemy = () => this.music.accent();
 
-    this.marker = new Marker(s);
+    this.story = new StoryPresenter(this);
     this.mission = new Mission(this);
     this.intel = new PlayerIntel(this.col);
     this.minimap = new Minimap(this.hud.root, {
@@ -496,12 +498,13 @@ export class Game {
       this.ctx.enemies = this.security.guards;
       this.storyHud.clear();
       this.storyHud.show(true);
+      this.story.clear();
+      this.story.show(true);
       this.minimap.show(true);
       this.intel.clear();
       this.stationKnown = false;
       this.mission.start(fromCheckpoint);
-      if (!fromCheckpoint) this.storyHud.radioLine('H — HOLSTER / DRAW · E — INTERACT · A DRAWN WEAPON DRAWS ATTENTION', 'info');
-      else this.storyHud.radioLine('CHECKPOINT', 'info');
+      if (fromCheckpoint) this.storyHud.radioLine('CHECKPOINT', 'info');
     } else {
       const st = this.district.start;
       this.player.reset(st.x, st.z, st.yaw);
@@ -511,7 +514,8 @@ export class Game {
       this.setStationOpen(false);
       this.storyHud.show(false);
       this.minimap.show(false);
-      this.marker.set(null);
+      this.story.clear();
+      this.story.show(false);
       this.crowd.setVisible(false);
       this.crowd.civs.length = 0;
       this.waves.startNext();
@@ -662,8 +666,8 @@ export class Game {
       const controls = this.state === 'play' && input.locked;
       this.player.update(dt, input, controls, this.elapsed);
       if (controls && this.player.alive) {
-        if (input.pressed.has('KeyH')) this.weapon.toggleHolster();
-        if (input.pressed.has('KeyR')) this.weapon.startReload();
+        if (input.pressed.has(KEYS.holster)) this.weapon.toggleHolster();
+        if (input.pressed.has(KEYS.reload)) this.weapon.startReload();
         if (input.mouseDown && this.weapon.tryFire()) this.shoot();
       }
       this.player.applyCamera(this.camera, this.elapsed);
@@ -675,8 +679,7 @@ export class Game {
         this.ambientChatter(dt);
         this.updateInteraction(dt);
         this.updateKnowledge(rawDt);
-        const md = this.marker.update(this.camera.position, this.elapsed);
-        this.storyHud.setDistance(md);
+        this.story.update(dt, rawDt);
         this.hud.setClock(fmt(this.rail.tt.now));
       } else {
         this.ctx.difficulty = this.waves.difficulty;
@@ -698,6 +701,7 @@ export class Game {
           this.timeScale = 0.15;
           this.hud.show(this.hud.root, false);
           this.storyHud.show(false);
+          this.story.show(false);
           this.hud.showDeath({
             title: this.failReason || undefined,
             story: this.mode === 'story',
@@ -796,15 +800,15 @@ export class Game {
       case 'approach':
         if (e.s.kind === 'deadhead') {
           this.audio.announce(1.6);
-          if (story && this.player.pos.y < -2) this.storyHud.radioLine('PA — A train is passing through. Please stand back. 通過電車にご注意ください', 'story');
+          if (story && this.player.pos.y < -2) this.story.say('STATION PA', 'A train is passing through. Please stand back from the platform edge.', 3.5);
         } else {
           this.audio.announce(2.8);
           if (story && this.player.pos.y < -2) {
-            this.storyHud.radioLine(
+            this.story.say(
+              'STATION PA',
               e.s.escape
-                ? `PA — Now arriving: the last express for ${e.s.dest}. まもなく終電が参ります`
-                : `PA — Now arriving: local for ${e.s.dest}. まもなく各駅停車が参ります`,
-              'story',
+                ? `Now arriving at Platform 1: the last express for Kagerō Bay. This is the final departure tonight.`
+                : `Now arriving: local for ${e.s.dest}. (A local — it stops at the security checkpoint.)`,
             );
           }
         }
@@ -815,10 +819,10 @@ export class Game {
       case 'closingSoon':
         this.audio.departureMelody();
         this.audio.doorWarning(doorPos);
-        if (story && this.rail.train.inside(this.player.pos) && !e.s.escape) this.storyHud.radioLine('THE DOORS ARE CLOSING — THIS LOCAL RUNS INTO A CHECKPOINT. GET OFF!', 'alert');
+        if (story && this.rail.train.inside(this.player.pos) && !e.s.escape) this.story.say('KENJI (TEXT)', 'Wrong train! That local runs into a checkpoint — get off before the doors close!', 3.5);
         break;
       case 'held':
-        if (story) this.storyHud.radioLine('PA — Door obstruction. The train is holding. ドアにご注意ください', 'warn');
+        if (story) this.story.say('STATION PA', 'Door obstruction. The train is holding — please board quickly.', 3);
         break;
       case 'doorsClosed':
         this.audio.doorChime(doorPos, false);
@@ -837,7 +841,7 @@ export class Game {
     const p = this.player.pos;
     const fwd = this.player.forward(new THREE.Vector3());
     const live = this.input.locked && this.player.alive;
-    const label = this.interaction.update(this.interactables, p, fwd, live && this.input.pressed.has('KeyE'), live && this.input.key('KeyE'), dt);
+    const label = this.interaction.update(this.interactables, p, fwd, live && this.input.pressed.has(KEYS.interact), live && this.input.key(KEYS.interact), dt);
     // A local's doors are open and we're inside: say what that means.
     const inLocal = this.rail.train.inside(p) && this.rail.train.doorK > 0.5 && !this.rail.tt.active()?.s.escape;
     this.storyHud.setHint(label ?? (inLocal ? 'THIS LOCAL STOPS AT A SECURITY CHECKPOINT' : null));
@@ -845,7 +849,7 @@ export class Game {
 
   private readBoard() {
     const rows = this.rail.tt.upcoming(4).filter((s) => s.kind !== 'deadhead').slice(0, 3);
-    this.storyHud.radioLine(`BOARD ${fmt(this.rail.tt.now)} — ` + rows.map((s) => `${fmt(s.time)} ${s.escape ? 'LAST EXPRESS' : 'LOCAL'} ${s.dest}${s.escape ? '' : ' (CHECKPOINT)'}`).join(' · '), 'story');
+    this.story.say('BOARD', `${fmt(this.rail.tt.now)} — ` + rows.map((s) => `${fmt(s.time)} ${s.escape ? 'LAST EXPRESS' : 'LOCAL'} ${s.dest}${s.escape ? '' : ' (CHECKPOINT)'}`).join(' · '), 6);
     this.onBoardRead();
   }
 
@@ -857,6 +861,9 @@ export class Game {
     this.ending = new Ending(this.rail.train, this.train);
     this.hud.show(this.hud.root, false);
     this.storyHud.show(false);
+    // The objective goes; subtitles stay for the ride out.
+    this.story.hud.show(false);
+    this.story.marker.set(null);
     this.weapon.raiseTarget = 0;
     if (document.pointerLockElement) document.exitPointerLock();
   }
@@ -898,7 +905,8 @@ export class Game {
     this.crowd.setVisible(false);
     this.crowd.civs.length = 0;
     this.rail.reset();
-    this.marker.set(null);
+    this.story.clear();
+    this.story.show(false);
     this.ending = null;
     this.timeScale = 1;
     this.renderer.grade.uniforms.uLetterbox.value = 0;
@@ -930,7 +938,7 @@ export class Game {
     const player = { weaponDrawn: this.weapon.visible, hunting: this.security.alert.hunting(t), firing: this.security.playerFiring(t) };
     const blips = this.intel.blips(t, this.player.pos.y, (k) => intelRange(k, player));
     if (!this.stationKnown && (this.mission.act >= 2 || this.player.pos.distanceTo(new THREE.Vector3(9.1, 0, 4)) < 18)) this.stationKnown = true;
-    this.minimap.draw(this.player.pos, this.player.yaw, this.marker.target, blips, this.stationKnown ? new THREE.Vector3(9.1, 0, 4) : null);
+    this.minimap.draw(this.player.pos, this.player.yaw, this.story.def?.target ?? null, blips, this.stationKnown ? new THREE.Vector3(9.1, 0, 4) : null, this.story.guidance.path);
   }
 
   /** Snippets of conversation from calm people nearby. */

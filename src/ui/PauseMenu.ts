@@ -42,6 +42,7 @@ export class PauseMenu {
           .map((q) => `<button class="pm-btn pm-chip" data-quality="${q}">${PRESETS[q].label}</button>`)
           .join('')}</div>
         <button class="pm-btn toggle" data-act="fps"></button>
+        <button class="pm-btn toggle" data-act="tips"></button>
         <div class="pm-note"></div>
         <div class="pm-foot">SETTINGS ARE SAVED · 設定は保存されます</div>
       </div>`;
@@ -90,6 +91,10 @@ export class PauseMenu {
         this.settings.fps = FPS_CAPS[(i + 1) % FPS_CAPS.length];
         this.sync();
         this.onChange(this.settings);
+      } else if (act === 'tips') {
+        this.settings.tips = !this.settings.tips;
+        this.sync();
+        this.onChange(this.settings);
       } else if (act === 'mute') {
         this.settings.muted = !this.settings.muted;
         this.sync();
@@ -110,6 +115,7 @@ export class PauseMenu {
     this.muteBtn.classList.toggle('on', this.settings.muted);
     for (const b of Array.from(this.root.querySelectorAll<HTMLElement>('[data-quality]'))) b.classList.toggle('on', b.dataset.quality === this.settings.quality);
     this.root.querySelector('[data-act="fps"]')!.innerHTML = `FRAME RATE: <b>${this.settings.fps} FPS</b><span class="jp">${this.settings.fps <= 30 ? '省電力' : this.settings.fps <= 60 ? '標準' : '高'}</span>`;
+    this.root.querySelector('[data-act="tips"]')!.innerHTML = `CONTROL TIPS: <b>${this.settings.tips ? 'ON' : 'OFF'}</b><span class="jp">ヒント</span>`;
     this.root.querySelector('.pm-note')!.textContent =
       this.settings.quality === 'power' ? '30 FPS, LOWER RESOLUTION — RUNS COOLEST' : this.settings.quality === 'high' ? 'FULL RESOLUTION AND RATE — MOST GPU WORK' : 'RECOMMENDED';
   }

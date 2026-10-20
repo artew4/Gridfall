@@ -8,16 +8,12 @@ import { UG } from '../world/Metro';
 import { fmt, type Service } from '../rail/Timetable';
 import type { AlertLevel } from '../stealth/AlertSystem';
 import { Conversation } from './Conversation';
+import { KENJI, objectiveFor, type Step } from './Objectives';
 
 export type Act = 1 | 2 | 3 | 4;
-type Step = 'meet' | 'talk' | 'ambush' | 'board' | 'relay' | 'manhunt' | 'train' | 'done';
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
-/** Where the informant waits: the ramen stall stools. */
-const KENJI = v(-7.2, 0, 12.4);
-const STREET_BOARD = v(12.2, 0, 2);
-const PLATFORM = v(0, UG, 31);
 
 /** Guards per act (fresh spawns at a checkpoint; at act changes only the new ones are added). */
 const PATROLS: Record<Act, PatrolSpec[]> = {
@@ -45,12 +41,15 @@ const PATROLS: Record<Act, PatrolSpec[]> = {
   ],
 };
 
+/** Kenji at the stall: who you are to them, why they want you, the way out. Then the ambush. */
 const DIALOGUE: [number, string][] = [
-  [0, 'KENJI — You made it. They’ve sealed off the whole of Sanchōme.'],
-  [3.6, 'KENJI — One way out: the last express to Kagerō Bay. Sakura Line, platform one.'],
-  [7.4, 'KENJI — Check the board at the metro entrance. And keep that gun out of sight—'],
-  [11, 'KENJI — …wait. They followed me. RUN!'],
+  [0, 'You made it. Every screen in Sanchōme has your face on it.'],
+  [4.4, 'Kurogane says you bombed their data vault. You didn’t — but you walked out with their ledger, so now you’re the bomber.'],
+  [10.2, 'They’ve sealed the district. One way out: the last express to Kagerō Bay. That line has no checkpoint.'],
+  [15.6, 'The departure board is at the metro entrance, east side of the plaza. Find out when it leaves. And keep that gun out of sight—'],
+  [21.4, '…wait. They followed me. RUN!'],
 ];
+const TALK_LENGTH = 23.2;
 
 /**
  * The story: four acts with objectives, a few set pieces that force a fight or a chase, and
@@ -63,11 +62,11 @@ export class Mission {
   step: Step = 'meet';
   private stepT = 0;
   private kenji = -1;
-  private talk = new Conversation(DIALOGUE, 11.6);
+  private talk = new Conversation(DIALOGUE, TALK_LENGTH);
   private relayHits = 0;
   private relayCollider: Collider | null = null;
   private relayDown = false;
-  private tips = new Set<string>();
+  private refreshT = 0;
   private calmT = 0;
   private escapeSvc: Service | null = null;
   /** Seconds since the board was read (game clock, so pause holds it); -1 if not yet. */
@@ -102,7 +101,6 @@ export class Mission {
     const g = this.g;
     const act: Act = fromCheckpoint ? this.checkpoint.act : 1;
     this.act = act;
-    this.tips.clear();
     this.relayHits = 0;
     this.relayDown = act >= 4;
     this.boardReadT = -1;
@@ -128,6 +126,7 @@ export class Mission {
     }
     if (act >= 4) this.openStation(false);
     this.kenji = act === 1 ? g.crowd.pin(KENJI, Math.PI, 0xc8a020) : -1;
+    g.story.setAct(act);
     this.setStep(act === 1 ? 'meet' : act === 2 ? 'board' : act === 3 ? 'relay' : 'train');
     if (!fromCheckpoint) this.saveCheckpoint();
   }
@@ -139,6 +138,7 @@ export class Mission {
 
   private setAct(a: Act) {
     this.act = a;
+    this.g.story.setAct(a);
     this.g.security.budgetPerEpisode = a >= 3 ? 3 : 2;
     if (a === 2) this.spawnAct(a);
     this.saveCheckpoint();
@@ -159,48 +159,25 @@ export class Mission {
     if (this.g.state === 'ending') return;
     const g = this.g;
     this.escapeSvc = g.rail.tt.scheduleEscape(12, true);
-    g.storyHud.radioLine(`PA — Extra express for Kagerō Bay at ${fmt(this.escapeSvc.time)}. — Missed it. Stay alive until then.`, 'story');
+    g.story.say('STATION PA', `An extra express for Kagerō Bay will depart from Platform 1 at ${fmt(this.escapeSvc.time)}.`);
+    g.story.say('KENJI (TEXT)', 'You missed it?! There’s one more. Stay alive until then.');
     this.setStep('train');
   }
 
-  private setStep(s: Step) {
+  /** Whether the player has read the departure board (the overview may show train times). */
+  get boardKnown() {
+    return this.act >= 3 || this.boardReadT >= 0;
+  }
+
+  /** The current objective, from the mission state (the only source of truth). */
+  get objective() {
+    return objectiveFor(this.step, { escapeTime: this.escapeSvc ? fmt(this.escapeSvc.time) : '--:--', relay: this.g.district.relay });
+  }
+
+  private setStep(s: Step, announce = true) {
     this.step = s;
     this.stepT = 0;
-    const g = this.g;
-    const hud = g.storyHud;
-    switch (s) {
-      case 'meet':
-        hud.setObjective('Meet Kenji at the ramen stall in the Fountain Plaza.', '噴水広場の屋台で健二に会え');
-        g.marker.set(KENJI);
-        break;
-      case 'talk':
-        hud.setObjective('Listen to Kenji.', '健二の話を聞け');
-        g.marker.set(null);
-        break;
-      case 'ambush':
-        hud.setObjective('Lose the security squad.', '追っ手を撒け');
-        g.marker.set(null);
-        break;
-      case 'board':
-        hud.setObjective('Check the departure board at the metro entrance.', '地下鉄入口の発車案内を確認せよ');
-        g.marker.set(STREET_BOARD);
-        break;
-      case 'relay':
-        hud.setObjective('Disable the security relay on the Sky Garden rooftop.', '屋上庭園の中継器を破壊せよ');
-        g.marker.set(g.district.relay);
-        break;
-      case 'manhunt':
-        hud.setObjective(`Shake the manhunt and get to Platform 1 — last express ${fmt(this.escapeSvc!.time)}.`, '1番線へ急げ');
-        g.marker.set(PLATFORM);
-        break;
-      case 'train':
-        hud.setObjective(`Board the last express to Kagerō Bay — ${fmt(this.escapeSvc!.time)}, Platform 1.`, `${fmt(this.escapeSvc!.time)} 終電に乗れ`);
-        g.marker.set(PLATFORM);
-        break;
-      case 'done':
-        g.marker.set(null);
-        break;
-    }
+    this.g.story.setObjective(this.objective, announce);
   }
 
   // ------------------------------------------------------------------ beats
@@ -212,7 +189,7 @@ export class Mission {
   private boardRead() {
     if (this.step !== 'board') return;
     const g = this.g;
-    g.storyHud.radioLine(`BOARD — LAST EXPRESS ${fmt(this.escapeSvc!.time)} KAGERŌ BAY · SUSPENDED: SECURITY LOCKDOWN`, 'story');
+    g.story.say('BOARD', `LAST EXPRESS · KAGERŌ BAY · ${fmt(this.escapeSvc!.time)} · PLATFORM 1 — SUSPENDED: SECURITY LOCKDOWN`, 5);
     this.boardReadT = 0;
   }
 
@@ -226,7 +203,7 @@ export class Mission {
     g.audio.discharge(at);
     g.audio.siren();
     g.envUses++;
-    g.storyHud.radioLine('ALL UNITS — RELAY SABOTAGE ON THE SKY GARDEN. FUGITIVE ON THE ROOF. CONVERGE.', 'alert');
+    g.story.say('DISPATCH', 'All units — relay sabotage on the Sky Garden roof. Fugitive on the roof. Converge.', 3.5);
     g.security.alarm(at);
     this.openStation(true);
     this.setAct(4);
@@ -241,7 +218,10 @@ export class Mission {
       g.rail.tt.services = g.rail.tt.services.filter((s) => s !== this.escapeSvc);
     }
     this.escapeSvc = g.rail.tt.scheduleEscape(announce ? 9 : 8);
-    if (announce) g.storyHud.radioLine(`PA — Service resumes. The last express to Kagerō Bay departs ${fmt(this.escapeSvc.time)}, Platform 1.`, 'story');
+    if (announce) {
+      g.story.say('STATION PA', `Service on the Sakura Line resumes. The last express to Kagerō Bay departs from Platform 1 at ${fmt(this.escapeSvc.time)}.`);
+      g.story.say('KENJI (TEXT)', 'Shutters are up. Get down to Platform 1 — every unit on the roof is coming for you.');
+    }
   }
 
   // ------------------------------------------------------------------ frame
@@ -252,12 +232,12 @@ export class Mission {
 
     // Kenji's conversation, then the ambush.
     const talk = this.talk.update(dt);
-    for (const line of talk.lines) g.storyHud.radioLine(line, 'story');
+    for (const line of talk.lines) g.story.say('KENJI', line, 5.4);
     if (talk.done) {
       if (this.kenji >= 0) g.crowd.release(this.kenji, g.player.pos);
       g.security.ambush(KENJI, 3);
       g.audio.radio(null, 'dispatch');
-      g.storyHud.radioLine('DISPATCH — SUSPECT LOCATED AT THE FOUNTAIN PLAZA STALL. MOVE IN.', 'alert');
+      g.story.say('DISPATCH', 'Suspect located at the Fountain Plaza ramen stall. Move in.', 3.2);
       this.setStep('ambush');
     }
 
@@ -265,7 +245,7 @@ export class Mission {
       this.boardReadT += dt;
       if (this.boardReadT > 2.2) {
         this.boardReadT = -1;
-        g.storyHud.radioLine('KENJI (text) — Lockdown runs off a relay on the Sky Garden roof. Kill it and the shutters go up.', 'story');
+        g.story.say('KENJI (TEXT)', 'That’s your train — but the lockdown is holding it. The shutters run off a security relay on the Sky Garden roof. Kill the relay and the line opens.', 7);
         this.setAct(3);
         this.setStep('relay');
       }
@@ -275,7 +255,7 @@ export class Mission {
       case 'ambush':
         // Done once security has lost him and given up the search (or the squad is down).
         if (this.stepT > 8 && a.level === 'unnoticed') {
-          g.storyHud.radioLine('KENJI (text) — Still alive? Check the departure board by the plaza metro entrance.', 'story');
+          g.story.say('KENJI (TEXT)', 'Still breathing? Good. The departure board is at the metro entrance, east side of the plaza.', 6);
           this.setAct(2);
           this.setStep('board');
         }
@@ -303,21 +283,22 @@ export class Mission {
 
     // A suspended train never "arrives"; keep it ahead of the clock until the lockdown lifts.
     if (this.escapeSvc?.suspended && g.rail.tt.now > this.escapeSvc.time - 3) this.escapeSvc.time += 10;
-    this.tutorial(a.level);
+    this.tutorial(a.level, dt);
     this.direct(dt, a.level);
   }
 
   /** One-off hints at the moment they're useful. */
-  private tutorial(level: AlertLevel) {
-    const tip = (k: string, text: string) => {
-      if (this.tips.has(k)) return;
-      this.tips.add(k);
-      this.g.storyHud.radioLine(text, 'info');
-    };
-    if (level === 'suspicious') tip('susp', 'SOMEONE IS LOOKING AT YOU — BREAK LINE OF SIGHT, HOLSTER (H), WALK DON’T RUN');
-    if (level === 'pursuit') tip('pursuit', 'YOU’RE MADE — BREAK LINE OF SIGHT AND KEEP MOVING. ROOFTOPS AND ALLEYS LOSE THEM');
-    if (level === 'search') tip('search', 'THEY’RE SEARCHING WHERE THEY LAST SAW YOU — STAY OUT OF SIGHT UNTIL THEY GIVE UP');
-    if (this.g.weapon.visible && this.g.player.pos.distanceTo(KENJI) < 25 && this.act === 1) tip('gun', 'A DRAWN WEAPON GETS YOU NOTICED. H TO HOLSTER');
+  private tutorial(level: AlertLevel, dt: number) {
+    const tip = (k: string, text: string) => this.g.story.momentTip(k, text);
+    if (level === 'suspicious') tip('susp', 'Someone is looking at you (arc around the crosshair). Break line of sight, holster with [X], walk — don’t run.');
+    if (level === 'pursuit') tip('pursuit', 'You’re made. Break line of sight and keep moving — rooftops, alleys and the metro lose them.');
+    if (level === 'search') tip('search', 'They’re searching where they last saw you. Stay out of sight until they give up.');
+    // Train times move while the lockdown holds the express; keep the objective text current.
+    this.refreshT -= dt;
+    if (this.refreshT <= 0) {
+      this.refreshT = 1;
+      this.g.story.refresh(this.objective);
+    }
   }
 
   /**
