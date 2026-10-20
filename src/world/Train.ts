@@ -167,6 +167,7 @@ export class Train {
       this.group.add(a, b);
     }
     this.group.position.set(this.x, 0, RAIL.z);
+    this.group.userData.dynamic = true;
     scene.add(this.group);
 
     this.light = new THREE.PointLight(0xffe8cc, 0, 32, 1.6);

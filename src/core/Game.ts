@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Renderer } from './Renderer';
 import { Input } from './Input';
 import { InteractionController, type Interactable } from './Interaction';
+import { StaticBuilder } from '../world/Builder';
 import { FramePacer, PRESETS, effectiveCap } from './Performance';
 import { KEYS } from './Bindings';
 import { clamp, damp, rand } from './math';
@@ -230,6 +231,7 @@ export class Game {
   }
 
   private buildWorld() {
+    if (import.meta.env.DEV) StaticBuilder.registry = [];
     const s = this.scene;
     this.hemi = new THREE.HemisphereLight(0x3a4280, 0x1a0e22, 0.55);
     s.add(this.hemi);

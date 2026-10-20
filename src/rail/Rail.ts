@@ -98,7 +98,11 @@ export class Rail {
       }
       this.speed = dt > 0 ? Math.abs(x - this.lastX) / dt : this.speed;
       this.lastX = x;
+      // Anyone inside rides along (the shell moves; the floor must carry them, not slide away).
+      const riding = this.train.inside(player);
+      const dx = x - this.train.x;
       this.train.set(x, k, true, 1);
+      if (riding && dx !== 0) player.x += dx;
       this.metro.setDoors(k);
       if (phase !== this.phase) {
         if (phase === 'stopped') this.onEvent({ type: 'arrive', s });

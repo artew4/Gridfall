@@ -63,6 +63,26 @@ export function installDevTools(game: Game) {
       w.__run = await (await import('./StoryRun')).runStory(game, opts);
       return w.__run;
     },
+    /** Physics overlay around the camera: colliders by type, the player cylinder and ground point. */
+    async colliders(on = true, radius = 25) {
+      const { CollisionDebug } = await import('./CollisionDebug');
+      const w = window as unknown as { __colDebug?: InstanceType<typeof CollisionDebug> };
+      w.__colDebug ??= new CollisionDebug(game);
+      w.__colDebug.radius = radius;
+      w.__colDebug.set(on);
+    },
+    /** World validation: reachability, escapes, traps, invisible walls, walk-through visuals. */
+    async world(opts: { cell?: number; stationOpen?: boolean } = {}) {
+      return (await import('./WorldCheck')).checkWorld(game, opts);
+    },
+    /** Real-controller stress runs from sampled reachable cells (walls, falls, voids). */
+    async stress(opts: { samples?: number; seconds?: number } = {}) {
+      return (await import('./WorldCheck')).stressController(game, opts);
+    },
+    /** The fixed version-comparison benchmark (current preset). */
+    async bench(seconds = 3) {
+      return (await import('./Bench')).bench(game, seconds);
+    },
     /** Frame rate, CPU and GPU milliseconds per frame, busy share (power proxy). */
     async perf(seconds = 4) {
       return (await import('./PerfProbe')).probe(game, seconds);
