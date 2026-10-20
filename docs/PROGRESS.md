@@ -32,7 +32,20 @@ Branch `feature/stealth-pursuit-overhaul`, baseline tag `v3.0`. Plan and root ca
 | Phase 3 | 0a5e238 | last-known-position pursuit, radio range, search roles, finite response, unreachable goals |
 | Phase 4 | b920e68 | minimap view cones (wall-clipped, floor-aware, same maths as the guards) |
 | Phase 6 | de36bfa | tuning: engaged guards look up |
-| Phase 7 | (this) | relay alarm limited to 4 units within radio range, docs, QA |
+| Phase 7 | b9a286b | relay alarm limited to 4 units within radio range, docs, QA |
+
+## 3.2: cinematic experience and performance
+Branch `feature/cinematic-performance-3.2`, baseline tag `v3.1`.
+
+| Step | Commit | Notes |
+|---|---|---|
+| Phase 1 | 0332e20 | frame cap and pacer, presets, hidden-tab suspension, bloom levels |
+| Phase 2 | 05db124 | objective system, nav guidance, subtitles, X holsters |
+| Phase 3 | 1772dae | story opening over the live district, wanted billboard and posters |
+| Phase 6 | caf56ec | ending: officers left on the platform, passengers, Kenji's last words |
+| Phase 5 | 98ccf66 | HUD: ammo only when armed, responsive sizing |
+| QA | 4a07009 | guidance at stairs, input after resume, door hold, radio/PA lines, story autopilot |
+| Docs | (this) | README, progress |
 
 ## Next
-Still needed: a human playtest of detection fairness, minimap readability, pursuit feel, mouse and shooting.
+Human playtest: does the machine run cooler, is the story clear, do the objectives and markers help, is X comfortable, does the ending land.

@@ -1,4 +1,4 @@
-# NEON RAIN 3.0: Cinematic Escape
+# NEON RAIN 3.2: Cinematic Escape
 
 One night in Shinjuku. One gun you'd rather keep holstered. One last train.
 
@@ -13,19 +13,39 @@ npm test         # unit tests (vitest)
 npm run build    # type-check + production build into dist/
 ```
 
-Pick a mode on the main menu (the click also unlocks audio and captures the mouse). Any key skips the intro.
+Pick a mode on the main menu (the click also unlocks audio and captures the mouse). Any key or click skips the opening.
+
+## The story
+
+You are Arashi Kaito, a former Kurogane Security contractor. You walked out with Kurogane's ledger, so they bombed their own data vault and framed you for it. Your face is on every screen in the district, the district is sealed, and every patrol has your description. Your contact Kenji has a way out: the last express on the Sakura Line.
+
+The opening (about 50 s, skippable) shows the populated city, the manhunt on the rooftop billboard, you hiding in the back alley, and Kenji's message. Then the game hands over in first person.
 
 ## Modes
 
 - **Story Escape**: four acts across the street, rooftops and the Sakura Line metro, ending on the escape train.
-  - Act 1: meet Kenji at the ramen stall in the Fountain Plaza.
-  - Act 2: read the departure board.
-  - Act 3: cut the signal relay on the rooftops.
-  - Act 4: get to the platform and board the right train before its doors close.
+  - Act I, **The Fugitive**: find Kenji at the ramen stall in the Fountain Plaza, then lose the squad that followed him.
+  - Act II, **The Escape Route**: read the departure board at the plaza metro entrance.
+  - Act III, **The Manhunt**: disable the security relay on the Sky Garden roof (it keeps the station locked down).
+  - Act IV, **The Last Train**: get down to Platform 1 and board the last express before its doors close.
   - Each act starts at a checkpoint. After a death you can retry from it or restart the story.
 - **Arcade Survival**: the original wave mode on the same district (six designed waves, then endless escalation).
-- **Settings**: master, music and SFX volume plus mute, saved in `localStorage` (`neonrain.settings`).
+- **Settings**:
+  - volume (master, music, SFX, mute);
+  - graphics preset and frame rate;
+  - control tips on/off.
+  - All are saved in `localStorage` (`neonrain.settings`).
 - **Controls**: the table below.
+
+### Finding your way
+
+- **Objective panel (top left):** what to do, how far it is by the actual route, and which level it's on (e.g. `61 M · ▲ ROOFTOP · VIA STAIRS UP`). A banner announces each new objective and confirms the one you just completed.
+- **Marker:** a diamond over the destination. If the destination is on another level, it marks the stairs or metro entrance where your route changes level. Off screen it sticks to the screen edge and points the way. Behind walls it dims.
+- **Minimap:** a dotted route along real streets and stairs, plus the objective.
+- **Hold TAB:** objective overview with why it matters, where it is, the current hint and (once you've read the board) the train times.
+- **Hints:** if you make no progress for about 50 s, a hint appears under the objective. Never during a firefight.
+- **Subtitles:** Kenji, station announcements, the departure board and dispatch appear at the bottom centre with the speaker's name. The music ducks a little under dialogue.
+- **Control tips:** shown once each in the first minutes. They can be switched off in the menu.
 
 | Input | Action |
 |---|---|
@@ -33,11 +53,12 @@ Pick a mode on the main menu (the click also unlocks audio and captures the mous
 | Mouse | Look |
 | LMB (hold for repeat) | Fire |
 | R | Reload |
-| H | Holster / draw |
+| X | Holster / draw (a drawn weapon gets you noticed) |
 | E (tap or hold) | Interact: talk, read, cut the relay |
 | Shift | Sprint |
 | Space | Jump. Vault low railings and parapets mid-jump. |
-| Esc | Pause menu: resume, restart, volume |
+| Tab (hold) | Objective overview |
+| Esc | Pause menu: resume, restart, volume, graphics |
 
 ## Stealth and the wanted system
 
@@ -133,6 +154,21 @@ Each track can also set `beatsPerBar` (default 4) and `offset` (seconds before b
 - When all three files load, the game picks a track by intensity band and crossfades on bar lines. Otherwise it falls back to the procedural score.
 - No code changes are needed.
 
+## Graphics and power
+
+| Preset | Frame cap | Resolution | Bloom | Sign lights |
+|---|---|---|---|---|
+| Power Saving | 30 | 0.85× CSS pixels | 3 levels | off |
+| Balanced (default) | 60 | up to 1.25× | 3 levels | on |
+| High Quality | 120 | up to 1.5× | 5 levels | on |
+
+- The frame cap (30/60/90/120) can also be set on its own.
+- Game speed doesn't depend on the cap: everything is time-based.
+- The title screen draws at most 30 FPS, and 10 FPS when the window isn't focused.
+- A paused game draws nothing.
+- In a hidden tab, rendering stops, audio is suspended and a running game pauses. It stays paused until you resume.
+- Resolution adapts down if the frame rate can't hold the cap.
+
 ## Dev checks
 
 In `npm run dev`, these commands work in the browser console (they don't exist in production builds):
@@ -151,6 +187,11 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - Covers escapes by roof, alley and metro, hiding close by, a shot during the search, and re-detection.
   - Reports the response size, the time to calm, whether you were found, and whether any guard ever went for your hiding spot without information.
 - `await __dev.ai(true)`: world overlay with view cones, lines of sight, guard states and suspicion, nav goals, search points and the last known position.
+- `await __dev.perf(seconds)`: frame rate, CPU and GPU milliseconds per frame (GPU timer queries), busy share of each second.
+- `await __dev.story({ watchIntro: true })`: plays Story Escape like a player who only reads the screen.
+  - It steers the real controller with real keys along the route the game shows.
+  - It presses E and holds E at the prompts, and fights or hides when hunted.
+  - It boards the express and logs every objective and subtitle.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
 
 ## Structure
@@ -164,7 +205,15 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - `PlayerIntel`: what the player knows, for the minimap.
 - `src/core/Interaction`: the single E handler (tap and hold)
 - `src/city`: instanced civilian crowd (witnesses, reports, panic)
-- `src/story`: Mission (acts, checkpoints, set pieces, pacing director), ending cinematic
+- `src/story`:
+  - `Mission`: the authoritative state (acts, steps, checkpoints, set pieces);
+  - `Objectives`: what each step means, where, and hints;
+  - `StoryPresenter`: banner, panel, marker, TAB overview, hints, tips, subtitles;
+  - `Guidance`: routes on the nav graph;
+  - the ending.
+- `src/cinematic`: the story opening (`StoryIntro`) and the arcade intro
+- `src/core/Performance`, `Bindings`: frame pacing, presets, key bindings
+- `src/world/Manhunt`: wanted billboard and posters
 - `src/rail`: timetable (unit-tested), rail controller, metro train with walk-in interior
 - `src/world`:
   - `District`: layout and nav
@@ -188,5 +237,8 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
 - Footsteps make no noise. Only gunshots are heard.
 - Civilians are simple instanced figures. They don't animate in detail.
 - Mouse feel, pointer lock and the music have not been verified by a human player in this build; see the playtest checklist in the final report.
+- There's no voice acting; dialogue is subtitles with radio and phone sound cues.
+- The cinematic characters are the game's low-poly rigs, so close shots stay deliberately dark and short.
+- The power figures are GPU and CPU busy time measured in the browser. Temperature and wattage were not measured.
 
-Git tags: `v1.0` is the single-street original, `v2.0` is the vertical district wave shooter, and `v3.0` is the cinematic escape before the stealth overhaul.
+Git tags: `v1.0` is the single-street original, `v2.0` is the vertical district wave shooter, `v3.0` is the cinematic escape before the stealth overhaul, and `v3.1` is the stealth and pursuit overhaul.
