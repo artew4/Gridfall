@@ -30,6 +30,8 @@ const RADIO_RANGE = 60;
 /** While someone has eyes on him, dispatch repeats the position this often. */
 const RADIO_EVERY = 3;
 const MAX_GUARDS = 12;
+/** Units an alarm (the relay) pulls in. */
+const ALARM_UNITS = 4;
 /** Search roles handed out in order when contact is lost. */
 const ROLES: SearchRole[] = ['sweep', 'probe', 'hold', 'probe', 'sweep', 'hold'];
 
@@ -223,14 +225,22 @@ export class Security {
     this.secondWaveT = -1;
   }
 
-  /** District-wide alarm at a position (the relay): every free guard converges or searches. */
+  /**
+   * Alarm at a position (the relay): the units within radio range converge on it (at most
+   * ALARM_UNITS, nearest first); everyone else stays on post, alert but not told where he is.
+   */
   alarm(at: THREE.Vector3) {
     this.alert.sighting(at.x, at.y, at.z, this.ctx.time);
-    for (const g of this.guards) {
-      if (!g.alive || g.gone || g.gstate === 'combat') continue;
-      g.rememberUntil = this.ctx.time + 45;
-      g.pursue(at.clone().add(new THREE.Vector3(rand(-4, 4), 0, rand(-4, 4))));
-    }
+    const t = this.ctx.time;
+    const near = this.guards
+      .filter((g) => g.alive && !g.gone && g.gstate !== 'combat' && g.pos.distanceTo(at) < RADIO_RANGE)
+      .sort((a, b) => a.pos.distanceTo(at) - b.pos.distanceTo(at))
+      .slice(0, ALARM_UNITS);
+    near.forEach((g, i) => {
+      const a = (i / Math.max(1, near.length)) * Math.PI * 2;
+      g.rememberUntil = t + 45;
+      g.pursue(at.clone().add(new THREE.Vector3(Math.sin(a) * 4, 0, Math.cos(a) * 4)), t);
+    });
   }
 
   /** Sends the `n` unaware guards furthest from a point off duty (they walk to a door and leave). */

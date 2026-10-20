@@ -41,25 +41,56 @@ Pick a mode on the main menu (the click also unlocks audio and captures the mous
 
 ## Stealth and the wanted system
 
-- **Your weapon draws attention.** Holstered, you are just another figure in the rain. Drawn, guards and civilians notice you sooner and from further away.
-- **Guards** see in a forward cone, with short peripheral range. Darkness, steam and crowds reduce what they see.
-  - Suspicion builds on a meter, shown as arcs around the crosshair.
-  - Guards investigate, then engage. They radio the nearest officers and call limited reinforcements from doors you can't see.
-  - Before firing they show an aim laser, then fire a 3-round burst. They don't shoot through civilians.
-- **Wanted levels:**
-  - **Unnoticed**: you're in the clear.
-  - **Suspicious**: something caught a guard's attention.
-  - **Alerted**: guards know something is wrong.
-  - **Pursuit**: they have eyes on you.
-  - **Searching**: they lost you and are sweeping your last known area.
-  - About 7 s out of sight turns a pursuit into a search. After the search, guards return to patrol.
-- **Civilians** who see a drawn weapon may phone it in.
-  - A report reaches security only if they finish the call. Some give up.
-  - Gunshots cause panic. The panic fades once the threat is gone.
-- **HUD:**
-  - Red arcs around the crosshair mean someone is shooting at you.
-  - Orange arcs mean a hunter close behind you.
-  - The minimap shows only what you have seen or heard: guards fade out after about 9 s. It also shows the current floor, the objective and, once found, the station entrance.
+**Vision:**
+- Every officer has an 85° forward view cone. It also has vertical limits: about 40° up and 55° down.
+- Officers in a firefight look further up for the shooter (70°).
+- What a guard can see is decided by real 3D lines of sight to your head, chest and knees.
+- Walls, buildings, floors, roofs and the street surface above the station all block it. Open stairwells and balconies don't.
+- If only a sliver of you is visible, recognition is much slower.
+
+**Range:**
+- 9 m for a holstered stranger.
+- 16 m with your weapon drawn, or once security is hunting you.
+- 22 m for an officer already fighting you.
+- Behind or beside an officer you're only noticed up close, and only slowly.
+
+**Recognition:**
+- Suspicion builds on a meter, shown as arcs around the crosshair.
+- With a drawn weapon, identification takes about 0.7 s up close and 1.5 s at the edge of the cone.
+- Darkness helps at range. A muzzle flash doesn't.
+- Holstering after you've been identified doesn't make you a stranger again.
+
+**Hearing:**
+- Gunshots carry further than sight, but guards only learn roughly where they came from. The error grows with distance and through walls.
+
+**Response:**
+- The guard who spots you radios a snapshot of where *he* saw you.
+- The 2 nearest officers within 60 m converge on it from different sides. One reinforcement comes from a door you can't see.
+- More reinforcements arrive one at a time only if the pursuit drags on, within a limited budget.
+- While someone keeps eyes on you, dispatch updates the hunters every 3 s.
+
+**Losing them:**
+- When a guard loses sight, he heads for where you were going: your last seen position plus your heading.
+- After 7 s without contact, the pursuit turns into a search. Guards split up:
+  - **sweep**: the last known position and its surroundings;
+  - **probe**: further along your heading, including stairs to other levels;
+  - **hold**: watch a spot near the last known position.
+- The search widens over time and lasts 25 s. New evidence, such as a shot, extends it. Then patrols resume.
+- Hiding right next to where you were last seen usually gets you found. Getting away from that spot — over a roof, down an alley, into the metro — works.
+
+**Civilians:**
+- Civilians who see a drawn weapon may phone it in. Security then gets a second-hand report, not your live position.
+- Gunshots cause panic, which fades once the threat is gone.
+
+**Wanted levels:** unnoticed → suspicious → alerted → pursuit → searching → unnoticed.
+
+**HUD:**
+- Red arcs around the crosshair mean someone is shooting at you. Orange arcs mean a hunter close behind you.
+- The minimap shows only guards you have seen, that are openly noticing or attacking you, or that you heard (position only).
+  - Each seen guard has a view cone at the facing you saw, clipped by walls. Its length is his recognition range against you right now, so drawing your weapon visibly lengthens every cone.
+  - Colours: yellow patrol, orange suspicious, red hunting.
+  - Guards on other floors appear as hollow dots with ▲/▼. They get a dashed cone only if they could see you.
+  - Information fades over 9 s at the last observed spot.
 
 ## The map
 
@@ -112,12 +143,26 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - nav-graph connectivity;
   - guard chases from every door.
 - `__game.debug()`: FPS, draw calls, lights, alert level, civilian states, music layers.
+- `await __dev.vision()`: 24 perception scenarios on the real map, including:
+  - behind or beside a guard, out of range;
+  - walls, a roof right above a guard, the station under the street, walkways in clear view;
+  - the guard turning, holstered vs drawn.
+- `await __dev.pursuit()`: headless pursuit scenarios with the real AI at 30 Hz.
+  - Covers escapes by roof, alley and metro, hiding close by, a shot during the search, and re-detection.
+  - Reports the response size, the time to calm, whether you were found, and whether any guard ever went for your hiding spot without information.
+- `await __dev.ai(true)`: world overlay with view cones, lines of sight, guard states and suspicion, nav goals, search points and the last known position.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
 
 ## Structure
 
 - `src/core`: game loop and states (title, intro, play, paused, dead, ending), renderer and post chain, input
-- `src/stealth`: perception and alert state machine (unit-tested), Guard AI, Security (radio, reinforcements, gunshots)
+- `src/stealth`:
+  - `Perception`: the shared `VISION` config and maths;
+  - alert state machine;
+  - Guard AI;
+  - Security: dispatch, reinforcements, search roles, hearing;
+  - `PlayerIntel`: what the player knows, for the minimap.
+- `src/core/Interaction`: the single E handler (tap and hold)
 - `src/city`: instanced civilian crowd (witnesses, reports, panic)
 - `src/story`: Mission (acts, checkpoints, set pieces, pacing director), ending cinematic
 - `src/rail`: timetable (unit-tested), rail controller, metro train with walk-in interior
@@ -138,7 +183,10 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
 
 - The music is synthesised in the browser, so it won't sound like a studio production. Use the file backend for real tracks.
 - Guards follow a waypoint graph, not a navmesh. In rare cases they may cut a corner awkwardly.
+- Guards don't pick cover. In a fight they hold a spread-out ring around you and sidestep while aiming.
+- Minimap cones are clipped against walls at eye height. They don't show the vertical limits of a guard's view.
+- Footsteps make no noise. Only gunshots are heard.
 - Civilians are simple instanced figures. They don't animate in detail.
 - Mouse feel, pointer lock and the music have not been verified by a human player in this build; see the playtest checklist in the final report.
 
-Git tags: `v1.0` is the single-street original and `v2.0` is the vertical district wave shooter.
+Git tags: `v1.0` is the single-street original, `v2.0` is the vertical district wave shooter, and `v3.0` is the cinematic escape before the stealth overhaul.
