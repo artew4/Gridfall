@@ -87,6 +87,7 @@ export class Sandstorm {
         uSunDir: { value: sunDir.clone().normalize() },
         uSun: { value: new THREE.Color(1, 0.92, 0.78) },
         uStorm: { value: 0 },
+        uGlare: { value: 0 },
       },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
@@ -96,7 +97,7 @@ export class Sandstorm {
         }`,
       fragmentShader: /* glsl */ `
         uniform vec3 uZenith, uHorizon, uGround, uDust, uSunDir, uSun;
-        uniform float uStorm;
+        uniform float uStorm, uGlare;
         varying vec3 vDir;
         void main() {
           vec3 d = normalize(vDir);
@@ -104,7 +105,8 @@ export class Sandstorm {
           vec3 sky = mix(uHorizon, uZenith, smoothstep(0.0, 0.6, h));
           sky = mix(uGround, sky, smoothstep(-0.06, 0.03, h));
           float s = max(dot(d, uSunDir), 0.0);
-          float sun = pow(s, 1400.0) * 30.0 + pow(s, 14.0) * 0.45;
+          // 4.1 glare: a tight HDR corona round the disc (bloom turns it into the blinding sun).
+          float sun = pow(s, 1400.0) * 30.0 + pow(s, 14.0) * 0.45 + pow(s, 220.0) * uGlare;
           sky += uSun * sun * (1.0 - uStorm * 0.9);
           float band = 1.0 - smoothstep(0.0, 0.3, abs(h));
           sky = mix(sky, uDust, clamp(uStorm * 0.95 + band * 0.18 * (1.0 - uStorm), 0.0, 1.0));
@@ -163,10 +165,13 @@ export class Sandstorm {
         uBox: { value: new THREE.Vector3(56, 20, 56) },
         uColor: { value: new THREE.Color() },
         uRooms: { value: rooms },
+        uGlint: { value: 0 },
+        uSunCol: { value: new THREE.Color(1, 0.9, 0.7) },
       },
       vertexShader: /* glsl */ `
         attribute vec4 aSeed;
-        uniform float uTime, uStorm;
+        uniform float uTime, uStorm, uGlint;
+        varying float vGlint;
         uniform vec3 uCam, uWind, uBox;
         varying float vA;
         varying vec2 vUv;
@@ -189,19 +194,23 @@ export class Sandstorm {
           gl_Position = projectionMatrix * mv;
           vUv = uv;
           vTone = aSeed.x;
+          // 4.1: about 7% of the grains catch the sun and twinkle (time-based, frame-rate independent).
+          float pick = step(0.93, fract(aSeed.w * 13.7 + aSeed.z * 5.1));
+          vGlint = uGlint * pick * smoothstep(0.55, 1.0, sin(uTime * (6.0 + aSeed.z * 9.0) + aSeed.x * 60.0));
           vA = indoors(p) ? 0.0 : uStorm * smoothstep(0.5, 2.5, dist) * (1.0 - smoothstep(16.0, 27.0, dist));
         }`,
       fragmentShader: /* glsl */ `
-        uniform vec3 uColor;
+        uniform vec3 uColor, uSunCol;
         varying float vA;
         varying vec2 vUv;
         varying float vTone;
+        varying float vGlint;
         void main() {
           float edge = 1.0 - abs(vUv.x - 0.5) * 2.0;
           float tail = smoothstep(0.0, 0.35, vUv.y) * (1.0 - smoothstep(0.7, 1.0, vUv.y));
           float a = vA * edge * tail * 0.85;
           if (a < 0.01) discard;
-          gl_FragColor = vec4(uColor * (0.85 + vTone * 0.4), a);
+          gl_FragColor = vec4(uColor * (0.85 + vTone * 0.4) + uSunCol * vGlint, a);
         }`,
       transparent: true,
       depthWrite: false,
@@ -308,6 +317,15 @@ export class Sandstorm {
     (this.grainMat.uniforms.uColor.value as THREE.Color).copy(this.haze).lerp(GRAIN, 0.55).multiplyScalar(1.25);
     (this.sheetMat.uniforms.uColor.value as THREE.Color).copy(this.haze);
     return s;
+  }
+
+  /**
+   * 4.1 look (true) or 3.7 (false): the sun's glare corona and the sun glints in the dust.
+   * `sunVis` is how much sun gets through the dust (0..1).
+   */
+  setLook(v4: boolean, sunVis: number) {
+    this.skyMat.uniforms.uGlare.value = v4 ? 6 : 0;
+    this.grainMat.uniforms.uGlint.value = v4 ? 3.2 * sunVis : 0;
   }
 
   dispose() {
