@@ -1,4 +1,4 @@
-# NEON RAIN 3.4: Two Settings
+# NEON RAIN 3.5: Two Settings
 
 One night in Shinjuku. One gun you'd rather keep holstered. One last train. Or an outpost in the dunes, and a sandstorm coming.
 
@@ -13,7 +13,7 @@ npm test         # unit tests (vitest)
 npm run build    # type-check + production build into dist/
 ```
 
-On the main menu, pick a **setting**, then a **mode**. The click also unlocks audio and captures the mouse. Any key or click skips the opening. The menu remembers the last setting; `?setting=desert` or `?setting=tokyo` in the URL picks one directly.
+On the main menu, pick a **setting**, then a **mode**. In a run, the pause menu (Esc) has **QUIT TO MAIN MENU** (it asks for confirmation). The click also unlocks audio and captures the mouse. Any key or click skips the opening. The menu remembers the last setting; `?setting=desert` or `?setting=tokyo` in the URL picks one directly.
 
 | Setting | Modes |
 |---|---|
@@ -34,6 +34,9 @@ Switching settings builds the new one behind the menu and frees the old one comp
   - At the peak you see about 25 m, and the sun goes red and the shadows wash out.
   - Sand streaks and rolling dust blow along the wind.
   - Inside a building the air is clear and the wind is muffled.
+- **Your weapon:** the JACKAL AR, an assault rifle. 30 rounds, full auto, a steady climb if you hold the trigger, and an orange flash and tracers. Tokyo keeps the Kitsune-9 plasma pistol.
+- **The enemies:** desert mercenaries. Scavengers with head wraps, goggles and machetes charge you; contractors in plate carriers and helmets take cover and fire rifle rounds you can see coming.
+- **The compound:** cluttered with barrels, stencilled crates, cable spools, scrap and a parked pickup, all of it cover. Tyre ruts lead out of the gates into dunes banked against the barrier.
 - **Survival:**
   - Enemies spawn out in the dunes, beyond what the storm lets you see, and close in through the gates.
   - They can't see through the dust either: gunners have to get within sight to shoot. Runners hunt you anyway, so listen for footsteps and screeches.
