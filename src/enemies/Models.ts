@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export interface Rig {
   root: THREE.Group;
@@ -46,6 +47,51 @@ const sharedCloth = {
 };
 export const RUNNER_ACCENT = new THREE.Color(1.0, 0.08, 0.15);
 export const GUNNER_ACCENT = new THREE.Color(1.0, 0.55, 0.08);
+
+/**
+ * Collapse each pivot's meshes into one mesh per material, so a rig costs one draw call per
+ * (pivot, material) instead of one per part. Animation is unaffected: pivots keep their transforms.
+ * The merged geometries are owned by the rig; `disposeRig` frees them.
+ */
+function mergeRig(rig: Rig): Rig {
+  const groups = new Map<THREE.Object3D, Map<THREE.Material, THREE.Mesh[]>>();
+  for (const m of rig.parts) {
+    const byMat = groups.get(m.parent!) ?? new Map<THREE.Material, THREE.Mesh[]>();
+    groups.set(m.parent!, byMat);
+    const list = byMat.get(m.material as THREE.Material) ?? [];
+    byMat.set(m.material as THREE.Material, list);
+    list.push(m);
+  }
+  const parts: THREE.Mesh[] = [];
+  const owned: THREE.BufferGeometry[] = [];
+  for (const [parent, byMat] of groups) {
+    for (const [mat, list] of byMat) {
+      if (list.length === 1) {
+        parts.push(list[0]);
+        continue;
+      }
+      const geos = list.map((m) => {
+        m.updateMatrix();
+        const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()).applyMatrix4(m.matrix);
+        parent.remove(m);
+        return g;
+      });
+      const merged = mergeGeometries(geos)!;
+      for (const g of geos) g.dispose();
+      owned.push(merged);
+      const mesh = new THREE.Mesh(merged, mat);
+      parent.add(mesh);
+      parts.push(mesh);
+    }
+  }
+  rig.parts = parts;
+  rig.root.userData.ownedGeos = owned;
+  return rig;
+}
+
+export function disposeRig(rig: Rig) {
+  for (const g of (rig.root.userData.ownedGeos as THREE.BufferGeometry[] | undefined) ?? []) g.dispose();
+}
 
 function pivot(parent: THREE.Object3D, x: number, y: number, z: number) {
   const g = new THREE.Group();
@@ -105,11 +151,15 @@ export function buildRunner(): Rig {
   }
   const tail = pivot(body, 0, 0.05, -0.13);
   add(tail, boxGeo(0.42, 0.7, 0.02), clothMat, 0, -0.35, 0);
-  return { root, body, torso, head, armL, armR, foreL, foreR, legL, legR, kneeL, kneeR, tail, armorMat, clothMat, glowMat, parts };
+  return mergeRig({ root, body, torso, head, armL, armR, foreL, foreR, legL, legR, kneeL, kneeR, tail, armorMat, clothMat, glowMat, parts });
 }
 
 /** Heavy armoured gunner: broad shoulders, amber visor, shoulder lamp and a long rifle. Faces +z. */
 export function buildGunner(): Rig {
+  return mergeRig(gunnerParts());
+}
+
+function gunnerParts(): Rig {
   const { armorMat, clothMat, glowMat, parts, add } = makeRigBase('gunner');
   const root = new THREE.Group();
   const body = pivot(root, 0, 1.0, 0);
@@ -168,7 +218,7 @@ const guardWhite = new THREE.MeshStandardMaterial({ color: 0xc8d2e0, roughness: 
  * and a red/blue shoulder beacon, so the silhouette never reads as a civilian. Faces +z.
  */
 export function buildGuard(): Rig {
-  const rig = buildGunner();
+  const rig = gunnerParts();
   rig.armorMat.copy(guardArmor);
   rig.clothMat.copy(guardCloth);
   rig.glowMat.color.copy(GUARD_ACCENT).multiplyScalar(4);
@@ -189,5 +239,5 @@ export function buildGuard(): Rig {
   rig.root.userData.beacon = beacon;
   rig.root.userData.white = white;
   rig.root.scale.setScalar(0.96);
-  return rig;
+  return mergeRig(rig);
 }

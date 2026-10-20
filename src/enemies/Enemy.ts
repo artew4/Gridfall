@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildGunner, buildRunner, GUNNER_ACCENT, RUNNER_ACCENT, type Rig } from './Models';
+import { buildGunner, buildRunner, disposeRig, GUNNER_ACCENT, RUNNER_ACCENT, type Rig } from './Models';
 import type { Nav } from './Nav';
 import type { Projectiles } from './Projectiles';
 import type { Player } from '../player/Player';
@@ -348,6 +348,7 @@ export abstract class Enemy {
 
   dispose(scene: THREE.Scene) {
     scene.remove(this.rig.root);
+    disposeRig(this.rig);
     this.rig.armorMat.dispose();
     this.rig.clothMat.dispose();
     this.rig.glowMat.dispose();
