@@ -47,5 +47,20 @@ Branch `feature/cinematic-performance-3.2`, baseline tag `v3.1`.
 | QA | 4a07009 | guidance at stairs, input after resume, door hold, radio/PA lines, story autopilot |
 | Docs | (this) | README, progress |
 
+## 3.3: world integrity and level design
+Branch `feature/world-integrity-3.3`, baseline tag `v3.2`. Defects and root causes: `docs/WORLD-DEFECTS-3.3.md`. Validation tools: `docs/WORLD-VALIDATION-3.3.md`. Performance: `docs/BENCH-3.3.json` (vs `docs/BENCH-3.2.json`).
+
+| Step | Commit | Notes |
+|---|---|---|
+| Phases 1–2 | 35303db | sub-stepped controller (ceiling stop, in-step landing, no-wedge), dynamic train colliders, door guides, boundaries, world validation tools, collision regression tests |
+| Phase 3 | 0ff7f30 | metro stair finish: tread nosing, LED handrail strips, foot and head glows |
+| Phase 4 | d7a7f72 | door obstruction holds and screen doors that never close on a body (WD-13); out-of-bounds safety net (fallback, logged) |
+| Phase 6 | d0de1ce | `__dev.train()`, frame-rate profiles and spiky frames in `__dev.stress()`, validation docs |
+| Phase 5 | 8cf990e | exit 2 blade sign: entrance B readable from Lantern Street |
+| Phase 7 | 9ff0108 | same-session A/B with v3.2: GPU +0.5% (noise ±10%) |
+| QA | (this) | story bot waypoint hysteresis; full regression |
+
 ## Next
-Human playtest: does the machine run cooler, is the story clear, do the objectives and markers help, is X comfortable, does the ending land.
+Human playtest:
+- 3.2 items: does the machine run cooler, is the story clear, do the objectives and markers help, is X comfortable, does the ending land;
+- 3.3 items: jumping inside the train and riding it, boarding at an angle, standing in a doorway as the doors close, the rooftop edges and the fence, the metro stairs (look and feel), and any wall that seems invisible (note the coordinates from `__game.debug()`).

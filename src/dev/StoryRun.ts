@@ -55,6 +55,10 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
     let ref = P.pos.clone();
     let refT = performance.now();
     const end = performance.now() + maxS * 1000;
+    // Waypoints already reached stay reached: otherwise a node just behind on the route (2 m away)
+    // flips the heading back and forth on its 2 m circle.
+    const reached = new Set<string>();
+    const key = (q: THREE.Vector3) => `${q.x.toFixed(1)},${q.y.toFixed(1)},${q.z.toFixed(1)}`;
     let ok = false;
     while (performance.now() < end) {
       if (done()) {
@@ -63,7 +67,8 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
       }
       if (game.state === 'paused') (window as unknown as { __dev: { lock(): void } }).__dev.lock();
       const pts = points();
-      const next = pts.find((q) => Math.hypot(q.x - P.pos.x, q.z - P.pos.z) > 2);
+      for (const q of pts) if (Math.hypot(q.x - P.pos.x, q.z - P.pos.z) <= 2) reached.add(key(q));
+      const next = pts.find((q) => !reached.has(key(q))) ?? pts[pts.length - 1];
       if (next) P.yaw = Math.atan2(-(next.x - P.pos.x), -(next.z - P.pos.z));
       // Stuck: hop (vaults low rails) and nudge sideways.
       if (performance.now() - refT > 1500) {
@@ -90,7 +95,11 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
       note('clicked STORY ESCAPE');
       await wait(7000);
       note(`intro shot 1: ${game.crowd.civs.filter((c) => !c.hidden).length} civilians in detail, ${game.security.guards.length} officers on duty`);
-      while (game.state === 'intro') await wait(200);
+      // A pause (focus loss) stops the intro too: resume it and keep waiting until play really starts.
+      for (const end = performance.now() + 180000; game.state !== 'play' && performance.now() < end; ) {
+        if (game.state === 'paused') (window as unknown as { __dev: { lock(): void } }).__dev.lock();
+        await wait(200);
+      }
       note(`intro finished → ${game.state}`);
     } else {
       (window as unknown as { __dev: { start(m: string): void } }).__dev.start('story');
