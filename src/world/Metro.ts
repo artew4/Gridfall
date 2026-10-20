@@ -56,8 +56,13 @@ export interface MetroResult {
   shelters: (R & { y: number })[];
   shutters: Shutter[];
   boards: Board[];
-  /** Screen-door leaves for each of the 12 door positions: 0 closed .. 1 open. */
-  setDoors(k: number): void;
+  /**
+   * Screen-door leaves for each of the 12 door positions: 0 closed .. 1 open. `blocked` (a door index)
+   * is an obstructed doorway: like a real obstruction sensor, its leaves stop closing while it is occupied.
+   */
+  setDoors(k: number, blocked?: number): void;
+  /** Index of the doorway (screen door line to the car body) a body at `p` stands in, or -1. */
+  doorwayAt(p: THREE.Vector3): number;
   /** Nav: nodes and hand links, plus the stair links per entrance (to cut while locked). */
   nodes: THREE.Vector3[];
   links: [number, number][];
@@ -243,12 +248,23 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
     b.add(worldBox(1.8, 0.02, 0.85, 1), m.darkConcrete, x, UG - 0.01, SCREEN_Z + 0.42);
     b.add(worldBox(0.5, 0.18, 0.02, 1), greenMat, x, UG + 1.55, SCREEN_Z - 0.05);
   }
-  const setDoors = (k: number) => {
-    for (const l of leaves) {
-      l.mesh.position.x = l.base + l.dir * 0.86 * k;
-      l.col.solid = k < 0.5;
-      l.col.ray = k < 0.9;
-    }
+  // Per door: the leaves' own opening, which may lag the train's closing (obstruction).
+  const leafK = DOOR_XS.map(() => 0);
+  const setDoors = (k: number, blocked = -1) => {
+    leaves.forEach((l, i) => {
+      const d = i >> 1;
+      // Never shut anyone into the 0.7 m pocket between these leaves and the train.
+      leafK[d] = d === blocked ? Math.max(k, leafK[d]) : k;
+      const kd = leafK[d];
+      l.mesh.position.x = l.base + l.dir * 0.86 * kd;
+      l.col.solid = kd < 0.5;
+      l.col.ray = kd < 0.9;
+    });
+  };
+  // The doorway: from just in front of the screen-door line to the car body, between the guides.
+  const doorwayAt = (p: THREE.Vector3) => {
+    if (Math.abs(p.y - UG) > 1 || p.z < SCREEN_Z - 0.3 || p.z > SCREEN_Z + 0.9) return -1;
+    return DOOR_XS.findIndex((x) => Math.abs(p.x - x) < 0.95);
   };
   setDoors(0);
 
@@ -449,7 +465,7 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
   pois.push({ pos: new THREE.Vector3(-11.5, UG, 18.6), yaw: Math.PI, kind: 'shop' }, { pos: new THREE.Vector3(11, UG, 22), yaw: Math.PI / 2, kind: 'shop' });
 
   const shelters = rooms.filter((r) => !r.shaft).map((r) => ({ x0: r.x0, z0: r.z0, x1: r.x1, z1: r.z1, y: -0.05 }));
-  return { holes, shelters, shutters, boards, setDoors, nodes, links, entrances, pois, platform: rooms[3], lights, doorZ: SCREEN_Z, rooms: rooms.filter((r) => r.x1 - r.x0 < 100) };
+  return { holes, shelters, shutters, boards, setDoors, doorwayAt, nodes, links, entrances, pois, platform: rooms[3], lights, doorZ: SCREEN_Z, rooms: rooms.filter((r) => r.x1 - r.x0 < 100) };
 }
 
 /** Station-style sign: line colour bar, Japanese and English. */

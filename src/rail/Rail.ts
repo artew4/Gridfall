@@ -11,12 +11,19 @@ export type RailEvent =
   | { type: 'closingSoon'; s: Service }
   | { type: 'doorsClosed'; s: Service; aboard: boolean }
   | { type: 'held'; s: Service }
+  | { type: 'obstructed'; s: Service }
   | { type: 'depart'; s: Service };
 
 const RUN_IN = 170;
 const DOOR_OPEN = [1.0, 2.6];
 const HOLD_STEP = 6;
 const MAX_HOLDS = 2;
+/** Extra dwell per door obstruction (someone standing in a doorway as the doors close). */
+const OBSTRUCTION_STEP = 3;
+/** Always granted (like the conductor's holds), even if the next train has to wait a little. */
+const MIN_OBSTRUCTION = 12;
+/** Doors open/close no faster than this (fraction per second): a hold reopens them, never snaps. */
+const DOOR_RATE = 1.25;
 
 /**
  * Platform 1 operations: the timetable drives one physical train deterministically (position and
@@ -32,6 +39,9 @@ export class Rail {
   private doorWas = 0;
   private closingFired = false;
   private holds = new Map<number, number>();
+  private obstructions = new Map<number, number>();
+  /** Current door opening, rate-limited from the timetable's. */
+  private doorK = 0;
   private boardT = 0;
   private lastX = -300;
   /** Current train speed (m/s) for audio. */
@@ -44,7 +54,13 @@ export class Rail {
 
   /** Seconds of extra dwell granted to a service (door obstruction holds). */
   private extra(s: Service) {
-    return this.holds.get(s.id) ?? 0;
+    return (this.holds.get(s.id) ?? 0) + (this.obstructions.get(s.id) ?? 0);
+  }
+
+  /** Can `s` stay `more` seconds longer and still be gone before the next train's approach? */
+  private roomFor(s: Service, dwell: number, more: number) {
+    const next = this.tt.services.find((o) => !o.suspended && o.time > s.time);
+    return !next || dwell + more + DEPART_S + 1 <= toReal(next.time - s.time) - APPROACH_S;
   }
 
   private dwellOf(s: Service) {
@@ -61,7 +77,8 @@ export class Rail {
     if (!a) {
       if (this.current) this.finish();
       this.train.set(-300, 0, false, 1);
-      this.metro.setDoors(0);
+      this.metro.setDoors(0, this.metro.doorwayAt(player));
+      this.doorK = 0;
       this.speed = 0;
       this.lastX = -300;
     } else {
@@ -86,6 +103,14 @@ export class Rail {
           this.closingFired = true;
           this.onEvent({ type: 'closingSoon', s });
         }
+        // Door obstruction: nobody is shut in a doorway. The doors stay open (or reopen) while someone
+        // stands there: at least MIN_OBSTRUCTION s, then as long as the timetable has room. The screen
+        // doors never close on them either (Metro.setDoors), so the pocket is never a trap.
+        if (t > c0 - 0.5 && t < c1 && this.metro.doorwayAt(player) >= 0 && ((this.obstructions.get(s.id) ?? 0) < MIN_OBSTRUCTION || this.roomFor(s, dwell, OBSTRUCTION_STEP))) {
+          this.obstructions.set(s.id, (this.obstructions.get(s.id) ?? 0) + OBSTRUCTION_STEP);
+          this.closingFired = false;
+          this.onEvent({ type: 'obstructed', s });
+        }
         // Escape train: if security is engaged at the doors, the conductor holds them (twice at most).
         if (s.escape && engaged && t > c0 - 0.5 && t < c0 && (this.holds.get(s.id) ?? 0) < MAX_HOLDS * HOLD_STEP) {
           this.holds.set(s.id, (this.holds.get(s.id) ?? 0) + HOLD_STEP);
@@ -101,9 +126,11 @@ export class Rail {
       // Anyone inside rides along (the shell moves; the floor must carry them, not slide away).
       const riding = this.train.inside(player);
       const dx = x - this.train.x;
+      this.doorK = k > this.doorK ? Math.min(k, this.doorK + DOOR_RATE * dt) : Math.max(k, this.doorK - DOOR_RATE * dt);
+      k = this.doorK;
       this.train.set(x, k, true, 1);
       if (riding && dx !== 0) player.x += dx;
-      this.metro.setDoors(k);
+      this.metro.setDoors(k, this.metro.doorwayAt(player));
       if (phase !== this.phase) {
         if (phase === 'stopped') this.onEvent({ type: 'arrive', s });
         if (phase === 'depart') this.onEvent({ type: 'depart', s });
@@ -190,6 +217,8 @@ export class Rail {
   reset() {
     this.tt.reset();
     this.holds.clear();
+    this.obstructions.clear();
+    this.doorK = 0;
     this.current = null;
     this.phase = '';
     this.doorWas = 0;

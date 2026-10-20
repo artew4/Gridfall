@@ -25,6 +25,7 @@ export function installDevTools(game: Game) {
       p.yaw = yaw;
       p.pitch = pitch;
       p.eyeY = y + 1.65;
+      game.safety.reset(p.pos);
     },
     /** Face a world point. */
     look(x: number, y: number, z: number) {

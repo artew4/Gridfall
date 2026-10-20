@@ -22,6 +22,7 @@
 | WD-06 | C | Sky Garden roof, south-east corner | x 40–48, z 15, y 8.5 | No parapet or building edge: the player could walk off into an empty plane outside the city and leave the map. |
 | WD-07 | H | West Terrace roof | (−14…−10, 8.5, 23.1–23.7) | A 0.62 m pocket between the greenhouse and the parapet, which the player could wedge into and end up partly inside geometry. |
 | WD-08 | H | Concourse | (11.4–13.8, −6, 22.6–23.24) | A 0.64 m pocket between the kiosk and the fare fence: same wedging. |
+| WD-13 | C | Platform doorways (all 12) | (door x, −6, 33.05–33.75) | Doors closing on someone standing in a doorway shut them in the pocket between the screen doors and the car. When the train left, the pocket opened onto the track pit (a 1.2 m drop, no way back). Reproduced in 144 of 144 runs. |
 | WD-09 | H | Entrance B (platform ceiling) | x −17.7…−7, z 27.2–29, y −1.2…0 | The opening in the platform ceiling had no slab edges. Looking up from the platform you saw void around the stair, which matches the reported "unfinished surfaces". The stair's south side was an unrailed 6 m ledge. |
 
 ### Root causes and fixes (critical and high)
@@ -59,6 +60,30 @@
 **WD-09:**
 - **Root cause:** hole B was not a room, so it got no generated walls; the slab edges were never built.
 - **Fix:** fascia walls on the three open edges (ceiling to street) and a south handrail on the stair.
+
+**WD-13:**
+- **Root cause:** the car doors and the screen doors closed on the timetable alone, with no obstruction detection. The 0.68 m pocket between them fits the 0.70 m body exactly.
+- **Fix** (`Rail.update`, `Metro.setDoors` / `doorwayAt`):
+  - obstruction holds, as on a real line: while someone stands in a doorway when the doors close, they stay open or reopen, 3 s per hold, at door speed (rate-limited, never snapping), with a PA line "Please stand clear of the doors". At least 12 s are always granted; after that, holds continue as long as the next service still has room;
+  - the screen-door leaves never close on an occupied doorway, so the pocket is never a closed trap.
+- **Measured** with the real rail and timetable at every door:
+  - a player who steps back is released, and the train leaves 5 s later;
+  - stepping into the doorway while the doors close, then boarding, ends with `doorsClosed` and `aboard: true`;
+  - with no obstruction, departure times are unchanged.
+- **Residual (accepted):** someone who stays in the doorway until the timetable runs out of room (45 s for a local) is left on the threshold when the train goes. The screen door behind them stays open. Turning round is safe on all 12 doors. Walking forward instead drops them into the pit, where the safety net (below) returns them to the platform.
+
+## Out-of-bounds safety net (fallback, not a fix)
+
+`src/player/SafetyNet.ts` runs every frame in play. It recovers the body to the last spot where it stood safely when any of these happens:
+- it falls more than 3 m below the lowest floor;
+- it stands below the lowest floor (the track pit) for 0.75 s;
+- it is more than 2 m outside the playable extent and not aboard a train;
+- it is stuck inside geometry for 1 s;
+- its position is NaN.
+
+A safe spot is recorded every 0.25 s, only on the ground, in a designed zone, not aboard, not inside geometry and not below the lowest floor. If more than 3 recoveries happen within 6 s, the body goes to the start of the current life (level start or checkpoint), which breaks loops. Mission state is never touched. Each recovery is counted (`game.safety.recoveries`) and logged in DEV (`[safety] …`) so it can be found and fixed.
+
+The safety net is not how any defect above was fixed. Every listed defect was fixed in the controller or the level, and is verified with the safety net out of the loop (world check, stress test, brute force).
 
 ## Medium and low defects
 
