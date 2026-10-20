@@ -44,7 +44,17 @@ export interface WeaponSpec {
   flash: { color: [number, number, number]; size: number; at: [number, number, number]; light: number };
   /** Tracer colour (linear). */
   tracer: [number, number, number];
-  sound: 'plasma' | 'rifle';
+  sound: 'plasma' | 'rifle' | 'shotgun';
+  /**
+   * Several hitscan rays per trigger pull (a shotgun): each pellet gets its own direction inside
+   * `spread` (radians, uniform over the disc) around the aimed ray, and its damage falls off from
+   * `near` to `far` metres down to `min` of full. Pellets on the same enemy add up into one hit.
+   */
+  pellets?: { count: number; spread: number; falloff: { near: number; far: number; min: number } };
+  /** Manual action after each shot (a pump): the slide group travels back, then forward (seconds, metres). */
+  cycle?: { start: number; back: number; forward: number; travel: number };
+  /** Tube magazine: loaded one round at a time after `open` seconds, `each` seconds per round; firing interrupts. */
+  perRound?: { open: number; each: number };
   /** Emissive strips show the remaining ammo (the Kitsune's look). */
   ammoGlow: boolean;
   build(b: WeaponBuild): void;

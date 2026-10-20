@@ -42,7 +42,12 @@ export class AudioEngine {
   private levelBus!: GainNode;
   private levelNodes: AudioScheduledSourceNode[] = [];
   /** Which ambience the level asked for: drives the random events in update(). */
-  private ambience: 'city' | 'desert' | null = null;
+  private ambience: 'city' | 'desert' | 'jungle' | null = null;
+  private birdTimer = 3;
+  private frogTimer = 2;
+  private monkeyTimer = 25;
+  private leafDripTimer = 1;
+  private insects: GainNode | null = null;
   private wind: { filter: BiquadFilterNode; gain: GainNode; hiss: GainNode; howl: BiquadFilterNode } | null = null;
   private creakTimer = 9;
   private flapTimer = 5;
@@ -139,6 +144,7 @@ export class AudioEngine {
     this.rainFilter = this.rainGain = null;
     this.rumble = null;
     this.wind = null;
+    this.insects = null;
     this.hums = [];
     this.under = -1;
     this.ambience = null;
@@ -146,10 +152,11 @@ export class AudioEngine {
   }
 
   /** Ambience profile of the loaded level: the beds and the random events around the listener. */
-  setAmbience(kind: 'city' | 'desert') {
+  setAmbience(kind: 'city' | 'desert' | 'jungle') {
     if (!this.started || this.ambience === kind) return;
     this.ambience = kind;
     if (kind === 'city') this.startAmbience();
+    else if (kind === 'jungle') this.startJungle();
     else this.startDesert();
   }
 
@@ -428,6 +435,115 @@ export class AudioEngine {
   }
 
   /**
+   * Jungle beds: a warm, damp air loop (filtered noise that breathes slowly), a cicada drone (two
+   * narrow noise bands amplitude-modulated into a buzz, swelling and fading in long waves) and a
+   * low distant hum of the forest. Birds, frogs, drips and the odd howler monkey come from update().
+   */
+  private startJungle() {
+    const ctx = this.ctx;
+    const bus = ctx.createGain();
+    bus.gain.value = 0.32;
+    bus.connect(this.levelBus);
+    const bed = (buf: AudioBuffer, type: BiquadFilterType, f: number, q: number, level: number, dest: AudioNode = bus) => {
+      const src = this.levelSrc(this.noise(buf, true));
+      const fl = this.filter(type, f, q);
+      const g = ctx.createGain();
+      g.gain.value = level;
+      src.connect(fl).connect(g).connect(dest);
+      return { g, fl };
+    };
+    const lfo = (freq: number, depth: number, target: AudioParam) => {
+      const o = this.levelSrc(ctx.createOscillator());
+      o.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.value = depth;
+      o.connect(g).connect(target);
+      o.start();
+    };
+    // Humid air: soft low noise, breathing.
+    const air = bed(this.pink, 'lowpass', 520, 0.5, 0.55);
+    lfo(0.07, 0.18, air.g.gain);
+    bed(this.brown, 'lowpass', 140, 0.7, 0.5);
+    // Insects: the buzz is the band's level wobbling fast (~28 Hz), the swell a slow LFO on top.
+    const insects = ctx.createGain();
+    insects.gain.value = 0.35;
+    const swell = ctx.createGain();
+    swell.gain.value = 0.7;
+    insects.connect(swell).connect(bus);
+    for (const [f, rate, level] of [[4300, 27, 0.32], [6100, 33, 0.2], [2900, 19, 0.12]] as const) {
+      const band = bed(this.white, 'bandpass', f, 9, level, insects);
+      lfo(rate, level * 0.9, band.g.gain);
+    }
+    lfo(0.045, 0.3, swell.gain);
+    this.insects = insects;
+    // Open forest: some reverb (the trees), less than the city's alleys.
+    this.reverbSend.gain.setTargetAtTime(0.5, this.now(), 0.2);
+  }
+
+  /** Jungle events around the listener: bird calls, frog croaks, water dripping off leaves, a howler monkey. */
+  private updateJungle(dt: number, l: V3) {
+    const around = (d0: number, d1: number, y0: number, y1: number) => {
+      const a = rand(0, Math.PI * 2);
+      const d = rand(d0, d1);
+      return { x: l.x + Math.cos(a) * d, y: rand(y0, y1), z: l.z + Math.sin(a) * d };
+    };
+    this.birdTimer -= dt;
+    if (this.birdTimer <= 0) {
+      this.birdTimer = rand(1.5, 5);
+      const o = this.out(around(10, 40, 6, 18), 0.25, this.amb);
+      const t = this.now();
+      const kind = Math.random();
+      if (kind < 0.4) {
+        // A whistled phrase: 2–4 rising-falling notes.
+        const base = rand(1800, 3200);
+        const n = 2 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < n; i++) this.tone(o, 'sine', base * rand(0.9, 1.25), base * rand(0.7, 1.1), 0.05, 0.01, 0.12, t + i * rand(0.14, 0.22));
+      } else if (kind < 0.75) {
+        // Rapid chips.
+        const base = rand(3500, 5200);
+        const n = 4 + Math.floor(Math.random() * 6);
+        for (let i = 0; i < n; i++) this.tone(o, 'triangle', base, base * 0.8, 0.03, 0.002, 0.03, t + i * 0.065);
+      } else {
+        // A long descending call (a cuckoo-ish two-note or a falling whistle).
+        const base = rand(900, 1400);
+        this.tone(o, 'sine', base * 1.25, base * 1.2, 0.06, 0.02, 0.22, t);
+        this.tone(o, 'sine', base, base * 0.97, 0.06, 0.02, 0.32, t + 0.3);
+      }
+    }
+    this.frogTimer -= dt;
+    if (this.frogTimer <= 0) {
+      this.frogTimer = rand(0.8, 3.5);
+      const o = this.out(around(6, 25, 0, 0.5), 0.1, this.amb);
+      const t = this.now();
+      const f = rand(260, 480);
+      const n = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) {
+        this.tone(o, 'square', f, f * 0.85, 0.018, 0.004, 0.06, t + i * 0.09);
+        this.burst(o, this.pink, 'bandpass', f * 2, 6, 0.03, 0.003, 0.05, t + i * 0.09);
+      }
+    }
+    this.leafDripTimer -= dt;
+    while (this.leafDripTimer <= 0) {
+      this.leafDripTimer += rand(0.15, 0.6);
+      const o = this.out(around(1, 9, 0, 3), 0.05, this.amb);
+      this.tone(o, 'sine', rand(1200, 2600), rand(500, 900), rand(0.01, 0.03), 0.001, rand(0.02, 0.05));
+    }
+    this.monkeyTimer -= dt;
+    if (this.monkeyTimer <= 0) {
+      this.monkeyTimer = rand(28, 60);
+      // A far-off howler: a gravelly, rising and falling roar, several times.
+      const o = this.out(around(45, 80, 10, 20), 0.6, this.amb);
+      const t = this.now();
+      const n = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) {
+        const t0 = t + i * rand(0.7, 1.0);
+        this.tone(o, 'sawtooth', 110, 180, 0.05, 0.25, 0.6, t0);
+        this.burst(o, this.brown, 'bandpass', 380, 2, 0.12, 0.2, 0.6, t0, 520);
+      }
+    }
+  }
+
+  /**
    * Desert: storm 0..1 drives the wind level and the sand hiss; indoors 0..1 muffles it and brings
    * back a small-room reverb.
    */
@@ -512,6 +628,7 @@ export class AudioEngine {
   update(dt: number, listenerPos: V3) {
     if (!this.started) return;
     if (this.ambience === 'desert') return this.updateDesert(dt, listenerPos);
+    if (this.ambience === 'jungle') return this.updateJungle(dt, listenerPos);
     if (this.ambience !== 'city') return;
     this.dripTimer -= dt;
     while (this.dripTimer <= 0) {
@@ -656,9 +773,17 @@ export class AudioEngine {
   }
 
   // ------------------------------------------------------------------ weapon
-  gunshot(kind: 'plasma' | 'rifle' = 'plasma') {
+  gunshot(kind: 'plasma' | 'rifle' | 'shotgun' = 'plasma') {
     if (!this.started) return;
+    // The jungle falls silent around a gunshot, then the insects come back over a few seconds.
+    if (this.insects) {
+      const t = this.now();
+      this.insects.gain.cancelScheduledValues(t);
+      this.insects.gain.setTargetAtTime(0.05, t, 0.05);
+      this.insects.gain.setTargetAtTime(0.35, t + 1.2, 2.2);
+    }
     if (kind === 'rifle') return this.rifleShot();
+    if (kind === 'shotgun') return this.shotgunShot();
     const t = this.now();
     const o = this.out(null, 0.9);
     const p = rand(0.95, 1.05);
@@ -691,6 +816,33 @@ export class AudioEngine {
     this.burst(o, this.white, 'bandpass', 4200, 2, 0.12, 0.001, 0.02, t + 0.03);
     // Dry slap back from the surroundings.
     this.burst(o, this.pink, 'bandpass', 700, 0.8, 0.22, 0.004, 0.12, t + 0.09 + rand(0, 0.03), 300);
+  }
+
+  /**
+   * Shotgun: a deep, wide boom (a heavy low thump and a broad noise blast), a ragged crack on top and
+   * a long rolling tail. Slower and bigger than the rifle in every part.
+   */
+  private shotgunShot() {
+    const t = this.now();
+    const o = this.out(null, 0.8);
+    const p = rand(0.95, 1.05);
+    this.tone(o, 'sine', 85 * p, 32, 1.6, 0.003, 0.32, t);
+    this.burst(o, this.brown, 'lowpass', 1400, 0.6, 1.4, 0.002, 0.35, t, 160);
+    this.burst(o, this.white, 'lowpass', 5200 * p, 0.7, 0.9, 0.001, 0.12, t, 600);
+    this.burst(o, this.white, 'highpass', 2200, 0.6, 0.7, 0.0005, 0.04, t);
+    // The roll of it through the trees.
+    this.burst(o, this.pink, 'lowpass', 500, 0.6, 0.35, 0.03, 0.9, t + 0.05, 140);
+  }
+
+  /** Pump action: the fore-end racked back (shhk) and slammed forward (chk). */
+  pump() {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(null, 0.15, this.ui);
+    this.burst(o, this.white, 'bandpass', 2400, 1.4, 0.16, 0.004, 0.07, t);
+    this.metal(o, 900, 0.08, 0.06, [1, 2.1, 3.3], t + 0.02);
+    this.burst(o, this.white, 'bandpass', 3200, 1.6, 0.2, 0.002, 0.05, t + 0.17);
+    this.metal(o, 1400, 0.12, 0.05, [1, 2.4], t + 0.18);
   }
 
   /** Holster: cloth rustle and a soft clip; draw: a quick metallic slide. */
