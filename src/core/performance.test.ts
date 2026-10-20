@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FramePacer, effectiveCap } from './Performance';
+import { FramePacer, PRESETS, effectiveCap } from './Performance';
 
 /** Draws over `seconds` of a display refreshing at `hz` with the given cap. */
 function drawn(hz: number, cap: number, seconds = 10, jitter = 0) {
@@ -43,5 +43,12 @@ describe('frame pacing', () => {
     expect(effectiveCap(90, 'play', true)).toBe(90);
     expect(effectiveCap(120, 'endcard', true)).toBe(10);
     expect(effectiveCap(120, 'dead', true)).toBe(30);
+  });
+});
+
+describe('presets change resolution and rate, not the look (4.1)', () => {
+  it('every preset uses the same bloom levels', () => {
+    const levels = new Set(Object.values(PRESETS).map((p) => p.bloomLevels));
+    expect(levels.size).toBe(1);
   });
 });

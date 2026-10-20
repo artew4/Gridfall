@@ -8,8 +8,11 @@ export interface PresetSpec {
   /** Render resolution as a multiple of CSS pixels, capped by the display's own density. */
   pixelRatio: number;
   /**
-   * Bloom blur levels. The two smallest of the five levels cost ~4 ms a frame on the GPU (measured,
-   * Apple M5 / ANGLE Metal) for a faint wide haze; three levels look almost the same for ~0.3 ms.
+   * Bloom blur levels. Three for every preset since 4.1: a preset changes resolution and rate, never
+   * the look (the level's look owns bloom strength, radius and threshold). Five levels on High added
+   * a faint full-screen haze (+11% mean luminance in Tokyo at the 4.0 radius of 0.9) from 1/32 and
+   * 1/64 resolution buffers that pumped with every flickering sign, and the two smallest levels cost
+   * ~4 ms a frame on the GPU (Apple M5 / ANGLE Metal).
    */
   bloomLevels: 3 | 5;
   /** Decorative sign point lights (the fountain, metro, train and muzzle lights always stay). */
@@ -19,7 +22,7 @@ export interface PresetSpec {
 export const PRESETS: Record<QualityPreset, PresetSpec> = {
   power: { label: 'POWER SAVING', fps: 30, pixelRatio: 0.85, bloomLevels: 3, signLights: false },
   balanced: { label: 'BALANCED', fps: 60, pixelRatio: 1.25, bloomLevels: 3, signLights: true },
-  high: { label: 'HIGH QUALITY', fps: 120, pixelRatio: 1.5, bloomLevels: 5, signLights: true },
+  high: { label: 'HIGH QUALITY', fps: 120, pixelRatio: 1.5, bloomLevels: 3, signLights: true },
 };
 
 export const FPS_CAPS: FpsCap[] = [30, 60, 90, 120];

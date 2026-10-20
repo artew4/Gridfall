@@ -14,6 +14,18 @@ export const damp = (a: number, b: number, lambda: number, dt: number) => lerp(a
 export const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 export const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 
+/**
+ * Random-looking value in [0, 1) that depends only on time: the same for every frame inside one
+ * 1/rate s step. Light flicker must use this, not Math.random() per frame: per-frame randomness
+ * flickers twice as often at 120 FPS as at 60 (the 4.1 "High preset" lighting bug).
+ */
+export function heldNoise(t: number, seed: number, rate = 60): number {
+  let h = Math.imul(Math.floor(t * rate) | 0, 0x27d4eb2d) ^ Math.imul(Math.floor(seed * 1000) | 0, 0x165667b1);
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
 /** Seeded PRNG so the city layout is identical on every load. */
 export function mulberry32(seed: number) {
   return () => {

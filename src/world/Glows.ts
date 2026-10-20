@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { glowTexture } from './Textures';
+import { heldNoise } from '../core/math';
 
 export type FlickerMode = 'steady' | 'flicker' | 'broken' | 'blink' | 'buzz';
 
@@ -145,14 +146,14 @@ export class Glows {
       case 'flicker': {
         // Mostly on, with occasional bursts of stutter.
         const burst = Math.sin(t * 0.37 + s) * Math.sin(t * 0.13 + s * 2.0);
-        if (burst > 0.55) return Math.random() < 0.5 ? 0.15 : 1;
+        if (burst > 0.55) return heldNoise(t, s) < 0.5 ? 0.15 : 1;
         return 0.95 + 0.05 * Math.sin(t * 60 + s);
       }
       case 'broken': {
         const phase = (t * 0.6 + s) % 7;
-        if (phase < 0.25) return Math.random() < 0.6 ? 0.05 : 0.8;
+        if (phase < 0.25) return heldNoise(t, s) < 0.6 ? 0.05 : 0.8;
         if (phase < 2.5 && phase > 2.1) return 0.1;
-        return 0.85 + Math.random() * 0.15;
+        return 0.85 + heldNoise(t, s + 0.5) * 0.15;
       }
     }
   }
