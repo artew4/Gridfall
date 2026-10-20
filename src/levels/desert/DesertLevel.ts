@@ -6,7 +6,7 @@ import { buildTerrainMesh, DESERT_EXTENT, DESERT_TERRAIN } from './Terrain';
 import { buildOutpost, type OutpostResult } from './Outpost';
 import { Sandstorm } from './Sandstorm';
 import { DesertIntro } from './DesertIntro';
-import { sandTexture } from './textures';
+import { detailTexture, sandTexture } from './textures';
 import { damp } from '../../core/math';
 import { JACKAL_AR } from '../../entities/weapons/jackal';
 import { DESERT_MERCS } from '../../entities/enemies/mercs';
@@ -73,7 +73,14 @@ export class DesertLevel implements LevelRuntime {
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.06;
 
-    s.add(buildTerrainMesh(sandTexture()));
+    // Tyre ruts: out of each gate into the dunes, and across the yard between the gates.
+    const ruts: [number, number][][] = [
+      [[16, -6], [8, -18], [6, -27], [9, -45], [18, -70], [26, -88]],
+      [[0, 4], [-6, 18], [-7, 27], [-11, 48], [-16, 72]],
+      [[20, -2], [30, -1], [52, 3], [78, 10]],
+      [[-20, -1], [-30, -3], [-55, -7], [-82, -2]],
+    ];
+    s.add(buildTerrainMesh(sandTexture(), detailTexture(230, ruts)));
     this.outpost = buildOutpost(s, game.col, game.glows);
     this.storm = new Sandstorm(s, game.fog, SUN_DIR, this.outpost.interiors);
 
