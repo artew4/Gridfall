@@ -355,6 +355,15 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
   bSign.position.set(-9, 2.6, 28.97);
   bSign.rotation.y = Math.PI;
   scene.add(bSign);
+  // A blade sign at the alley mouth so exit 2 reads from Lantern Street (above jump height, no collider).
+  const bladeMat = new THREE.MeshBasicMaterial({ map: metroSign('桜線 2番出口', 'EXIT 2'), color: new THREE.Color(1.4, 1.4, 1.4) });
+  for (const s of [-1, 1]) {
+    const blade = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3), bladeMat);
+    blade.position.set(-5.8 + s * 0.02, 3.15, 28.5);
+    blade.rotation.y = (s * Math.PI) / 2;
+    scene.add(blade);
+  }
+  b.add(worldBox(0.04, 0.04, 0.9, 1), frameMat, -5.8, 3.33, 28.85);
   b.add(worldBox(3.4, 0.25, 0.3, 1), m.darkMetal, -34.5, 3.25, -2.05);
   for (const x of [-36.1, -32.9]) b.add(worldBox(0.2, 3.2, 0.3, 1), m.darkMetal, x, 1.6, -2.05);
   const staff = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.36), new THREE.MeshBasicMaterial({ map: metroSign('関係者以外立入禁止', 'STAFF ONLY'), color: new THREE.Color(1.2, 1.2, 1.2) }));
