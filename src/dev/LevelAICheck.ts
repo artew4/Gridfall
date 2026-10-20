@@ -38,7 +38,7 @@ export function checkLevelAI(game: Game, opts: { spawns?: number; seconds?: numb
     for (let t = 0; t < seconds; t += dt) {
       ctx.time = t;
       e.update(dt, ctx);
-      if (done(e)) return { ok: true, t: +t.toFixed(1), worstStall: +worstStall.toFixed(1) };
+      if (done(e)) return { ok: true, t: +t.toFixed(1), worstStall: +worstStall.toFixed(1), stallAt };
       const d = Math.hypot(e.pos.x - goal.x, e.pos.z - goal.z) + Math.abs(e.pos.y - goal.y);
       if (d < best - 0.5) {
         best = d;
@@ -72,7 +72,9 @@ export function checkLevelAI(game: Game, opts: { spawns?: number; seconds?: numb
     nodes: nav.nodes.length,
     graphOk,
     graphBad: graph.filter((g) => g.reach !== nav.nodes.length),
-    runners: { runs: runners.length, ok: runners.filter((r) => r.ok).length, median: times.sort((a, b) => a - b)[Math.floor(times.length / 2)], worstStall: Math.max(...runners.map((r) => r.worstStall ?? 0)), failures: runners.filter((r) => !r.ok) },
+    runners: { runs: runners.length, ok: runners.filter((r) => r.ok).length, median: times.sort((a, b) => a - b)[Math.floor(times.length / 2)], worstStall: Math.max(...runners.map((r) => r.worstStall ?? 0)), failures: runners.filter((r) => !r.ok),
+      // The longest spells without getting closer (a detour round a wall, or a snag worth a look).
+      stalls: runners.slice().sort((a, b) => (b.worstStall ?? 0) - (a.worstStall ?? 0)).slice(0, 5) },
     gunners: { runs: gunners.length, ok: gunners.filter((r) => r.ok).length, failures: gunners.filter((r) => !r.ok) },
   };
 }

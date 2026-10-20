@@ -4,25 +4,27 @@ import type { IntroFrame } from '../../cinematic/Intro';
 import type { IntroLike } from '../Level';
 
 /**
- * ~11 s opening for the jungle: above the canopy in the mist, down through a gap between the giants,
- * low over the undergrowth toward the temple, through the archway and into the player's eyes at the
- * foot of the south stair as the shotgun comes up.
+ * ~11 s opening for the jungle: high over Firebase Viper through the gap in the canopy, then a long
+ * pull-back out over the gate and down the approach road, the compound always in frame, into the
+ * player's eyes at the south end of the road as the shotgun comes up.
  */
 export class JungleIntro implements IntroLike {
   t = 0;
   readonly duration = 11;
-  private path = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-34, 48, 66),
-    new THREE.Vector3(-22, 28, 52),
-    new THREE.Vector3(-8, 9, 40),
-    new THREE.Vector3(-1, 3.2, 28),
-    new THREE.Vector3(0, 2.0, 21.5),
-  ]);
+  private path: THREE.CatmullRomCurve3;
   private m = new THREE.Matrix4();
   private a = new THREE.Quaternion();
   private b = new THREE.Quaternion();
 
-  constructor(private end: THREE.Vector3, private endLook: THREE.Vector3) {}
+  constructor(private end: THREE.Vector3, private endLook: THREE.Vector3, roadX: (z: number) => number) {
+    this.path = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(26, 38, -46),
+      new THREE.Vector3(12, 22, -8),
+      new THREE.Vector3(3, 10, 16),
+      new THREE.Vector3(roadX(32) + 1, 3.4, 32),
+      new THREE.Vector3(end.x, 2.0, end.z - 2.5),
+    ]);
+  }
 
   skip() {
     if (this.t < 8.6) this.t = 8.6;
@@ -33,8 +35,8 @@ export class JungleIntro implements IntroLike {
     const t = this.t;
     const k = easeInOut(clamp((t - 0.3) / 8.3, 0, 1));
     const pos = this.path.getPointAt(k);
-    // First down into the forest, then up the temple to the shrine.
-    const look = new THREE.Vector3(-6, 2, 24).lerp(new THREE.Vector3(0, 5, 0), smoothstep(3.5, 8.0, t));
+    // The yard first, then the gate as the road opens up behind.
+    const look = new THREE.Vector3(-4, 0, -20).lerp(new THREE.Vector3(0, 3, 10), smoothstep(3.0, 8.0, t));
     this.m.lookAt(pos, look, new THREE.Vector3(0, 1, 0));
     this.a.setFromRotationMatrix(this.m);
     this.m.lookAt(this.end, this.endLook, new THREE.Vector3(0, 1, 0));

@@ -27,10 +27,16 @@ export class Waves {
   /** What the enemies of the loaded setting look and sound like. */
   look: EnemyLook = NEON_SYNTHS;
   /**
-   * Spawn no closer than this (default 12 m). A level with weather sets it to the current visibility,
-   * so enemies appear out of the storm rather than in plain sight.
+   * Spawn no closer than this (default 12 m), per spawn point. A level with weather sets it to the
+   * current visibility, so enemies appear out of the storm rather than in plain sight; a level with
+   * spawns behind walls (a barracks) may let those be nearer.
    */
-  minSpawnDistance: () => number = () => 12;
+  minSpawnDistance: (spawn: THREE.Vector3) => number = () => 12;
+  /**
+   * Picks from the eligible spawns (far enough, preferably unseen). Default: uniformly. A level may
+   * weight them (defenders out of a barracks, attackers from behind the player).
+   */
+  pickSpawn: ((pool: THREE.Vector3[], player: THREE.Vector3) => THREE.Vector3) | null = null;
   onSniper: (at: THREE.Vector3) => void = () => {};
   /** The final hostile of a wave is all that's left. */
   onLastEnemy: () => void = () => {};
@@ -139,12 +145,12 @@ export class Waves {
     // Prefer spawns away from the player and out of their line of sight.
     const eye = new THREE.Vector3(p.x, p.y + 1.6, p.z);
     const list = this.spawns;
-    const minD = this.minSpawnDistance();
-    let candidates = list.filter((s) => s.distanceTo(p) > minD);
+    let candidates = list.filter((s) => s.distanceTo(p) > this.minSpawnDistance(s));
     // Nothing that far (clear weather on an open map): the farthest third.
-    if (!candidates.length && minD > 12) candidates = list.slice().sort((a, b) => b.distanceTo(p) - a.distanceTo(p)).slice(0, Math.max(1, Math.ceil(list.length / 3)));
+    if (!candidates.length && list.some((s) => this.minSpawnDistance(s) > 12)) candidates = list.slice().sort((a, b) => b.distanceTo(p) - a.distanceTo(p)).slice(0, Math.max(1, Math.ceil(list.length / 3)));
     const hidden = candidates.filter((s) => !ctx.col.lineOfSight(eye, new THREE.Vector3(s.x, s.y + 1.5, s.z)));
-    const base = pick(hidden.length ? hidden : candidates.length ? candidates : list);
+    const pool = hidden.length ? hidden : candidates.length ? candidates : list;
+    const base = this.pickSpawn ? this.pickSpawn(pool, p) : pick(pool);
     const at = base.clone().add(new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)));
     // Jitter must never push a spawn into a wall.
     if (ctx.col.blocked(at, 0.5)) at.copy(base);

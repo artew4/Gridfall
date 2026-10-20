@@ -2,22 +2,32 @@ import * as THREE from 'three';
 import type { Terrain } from '../../world/Collision';
 import { smoothstep } from '../../core/math';
 
-/** The temple clearing: exactly flat (y = 0) inside this radius, blending into the hills by PAD_OUT. */
-export const PAD_IN = 21;
-export const PAD_OUT = 30;
+/**
+ * Firebase Viper: the compound's perimeter wall (outer faces), north = -z. The gate is in the south
+ * wall; the assault comes up the road from the south edge of the map.
+ */
+export const BASE = { x0: -28, z0: -38, x1: 28, z1: 10 };
+/** Ground is exactly flat (y = 0) inside the compound and a cleared strip this wide round it... */
+export const STRIP = 7;
+/** ...and blends into the forest hills over this distance beyond the strip. */
+const BLEND = 10;
 /** Inner faces of the boundary rock walls (segments vary from CLIFF - 0.6 to CLIFF + CLIFF_RECESS). */
 export const CLIFF = 66;
 export const CLIFF_RECESS = 1.4;
 /** Everything reachable lies inside this (wall foot at its deepest recess, plus the body radius). */
 export const JUNGLE_EXTENT = CLIFF + CLIFF_RECESS + 0.5;
+/** The approach road: from the south edge of the map up to the gate (x of its centre line at z). */
+export const ROAD = { z0: 10, z1: 62, half: 2.6 };
+export function roadX(z: number) {
+  return Math.sin(z * 0.07) * 3 - Math.sin(10 * 0.07) * 3 * Math.max(0, 1 - (z - 10) / 12);
+}
 
-/** Outlying ruins (watch platforms) out in the forest: the ground is levelled round them. */
-export const OUTLIERS = [
-  { x: -40, z: -30, name: 'WEST WATCH', jp: '西の見張り台' },
-  { x: 41, z: 31, name: 'EAST WATCH', jp: '東の見張り台' },
-];
-const OUT_IN = 10;
-const OUT_OUT = 17;
+/** Distance outside the compound's walls (negative inside). */
+export function baseDist(x: number, z: number) {
+  const dx = Math.max(BASE.x0 - x, x - BASE.x1), dz = Math.max(BASE.z0 - z, z - BASE.z1);
+  if (dx <= 0 && dz <= 0) return Math.max(dx, dz);
+  return Math.hypot(Math.max(dx, 0), Math.max(dz, 0));
+}
 
 /** Smooth, deterministic 2D value noise in 0..1. */
 function hash(ix: number, iz: number) {
@@ -34,15 +44,16 @@ export function noise(x: number, z: number) {
 }
 
 /**
- * Height of the forest floor: rolling hummocks and gullies out of two octaves of value noise, flat in
- * the temple clearing, rising into banks at the foot of the rock walls. Slopes stay walkable (a unit
- * test holds them under 22°) so the controller, the AI and the nav graph treat it as continuous ground.
+ * Height of the forest floor: rolling hummocks and gullies out of two octaves of value noise, flat
+ * over the compound and its cleared strip and along the approach road, rising into banks at the
+ * foot of the rock walls. Slopes stay walkable (a unit test holds them under 22°) so the controller,
+ * the AI and the nav graph treat it as continuous ground.
  */
 export function jungleHeight(x: number, z: number): number {
-  const r = Math.hypot(x, z);
-  if (r < PAD_IN) return 0;
-  let w = smoothstep(PAD_IN, PAD_OUT, r);
-  for (const o of OUTLIERS) w *= smoothstep(OUT_IN, OUT_OUT, Math.hypot(x - o.x, z - o.z));
+  const d = baseDist(x, z);
+  if (d < STRIP) return 0;
+  let w = smoothstep(STRIP, STRIP + BLEND, d);
+  if (z > ROAD.z0 - 4) w *= smoothstep(ROAD.half + 0.4, ROAD.half + 11, Math.abs(x - roadX(z)));
   const hills = (noise(x * 0.045 + 11, z * 0.045 - 4) - 0.35) * 3.0 + (noise(x * 0.11 - 7, z * 0.11 + 2) - 0.5) * 0.8;
   const edge = Math.max(Math.abs(x), Math.abs(z));
   const bank = smoothstep(CLIFF - 16, CLIFF, edge) * 2;

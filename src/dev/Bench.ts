@@ -105,9 +105,10 @@ async function benchDesert(game: Game, dev: Dev, m: (name: string) => Promise<vo
 }
 
 /**
- * Deep Jungle: the temple from the approach, deep in the undergrowth looking through it (the worst
- * case for foliage), the forest from the upper terrace, inside the shrine, low in the mist, and a
- * shotgun fight with a wave closing in.
+ * Deep Jungle (3.7, Firebase Viper): the road at the start looking up to the gate, deep in the
+ * undergrowth looking through it (the worst case for foliage), the yard just inside the gate (the
+ * new compound in view), inside the barracks, the watchtower overlooking the compound and the
+ * forest (most geometry at once), and a shotgun fight in the yard with waves closing in.
  */
 async function benchJungle(game: Game, dev: Dev, m: (name: string) => Promise<void>, out: Record<string, unknown>) {
   dev.start('arcade', 'jungle');
@@ -115,23 +116,24 @@ async function benchJungle(game: Game, dev: Dev, m: (name: string) => Promise<vo
   game.waves.reset(game.scene);
   game.waves.state = 'idle';
   const h = (x: number, z: number) => game.col.terrain?.height(x, z) ?? 0;
-  dev.tp(0, 0, 24, 0, 0);
-  dev.look(0, 4, 0);
-  await m('templeApproach');
-  dev.tp(-38, h(-38, 22), 22, 0, 0);
-  dev.look(0, 2, 0);
+  const st = game.level.data.start;
+  dev.tp(st.x, 0, st.z, st.yaw, 0);
+  dev.look(0, 3, 10);
+  await m('roadApproach');
+  dev.tp(-46, h(-46, -4), -4, 0, 0);
+  dev.look(-28, 2, -14);
   await m('undergrowth');
-  dev.tp(0, 3, 6.2, 0, 0);
-  dev.look(0, 2, 45);
-  await m('terraceOverlook');
-  dev.tp(-30, h(-30, -50), -50, 0, 0);
-  dev.look(30, 2, 40);
-  await m('forestLongView');
-  dev.tp(0, 3, 2.5, 0, 0);
-  dev.look(0, 4, -3);
-  await m('shrine');
-  dev.tp(0, 1.5, 9.5, 0, 0);
-  dev.look(0, 1.5, 30);
+  dev.tp(0, 0, 5.5, 0, 0);
+  dev.look(-4, 1.5, -25);
+  await m('yard');
+  dev.tp(-17.3, 0.12, -29.2, 0, 0);
+  dev.look(-23, 1.4, -33);
+  await m('barracks');
+  dev.tp(17.2, 4.5, 3.2, 0, 0);
+  dev.look(-10, 0, -25);
+  await m('watchtower');
+  dev.tp(0, 0, -11, 0, 0);
+  dev.look(0, 1.5, 10);
   game.waves.startNext();
   game.waves.startNext();
   game.waves.startNext();
