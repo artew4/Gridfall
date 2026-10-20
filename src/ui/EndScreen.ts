@@ -11,7 +11,7 @@ export interface EscapeStats {
 }
 
 const CREDITS = [
-  ['NEON RAIN 3.0', 'CINEMATIC ESCAPE'],
+  ['NEON RAIN 3.2', 'CINEMATIC ESCAPE'],
   ['DESIGN · CODE · SOUND', 'procedural, made in the browser'],
   ['ENGINE', 'three.js · Web Audio · TypeScript · Vite'],
   ['CITY', 'Shinjuku, as remembered in the rain'],
@@ -40,7 +40,7 @@ export class EndScreen {
     const ss = String(Math.floor(s.time % 60)).padStart(2, '0');
     this.root.innerHTML = `
       <div class="end-title">ESCAPED<span class="jp">脱出</span></div>
-      <div class="end-sub">The last train carried you out of Shinjuku. Behind you, the rain kept falling.</div>
+      <div class="end-sub">The last express carried you out of Shinjuku. Kurogane’s ledger is still in your pocket — and behind you, the rain kept falling.</div>
       <div class="end-stats">
         <span>TIME</span><span>${mm}:${ss}</span>
         <span>TIMES DETECTED</span><span>${s.detected}</span>

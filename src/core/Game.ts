@@ -192,7 +192,8 @@ export class Game {
     this.pacer.reset();
     this.freshClock = true;
     this.renderer.renderer.setAnimationLoop((now) => {
-      if (!this.pacer.tick(now, effectiveCap(this.settings.fps, this.state, document.hasFocus()))) return;
+      const st = this.state === 'ending' && !this.endScreen.root.classList.contains('hidden') ? 'endcard' : this.state;
+      if (!this.pacer.tick(now, effectiveCap(this.settings.fps, st, document.hasFocus()))) return;
       this.frame();
     });
   }
@@ -583,7 +584,10 @@ export class Game {
     this.interactives.reset();
     this.events.reset();
     this.rail.reset();
+    this.ending?.dispose();
     this.ending = null;
+    this.security.blind = false;
+    this.endScreen.hide();
     this.failReason = '';
     this.timeScale = 1;
     this.damageFx = 0;
@@ -715,6 +719,11 @@ export class Game {
       if (f.done) this.beginPlay();
     } else if (this.state === 'ending' && this.ending) {
       const f = this.ending.update(dt, this.camera);
+      this.security.update(dt);
+      this.introProxy.pos.copy(this.camera.position).setY(Math.max(-6, Math.min(this.camera.position.y, 6)));
+      this.crowd.update(dt, this.elapsed, this.introProxy as unknown as Player, false, false);
+      this.story.subs.update(dt);
+      this.manhunt.update(dt);
       const g = this.renderer.grade.uniforms;
       g.uFade.value = f.fade;
       g.uLetterbox.value = damp(g.uLetterbox.value, f.letterbox, 3, rawDt);
@@ -915,7 +924,9 @@ export class Game {
 
   private startEnding() {
     this.state = 'ending';
-    this.ending = new Ending(this.rail.train, this.train);
+    this.ending = new Ending(this.rail.train, this.train, { scene: this.scene, say: (sp, text, sec) => this.story.say(sp, text, sec) });
+    // The city stays alive behind the escape: people walk, security keeps searching (blind now).
+    this.security.blind = true;
     this.hud.show(this.hud.root, false);
     this.storyHud.show(false);
     // The objective goes; subtitles stay for the ride out.
@@ -967,6 +978,7 @@ export class Game {
     this.manhunt.setMode('off');
     this.security.blind = false;
     this.storyPrepared = false;
+    this.ending?.dispose();
     this.ending = null;
     this.timeScale = 1;
     this.renderer.grade.uniforms.uLetterbox.value = 0;
