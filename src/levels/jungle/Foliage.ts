@@ -145,6 +145,8 @@ export interface FoliageResult {
   group: THREE.Group;
   /** Total plant instances by kind (for the report and the bench). */
   counts: Record<string, number>;
+  /** The leaf materials (4.2 wet gloss is switched on them). */
+  leaves: THREE.MeshStandardMaterial[];
   update(t: number, cam: THREE.Camera): void;
   dispose(): void;
 }
@@ -217,8 +219,12 @@ export function buildFoliage(
     counts[name] = pts.length;
     return mesh;
   };
-  const leafMat = (amount: number, side: THREE.Side = THREE.FrontSide) =>
-    swaying(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75, metalness: 0, flatShading: true, side, envMapIntensity: 0.4 }), time, amount);
+  const leaves: THREE.MeshStandardMaterial[] = [];
+  const leafMat = (amount: number, side: THREE.Side = THREE.FrontSide) => {
+    const m = swaying(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75, metalness: 0, flatShading: true, side, envMapIntensity: 0.4 }), time, amount);
+    leaves.push(m);
+    return m;
+  };
   const tint = (h: number, s: number, l: number) => _c.clone().setHSL(h, s, l);
 
   const q = Math.max(0.35, quality);
@@ -378,6 +384,7 @@ export function buildFoliage(
   return {
     group,
     counts,
+    leaves,
     update(t: number) {
       time.value = t;
       for (const m of mists) m.uniforms.uTime.value = t;
