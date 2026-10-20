@@ -18,6 +18,7 @@ export async function bench(game: Game, seconds = 3) {
     out[name] = await probe(game, seconds);
   };
   if (game.setting === 'desert') return benchDesert(game, dev, m, out);
+  if (game.setting === 'jungle') return benchJungle(game, dev, m, out);
   dev.start('story');
   dev.god();
   dev.noGuards();
@@ -100,5 +101,49 @@ async function benchDesert(game: Game, dev: Dev, m: (name: string) => Promise<vo
   game.waves.reset(game.scene);
   game.waves.state = 'idle';
   desert.storm.clock.set('calm', 0.06);
+  return out;
+}
+
+/**
+ * Deep Jungle: the temple from the approach, deep in the undergrowth looking through it (the worst
+ * case for foliage), the forest from the upper terrace, inside the shrine, low in the mist, and a
+ * shotgun fight with a wave closing in.
+ */
+async function benchJungle(game: Game, dev: Dev, m: (name: string) => Promise<void>, out: Record<string, unknown>) {
+  dev.start('arcade', 'jungle');
+  dev.god();
+  game.waves.reset(game.scene);
+  game.waves.state = 'idle';
+  const h = (x: number, z: number) => game.col.terrain?.height(x, z) ?? 0;
+  dev.tp(0, 0, 24, 0, 0);
+  dev.look(0, 4, 0);
+  await m('templeApproach');
+  dev.tp(-38, h(-38, 22), 22, 0, 0);
+  dev.look(0, 2, 0);
+  await m('undergrowth');
+  dev.tp(0, 3, 6.2, 0, 0);
+  dev.look(0, 2, 45);
+  await m('terraceOverlook');
+  dev.tp(-30, h(-30, -50), -50, 0, 0);
+  dev.look(30, 2, 40);
+  await m('forestLongView');
+  dev.tp(0, 3, 2.5, 0, 0);
+  dev.look(0, 4, -3);
+  await m('shrine');
+  dev.tp(0, 1.5, 9.5, 0, 0);
+  dev.look(0, 1.5, 30);
+  game.waves.startNext();
+  game.waves.startNext();
+  game.waves.startNext();
+  await new Promise((r) => setTimeout(r, 5000));
+  const w = game.weapon as unknown as { tryFire(): boolean };
+  const g = game as unknown as { shoot(): void };
+  for (let i = 0; i < 4; i++) {
+    if (w.tryFire()) g.shoot();
+    await new Promise((r) => setTimeout(r, 900));
+  }
+  await m('fight');
+  game.waves.reset(game.scene);
+  game.waves.state = 'idle';
   return out;
 }
