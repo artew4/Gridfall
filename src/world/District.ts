@@ -232,6 +232,13 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   hi(34, 2.14, 40, 2.14);
   hi(42.5, 2.14, 48, 2.14);
   lo(15, 4.74, 22.2, 4.74);
+  // South-east corner over the back lots (nothing beyond: the edge of the playable city). It was open
+  // until 3.3, a walk-off out of the map. A parapet with a security fence: a sprint-jump off the
+  // rooftop table clears a bare 1.1 m parapet.
+  hi(40, 14.86, 48, 14.86);
+  for (let x = 40.1; x <= 47.95; x += 1.95) b.add(worldBox(0.07, 1.35, 0.07, 1), m.darkMetal, x, ROOF + 1.1 + 0.675, 14.86);
+  for (const y of [ROOF + 1.55, ROOF + 2.0, ROOF + 2.42]) b.add(worldBox(7.9, 0.04, 0.04, 1), m.darkMetal, 44, y, 14.86);
+  col.add(40, ROOF, 14.72, 48, ROOF + 2.45, 15, 'metal');
   lo(15.14, 4.6, 15.14, 11);
   hi(15.14, 11, 15.14, 15);
   // Tech Roof.
@@ -346,6 +353,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
     mesh.position.set(8.2 + i * 1.7, R + 1.5, 16.5);
     mesh.geometry.translate(0, 0, 0);
     scene.add(mesh);
+    mesh.userData.soft = true; // hanging laundry: you brush through it
     sheets.push(mesh);
   }
   kit.updaters.push((t) => sheets.forEach((sh, i) => (sh.rotation.x = Math.sin(t * 1.7 + i) * 0.18 + wind() * 0.25)));
@@ -353,10 +361,11 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
 
   // West Terrace: a greenhouse glowing magenta, planters, benches.
   const glass = new THREE.MeshStandardMaterial({ color: 0x9fd8d0, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.28, envMapIntensity: 1.6, depthWrite: false });
-  b.add(worldBox(4.2, 2.6, 3, 1), glass, -12, R + 1.3, 21.6);
-  col.add(-14.1, R, 20.1, -9.9, R + 2.6, 23.1, 'glass');
+  // 2.6 m deep (was 3): the 0.62 m strip left behind it against the parapet was a body-wide trap.
+  b.add(worldBox(4.2, 2.6, 2.6, 1), glass, -12, R + 1.3, 21.4);
+  col.add(-14.1, R, 20.1, -9.9, R + 2.6, 22.7, 'glass');
   const grow = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 0.4, 2.8) });
-  b.add(worldBox(3.6, 0.05, 0.1, 1), grow, -12, R + 2.4, 21.6);
+  b.add(worldBox(3.6, 0.05, 0.1, 1), grow, -12, R + 2.4, 21.4);
   glows.add({ pos: new THREE.Vector3(-12, R + 1.8, 21.6), color: new THREE.Color(0.9, 0.2, 1), radius: 6, base: 1, haloSize: 3.5, haloStrength: 0.18, mode: 'steady' }).materials.push({ mat: grow, base: grow.color.clone() });
   kit.planter(-7.5, 22.4, rnd, R);
   kit.planter(-20.1, 3, rnd, R);
@@ -401,7 +410,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
     { text: 'ホテル', color: '#ff2fd0', style: 'neon', vertical: true, mount: 'perp', face: 's', wall: -3, x: 30, y: 9.2, z: -2.4, size: 4.6, light: 30, lightDist: 18, hum: true, mode: 'steady' },
     { text: 'BAR夜', color: '#a855ff', style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: 2, x: 39, y: 4.8, z: 1.95, size: 3.2, mode: 'flicker' },
     { text: 'パチンコ', color: '#f4f8ff', style: 'box', bg: '#e8eef8', textColor: '#d0105a', vertical: true, mount: 'perp', face: 'n', wall: 2, x: 36, y: 7.4, z: 1.6, size: 3.8, brightness: 1.5 },
-    { text: 'マッサージ', color: '#ff4fa0', style: 'neon', vertical: true, mount: 'perp', face: 's', wall: -3, x: 41, y: 7.5, z: -2.6, size: 4.2, mode: 'broken' },
+    { text: 'マッサージ', color: '#ff4fa0', style: 'neon', vertical: true, mount: 'perp', face: 's', wall: -3, x: 45.5, y: 7.5, z: -2.6, size: 4.2, mode: 'broken' }, // clear of the rooftop bridge at x 40–42.5
     { text: '電脳', color: '#9b7bff', style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: 2, x: 45, y: 6.6, z: 1.95, size: 2.6 },
     { text: 'ネットカフェ', color: '#7fd8ff', style: 'box', bg: '#103a7a', textColor: '#ffffff', vertical: false, mount: 'wall', face: 's', wall: -3, x: 36.5, y: 6.9, z: -2.95, size: 4.2, brightness: 1.1, floorY: DECK },
     // Service Passage: sodium yellow and toxic green.

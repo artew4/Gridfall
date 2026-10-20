@@ -14,6 +14,23 @@ export async function probe(game: Game, seconds = 4) {
   const proto = Object.getPrototypeOf(game) as { frame: () => void };
   let frames = 0;
   let renders = 0;
+  /** Intervals between drawn frames (ms), for average and P95/P99 frame time. */
+  const gaps: number[] = [];
+  let lastDraw = -1;
+  // Collision-query cost: wall time spent inside the CollisionWorld's hot calls.
+  const col = (game as unknown as { col: Record<string, (...a: unknown[]) => unknown> }).col;
+  let colMs = 0;
+  const wrapped: [string, (...a: unknown[]) => unknown][] = [];
+  for (const name of ['resolveCircle', 'groundHeightAt', 'raycast']) {
+    const orig = col[name];
+    wrapped.push([name, orig]);
+    col[name] = function (this: unknown, ...a: unknown[]) {
+      const t = performance.now();
+      const r = orig.apply(col, a);
+      colMs += performance.now() - t;
+      return r;
+    };
+  }
   let cpu = 0;
   let gpu = 0;
   let gpuN = 0;
@@ -24,6 +41,8 @@ export async function probe(game: Game, seconds = 4) {
     proto.frame.call(this);
     cpu += performance.now() - t;
     frames++;
+    if (lastDraw >= 0) gaps.push(t - lastDraw);
+    lastDraw = t;
   };
   r.render = (time: number) => {
     renders++;
@@ -51,13 +70,23 @@ export async function probe(game: Game, seconds = 4) {
   await new Promise((res) => setTimeout(res, seconds * 1000));
   const wall = (performance.now() - t0) / 1000;
   delete (g as { frame?: unknown }).frame;
+  for (const [name, orig] of wrapped) col[name] = orig;
   r.render = origRender;
   for (const q of pending) gl.deleteQuery(q);
   const canvas = r.renderer.domElement;
   const fps = renders / wall;
   const gpuMs = gpuN ? gpu / gpuN : NaN;
+  gaps.sort((a, b) => a - b);
+  const pct = (q: number) => (gaps.length ? +gaps[Math.min(gaps.length - 1, Math.floor(q * gaps.length))].toFixed(2) : NaN);
+  const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
   return {
     state: game.state,
+    frameMsAvg: gaps.length ? +(gaps.reduce((a, b) => a + b, 0) / gaps.length).toFixed(2) : NaN,
+    frameMsP95: pct(0.95),
+    frameMsP99: pct(0.99),
+    triangles: r.renderer.info.render.triangles,
+    heapMB: mem ? Math.round(mem.usedJSHeapSize / 1e6) : NaN,
+    collisionMsPerFrame: +(colMs / Math.max(1, frames)).toFixed(3),
     loopHz: +(frames / wall).toFixed(1),
     fps: +fps.toFixed(1),
     cpuMsPerFrame: +(cpu / Math.max(1, frames)).toFixed(2),

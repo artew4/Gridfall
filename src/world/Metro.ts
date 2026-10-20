@@ -206,8 +206,9 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
     kit.boxCover(x, UG, 17.45, 0.9, 1.7, 0.7, tmMat);
     b.add(worldBox(0.6, 0.4, 0.02, 1), tmScreen, x, UG + 1.2, 17.81);
   }
-  kit.boxCover(12.6, UG, 22, 2.4, 1.1, 1.2, kit.wood, 'wood');
-  b.add(worldBox(2.6, 0.2, 1.4, 1), kit.red, 12.6, UG + 2.3, 22);
+  // Kiosk 1 m clear of the fare fence (it was 0.64 m: wider-looking than a body, too narrow to pass).
+  kit.boxCover(12.6, UG, 21.6, 2.4, 1.1, 1.2, kit.wood, 'wood');
+  b.add(worldBox(2.6, 0.2, 1.4, 1), kit.red, 12.6, UG + 2.3, 21.6);
   for (const x of [-26.5, 12, 24]) kit.bench(x, 28.4, true, UG);
   kit.vending(-13.55, 25.5, 'e', 'white', UG);
   kit.vending(13.55, 25.5, 'w', 'red', UG);
@@ -231,6 +232,14 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
     }
     // Threshold to the train floor, and a door number panel.
     col.add(x - 0.9, UG - 0.4, SCREEN_Z, x + 0.9, UG, SCREEN_Z + 0.85, 'concrete');
+    // Door guides from the screen-door line to the car body, exactly the car door's width (1.3 m):
+    // the 0.68 m gap between the screen doors and the train is never reachable from the threshold.
+    for (const s of [-1, 1]) {
+      const gx = x + s * 0.7;
+      b.add(worldBox(0.1, 2.25, 0.74, 1), frameMat, gx, UG + 1.125, SCREEN_Z + 0.43);
+      col.add(gx - 0.05, UG, SCREEN_Z + 0.06, gx + 0.05, UG + 2.25, SCREEN_Z + 0.8, 'metal');
+    }
+    b.add(worldBox(1.5, 0.08, 0.74, 1), frameMat, x, UG + 2.29, SCREEN_Z + 0.43);
     b.add(worldBox(1.8, 0.02, 0.85, 1), m.darkConcrete, x, UG - 0.01, SCREEN_Z + 0.42);
     b.add(worldBox(0.5, 0.18, 0.02, 1), greenMat, x, UG + 1.55, SCREEN_Z - 0.05);
   }
@@ -247,7 +256,16 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
   // A: plaza → corridor A (descending south).
   arch.stair({ x0: 7.6, z0: 4.6, x1: 10.6, z1: 15.3, axis: 'z', rise: -1, rails: [], bottom: UG, top: 0, vault: false });
   // B: back alley (top at x=-7) → platform west (bottom at x=-17.7).
-  arch.stair({ x0: holeB.x0, z0: holeB.z0, x1: holeB.x1, z1: holeB.z1, axis: 'x', rise: 1, rails: ['n'], bottom: UG, top: 0, vault: false });
+  arch.stair({ x0: holeB.x0, z0: holeB.z0, x1: holeB.x1, z1: holeB.z1, axis: 'x', rise: 1, rails: ['n', 's'], bottom: UG, top: 0, vault: false });
+  // The opening in the platform ceiling needs its slab edges (ceiling at CEIL, street at 0): without
+  // them the platform looked up into a void around the stair.
+  const fascia = (x0: number, z0: number, x1: number, z1: number) => {
+    b.add(worldBox(x1 - x0, -CEIL, z1 - z0, 7.6), wallMat, (x0 + x1) / 2, CEIL / 2, (z0 + z1) / 2);
+    col.add(x0, CEIL, z0, x1, 0, z1, 'concrete');
+  };
+  fascia(holeB.x0, 27, holeB.x1, holeB.z0); // north strip up to the platform wall
+  fascia(holeB.x0, holeB.z1, holeB.x1, holeB.z1 + 0.3); // south
+  fascia(holeB.x0 - 0.3, 27, holeB.x0, holeB.z1 + 0.3); // west, over the stair foot
   // C: Service Passage staff door (top at z=-2) → service corridor (bottom at z=8.7).
   arch.stair({ x0: -36, z0: -2, x1: -33, z1: 8.7, axis: 'z', rise: -1, rails: [], bottom: UG, top: 0, vault: false });
   // Street-level guard rails round the stairwells (never vaultable: it's a long way down).
@@ -340,6 +358,11 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
   board(0, UG + 3.6, 27.3, 0, new THREE.Vector3(0, UG, 30)); // platform
   board(13.2, 1.9, 3.2, Math.PI, new THREE.Vector3(12.2, 0, 2)); // street, by the plaza entrance
   b.add(worldBox(0.1, 1.9, 0.1, 1), frameMat, 13.2, 0.95, 3.27);
+  // It hangs at head height: it must stop the player (it didn't before 3.3). Two posts, so it reads
+  // as a sign on legs you walk around, not a gap you can duck under.
+  b.add(worldBox(0.1, 1.9, 0.1, 1), frameMat, 11.6, 0.95, 3.27);
+  b.add(worldBox(0.1, 1.9, 0.1, 1), frameMat, 14.8, 0.95, 3.27);
+  col.add(11.5, 0, 3.12, 14.9, 2.6, 3.34, 'metal');
 
   // ------------------------------------------------------------------ lighting
   const lights: THREE.PointLight[] = [];

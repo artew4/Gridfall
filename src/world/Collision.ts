@@ -25,6 +25,8 @@ export interface Collider {
   vault?: boolean;
   /** Called when a player bullet hits this collider. */
   onHit?: (hit: RayHit) => void;
+  /** Moves at runtime (e.g. the metro train): kept out of the static grid, always queried. */
+  dynamic?: boolean;
   /** Broadphase dedupe stamp. */
   stamp: number;
 }
@@ -45,6 +47,8 @@ const CELL = 8;
  */
 export class CollisionWorld {
   colliders: Collider[] = [];
+  /** Moving colliders (few): not in the grid, tested by every query whose area they overlap. */
+  dynamics: Collider[] = [];
   /** XZ rects where the ground plane at y=0 is absent (stairwells down to the metro). */
   holes: { x0: number; z0: number; x1: number; z1: number }[] = [];
   private grid = new Map<number, Collider[]>();
@@ -56,6 +60,47 @@ export class CollisionWorld {
     this.colliders.push(c);
     this.dirty = true;
     return c;
+  }
+
+  /** A box that moves (shift it with `moveDynamic`); it never enters the static grid. */
+  addDynamic(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, surface: Surface = 'metal') {
+    const c: Collider = {
+      min: new THREE.Vector3(minX, minY, minZ),
+      max: new THREE.Vector3(maxX, maxY, maxZ),
+      surface,
+      solid: true,
+      ray: true,
+      floor: true,
+      kind: 'box',
+      dynamic: true,
+      stamp: 0,
+    };
+    this.dynamics.push(c);
+    return c;
+  }
+
+  moveDynamic(c: Collider, dx: number, dy = 0, dz = 0) {
+    c.min.x += dx;
+    c.max.x += dx;
+    c.min.y += dy;
+    c.max.y += dy;
+    c.min.z += dz;
+    c.max.z += dz;
+  }
+
+  /**
+   * The lowest solid underside above `fromY` over a circle: a ceiling. Used to stop upward motion
+   * (a jump under a walkway, in a train) instead of letting the side push eject the body sideways.
+   */
+  ceilingAbove(x: number, z: number, radius: number, fromY: number): number {
+    let best = Infinity;
+    for (const c of this.query(x - radius, z - radius, x + radius, z + radius)) {
+      if (!c.solid || c.kind !== 'box' || c.min.y < fromY - 1e-3 || c.min.y >= best) continue;
+      const cx = Math.max(c.min.x, Math.min(x, c.max.x)), cz = Math.max(c.min.z, Math.min(z, c.max.z));
+      if ((x - cx) ** 2 + (z - cz) ** 2 >= radius * radius) continue;
+      best = c.min.y;
+    }
+    return best;
   }
 
   add(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, surface: Surface = 'concrete', solid = true) {
@@ -134,10 +179,11 @@ export class CollisionWorld {
     if (this.dirty) this.rebuild();
     const ix0 = Math.floor(x0 / CELL), ix1 = Math.floor(x1 / CELL);
     const iz0 = Math.floor(z0 / CELL), iz1 = Math.floor(z1 / CELL);
-    if ((ix1 - ix0 + 1) * (iz1 - iz0 + 1) > 48) return this.colliders;
+    if ((ix1 - ix0 + 1) * (iz1 - iz0 + 1) > 48) return this.dynamics.length ? this.colliders.concat(this.dynamics) : this.colliders;
     const s = ++this.stampN;
     const out = this._list;
     out.length = 0;
+    for (const c of this.dynamics) if (c.max.x >= x0 && c.min.x <= x1 && c.max.z >= z0 && c.min.z <= z1) out.push(c);
     for (let ix = ix0; ix <= ix1; ix++) {
       for (let iz = iz0; iz <= iz1; iz++) {
         const l = this.grid.get(this.key(ix, iz));
@@ -150,6 +196,11 @@ export class CollisionWorld {
       }
     }
     return out;
+  }
+
+  /** Colliders near an XZ rectangle (a copy; for tools and checks, not hot paths). */
+  near(x0: number, z0: number, x1: number, z1: number): Collider[] {
+    return this.query(x0, z0, x1, z1).slice();
   }
 
   inHole(x: number, z: number) {
@@ -179,7 +230,7 @@ export class CollisionWorld {
         const c = list[i];
         if (!c.solid) continue;
         // Low boxes (curbs) are stepped onto rather than blocking; high ones are walked under.
-        if (pos.y + height < c.min.y || c.max.y <= pos.y + step) continue;
+        if (pos.y + height <= c.min.y + 1e-3 || c.max.y <= pos.y + step) continue;
         // Mid-jump with the feet high enough: clear the railing.
         if (vaulting && c.vault && pos.y > c.max.y - 0.62) continue;
         if (c.kind === 'cyl') {

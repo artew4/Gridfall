@@ -33,8 +33,20 @@ export function worldBox(w: number, h: number, d: number, tile = 1, uOff = 0, vO
  * Collects static geometry per material and merges it into one mesh per material at the end.
  * The whole street ends up as a few dozen draw calls.
  */
+export interface VisualPiece {
+  box: THREE.Box3;
+  mat: THREE.Material;
+  /** Vertex count: 24 for a box, 4–6 for a plane — the only shapes whose bounds are exact. */
+  verts?: number;
+}
+
 export class StaticBuilder {
   private buckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  /**
+   * DEV only (null otherwise): the world bounds of every piece before merging, so world checks can
+   * compare what is drawn with what collides.
+   */
+  static registry: VisualPiece[] | null = null;
 
   add(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
     _q.setFromEuler(_e.set(rx, ry, rz));
@@ -45,6 +57,10 @@ export class StaticBuilder {
   addMatrix(geo: THREE.BufferGeometry, mat: THREE.Material, m: THREE.Matrix4) {
     let g = geo.index ? geo.toNonIndexed() : geo.clone();
     g.applyMatrix4(m);
+    if (StaticBuilder.registry) {
+      g.computeBoundingBox();
+      StaticBuilder.registry.push({ box: g.boundingBox!.clone(), mat, verts: g.attributes.position.count });
+    }
     for (const name of Object.keys(g.attributes)) {
       if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
     }
@@ -63,6 +79,7 @@ export class StaticBuilder {
       merged.computeBoundingSphere();
       const mesh = new THREE.Mesh(merged, mat);
       mesh.matrixAutoUpdate = false;
+      mesh.userData.staticMerged = true;
       parent.add(mesh);
       list.forEach((g) => g.dispose());
     }

@@ -120,7 +120,7 @@ export class City {
     const y0 = opts.y0 ?? 0;
     b.add(worldBox(w, h - y0, d, 16, rnd() * 4, 0), m.facade[variant], (x0 + x1) / 2, (h + y0) / 2, (z0 + z1) / 2);
     this.col.add(x0, y0, z0, x1, h, z1, 'concrete');
-    for (const f of faces) this.facade(x0, x1, z0, z1, h, f, rnd);
+    for (const f of faces) this.facade(x0, x1, z0, z1, h, f, rnd, !!opts.walk);
     // Roof cap: tar and concrete, not the facade's windows (walkable roofs get their own wet deck).
     if (!opts.walk && h > 3) {
       const g = new THREE.PlaneGeometry(w, d);
@@ -137,7 +137,7 @@ export class City {
     }
   }
 
-  private facade(x0: number, x1: number, z0: number, z1: number, h: number, f: FaceSpec, rnd: () => number) {
+  private facade(x0: number, x1: number, z0: number, z1: number, h: number, f: FaceSpec, rnd: () => number, walkableRoof = false) {
     const b = this.ctx.builder;
     const m = this.mats;
     const alongX = f.face === 'n' || f.face === 's';
@@ -151,7 +151,9 @@ export class City {
     const strip = (along: number, hh: number, thick: number, tile = 2) => (alongX ? worldBox(along, hh, thick, tile) : worldBox(thick, hh, along, tile));
     // Floor ledges give depth and catch neon on their edges.
     for (let y = 7.4; y < h - 1; y += 3.2) b.add(strip(len, 0.14, 0.16), m.darkConcrete, ...at(mid, y, 0.08));
-    b.add(strip(len, 0.9, 0.3), m.darkConcrete, ...at(mid, h + 0.45, 0.1));
+    // Roof cornice. Walkable roofs get real parapets (with openings for bridges and stairs) instead:
+    // a continuous cornice there drew a wall across every opening that the player could walk through.
+    if (!walkableRoof) b.add(strip(len, 0.9, 0.3), m.darkConcrete, ...at(mid, h + 0.45, 0.1));
     b.add(strip(len, 0.5, 0.3), m.darkConcrete, ...at(mid, 4.05, 0.15));
     // Shopfronts face outwards.
     const ry = alongX ? (sign > 0 ? 0 : Math.PI) : sign > 0 ? Math.PI / 2 : -Math.PI / 2;

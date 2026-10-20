@@ -102,6 +102,8 @@ export class MetroTrain {
   private leaves: { mesh: THREE.Mesh; base: number; dir: number }[] = [];
   private colliders: TrainColliders = { all: [], doors: [] };
   private colActive = false;
+  /** Where the dynamic colliders currently are (they were built at x = 0). */
+  private colX = 0;
   private headMats: THREE.MeshBasicMaterial[] = [];
   private destMat: THREE.MeshBasicMaterial;
   private destCanvas = canvas(256, 48);
@@ -234,15 +236,20 @@ export class MetroTrain {
     });
     this.group.position.x = this.x;
     this.group.visible = false;
+    this.group.userData.dynamic = true;
     scene.add(this.group);
     this.buildColliders(solidRanges);
   }
 
-  /** Colliders at the stopped position; switched on only while the train stands at the platform. */
+  /**
+   * The car shells as dynamic colliders that move with the train (built at x = 0 and shifted in
+   * `set`). Until 3.3 they existed only while the train stood exactly at the platform, so a moving
+   * train had no collision at all.
+   */
   private buildColliders(solid: [number, number][]) {
     const c = this.colliders;
     const add = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number) => {
-      const k = this.col.add(x0, y0, z0, x1, y1, z1, 'metal');
+      const k = this.col.addDynamic(x0, y0, z0, x1, y1, z1, 'metal');
       k.solid = false;
       k.ray = false;
       c.all.push(k);
@@ -251,9 +258,9 @@ export class MetroTrain {
     for (const cx of CAR_CENTRES) {
       add(cx - CAR_L / 2, FLOOR - 0.3, NZ, cx + CAR_L / 2, FLOOR, SZ); // floor
       add(cx - CAR_L / 2, CEIL, NZ, cx + CAR_L / 2, CEIL + 0.3, SZ); // roof
-      add(cx - CAR_L / 2, FLOOR, SZ - 0.06, cx + CAR_L / 2, CEIL, SZ + 0.06); // far wall
-      add(cx - CAR_L / 2 - 0.08, FLOOR, NZ, cx - CAR_L / 2, CEIL, SZ); // ends
-      add(cx + CAR_L / 2, FLOOR, NZ, cx + CAR_L / 2 + 0.08, CEIL, SZ);
+      add(cx - CAR_L / 2, FLOOR, SZ - 0.06, cx + CAR_L / 2, CEIL, SZ + 0.2); // far wall
+      add(cx - CAR_L / 2 - 0.2, FLOOR, NZ, cx - CAR_L / 2, CEIL, SZ); // ends
+      add(cx + CAR_L / 2, FLOOR, NZ, cx + CAR_L / 2 + 0.2, CEIL, SZ);
       add(cx - CAR_L / 2 + 0.3, FLOOR, SZ - 0.53, cx + CAR_L / 2 - 0.3, FLOOR + 0.45, SZ - 0.03); // far bench
       for (const [x0, x1] of solid) add(cx + x0, FLOOR, NZ - 0.06, cx + x1, CEIL, NZ + 0.06);
       for (const d of DOORS) c.doors.push(add(cx + d - DOOR_W / 2, FLOOR, NZ - 0.05, cx + d + DOOR_W / 2, CEIL, NZ + 0.05));
@@ -286,18 +293,19 @@ export class MetroTrain {
       const front = i < 2 ? dir < 0 : dir > 0;
       m.color.setRGB(front ? 5 : 3, front ? 5 : 0.15, front ? 4.4 : 0.1);
     });
-    const stopped = visible && Math.abs(x) < 0.01;
-    if (stopped !== this.colActive) {
-      this.colActive = stopped;
-      for (const k of this.colliders.all) {
-        k.solid = stopped;
-        k.ray = stopped;
-      }
+    // The shell collides whenever the train is in the station area, moving or not.
+    if (x !== this.colX) {
+      for (const k of this.colliders.all) this.col.moveDynamic(k, x - this.colX);
+      this.colX = x;
     }
-    if (stopped) for (const k of this.colliders.doors) k.solid = k.ray = doorK < 0.6;
+    if (visible !== this.colActive) {
+      this.colActive = visible;
+      for (const k of this.colliders.all) k.solid = k.ray = visible;
+    }
+    if (visible) for (const k of this.colliders.doors) k.solid = k.ray = doorK < 0.6;
   }
 
-  /** Is a point inside one of the cars (the stopped position)? */
+  /** Is a point inside one of the cars (at the train's current position)? */
   inside(p: THREE.Vector3) {
     if (p.y < FLOOR - 0.5 || p.y > CEIL) return false;
     if (p.z < NZ + 0.05 || p.z > SZ - 0.05) return false;

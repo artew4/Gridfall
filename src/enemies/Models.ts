@@ -121,6 +121,7 @@ function makeRigBase(kind: 'runner' | 'gunner') {
 export function buildRunner(): Rig {
   const { armorMat, clothMat, glowMat, parts, add } = makeRigBase('runner');
   const root = new THREE.Group();
+  root.userData.dynamic = true;
   const body = pivot(root, 0, 0.95, 0);
   const torso = pivot(body, 0, 0, 0);
   add(torso, cylGeo(0.2, 0.14, 0.58, 6), clothMat, 0, 0.3, 0);
@@ -162,6 +163,7 @@ export function buildGunner(): Rig {
 function gunnerParts(): Rig {
   const { armorMat, clothMat, glowMat, parts, add } = makeRigBase('gunner');
   const root = new THREE.Group();
+  root.userData.dynamic = true;
   const body = pivot(root, 0, 1.0, 0);
   const torso = pivot(body, 0, 0, 0);
   add(torso, boxGeo(0.52, 0.62, 0.36), clothMat, 0, 0.34, 0);

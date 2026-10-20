@@ -10,8 +10,19 @@ const JUMP_V = 4.8;
 const GRAVITY = 15;
 const EYE = 1.65;
 const SENS = 0.0022;
+/** Collision height of the body. */
+const BODY_H = 1.8;
+/** Longest move between two collision resolutions (well under the body radius). */
+const MAX_STEP = 0.15;
+const _probe = new THREE.Vector3();
+const stepStart = new THREE.Vector3();
 
 export class Player {
+  /**
+   * Collision safeguards (3.3). Switchable only so dev tests can reproduce the 3.2 behaviour
+   * (one unsubstepped move per frame, no ceiling stop, landing only after the move) for comparisons.
+   */
+  static safeguards = { maxStep: MAX_STEP, vertical: true };
   pos = new THREE.Vector3(0, 0, 10);
   vel = new THREE.Vector3();
   yaw = 0;
@@ -91,10 +102,53 @@ export class Player {
       this.audio.footstep(0.6);
     }
     this.vel.y -= GRAVITY * dt;
-    this.pos.addScaledVector(this.vel, dt);
-
-    // Airborne: railings marked as vaultable can be jumped over.
-    this.col.resolveCircle(this.pos, this.radius, 1.8, 0.3, !this.onGround);
+    // Sub-stepped so no step moves the body more than MAX_STEP: at 20–30 FPS a sprint covers
+    // 0.26–0.39 m per frame, enough to cross a thin wall's centre and be pushed out the far side.
+    const travel = Math.hypot(this.vel.x, this.vel.y, this.vel.z) * dt;
+    const steps = Math.min(8, Math.max(1, Math.ceil(travel / Player.safeguards.maxStep)));
+    const h = dt / steps;
+    for (let i = 0; i < steps; i++) {
+      const headBefore = this.pos.y + BODY_H;
+      const feetBefore = this.pos.y;
+      stepStart.copy(this.pos);
+      this.pos.addScaledVector(this.vel, h);
+      // Land within the step: a fast fall must not sink the feet more than a step into a floor box,
+      // or the side push below would treat that floor as a wall and throw the body out sideways.
+      if (Player.safeguards.vertical && this.vel.y <= 0) {
+        const floor = this.col.groundHeightAt(this.pos.x, this.pos.z, this.radius * 0.6, feetBefore);
+        if (this.pos.y < floor) {
+          this.pos.y = floor;
+          this.vel.y = 0;
+        }
+      }
+      // A ceiling stops the rise (jumping under a walkway or in a train); without this the side push
+      // treated the underside as a wall and ejected the body sideways, through walls.
+      if (Player.safeguards.vertical && this.vel.y > 0) {
+        const ceil = this.col.ceilingAbove(this.pos.x, this.pos.z, this.radius, headBefore - 0.05);
+        if (this.pos.y + BODY_H > ceil) {
+          this.pos.y = ceil - BODY_H;
+          this.vel.y = 0;
+        }
+      }
+      // Airborne: railings marked as vaultable can be jumped over.
+      const vaulting = !this.onGround;
+      this.col.resolveCircle(this.pos, this.radius, BODY_H, 0.3, vaulting);
+      // Never wedge into a gap narrower than the body: if the push-out couldn't separate the body from
+      // every wall (two walls closer than its width), keep the last position that fitted.
+      if (Player.safeguards.vertical) {
+        _probe.copy(this.pos);
+        this.col.resolveCircle(_probe, this.radius - 0.02, BODY_H, 0.3, vaulting);
+        if (Math.abs(_probe.x - this.pos.x) + Math.abs(_probe.z - this.pos.z) > 0.01) {
+          // Only fall back to a start that itself fitted (never freeze someone already squeezed).
+          _probe.copy(stepStart);
+          this.col.resolveCircle(_probe, this.radius - 0.02, BODY_H, 0.3, vaulting);
+          if (Math.abs(_probe.x - stepStart.x) + Math.abs(_probe.z - stepStart.z) <= 0.01) {
+            this.pos.x = stepStart.x;
+            this.pos.z = stepStart.z;
+          }
+        }
+      }
+    }
     const ground = this.col.groundHeightAt(this.pos.x, this.pos.z, this.radius * 0.6, this.pos.y);
     if (!this.onGround && this.pos.y > this.peakY) this.peakY = this.pos.y;
     // Stick to stairs and kerbs when walking down instead of briefly going airborne.
