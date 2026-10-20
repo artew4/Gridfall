@@ -245,7 +245,12 @@ The world renders through one post chain: scene → viewmodel → UnrealBloom �
 - **Bloom only above the brightest sand:** threshold 1.0. Sunlit sand never blooms; the sun, glints on the (now glossier) metal debris and vehicles, and sunlit specks in the dust do.
 - **Heat haze:** a shimmer in a band just below the horizon in clear weather, outdoors only. The gun never wobbles.
 
-Deep Jungle keeps its 3.7 look.
+### Jungle look (4.2)
+- **"Oppressive jungle" grade:** the darks are re-hued deep green-teal (multiplied, so they stay dark) and slightly crushed, the mids drained a little so the greens go murky, and the highlights (sun flecks, light shafts, wet sheen) pushed toward a sickly yellow-green.
+- **Murky air:** thicker green-grey fog (90% opaque at 51 m, 3.7: 58 m): the far jungle melts away, the compound stays readable. Enemies see as far as the fog lets you, as before (now 43 m).
+- **Wet mud:** puddles and muddy patches in the forest floor and the yard, water standing in the ruts of the approach road and the vehicle tracks through the compound. Wet spots are darker and glossy, with no textures added.
+- **Wet leaves:** foliage is glossier, so it catches the canopy light.
+- **Light shafts:** five shafts of sun break through the canopy onto the watchtower, the middle of the yard, the flag and two giant trees by the cleared strip. Each lands on a matching sun fleck on the ground. They are light only: you, enemies and bullets pass straight through them.
 
 ## Dev checks
 
@@ -281,8 +286,9 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - `await __dev.stress({ samples, fps })`: the real controller from sampled reachable cells in 8 directions, walking and sprint-jumping. `fps` takes rates and `'spiky'`, for example `[20, 30, 60, 120, 'spiky']`.
   - `await __dev.train()`: boarding at every door, closed doors, riding a departing car, and someone standing in a doorway as the doors close (with the real rail).
   - `await __dev.colliders(true)`: the collision overlay around the camera.
-  - `await __dev.bench(3)`: fixed benchmark scenarios for the loaded setting (Tokyo, the desert or the jungle). Compare the results with `docs/BENCH-3.2.json` … `docs/BENCH-4.0.json`. A measurement only counts if the window stayed focused, visible and in play (`valid`); an unfocused window or Chrome's Energy Saver caps the frame rate.
+  - `await __dev.bench(3)`: fixed benchmark scenarios for the loaded setting (Tokyo, the desert or the jungle). Compare the results with `docs/BENCH-3.2.json` … `docs/BENCH-4.2.json`. A measurement only counts if the window stayed focused, visible and in play (`valid`); an unfocused window or Chrome's Energy Saver caps the frame rate.
   - `await __dev.bench(3, { pipelines: ['v4', 'raw', 'v37'] })` (4.0): every scenario in each render pipeline, interleaved.
+  - `await __dev.sheet(['yard', 'tower'], ['v37', 'v4'])` (4.2, jungle views): a contact sheet of frozen frames in an overlay (click to close). `await __dev.hdr(names, hide?)`: linear HDR luminance percentiles per view, or, with `hide`, of the pixels those objects add.
   - **F8** (dev server only) cycles the render pipeline: 4.0 → RAW (no composer, the same materials) → 3.7 (the old look and materials) → 4.0. In the desert it switches the 4.1 additions (sun, grade, glare, glints, metals, haze) the same way. `__dev.pipeline('v37')` does the same from the console.
   - `__game.safety.recoveries`: how often the out-of-bounds safety net fired. It should stay 0, and each recovery is logged as `[safety]`.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
