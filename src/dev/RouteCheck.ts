@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Game } from '../core/Game';
+import { Squad } from '../enemies/tactics/Squad';
 import type { Input } from '../core/Input';
 import { Player } from '../player/Player';
 import { Runner, type EnemyCtx } from '../enemies/Enemy';
@@ -132,12 +133,15 @@ function chase(game: Game, from: THREE.Vector3, goal: THREE.Vector3, seconds = 6
   target.reset(goal.x, goal.z, 0);
   target.pos.y = goal.y;
   const enemies: Runner[] = [];
-  const ctx: EnemyCtx = { ...game.ctx, scene, player: target, enemies, occupied: new Set(), damagePlayer: () => {} };
+  const ctx: EnemyCtx = { ...game.ctx, scene, player: target, enemies, occupied: new Set(), squad: new Squad(), damagePlayer: () => {} };
   const r = new Runner(from.clone(), 0);
   enemies.push(r);
   const dt = 1 / 30;
   for (let t = 0; t < seconds; t += dt) {
     ctx.time = t;
+    // A nav check, not a hunt: the squad is told where the target is (exact dispatch).
+    if (t === 0) ctx.squad.report(goal, 0);
+    ctx.squad.update(ctx, enemies);
     r.update(dt, ctx);
     const dxz = Math.hypot(r.pos.x - goal.x, r.pos.z - goal.z);
     if (dxz < 2.6 && Math.abs(r.pos.y - goal.y) < 1.2) return { ok: true, t: +t.toFixed(1) };

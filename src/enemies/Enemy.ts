@@ -9,6 +9,9 @@ import type { CollisionWorld } from '../world/Collision';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { Effects } from '../combat/Effects';
 import { Spring, clamp, damp, easeOut, rand } from '../core/math';
+import { GUNNER_MAG, createTac, nearestNode, type Squad, type TacAgent, type TacState } from './tactics/Squad';
+import { choose, type Option } from './tactics/Utility';
+import { evaluateCover, isProtected } from './tactics/Cover';
 
 export interface EnemyCtx {
   scene: THREE.Scene;
@@ -27,11 +30,18 @@ export interface EnemyCtx {
   bounds: THREE.Box2;
   /** Rooftop sniper spots (floor positions). */
   perches: THREE.Vector3[];
+  /** The survival combat director: squad knowledge, roles, time-sliced decisions, barks. */
+  squad: Squad;
   /**
    * How far anyone can see right now (fog, a sandstorm), if the level limits it. Enemies don't see
    * through what hides them from the player; they still hear and hunt.
    */
   sightRange?: number;
+  /**
+   * Sightline left after soft cover the rays don't see (the jungle's undergrowth): 1 clear … 0
+   * hidden. Absent = nothing soft in the way.
+   */
+  concealment?: (a: THREE.Vector3, b: THREE.Vector3) => number;
   damagePlayer(dmg: number, from: THREE.Vector3): void;
 }
 
@@ -73,6 +83,10 @@ export abstract class Enemy {
   protected seed = Math.random() * 100;
   /** Electrocuted: frozen in place and twitching. */
   stun = 0;
+  /** 0 standing … 1 crouched behind cover. The hitboxes go down with the pose. */
+  crouch = 0;
+  /** How far a full crouch lowers the head (m); the cover test uses the same numbers. */
+  protected crouchDrop = 0.78;
   protected fallV = 0;
   private path: number[] = [];
   private forcePathT = 0;
@@ -80,6 +94,11 @@ export abstract class Enemy {
   private bestGoalD = Infinity;
   private lastGoal = new THREE.Vector3(1e9, 0, 0);
   private pathT = 0;
+  private directT = 0;
+  private directOk = false;
+  private directFrom = new THREE.Vector3(1e9, 0, 0);
+  private directTo = new THREE.Vector3(1e9, 0, 0);
+  private skipT = 0;
   private dieT = 0;
   private stepIdx = 0;
   private glowBase: THREE.Color;
@@ -99,8 +118,16 @@ export abstract class Enemy {
   }
 
   get chest() {
-    return _w.set(this.pos.x, this.pos.y + 1.25, this.pos.z);
+    return _w.set(this.pos.x, this.pos.y + this.hitY(1.25), this.pos.z);
   }
+
+  /** A standing hitbox height, lowered by the crouch (the head drops fully, the legs less). */
+  hitY(y: number) {
+    return y - this.crouchDrop * this.crouch * Math.min(1, y / 1.2);
+  }
+
+  /** Rounds passed close (or hit): survival enemies flinch and may be pinned down. */
+  suppress(_amount: number, _ctx: EnemyCtx) {}
 
   /** Ray vs hitbox spheres. */
   raycast(origin: THREE.Vector3, dir: THREE.Vector3): EnemyHit | null {
@@ -108,7 +135,7 @@ export abstract class Enemy {
     let best: EnemyHit | null = null;
     for (const h of this.hitboxes) {
       const f = h.fwd ?? 0;
-      const c = _v.set(this.pos.x + Math.sin(this.yaw) * f, this.pos.y + h.y, this.pos.z + Math.cos(this.yaw) * f);
+      const c = _v.set(this.pos.x + Math.sin(this.yaw) * f, this.pos.y + this.hitY(h.y), this.pos.z + Math.cos(this.yaw) * f);
       const oc = c.sub(origin);
       const tca = oc.dot(dir);
       if (tca < 0) continue;
@@ -202,20 +229,39 @@ export abstract class Enemy {
       this.noProgressT = 0;
       this.bestGoalD = dGoal;
     }
-    if (this.forcePathT <= 0 && Math.abs(to.y - from.y) < 1 && ctx.nav.clear(from, to)) {
-      this.path.length = 0;
-      this.noRoute = false;
-      return goal;
+    // The straight-line test is 4 rays: reuse its answer for 0.2 s unless either end moved 1 m (5.0;
+    // it ran every frame for every enemy and was the largest single AI cost).
+    if (this.forcePathT <= 0 && Math.abs(to.y - from.y) < 1) {
+      this.directT -= dt;
+      if (this.directT <= 0 || from.distanceToSquared(this.directFrom) > 1 || to.distanceToSquared(this.directTo) > 1) {
+        this.directOk = ctx.nav.clear(from, to);
+        this.directT = 0.2;
+        this.directFrom.copy(from);
+        this.directTo.copy(to);
+      }
+      if (this.directOk) {
+        this.path.length = 0;
+        this.noRoute = false;
+        return goal;
+      }
     }
     this.pathT -= dt;
-    if (this.pathT <= 0 || this.path.length === 0) {
+    // Re-plans are budgeted per frame (5.0): a refused one keeps the current path a frame longer.
+    // An empty path is re-planned at once, unless the last plan found no route (then on the timer:
+    // an unreachable goal must not ask the graph every frame).
+    if ((this.pathT <= 0 || (this.path.length === 0 && !this.noRoute)) && (!ctx.squad || ctx.squad.sched.tryRoute(ctx.time))) {
       this.pathT = 0.6 + Math.random() * 0.3;
       this.path = ctx.nav.route(from, to);
       this.noRoute = this.path.length === 0;
     }
-    // Skip waypoints we can already see past (never across levels, or we'd cut under a walkway).
+    // Skip waypoints we can already see past (never across levels, or we'd cut under a walkway);
+    // looked at five times a second, not every frame.
     const level = (n: THREE.Vector3) => Math.abs(n.y - from.y) < 1;
-    while (this.path.length > 1 && level(ctx.nav.nodes[this.path[1]]) && ctx.nav.clear(from, ctx.nav.nodes[this.path[1]])) this.path.shift();
+    this.skipT -= dt;
+    if (this.skipT <= 0) {
+      this.skipT = 0.2;
+      while (this.path.length > 1 && level(ctx.nav.nodes[this.path[1]]) && ctx.nav.clear(from, ctx.nav.nodes[this.path[1]])) this.path.shift();
+    }
     if (this.path.length) {
       const n = ctx.nav.nodes[this.path[0]];
       if (Math.hypot(n.x - this.pos.x, n.z - this.pos.z) < 0.8) this.path.shift();
@@ -380,8 +426,207 @@ export abstract class Enemy {
   }
 }
 
+
+// ======================================================================= Tactical survival enemies
+/*
+  Survival enemies run a two-rate brain (5.0):
+   - decide (heavy, started only by the squad's ThinkScheduler, 2–6 times a second): perception ray,
+     cover upkeep and search, utility scoring of the candidate actions, goals;
+   - act (every frame, cheap): the current action's executor — steering, aiming, firing timers, crouch.
+  The live player position is read only where the enemy can physically know it: after its own
+  perception ray hit (tac.sees), for contact (melee reach, not walking through him), and in damage.
+*/
+const _eye = new THREE.Vector3();
+const _head = new THREE.Vector3();
+/** A gunner with a cover picked keeps to it (and peeks from it) this long after the last news of him. */
+const HOLD_COVER = 9;
+
+export abstract class TacticalEnemy extends Enemy implements TacAgent {
+  tac: TacState = createTac(this);
+  perch: THREE.Vector3 | null = null;
+  abstract decide(ctx: EnemyCtx): void;
+
+  /** Where the squad thinks he is (live only while this enemy sees him). */
+  protected threat(ctx: EnemyCtx): THREE.Vector3 | null {
+    return this.tac.sees ? ctx.player.pos : ctx.squad.lkp;
+  }
+
+  /** One ray from the eyes (crouch-aware) to his head, within the weather's sight range. */
+  protected perceive(ctx: EnemyCtx) {
+    const t = this.tac;
+    const p = ctx.player;
+    t.sees = false;
+    if (!p.alive) return;
+    // Hunkered, the eyes are at the cover test's head point (1.0 m): if he can see that, it sees him.
+    _eye.set(this.pos.x, this.pos.y + 1.55 - 0.55 * this.crouch, this.pos.z);
+    _head.set(p.pos.x, p.pos.y + 1.4, p.pos.z);
+    const d = _eye.distanceTo(_head);
+    // A look from hunkered behind cover proves nothing; a proper look that finds nothing does.
+    const looking = this.crouch < 0.5;
+    if (d > Math.min(ctx.sightRange ?? 70, 70) || !ctx.squad.los(_eye, _head) || (ctx.concealment && ctx.concealment(_eye, _head) < 0.35)) {
+      if (looking) ctx.squad.missedLook();
+      return;
+    }
+    t.sees = true;
+    t.seenT = ctx.time;
+    ctx.squad.sighting(this, p.pos, p.vel);
+  }
+
+  suppress(amount: number, ctx: EnemyCtx) {
+    const t = this.tac;
+    if (!this.alive) return;
+    t.suppression += amount;
+    t.urgent = true;
+    const now = ctx.time;
+    const threshold = now < t.pinResistUntil ? 1.7 : 1.0;
+    if (this.kind === 'gunner' && t.suppression >= threshold && now >= t.pinnedUntil) {
+      t.pinnedUntil = now + rand(1.6, 2.4);
+      t.pinResistUntil = t.pinnedUntil + 3;
+      ctx.squad.bark(this, 'pinned');
+    }
+  }
+
+  protected enter(action: string, ctx: EnemyCtx, phase = '') {
+    const t = this.tac;
+    if (t.action === action && t.phase === phase) return;
+    t.action = action;
+    t.phase = phase;
+    t.actionT = t.phaseT = 0;
+    t.bestD = Infinity;
+    t.progressT = 0;
+    ctx.squad.releaseShot(this);
+  }
+
+  protected setPhase(phase: string) {
+    this.tac.phase = phase;
+    this.tac.phaseT = 0;
+  }
+
+  /** Steer towards a floor position at `speed`; returns the XZ distance left. */
+  protected moveTo(goal: THREE.Vector3, speed: number, ctx: EnemyCtx, dt: number, desired: THREE.Vector3) {
+    const tgt = this.steerTarget(goal, ctx, dt);
+    desired.set(tgt.x - this.pos.x, 0, tgt.z - this.pos.z);
+    const d = Math.hypot(goal.x - this.pos.x, goal.z - this.pos.z);
+    const l = desired.length();
+    if (l > 1e-4) desired.multiplyScalar((speed * Math.min(1, d / 0.8)) / l);
+    return d;
+  }
+
+  /**
+   * Hardly moved for 3 s while trying to (or no route for 1.5 s): the goal is no good from here.
+   * Measured as displacement, not distance to the goal: a route via stairs first leads away from it.
+   */
+  protected stalled(d: number, dt: number) {
+    const t = this.tac;
+    if (t.bestD === Infinity || this.pos.distanceToSquared(t.progressAt) > 1) {
+      t.progressAt.copy(this.pos);
+      t.bestD = d;
+      t.progressT = 0;
+      return false;
+    }
+    t.progressT += dt;
+    return t.progressT > 3 || (this.noRoute && t.progressT > 1.5);
+  }
+
+  /** Face a direction of travel, or a point. */
+  protected faceMove(dt: number) {
+    if (Math.hypot(this.vel.x, this.vel.z) > 0.3) this.faceTowards(this.pos.clone().add(this.vel), dt, 8);
+  }
+
+  /** Goals for the out-of-contact actions (decide side). */
+  protected planCalm(ctx: EnemyCtx) {
+    const t = this.tac;
+    const sq = ctx.squad;
+    if (t.action === 'hunt') {
+      // Spread round the predicted LKP so hunters don't queue on one point.
+      const g = sq.huntGoal;
+      const a = this.seed;
+      const off = new THREE.Vector3(g.x + Math.cos(a) * 1.8, g.y, g.z + Math.sin(a) * 1.8);
+      t.goal = ctx.col.blocked(off, 0.4) ? g.clone() : off;
+    } else if (t.action === 'search') {
+      if (t.phase !== 'look') {
+        const pt = sq.claimSearch(this);
+        t.goal = pt ? pt.pos : null;
+      }
+    } else if (t.action === 'idle') {
+      if (!t.goal || (t.phase === 'pause' && t.phaseT > 3)) {
+        // Roam: a random node anywhere on the map (no knowledge of where he is), mostly on its own
+        // level; a goal it can't reach stalls quickly and is replaced after the pause.
+        const nodes = ctx.nav.nodes;
+        let n = nodes[Math.floor(Math.random() * nodes.length)];
+        for (let k = 0; k < 6 && n && Math.abs(n.y - 1 - this.pos.y) > 1.5 && Math.random() < 0.8; k++) n = nodes[Math.floor(Math.random() * nodes.length)];
+        t.goal = n ? nearestNode(ctx, new THREE.Vector3(n.x, n.y - 1, n.z), n.y - 1) : null;
+        this.setPhase('walk');
+      }
+    }
+  }
+
+  /** Executors for hunt / search / idle (act side). Returns true if it handled the action. */
+  protected actCalm(ctx: EnemyCtx, dt: number, desired: THREE.Vector3, speed: number) {
+    const t = this.tac;
+    const sq = ctx.squad;
+    if (t.action === 'hunt') {
+      if (t.goal) {
+        const d = this.moveTo(t.goal, speed * 0.85, ctx, dt, desired);
+        this.faceMove(dt);
+        if (d < 0.8 || this.stalled(d, dt)) t.goal = null;
+      }
+      return true;
+    }
+    if (t.action === 'search') {
+      if (t.phase === 'look') {
+        // Look round the corner: a slow sweep either way, then the next point.
+        this.yaw += Math.sin(t.phaseT * 2.2 + this.seed) * dt * 1.8;
+        if (t.phaseT > 1.6) {
+          sq.searched(this);
+          this.setPhase('');
+          t.goal = null;
+          t.urgent = true;
+        }
+      } else if (t.goal) {
+        const d = this.moveTo(t.goal, speed * 0.55, ctx, dt, desired);
+        this.faceMove(dt);
+        if (d < 1.2 || this.stalled(d, dt)) this.setPhase('look');
+      } else t.urgent = true;
+      return true;
+    }
+    if (t.action === 'idle') {
+      if (t.goal && t.phase !== 'pause') {
+        const d = this.moveTo(t.goal, speed * 0.4, ctx, dt, desired);
+        this.faceMove(dt);
+        if (d < 1 || this.stalled(d, dt)) this.setPhase('pause');
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /** Calm actions for the squad mode (both kinds). */
+  protected calmOptions(ctx: EnemyCtx, opts: Option<string>[]) {
+    const sq = ctx.squad;
+    if (sq.mode === 'hunt' && sq.lkp) opts.push({ action: this.perch ? 'watch' : 'hunt', score: 0.6 });
+    else if (sq.mode === 'search') opts.push({ action: this.perch ? 'watch' : 'search', score: 0.6 });
+    else opts.push({ action: this.perch ? 'watch' : 'idle', score: 0.3 });
+  }
+
+  protected onDeath(ctx: EnemyCtx) {
+    ctx.squad.releaseCover(this);
+    ctx.squad.died(this);
+  }
+
+  protected onHit(ctx: EnemyCtx) {
+    this.suppress(0.45, ctx);
+  }
+}
+
 // ======================================================================= Runner
-export class Runner extends Enemy {
+/**
+ * Melee rusher. Engaged, it takes an angular slot round the player and holds there out of reach
+ * until the director sends the rushers together (an opening, enough of them massed, or a timeout);
+ * then it charges, zig-zagging, swings, and either keeps at it up close or falls back to its slot.
+ * Close in (< 7 m), on another level, or without a slot it simply charges. Near misses make it juke.
+ */
+export class Runner extends TacticalEnemy {
   radius = 0.38;
   speed: number;
   hitboxes = [
@@ -392,66 +637,175 @@ export class Runner extends Enemy {
   accent: THREE.Color;
   heavy = false;
   private zig = rand(0.8, 1.4);
+  private dodgeDir = 1;
 
   constructor(spawn: THREE.Vector3, difficulty: number, look: EnemyLook = NEON_SYNTHS) {
     super(look.buildRunner(), 60, spawn, 'runner', look);
     this.accent = look.runnerAccent;
     this.speed = 5.6 + difficulty * 0.35 + rand(-0.3, 0.3);
     this.rig.body.userData.baseY = 0.95;
+    this.crouchDrop = 0;
+  }
+
+  private get swinging() {
+    const a = this.tac.action;
+    return a === 'windup' || a === 'strike' || a === 'recover';
+  }
+
+  decide(ctx: EnemyCtx) {
+    const t = this.tac;
+    const sq = ctx.squad;
+    if (t.action === 'emerge' && this.stateT < 0.55) return;
+    this.perceive(ctx);
+    if (this.swinging) return;
+    const now = ctx.time;
+    const threat = this.threat(ctx);
+    const engaged = sq.mode === 'engage' && !!threat;
+    const opts: Option<string>[] = [];
+    if (t.suppression >= 0.8 && now > t.pinResistUntil) opts.push({ action: 'dodge', score: 0.95, interrupt: true });
+    if (engaged && threat) {
+      const d = Math.hypot(threat.x - this.pos.x, threat.z - this.pos.z);
+      const otherLevel = Math.abs(threat.y - this.pos.y) > 2;
+      if (!t.stagePos && !t.go && !otherLevel && sq.lkp) {
+        const a = t.slot;
+        const want = new THREE.Vector3(sq.lkp.x + Math.cos(a) * 11, sq.lkp.y, sq.lkp.z + Math.sin(a) * 11);
+        t.stagePos = nearestNode(ctx, want, sq.lkp.y, this.pos);
+      }
+      const rushNow = t.go || d < 7 || otherLevel || !t.stagePos;
+      opts.push({ action: 'rush', score: rushNow ? 0.85 : 0.1 });
+      opts.push({ action: 'stage', score: rushNow ? 0 : 0.7 });
+    } else this.calmOptions(ctx, opts);
+    const committed = t.action === 'dodge' && t.phaseT < 0.45;
+    const next = choose(opts, t.action, committed);
+    if (next && next !== t.action) {
+      if (next === 'dodge') {
+        this.dodgeDir = Math.random() < 0.5 ? -1 : 1;
+        t.pinResistUntil = now + 2.5;
+        t.suppression = 0;
+      }
+      if (next !== 'stage') t.staged = false;
+      this.enter(next, ctx);
+    }
+    this.planCalm(ctx);
   }
 
   protected think(dt: number, ctx: EnemyCtx) {
+    const t = this.tac;
+    t.actionT += dt;
+    t.phaseT += dt;
+    t.suppression = Math.max(0, t.suppression - 0.6 * dt);
     const p = ctx.player.pos;
-    const dist = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
+    const sq = ctx.squad;
     const desired = new THREE.Vector3();
-    switch (this.state) {
+    const reach = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
+    const contact = reach < 1.9 && Math.abs(p.y - this.pos.y) < 1.2 && ctx.player.alive;
+    switch (t.action) {
       case 'emerge':
         if (this.stateT > 0.55) {
-          this.setState('chase');
           ctx.audio.runnerScreech(this.chest, this.look.voice);
+          this.enter('idle', ctx);
+          t.urgent = true;
         }
-        this.faceTowards(p, dt, 4);
         break;
-      case 'chase': {
-        const tgt = this.steerTarget(p, ctx, dt);
-        desired.set(tgt.x - this.pos.x, 0, tgt.z - this.pos.z).normalize();
-        if (tgt === p && dist > 4.5) {
-          // Zig-zag approach makes them harder to track.
-          const side = Math.sin(ctx.time * 2.6 * this.zig + this.seed) * 0.75;
-          desired.x += -desired.z * side;
-          desired.z += desired.x * side;
-          desired.normalize();
+      case 'rush': {
+        const target = t.sees ? p : sq.lkp;
+        if (target) {
+          const tgt = this.steerTarget(target, ctx, dt);
+          desired.set(tgt.x - this.pos.x, 0, tgt.z - this.pos.z).normalize();
+          if (tgt === target && t.sees && reach > 4.5) {
+            // Zig-zag approach makes them harder to track.
+            const side = Math.sin(ctx.time * 2.6 * this.zig + this.seed) * 0.75;
+            desired.x += -desired.z * side;
+            desired.z += desired.x * side;
+            desired.normalize();
+          }
+          desired.multiplyScalar(this.speed * (this.stagger > 0 ? 0.3 : 1));
+          this.faceTowards(this.pos.clone().add(this.vel), dt, 12);
+          // At the LKP and he isn't there: the squad's hunt takes over at the next decide.
+          if (!t.sees && Math.hypot(target.x - this.pos.x, target.z - this.pos.z) < 1.2) t.urgent = true;
         }
-        desired.multiplyScalar(this.speed * (this.stagger > 0 ? 0.3 : 1));
-        this.faceTowards(this.pos.clone().add(this.vel), dt, 12);
-        if (dist < 1.9 && Math.abs(p.y - this.pos.y) < 1.2 && ctx.player.alive) {
-          this.setState('windup');
+        if (contact) {
+          this.enter('windup', ctx);
+          sq.attacked(this, p);
           ctx.audio.swipe(this.chest);
+        }
+        break;
+      }
+      case 'stage': {
+        if (t.stagePos) {
+          const d = this.moveTo(t.stagePos, this.speed * 0.8, ctx, dt, desired);
+          if (d < 1.5) {
+            if (!t.staged) {
+              t.staged = true;
+              t.stagedSince = ctx.time;
+            }
+            // Hold: face him, shift weight side to side, ready to go.
+            const look = this.threat(ctx);
+            if (look) this.faceTowards(look, dt, 6);
+            const sway = Math.sin(ctx.time * 1.7 + this.seed);
+            desired.set(Math.cos(this.yaw) * sway * 0.8, 0, -Math.sin(this.yaw) * sway * 0.8);
+          } else {
+            this.faceMove(dt);
+            if (this.stalled(d, dt)) {
+              t.stagePos = null;
+              t.go = true;
+              t.urgent = true;
+            }
+          }
+        }
+        if (contact) {
+          this.enter('windup', ctx);
+          sq.attacked(this, p);
+          ctx.audio.swipe(this.chest);
+        }
+        break;
+      }
+      case 'dodge': {
+        // A juke sideways out of the line of fire.
+        const look = this.threat(ctx) ?? p;
+        const dx = look.x - this.pos.x, dz = look.z - this.pos.z;
+        const l = Math.hypot(dx, dz) || 1;
+        desired.set((-dz / l) * this.dodgeDir * 6.5, 0, (dx / l) * this.dodgeDir * 6.5);
+        this.faceTowards(look, dt, 10);
+        if (t.phaseT > 0.45) {
+          this.enter('rush', ctx);
+          t.urgent = true;
         }
         break;
       }
       case 'windup':
         this.faceTowards(p, dt, 14);
         desired.set(p.x - this.pos.x, 0, p.z - this.pos.z).normalize().multiplyScalar(1.2);
-        if (this.stateT > 0.36) {
-          this.setState('strike');
-          if (dist < 2.5 && Math.abs(p.y - this.pos.y) < 1.2 && ctx.player.alive) ctx.damagePlayer(14 + ctx.difficulty, this.chest.clone());
+        if (t.actionT > 0.36) {
+          this.enter('strike', ctx);
+          if (reach < 2.5 && Math.abs(p.y - this.pos.y) < 1.2 && ctx.player.alive) ctx.damagePlayer(14 + ctx.difficulty, this.chest.clone());
           ctx.audio.swipe(this.chest);
         }
         break;
       case 'strike':
-        if (this.stateT > 0.14) this.setState('recover');
+        if (t.actionT > 0.14) this.enter('recover', ctx);
         break;
       case 'recover':
         desired.set(p.x - this.pos.x, 0, p.z - this.pos.z).normalize().multiplyScalar(-1.5);
-        if (this.stateT > 0.55) this.setState('chase');
+        if (t.actionT > 0.55) {
+          // Keep at it up close; otherwise the director decides (back to the slot or charge again).
+          t.go = reach < 4;
+          t.stagePos = null;
+          t.staged = false;
+          this.enter('rush', ctx);
+          t.urgent = true;
+        }
         break;
+      default:
+        this.actCalm(ctx, dt, desired, this.speed);
     }
+    this.state = t.action === 'emerge' ? 'emerge' : t.action === 'rush' ? 'chase' : t.action;
     this.move(desired, ctx, dt);
   }
 
-  protected onHit() {
-    if (this.state === 'windup') this.setState('recover');
+  protected onHit(ctx: EnemyCtx) {
+    super.onHit(ctx);
+    if (this.tac.action === 'windup') this.enter('recover', ctx);
   }
 
   protected animate(dt: number, ctx: EnemyCtx, speed: number) {
@@ -464,18 +818,24 @@ export class Runner extends Enemy {
     let armL = 0.5 - s * 0.8 * k;
     let armR = 0.5 + s * 0.8 * k;
     let fore = -0.9;
-    if (this.state === 'windup') {
-      const t = Math.min(1, this.stateT / 0.3);
+    const a = this.tac.action;
+    if (a === 'windup') {
+      const t = Math.min(1, this.tac.actionT / 0.3);
       armL = armR = 0.5 - t * 2.6;
       fore = -0.4;
       r.body.rotation.x = -0.15;
-    } else if (this.state === 'strike') {
-      armL = armR = -2.1 + (this.stateT / 0.14) * 3.0;
+    } else if (a === 'strike') {
+      armL = armR = -2.1 + (this.tac.actionT / 0.14) * 3.0;
       fore = -0.2;
       r.body.rotation.x = 0.5;
-    } else if (this.state === 'emerge') {
+    } else if (a === 'emerge') {
       armL = armR = 0.2;
       r.body.rotation.x = 0.6 - this.stateT;
+    } else if (a === 'stage' && this.tac.staged) {
+      // Coiled: low, arms forward, ready to spring.
+      r.body.rotation.x = 0.45;
+      armL = armR = -0.3;
+      fore = -1.2;
     }
     r.armL.rotation.set(armL, 0, 0.25);
     r.armR.rotation.set(armR, 0, -0.25);
@@ -486,7 +846,16 @@ export class Runner extends Enemy {
 }
 
 // ======================================================================= Gunner
-export class Gunner extends Enemy {
+/**
+ * Rifleman. Engaged, it takes cover that suits its role (suppressor: a line on him at mid range;
+ * flanker: a spot on its side of the squad's front), then pops and shoots: hide crouched, peek
+ * (stand up over low cover or lean out of tall cover), a laser telegraph, a burst, back down. It
+ * keeps re-checking the cover against where he is: seen from his position, the cover is blown and
+ * it relocates; no longer a shot from there, it quietly picks another. Pinned by near misses, it
+ * ducks and stops shooting. Suppressors keep firing at the last known position for a moment after
+ * losing sight. Twelve rounds, then a reload behind cover.
+ */
+export class Gunner extends TacticalEnemy {
   radius = 0.48;
   speed: number;
   hitboxes = [
@@ -496,16 +865,14 @@ export class Gunner extends Enemy {
   ];
   accent: THREE.Color;
   heavy = true;
-  private cover: THREE.Vector3 | null = null;
-  private noSight = 0;
-  private bursts = 0;
   private shots = 0;
+  private burst = 3;
+  private popDelay = 1;
   private strafe = 1;
   private laser: THREE.Mesh;
   private laserMat: THREE.MeshBasicMaterial;
   private aimPoint = new THREE.Vector3();
-  /** Rooftop sniper: holds its perch, strafing a little, instead of moving between covers. */
-  perch: THREE.Vector3 | null = null;
+  private aimAt = new THREE.Vector3();
 
   constructor(spawn: THREE.Vector3, difficulty: number, scene: THREE.Scene, perch: THREE.Vector3 | null = null, look: EnemyLook = NEON_SYNTHS) {
     super(look.buildGunner(), 150, spawn, 'gunner', look);
@@ -520,117 +887,312 @@ export class Gunner extends Enemy {
     this.laser.visible = false;
     this.laser.frustumCulled = false;
     scene.add(this.laser);
+    if (perch) {
+      this.tac.coverPos = perch;
+      this.tac.peekPos = perch;
+      this.tac.peekKind = 'stand';
+      this.tac.role = 'sniper';
+    }
   }
 
-  private pickCover(ctx: EnemyCtx) {
-    if (this.perch) {
-      this.setState('cooldown');
-      return;
-    }
-    // A cover we're leaving because it gave no sight is not picked again straight away.
-    const prev = this.cover;
-    if (this.cover) ctx.occupied.delete(this.cover);
-    // The same aim point think() uses for "sees", so a chosen cover really gives a shot.
-    const head = new THREE.Vector3(ctx.player.pos.x, ctx.player.pos.y + 1.4, ctx.player.pos.z);
-    let best: THREE.Vector3 | null = null;
-    let bestScore = Infinity;
-    for (const c of ctx.coverPoints) {
-      if (ctx.occupied.has(c) || (c === prev && this.noSight > 1.6)) continue;
-      const d = c.distanceTo(ctx.player.pos);
-      if (d < 7 || d > Math.min(30, ctx.sightRange ?? 30)) continue;
-      if (!ctx.col.lineOfSight(new THREE.Vector3(c.x, c.y + 1.5, c.z), head)) continue;
-      const score = c.distanceTo(this.pos) + Math.abs(d - 15) * 0.5 + Math.random() * 4;
-      if (score < bestScore) {
-        bestScore = score;
-        best = c;
+  private atCover() {
+    const c = this.tac.coverPos;
+    return !!c && Math.hypot(c.x - this.pos.x, c.z - this.pos.z) < 1.0 && Math.abs(c.y - this.pos.y) < 1;
+  }
+
+  decide(ctx: EnemyCtx) {
+    const t = this.tac;
+    const sq = ctx.squad;
+    const now = ctx.time;
+    if (t.action === 'emerge' && this.stateT < 0.7) return;
+    const sinceLast = Math.min(0.6, now - t.lastDecide);
+    this.perceive(ctx);
+    const p = ctx.player.pos;
+    const threat = this.threat(ctx);
+    // Just lost him with a cover already picked: carry on to it and look from there (the hunt is
+    // for when a look from cover finds nothing, or the trail goes cold).
+    const holding = sq.mode === 'hunt' && !!threat && t.coverId >= 0 && now - sq.lkpT < HOLD_COVER;
+    const engaged = (sq.mode === 'engage' || holding) && !!threat;
+    const pinned = now < t.pinnedUntil;
+
+    // ---- Cover upkeep: blown (he can see the crouched body) or stale (no shot from it any more).
+    if (engaged && threat && !this.perch && t.coverId >= 0 && t.coverPos) {
+      if (t.sees && this.atCover() && t.action !== 'takeCover') {
+        t.exposedT = isProtected(t.coverPos, p, sq.los).ok ? 0 : t.exposedT + sinceLast;
+      }
+      if (now >= t.coverCheckT && sq.sched.canAfford(7)) {
+        t.coverCheckT = now + 1.5;
+        let ev = sq.cover.get(t.coverId, threat, now);
+        if (!ev) {
+          ev = evaluateCover(t.coverPos, threat, sq.los, (q) => !ctx.col.blocked(q, 0.35), Math.min(34, (ctx.sightRange ?? 60) + 1));
+          sq.cover.put(t.coverId, threat, now, ev);
+        }
+        if (!ev.protected) t.exposedT = Math.max(t.exposedT, 0.3);
+        else if (!ev.peek) t.coverStale = true;
+        else if (t.phase !== 'peek' && t.phase !== 'aim' && t.phase !== 'fire') {
+          // The way out may change side as he moves.
+          t.peekPos = ev.peek;
+          t.peekKind = ev.kind;
+        }
       }
     }
-    this.cover = best;
-    if (best) ctx.occupied.add(best);
-    this.setState('move');
+    // ---- Cover search (budgeted; a deferred search simply tries again next decide).
+    if (engaged && threat && !this.perch) {
+      const blown = t.exposedT >= 0.3;
+      const need = t.coverId < 0 || blown || t.coverStale;
+      if (need && now >= t.noCoverUntil && !(t.action === 'fight' && (t.phase === 'aim' || t.phase === 'fire'))) {
+        const old = t.coverId;
+        if (old >= 0) t.badCover.set(old, now + (blown ? 8 : 3));
+        const res = sq.findCover(this, threat, ctx, { exclude: old >= 0 ? old : undefined, maxTravel: pinned ? 9 : undefined });
+        if (res && res !== 'deferred') {
+          t.coverId = res.id;
+          t.coverPos = res.pos;
+          t.peekPos = res.peek;
+          t.peekKind = res.kind;
+          t.exposedT = 0;
+          t.coverStale = false;
+          t.coverCheckT = now + 1.5;
+          if (blown) sq.bark(this, 'blown');
+          else if (t.role === 'flanker') sq.bark(this, t.side > 0 ? 'flankL' : 'flankR');
+          if (!pinned) this.enter('takeCover', ctx);
+        } else if (res === null) {
+          if (blown) sq.bark(this, 'blown');
+          sq.releaseCover(this);
+          t.coverStale = false;
+          t.noCoverUntil = now + 2.5;
+          t.goal = null;
+        }
+      }
+    }
+
+    // ---- Utility selection.
+    const opts: Option<string>[] = [];
+    if (pinned) opts.push({ action: 'pinned', score: 1, interrupt: true });
+    if (t.ammo <= 0) opts.push({ action: 'reload', score: 0.92, interrupt: true });
+    if (engaged) {
+      if (this.perch) opts.push({ action: 'fight', score: 0.8 });
+      else {
+        const at = this.atCover();
+        opts.push({ action: 'fight', score: t.coverId >= 0 && at && t.exposedT < 0.3 ? 0.8 : 0 });
+        opts.push({ action: 'takeCover', score: t.coverId >= 0 && !at ? 0.78 : 0, interrupt: t.exposedT >= 0.3 });
+        opts.push({ action: 'advance', score: t.coverId < 0 ? 0.6 : 0 });
+      }
+    } else this.calmOptions(ctx, opts);
+    const firing = t.phase === 'aim' || t.phase === 'fire';
+    const committed = ((t.action === 'fight' || t.action === 'advance') && firing) || (t.action === 'reload' && t.actionT < 2.2) || (t.action === 'pinned' && pinned);
+    const next = choose(opts, t.action, committed);
+    if (next && next !== t.action) {
+      if (next === 'reload') sq.bark(this, 'reload');
+      this.enter(next, ctx, next === 'fight' ? 'hide' : next === 'advance' ? 'move' : '');
+      if (next === 'fight') this.popDelay = this.nextPop();
+    }
+
+    // ---- Goals.
+    if (t.action === 'advance' && threat && (!t.goal || t.phase === 'move' && Math.hypot(t.goal.x - this.pos.x, t.goal.z - this.pos.z) < 1)) {
+      // No cover: work round on open ground (flankers to their side, others to a mid-range point).
+      const side = t.role === 'flanker' ? t.side : 0;
+      t.goal = side ? sq.openPoint(this, threat, ctx, 13, side) : nearestNode(ctx, new THREE.Vector3().subVectors(this.pos, threat).setY(0).setLength(15).add(threat), threat.y, this.pos);
+    }
+    this.planCalm(ctx);
+  }
+
+  private nextPop() {
+    const r = this.tac.role;
+    return r === 'suppressor' ? rand(0.5, 1.0) : r === 'sniper' ? rand(1.2, 2.2) : rand(0.9, 1.8);
+  }
+
+  /** Aim, telegraph and fire (shared by the cover fight and the open-ground advance). Returns true when the burst is done or aborted. */
+  private shootPhases(ctx: EnemyCtx, dt: number): boolean {
+    const t = this.tac;
+    const sq = ctx.squad;
+    const p = ctx.player.pos;
+    const supp = t.role === 'suppressor' || t.role === 'sniper';
+    const lkpAge = ctx.time - sq.lkpT;
+    // What it aims at: him while it sees him; a suppressor keeps hosing the last known spot briefly.
+    const knows = t.sees || (supp && sq.lkp && lkpAge < 2.5);
+    if (t.sees) this.aimAt.set(p.x, p.y + 1.25, p.z);
+    else if (knows && sq.lkp) this.aimAt.set(sq.lkp.x, sq.lkp.y + 1.1, sq.lkp.z);
+    this.faceTowards(this.aimAt, dt, 8);
+    const muzzle = this.rig.muzzle!.getWorldPosition(new THREE.Vector3());
+    if (t.phase === 'aim') {
+      this.aimPoint.lerp(this.aimAt, 1 - Math.exp(-8 * dt));
+      const T = t.role === 'sniper' ? 0.9 : 0.6;
+      this.showLaser(muzzle, this.aimPoint, Math.min(1, t.phaseT / T));
+      if (!knows && t.phaseT > 0.25) return true;
+      if (t.phaseT > T) {
+        this.setPhase('fire');
+        this.shots = 0;
+        this.burst = t.role === 'suppressor' ? 5 : 3;
+        if (!t.sees && supp) sq.bark(this, 'suppress');
+        else if (t.role === 'suppressor' && Math.random() < 0.5) sq.bark(this, 'suppress');
+      }
+      return false;
+    }
+    if (t.phase === 'fire') {
+      const interval = t.role === 'suppressor' ? 0.13 : 0.17;
+      if (t.phaseT > this.shots * interval && this.shots < this.burst && t.ammo > 0) {
+        this.shots++;
+        t.ammo--;
+        const target = this.aimAt.clone();
+        if (t.sees) target.add(ctx.player.vel.clone().multiplyScalar(0.22));
+        const dir = target.sub(muzzle).normalize();
+        const spread = t.sees ? 0.03 : 0.07;
+        dir.x += rand(-spread, spread);
+        dir.y += rand(-spread, spread) * 0.66;
+        dir.z += rand(-spread, spread);
+        dir.normalize();
+        ctx.projectiles.fire(muzzle, dir, 24 + ctx.difficulty);
+        ctx.audio.enemyShot(muzzle, this.look.voice);
+        ctx.fx.add.spawn({ x: muzzle.x, y: muzzle.y, z: muzzle.z, r: 5, g: 2.5, b: 0.6, size: 0.45, life: 0.06 });
+        this.leanX.impulse(-2);
+      }
+      if ((this.shots >= this.burst || t.ammo <= 0) && t.phaseT > this.shots * interval + 0.2) {
+        sq.releaseShot(this);
+        if (t.ammo <= 0) t.urgent = true;
+        return true;
+      }
+    }
+    return false;
   }
 
   protected think(dt: number, ctx: EnemyCtx) {
-    const p = ctx.player.pos;
-    const head = new THREE.Vector3(p.x, p.y + 1.4, p.z);
-    const dist = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
-    const sees = this.canSee(ctx, head);
-    this.noSight = sees ? 0 : this.noSight + dt;
+    const t = this.tac;
+    const sq = ctx.squad;
+    t.actionT += dt;
+    t.phaseT += dt;
+    t.suppression = Math.max(0, t.suppression - 0.6 * dt);
     const desired = new THREE.Vector3();
     this.laser.visible = false;
-
-    switch (this.state) {
+    let crouch = 0;
+    const lookAt = this.threat(ctx);
+    switch (t.action) {
       case 'emerge':
-        this.faceTowards(p, dt, 3);
-        if (this.stateT > 0.7) this.pickCover(ctx);
-        break;
-      case 'move': {
-        const goal = this.cover ?? p;
-        const tgt = this.steerTarget(goal, ctx, dt);
-        desired.set(tgt.x - this.pos.x, 0, tgt.z - this.pos.z);
-        const dl = desired.length();
-        desired.normalize().multiplyScalar(this.speed * Math.min(1, dl));
-        this.faceTowards(sees && dist < 25 ? p : this.pos.clone().add(this.vel), dt, 6);
-        const arrived = this.cover ? Math.hypot(goal.x - this.pos.x, goal.z - this.pos.z) < 0.9 : sees && dist < 22;
-        if (arrived || (sees && this.stateT > 4)) this.setState('cooldown');
-        if (!this.cover && this.stateT > 2) this.pickCover(ctx);
-        break;
-      }
-      case 'cooldown':
-        this.faceTowards(p, dt, 6);
-        if (this.stateT < 0.05) this.strafe = Math.random() < 0.5 ? -1 : 1;
-        desired.set(-(p.z - this.pos.z), 0, p.x - this.pos.x).normalize().multiplyScalar(this.strafe * 1.0);
-        if (this.perch) {
-          // Pace along the parapet, never far from the perch.
-          const off = Math.hypot(this.pos.x - this.perch.x, this.pos.z - this.perch.z);
-          if (off > 1.6) desired.set(this.perch.x - this.pos.x, 0, this.perch.z - this.pos.z).normalize().multiplyScalar(1.2);
+        if (lookAt) this.faceTowards(lookAt, dt, 3);
+        if (this.stateT > 0.7) {
+          this.enter('idle', ctx);
+          t.urgent = true;
         }
-        if (dist < 5) desired.add(new THREE.Vector3(this.pos.x - p.x, 0, this.pos.z - p.z).normalize().multiplyScalar(2.5));
-        if (this.stateT > rand(1.2, 2.0) - ctx.difficulty * 0.05 && sees && ctx.player.alive) {
-          this.setState('aim');
-          ctx.audio.gunnerCharge(this.chest, this.look.voice);
-        }
-        if (this.noSight > 1.6 && !this.perch) this.pickCover(ctx);
         break;
-      case 'aim': {
-        this.faceTowards(p, dt, 8);
-        const muzzle = this.rig.muzzle!.getWorldPosition(new THREE.Vector3());
-        this.aimPoint.lerp(head.clone().setY(p.y + 1.25), 1 - Math.exp(-8 * dt));
-        const tele = Math.min(1, this.stateT / 0.75);
-        this.showLaser(muzzle, this.aimPoint, tele);
-        if (!sees) this.setState('cooldown');
-        else if (this.stateT > 0.8) {
-          this.setState('fire');
-          this.shots = 0;
+      case 'takeCover': {
+        if (!t.coverPos) {
+          t.urgent = true;
+          break;
+        }
+        const d = this.moveTo(t.coverPos, this.speed * 1.3, ctx, dt, desired);
+        if (t.sees && lookAt && lookAt.distanceTo(this.pos) < 25) this.faceTowards(lookAt, dt, 6);
+        else this.faceMove(dt);
+        crouch = 0.15;
+        if (d < 0.6) {
+          this.enter('fight', ctx, 'hide');
+          this.popDelay = this.nextPop() * 0.6;
+          t.urgent = true;
+        } else if (this.stalled(d, dt)) {
+          t.badCover.set(t.coverId, ctx.time + 10);
+          sq.releaseCover(this);
+          t.urgent = true;
+        } else if (t.actionT > 6 && t.sees) {
+          // Taking too long under his eyes: fight from here instead.
+          t.badCover.set(t.coverId, ctx.time + 6);
+          sq.releaseCover(this);
+          t.noCoverUntil = ctx.time + 3;
+          this.enter('advance', ctx, 'move');
+          t.goal = this.pos.clone();
         }
         break;
       }
-      case 'fire': {
-        this.faceTowards(p, dt, 8);
-        const interval = 0.17;
-        if (this.stateT > this.shots * interval && this.shots < 3) {
-          this.shots++;
-          const muzzle = this.rig.muzzle!.getWorldPosition(new THREE.Vector3());
-          const lead = ctx.player.vel.clone().multiplyScalar(0.22);
-          const target = new THREE.Vector3(p.x, p.y + 1.2, p.z).add(lead);
-          const dir = target.sub(muzzle).normalize();
-          dir.x += rand(-0.03, 0.03);
-          dir.y += rand(-0.02, 0.02);
-          dir.z += rand(-0.03, 0.03);
-          dir.normalize();
-          ctx.projectiles.fire(muzzle, dir, 24 + ctx.difficulty);
-          ctx.audio.enemyShot(muzzle, this.look.voice);
-          ctx.fx.add.spawn({ x: muzzle.x, y: muzzle.y, z: muzzle.z, r: 5, g: 2.5, b: 0.6, size: 0.45, life: 0.06 });
-          this.leanX.impulse(-2);
+      case 'fight': {
+        const c = t.coverPos;
+        if (!c) {
+          t.urgent = true;
+          break;
         }
-        if (this.shots >= 3 && this.stateT > 3 * interval + 0.2) {
-          this.bursts++;
-          if (this.bursts % 2 === 0 && Math.random() < 0.6) this.pickCover(ctx);
-          else this.setState('cooldown');
+        if (t.phase === 'hide' || t.phase === 'back' || t.phase === '') {
+          this.moveTo(c, this.speed, ctx, dt, desired);
+          crouch = 1;
+          if (lookAt) this.faceTowards(lookAt, dt, 5);
+          if (t.phase === 'back' && t.phaseT > 0.4) {
+            this.setPhase('hide');
+            this.popDelay = this.nextPop();
+          }
+          const fresh = ctx.time - sq.lkpT < HOLD_COVER;
+          if (t.phase !== 'back' && t.phaseT > this.popDelay && ctx.time >= t.pinnedUntil && fresh && sq.requestShot(this, ctx.difficulty)) this.setPhase('peek');
+        } else if (t.phase === 'peek') {
+          const at = t.peekPos ?? c;
+          const d = this.moveTo(at, this.speed * 1.2, ctx, dt, desired);
+          crouch = 0;
+          if (lookAt) this.faceTowards(lookAt, dt, 8);
+          if (d < 0.2 || t.phaseT > 0.6) {
+            this.setPhase('aim');
+            ctx.audio.gunnerCharge(this.chest, this.look.voice);
+          }
+        } else {
+          const at = t.peekPos ?? c;
+          this.moveTo(at, this.speed, ctx, dt, desired);
+          crouch = 0;
+          if (this.shootPhases(ctx, dt)) {
+            sq.releaseShot(this);
+            this.setPhase('back');
+          }
         }
         break;
       }
+      case 'advance': {
+        if (t.phase === 'move') {
+          if (t.goal) {
+            const d = this.moveTo(t.goal, this.speed, ctx, dt, desired);
+            if (d < 1 && lookAt) {
+              // Arrived in the open: sidestep while waiting for a shot.
+              if (t.phaseT < 0.05) this.strafe = Math.random() < 0.5 ? -1 : 1;
+              desired.set(-(lookAt.z - this.pos.z), 0, lookAt.x - this.pos.x).normalize().multiplyScalar(this.strafe);
+            }
+            if (this.stalled(d, dt)) t.goal = null;
+          }
+          if (t.sees && lookAt && lookAt.distanceTo(this.pos) < 25) this.faceTowards(lookAt, dt, 6);
+          else this.faceMove(dt);
+          if (t.sees && t.phaseT > 1.4 && ctx.time >= t.pinnedUntil && sq.requestShot(this, ctx.difficulty)) {
+            this.setPhase('aim');
+            ctx.audio.gunnerCharge(this.chest, this.look.voice);
+          }
+        } else if (this.shootPhases(ctx, dt)) {
+          sq.releaseShot(this);
+          this.setPhase('move');
+        }
+        break;
+      }
+      case 'pinned': {
+        // Duck: behind the cover if it's right there, else wherever it stands. No shooting.
+        if (t.coverPos && Math.hypot(t.coverPos.x - this.pos.x, t.coverPos.z - this.pos.z) < 2.5) this.moveTo(t.coverPos, this.speed * 1.2, ctx, dt, desired);
+        crouch = 1;
+        if (lookAt) this.faceTowards(lookAt, dt, 4);
+        if (ctx.time >= t.pinnedUntil) t.urgent = true;
+        break;
+      }
+      case 'reload': {
+        if (t.coverPos && Math.hypot(t.coverPos.x - this.pos.x, t.coverPos.z - this.pos.z) < 2.5) {
+          this.moveTo(t.coverPos, this.speed, ctx, dt, desired);
+          crouch = 1;
+        } else crouch = 0.5;
+        if (t.actionT > 2.2 && t.ammo <= 0) {
+          t.ammo = GUNNER_MAG;
+          t.urgent = true;
+        }
+        break;
+      }
+      case 'watch': {
+        // A sniper without contact: hold the perch, scan.
+        if (this.perch) this.moveTo(this.perch, this.speed * 0.5, ctx, dt, desired);
+        this.yaw += Math.sin(ctx.time * 0.4 + this.seed) * dt * 0.6;
+        break;
+      }
+      default:
+        this.actCalm(ctx, dt, desired, this.speed);
     }
+    // Never stand right on top of him.
+    const p = ctx.player.pos;
+    if (Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < 5) desired.add(new THREE.Vector3(this.pos.x - p.x, 0, this.pos.z - p.z).normalize().multiplyScalar(2.5));
+    this.crouch = damp(this.crouch, crouch, 9, dt);
+    const firing = t.phase === 'aim' || t.phase === 'fire';
+    this.state = t.action === 'emerge' ? 'emerge' : firing ? t.phase : t.action === 'fight' ? `cover-${t.phase}` : t.action;
     this.move(desired, ctx, dt);
   }
 
@@ -645,18 +1207,21 @@ export class Gunner extends Enemy {
     this.laserMat.color.setRGB(3 * k * fl, 1.2 * k * fl, 0.1 * k * fl);
   }
 
-  protected onHit() {
-    if (this.state === 'aim' && Math.random() < 0.5) this.setState('cooldown');
+  protected onHit(ctx: EnemyCtx) {
+    super.onHit(ctx);
+    if (this.tac.phase === 'aim' && Math.random() < 0.5) {
+      ctx.squad.releaseShot(this);
+      this.setPhase('back');
+    }
   }
 
   protected onStunned() {
     this.laser.visible = false;
-    if (this.state === 'aim' || this.state === 'fire') this.setState('cooldown');
   }
 
   protected onDeath(ctx: EnemyCtx) {
     this.laser.visible = false;
-    if (this.cover) ctx.occupied.delete(this.cover);
+    super.onDeath(ctx);
   }
 
   protected animate(dt: number, ctx: EnemyCtx, speed: number) {
@@ -664,16 +1229,26 @@ export class Gunner extends Enemy {
     const k = clamp(speed / 3, 0, 1);
     this.walkCycle(k, 0.6, 0.9);
     const breathe = Math.sin(ctx.time * 2 + this.seed) * 0.02;
-    const aiming = this.state === 'aim' || this.state === 'fire';
-    // Pitch the torso to aim at the player.
-    const p = ctx.player.pos;
-    const dy = p.y + 1.2 - (this.pos.y + 1.6);
-    const dd = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
+    const aiming = this.tac.phase === 'aim' || this.tac.phase === 'fire';
+    // Pitch the torso to aim at what it shoots at.
+    const dy = this.aimAt.y - (this.pos.y + 1.6);
+    const dd = Math.hypot(this.aimAt.x - this.pos.x, this.aimAt.z - this.pos.z);
     const pitch = aiming ? -Math.atan2(dy, dd) : 0.15;
     r.torso.rotation.x = damp(r.torso.rotation.x, pitch * 0.8 + breathe, 10, dt);
     r.body.rotation.set(0.05 * k, 0, 0);
     r.head.rotation.x = aiming ? 0.1 : Math.sin(ctx.time * 0.7 + this.seed) * 0.1;
     r.head.rotation.y = aiming ? 0 : Math.sin(ctx.time * 0.5 + this.seed) * 0.3;
+    // Crouch: thighs forward, knees bent, hips down by the same drop the hitboxes use.
+    const c = this.crouch;
+    if (c > 0.01) {
+      // Hunkered: thighs level, shins folded under (about the 0.78 m drop of the hitboxes).
+      r.legL.rotation.x = r.legL.rotation.x * (1 - c) - 1.55 * c;
+      r.legR.rotation.x = r.legR.rotation.x * (1 - c) - 1.35 * c;
+      r.kneeL.rotation.x = r.kneeL.rotation.x * (1 - c) + 2.75 * c;
+      r.kneeR.rotation.x = r.kneeR.rotation.x * (1 - c) + 2.5 * c;
+      r.body.position.y -= this.crouchDrop * c;
+      r.body.rotation.x += 0.12 * c;
+    }
     if (this.state === 'emerge') r.body.rotation.x = 0.5 - this.stateT * 0.6;
   }
 

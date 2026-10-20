@@ -186,6 +186,8 @@ export class JungleLevel implements LevelRuntime {
     };
     // Enemies see as far as the fog lets you (the 4.2 fog: 51 m to 90%; 3.7 was 58 m).
     game.ctx.sightRange = fog90(FOG_DENSITY_V4) * 0.85;
+    // 5.0: and not through the undergrowth (plants hide bodies; they don't stop rounds).
+    game.ctx.concealment = (a, b) => this.foliage.concealment(a, b);
     game.weapon.setLights({ sky: 0xb4ccb4, ground: 0x4a3c28, hemi: 1.0, key: 0xffecc8, keyI: 1.6, rim: 0xa8d8c0, rimI: 0.45 });
     const r = game.renderer.renderer;
     r.shadowMap.autoUpdate = false;

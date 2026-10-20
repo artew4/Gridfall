@@ -30,6 +30,9 @@ import type { IntroLike, LevelRuntime, Mode, ModeRules, SettingId } from '../lev
 import { LEVELS, LEVEL_ORDER, levelEntry } from '../levels/registry';
 import { ArcadeRules } from '../levels/Arcade';
 import { TokyoLevel } from '../levels/tokyo/TokyoLevel';
+import { BarkView } from '../ui/BarkView';
+import { nearMissDose } from '../enemies/tactics/Squad';
+import { buildCoverSpots } from '../enemies/tactics/CoverSpots';
 
 export type { Mode };
 
@@ -101,6 +104,7 @@ export class Game {
   projectiles!: Projectiles;
   nav!: Nav;
   waves = new Waves();
+  barkView!: BarkView;
   private intro: IntroLike | null = null;
   private occupied = new Set<THREE.Vector3>();
   private muzzleLight!: THREE.PointLight;
@@ -135,6 +139,12 @@ export class Game {
     this.input = new Input(this.renderer.canvas);
     this.hud = new Hud(document.body);
     this.storyHud = new StoryHud(document.body);
+    this.barkView = new BarkView(document.body);
+    // Callouts: the line above the speaker and its voice from where it stands.
+    this.waves.squad.barks.onBark = (e) => {
+      this.barkView.add(e);
+      this.audio.callout(e.speaker.pos.clone().setY(e.speaker.pos.y + 1.6), e.speaker.look.voice, e.text.split(/\s+/).length, e.kind === 'go' || e.kind === 'contact');
+    };
     this.storyHud.show(false);
     this.endScreen = new EndScreen(document.body);
     this.settings = loadSettings();
@@ -298,7 +308,12 @@ export class Game {
     this.hud.setWeapon(arsenal.weapon.name, arsenal.weapon.jp, arsenal.weapon.mag, this.weapon.lowAmmo);
     this.waves.look = arsenal.enemies;
     this.projectiles = new Projectiles(s, this.col, this.fx, this.audio, arsenal.enemies);
-    this.projectiles.onPlayerHit = (dmg, from) => this.damagePlayer(dmg, from);
+    this.projectiles.onPlayerHit = (dmg, from) => {
+      this.waves.squad.player.pressureT = this.elapsed;
+      this.damagePlayer(dmg, from);
+    };
+    // A round cracking past him counts as pressure too (the rushers' opening).
+    this.projectiles.onWhiz = () => (this.waves.squad.player.pressureT = this.elapsed);
     this.nav = new Nav(this.col, d.nav);
 
     // Only spawn on open ground that the nav graph can reach: never inside walls or off-map.
@@ -324,9 +339,13 @@ export class Game {
       enemies: this.waves.enemies,
       bounds: d.bounds,
       perches: d.perches,
+      squad: this.waves.squad,
       damagePlayer: (dmg, f) => this.damagePlayer(dmg, f),
     };
     level.attach();
+    // Authored spots plus spots round every waist-high solid (dynamic cover needs all sides), once
+    // the level's whole collision world exists.
+    this.ctx.coverPoints = buildCoverSpots(this.col, this.nav, d.coverPoints, d.bounds);
     this.rules = this.arcade;
 
     document.title = level.info.windowTitle;
@@ -345,6 +364,7 @@ export class Game {
     this.intro?.dispose();
     this.intro = null;
     this.waves.reset(this.scene);
+    this.barkView.clear();
     this.projectiles.clear();
     this.fx.clear();
     this.level.dispose();
@@ -516,6 +536,7 @@ export class Game {
   private restart(fromCheckpoint = false) {
     this.hud.show(this.hud.death, false);
     this.waves.reset(this.scene);
+    this.barkView.clear();
     this.occupied.clear();
     this.fx.clear();
     this.projectiles.clear();
@@ -572,6 +593,7 @@ export class Game {
     const fall = w.pellets?.falloff;
     const onEnemy = new Map<Enemy, { dmg: number; point: THREE.Vector3; dir: THREE.Vector3 }>();
     const props = new Set<unknown>();
+    const suppressed = new Map<Enemy, number>();
     let surfaceSounds = 0;
     const pd = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
@@ -601,6 +623,7 @@ export class Game {
         eh = null;
       }
       this.fx.tracer(muzzle, origin.clone().addScaledVector(pd, maxDist), tracer);
+      this.nearMisses(origin, pd, maxDist, target, suppressed);
       if (target && eh) {
         const k = fall ? (eh.dist <= fall.near ? 1 : eh.dist >= fall.far ? fall.min : 1 - ((eh.dist - fall.near) / (fall.far - fall.near)) * (1 - fall.min)) : 1;
         const dmg = w.damage * eh.mult * k * rand(0.95, 1.05);
@@ -622,6 +645,8 @@ export class Game {
         }
       }
     }
+    // Near misses: one dose per enemy per trigger pull (a shotgun doesn't pin eight times over).
+    for (const [e, k] of suppressed) if (!onEnemy.has(e)) e.suppress(k, this.ctx);
     if (onEnemy.size) {
       this.stats.hits++;
       let anyKill = false;
@@ -646,6 +671,18 @@ export class Game {
     this.player.kickRoll.impulse(rand(-c.roll, c.roll));
     this.player.fovPunch = c.fov;
     this.player.trauma = Math.min(1, this.player.trauma + c.trauma);
+  }
+
+  /**
+   * Rounds that pass within 1.8 m of an enemy's chest without hitting it suppress it, more the closer
+   * they pass. Collected per pull, applied once per enemy (the strongest pellet).
+   */
+  private nearMisses(origin: THREE.Vector3, dir: THREE.Vector3, len: number, hit: Enemy | null, out: Map<Enemy, number>) {
+    for (const e of this.ctx.enemies) {
+      if (!e.alive || e === hit) continue;
+      const k = nearMissDose(origin, dir, len, e.chest);
+      if (k > 0) out.set(e, Math.max(out.get(e) ?? 0, k));
+    }
   }
 
   // ------------------------------------------------------------------ frame
@@ -688,6 +725,11 @@ export class Game {
         if (input.mouseDown && this.weapon.tryFire()) this.shoot();
       }
       this.player.applyCamera(this.camera, this.elapsed);
+      // What the squad can observe about him (each use is gated by its own visibility rule).
+      const sp = this.waves.squad.player;
+      sp.reloading = this.weapon.reloading;
+      sp.hp = this.player.health / this.player.maxHealth;
+      sp.facing.set(-Math.sin(this.player.yaw), -Math.cos(this.player.yaw));
       this.rules.update(dt, rawDt);
       this.projectiles.update(dt, this.player);
       this.interactives.update(dt, this.elapsed, this.ctx);
@@ -730,6 +772,7 @@ export class Game {
     if (!paused) this.updateWorld(dt, rawDt);
     this.updateMusic(dt);
     this.hud.update(rawDt);
+    this.barkView.update(dt, this.camera, this.state === 'play' && this.mode === 'arcade');
     this.audio.updateListener(this.camera);
     if (!paused) this.audio.update(dt, this.camera.position);
 

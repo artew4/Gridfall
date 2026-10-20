@@ -147,6 +147,12 @@ export interface FoliageResult {
   counts: Record<string, number>;
   /** The leaf materials (4.2 wet gloss is switched on them). */
   leaves: THREE.MeshStandardMaterial[];
+  /**
+   * How much of a sightline survives the undergrowth (1 clear … 0 hidden). Rounds pass through
+   * plants, eyes don't: the AI uses this so a player deep in the bushes is as hidden from them as
+   * they are from him. From the placement density field, so it never depends on the graphics preset.
+   */
+  concealment(a: THREE.Vector3, b: THREE.Vector3): number;
   update(t: number, cam: THREE.Camera): void;
   dispose(): void;
 }
@@ -381,10 +387,31 @@ export function buildFoliage(
   mistMesh(0.3, 0.55, 0.03, [0.006, 0.002]);
   mistMesh(1.1, 0.32, 0.022, [-0.004, 0.003]);
 
+  /** Plants per square metre, as the scatter sees them (0 where the ground is kept clear). */
+  const cover = (x: number, z: number) => (keepClear.some(([a0, b0, a1, b1]) => x > a0 && x < a1 && z > b0 && z < b1) ? 0 : baseDist(x, z) < STRIP - 1 ? 0 : density(x, z));
+  const concealment = (a: THREE.Vector3, b: THREE.Vector3) => {
+    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+    const len = Math.hypot(dx, dy, dz);
+    if (len < 5) return 1;
+    // March in 1 m steps; only the part of the line inside the undergrowth layer (≤ 1.9 m above
+    // the ground there) counts; the first and last metre are the viewer's and target's own spot.
+    let tau = 0;
+    const n = Math.floor(len);
+    for (let i = 1; i < n; i++) {
+      const t = i / len;
+      const x = a.x + dx * t, y = a.y + dy * t, z = a.z + dz * t;
+      if (y - jungleHeight(x, z) > 1.9) continue;
+      tau += 0.3 * cover(x, z);
+      if (tau > 3) return 0;
+    }
+    return Math.exp(-tau);
+  };
+
   return {
     group,
     counts,
     leaves,
+    concealment,
     update(t: number) {
       time.value = t;
       for (const m of mists) m.uniforms.uTime.value = t;

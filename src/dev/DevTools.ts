@@ -98,6 +98,21 @@ export function installDevTools(game: Game) {
     async bench(seconds = 3, opts: { pipelines?: ('v4' | 'raw' | 'v37')[] } = {}) {
       return (await import('./Bench')).bench(game, seconds, opts);
     },
+    /** Survival tactics overlay: roles, actions, cover (blown or not), slots, LKP, search plan. */
+    async tactics(on = true) {
+      const { TacticsDebug } = await import('./TacticsDebug');
+      const w = window as unknown as { __tacDebug?: InstanceType<typeof TacticsDebug> };
+      w.__tacDebug ??= new TacticsDebug(game);
+      w.__tacDebug.set(on);
+    },
+    /** Headless tactical scenarios on the loaded level (roles, flank, suppress, ghost, soak). */
+    async tactical(which?: ('roles' | 'flank' | 'suppress' | 'ghost' | 'ghostStorm' | 'soak')[], opts: { soakSeconds?: number; stormSight?: number } = {}) {
+      return (await import('./TacticsCheck')).checkTactics(game, which, opts);
+    },
+    /** Survival AI under load on each level: frame cost, AI wall time, rays per frame. */
+    async aiBench(opts: { levels?: SettingId[]; seconds?: number; settle?: number } = {}) {
+      return (await import('./AIBench')).aiBench(game, opts);
+    },
     /** Render pipeline for comparisons (the F8 cycle): 'v4', 'raw' (no composer) or 'v37'. */
     pipeline(p?: 'v4' | 'raw' | 'v37') {
       if (p) game.setPipeline(p);
