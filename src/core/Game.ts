@@ -23,6 +23,8 @@ import { zoneAt, type Zone } from '../world/Zones';
 import { Effects } from '../combat/Effects';
 import { Interactives } from '../gameplay/Interactives';
 import { Player } from '../player/Player';
+import { SafetyNet } from '../player/SafetyNet';
+import { UG } from '../world/Metro';
 import { Weapon } from '../player/Weapon';
 import { Projectiles } from '../enemies/Projectiles';
 import { Nav } from '../enemies/Nav';
@@ -111,6 +113,8 @@ export class Game {
   private projM = new THREE.Matrix4();
   stationKnown = false;
   player!: Player;
+  /** Out-of-bounds / stuck recovery; a fallback only, see SafetyNet. */
+  safety!: SafetyNet;
   weapon!: Weapon;
   private projectiles!: Projectiles;
   nav!: Nav;
@@ -294,6 +298,14 @@ export class Game {
 
     this.player = new Player(this.col, this.audio);
     this.player.reset(d.start.x, d.start.z, d.start.yaw);
+    this.safety = new SafetyNet({
+      bounds: d.bounds,
+      floorMin: UG,
+      blocked: (p, r) => this.col.blocked(p, r),
+      designed: (p) => zoneAt(p.x, p.y, p.z) !== null,
+      aboard: (p) => this.rail.train.inside(p),
+    });
+    this.safety.reset(this.player.pos);
     this.weapon = new Weapon(this.weaponScene, this.weaponCamera, this.audio);
     this.projectiles = new Projectiles(s, this.col, this.fx, this.audio);
     this.projectiles.onPlayerHit = (dmg, from) => this.damagePlayer(dmg, from);
@@ -540,6 +552,7 @@ export class Game {
     if (this.mode === 'story') {
       const st = this.district.storyStart;
       this.player.reset(st.x, st.z, st.yaw);
+      this.safety.reset(this.player.pos);
       this.weapon.raiseTarget = 1;
       this.weapon.setHolstered(true, true);
       this.crowd.setVisible(true);
@@ -561,6 +574,7 @@ export class Game {
     } else {
       const st = this.district.start;
       this.player.reset(st.x, st.z, st.yaw);
+      this.safety.reset(this.player.pos);
       this.weapon.raiseTarget = 1;
       this.weapon.setHolstered(false, true);
       this.ctx.enemies = this.waves.enemies;
@@ -735,6 +749,7 @@ export class Game {
     } else if (this.state === 'play' || this.state === 'dead') {
       const controls = this.state === 'play' && input.locked;
       this.player.update(dt, input, controls, this.elapsed);
+      if (this.state === 'play' && this.player.alive) this.safety.update(dt, this.player);
       if (controls && this.player.alive) {
         if (input.pressed.has(KEYS.holster)) this.weapon.toggleHolster();
         if (input.pressed.has(KEYS.reload)) this.weapon.startReload();
@@ -892,6 +907,9 @@ export class Game {
         this.audio.doorWarning(doorPos);
         if (story && e.s.escape && !this.rail.train.inside(this.player.pos)) this.story.say('STATION PA', 'Final call: the last express to Kagerō Bay — doors are closing on Platform 1.', 3.4);
         if (story && this.rail.train.inside(this.player.pos) && !e.s.escape) this.story.say('KENJI (TEXT)', 'Wrong train! That local runs into a checkpoint — get off before the doors close!', 3.5);
+        break;
+      case 'obstructed':
+        if (story) this.story.say('STATION PA', 'Please stand clear of the doors.', 2.5);
         break;
       case 'held':
         if (story) this.story.say('STATION PA', 'Door obstruction. The train is holding — please board quickly.', 3);
