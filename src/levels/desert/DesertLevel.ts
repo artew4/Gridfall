@@ -7,7 +7,7 @@ import { buildOutpost, type OutpostResult } from './Outpost';
 import { Sandstorm } from './Sandstorm';
 import { DesertIntro } from './DesertIntro';
 import { detailTexture, sandTexture } from './textures';
-import { damp } from '../../core/math';
+import { damp, smoothstep } from '../../core/math';
 import { JACKAL_AR } from '../../entities/weapons/jackal';
 import { DESERT_MERCS } from '../../entities/enemies/mercs';
 
@@ -36,10 +36,31 @@ const SUN_DIR = new THREE.Vector3(-0.55, 0.64, 0.53).normalize();
  * Desert Outpost: open dunes inside sandstone mesas, a walled compound of low buildings you can enter,
  * a blazing sun with hard shadows, and a sandstorm cycle that takes the view away. Arcade Survival only.
  */
+/** 4.1: the sun's intensity in clear weather (3.7: 3.4). */
+const SUN_V4 = 5.4;
+
 export class DesertLevel implements LevelRuntime {
   readonly info = DESERT_INFO;
   data: LevelData;
-  readonly look: LevelLook = { exposure: 0.9, bloom: { strength: 0.32, radius: 0.5, threshold: 0.96 }, shadows: true, shadowTint: [0.008, 0.005, 0.002] };
+  /**
+   * 4.1 "Wasteland" look: a blinding sun (1.6x, sunlit ground ~59% brighter than 3.7) at the same
+   * exposure, so the shade, lit only by the sky, drops away; bloom only above the brightest diffuse sand (sun glare,
+   * specular glints on metal, sunlit dust); a bleach-bypass grade (drained midtones, crushed
+   * shadows, silver contrast) with amber pushed into the highlights. `legacy` is the 3.7 look (F8).
+   */
+  readonly look: LevelLook = {
+    exposure: 0.9,
+    bloom: { strength: 0.5, radius: 0.55, threshold: 1.0 },
+    shadows: true,
+    shadowTint: [0.003, 0.0015, 0],
+    // The bleach runs first (drains the sand to near-grey), then the warm push re-tints the sunlit
+    // range (desert highlights start low: sunlit sand is 0.3-0.7 in linear HDR) amber-yellow.
+    grade: { split: 1, teal: [0, 0, 0], warm: [1.15, 1.04, 0.76], sat: 1.0, desat: 0.35, crush: 0.5, contrast: 0.12, hi: [0.1, 0.8] },
+    legacy: { exposure: 0.9, bloom: { strength: 0.32, radius: 0.5, threshold: 0.96 }, shadows: true, shadowTint: [0.008, 0.005, 0.002] },
+  };
+  /** 4.1 additions on (the F8 comparison switches them). */
+  private v4 = true;
+  private _h = new THREE.Vector3();
   flash = 0;
   private outpost: OutpostResult;
   storm: Sandstorm;
@@ -145,7 +166,9 @@ export class DesertLevel implements LevelRuntime {
     const s = this.storm.update(f.dt, f.elapsed, game.camera);
     this.indoors = damp(this.indoors, this.inside(f.camPos) ? 1 : 0, 6, f.rawDt);
     // Light through the dust: the sun dims and reddens, the sky light grows and warms.
-    this.sun.intensity = 3.4 * (1 - 0.86 * s);
+    this.sun.intensity = (this.v4 ? SUN_V4 : 3.4) * (1 - 0.86 * s);
+    this.storm.setLook(this.v4, 1 - 0.86 * s);
+    this.updateHaze(s);
     this.sun.color.copy(this.sunColor).lerp(new THREE.Color(1, 0.62, 0.36), s * 0.8);
     this.hemi.intensity = 0.3 + 0.6 * s;
     this.hemi.color.set(0xbfd4f0).lerp(game.fog.color, s);
@@ -155,9 +178,37 @@ export class DesertLevel implements LevelRuntime {
     this.outpost.update(f.elapsed, s);
   }
 
+  /**
+   * Heat haze over the hot ground in clear weather: off indoors, in the dust (that's the storm's job)
+   * and in the 3.7 look. The band follows the horizon on screen (camera pitch). Drawn by the grade
+   * pass (Renderer.haze): a separate full-screen pass measured +2.5-3.5 ms GPU on Apple M5 even as
+   * a plain copy; folded into the grade's existing fetches it is a few ALU ops.
+   */
+  private updateHaze(storm: number) {
+    const hz = this.game.renderer.haze;
+    const k = (this.v4 ? 1 : 0) * (1 - this.indoors) * Math.pow(1 - smoothstep(0.05, 0.45, storm), 2);
+    const cam = this.game.camera;
+    cam.getWorldDirection(this._h);
+    this._h.y = 0;
+    if (k < 0.02 || this._h.lengthSq() < 1e-4) {
+      hz.px = 0;
+      return;
+    }
+    this._h.normalize().multiplyScalar(1000).add(cam.position).project(cam);
+    hz.px = this._h.y > -1.3 && this._h.y < 1.3 ? 1.4 * k : 0;
+    hz.horizon = (this._h.y + 1) / 2;
+  }
+
+  /** DEV comparison (F8): the 4.1 sun, glints, glare, metals and haze on, or the 3.7 desert. */
+  setVisual(v4: boolean) {
+    this.v4 = v4;
+    for (const g of this.outpost.gloss) Object.assign(g.mat, v4 ? g.v4 : g.legacy);
+    if (!v4) this.game.renderer.haze.px = 0;
+  }
+
   lightWeapon(weapon: Weapon) {
     const s = this.storm.clock.intensity;
-    weapon.setKey((1 - this.indoors * 0.75) * (2.6 - 1.6 * s));
+    weapon.setKey((1 - this.indoors * 0.75) * (2.6 - 1.6 * s) * (this.v4 ? 1.3 : 1));
     weapon.fillLight.color.setRGB(1, 0.78, 0.55);
     weapon.fillLight.intensity = 0.4 * (1 - this.indoors);
   }
@@ -190,6 +241,7 @@ export class DesertLevel implements LevelRuntime {
     this.sun.shadow.map?.dispose();
     this.sun.shadow.dispose();
     game.renderer.renderer.shadowMap.autoUpdate = true;
+    game.renderer.haze.px = 0;
     game.waves.minSpawnDistance = () => 12;
   }
 

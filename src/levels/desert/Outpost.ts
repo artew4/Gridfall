@@ -50,6 +50,17 @@ export interface OutpostResult {
   zoneAt(x: number, y: number, z: number): Zone | null;
   /** Everything that moves with the wind (flag, tarps): updated each frame. */
   update(t: number, wind: number): void;
+  /**
+   * 4.1: metals that catch the sun (barrels, vehicles, poles, roofing, equipment cases), with their
+   * 3.7 and 4.1 surface values, so the level can switch them for the F8 comparison.
+   */
+  gloss: Gloss[];
+}
+
+export interface Gloss {
+  mat: THREE.MeshStandardMaterial;
+  legacy: { roughness: number; metalness: number };
+  v4: { roughness: number; metalness: number };
 }
 
 const WALL_T = 0.3;
@@ -781,7 +792,20 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     return null;
   };
 
+  // 4.1: the debris and vehicles get glossier and more metallic, so the blazing sun leaves specular
+  // glints bright enough to bloom; sand, rock and plaster stay matte (roughness 0.9-0.95).
+  const gloss: Gloss[] = [
+    [m.darkMetal, 0.28, 0.8],
+    [m.rust, 0.42, 0.6],
+    [m.metal, 0.33, 0.62],
+    [crateMats.case, 0.34, 0.5],
+  ].map(([mat, roughness, metalness]) => {
+    const mm = mat as THREE.MeshStandardMaterial;
+    return { mat: mm, legacy: { roughness: mm.roughness, metalness: mm.metalness }, v4: { roughness: roughness as number, metalness: metalness as number } };
+  });
+
   return {
+    gloss,
     interiors,
     roofs,
     start: { x: 0, z: 8, yaw: 0 },
