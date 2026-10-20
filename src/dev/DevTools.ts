@@ -95,8 +95,13 @@ export function installDevTools(game: Game) {
       return (await import('./TrainCheck')).checkTrain(game);
     },
     /** The fixed version-comparison benchmark (current preset). */
-    async bench(seconds = 3) {
-      return (await import('./Bench')).bench(game, seconds);
+    async bench(seconds = 3, opts: { pipelines?: ('v4' | 'raw' | 'v37')[] } = {}) {
+      return (await import('./Bench')).bench(game, seconds, opts);
+    },
+    /** Render pipeline for comparisons (the F8 cycle): 'v4', 'raw' (no composer) or 'v37'. */
+    pipeline(p?: 'v4' | 'raw' | 'v37') {
+      if (p) game.setPipeline(p);
+      return game.renderer.pipeline;
     },
     /** Frame rate, CPU and GPU milliseconds per frame, busy share (power proxy). */
     async perf(seconds = 4) {
@@ -126,4 +131,32 @@ export function installDevTools(game: Game) {
     },
   };
   (window as unknown as { __dev: typeof dev }).__dev = dev;
+  bindPipelineKey(game);
+}
+
+/**
+ * F8 cycles the render pipeline for side-by-side comparison: 4.0 → RAW (no composer) → 3.7 → 4.0,
+ * with a short label. Capture phase: F8 never reaches the game's input (it would skip the opening).
+ */
+function bindPipelineKey(game: Game) {
+  const label = document.createElement('div');
+  label.style.cssText = 'position:fixed;left:16px;top:12px;z-index:50;font:600 12px monospace;letter-spacing:2px;color:#9ff;background:rgba(0,0,0,.55);padding:4px 8px;pointer-events:none;opacity:0;transition:opacity .4s';
+  document.body.appendChild(label);
+  let hide = 0;
+  const names = { v4: 'PIPELINE 4.0 · COMPOSER', raw: 'PIPELINE RAW · NO COMPOSER', v37: 'PIPELINE 3.7 · LEGACY LOOK' } as const;
+  const order = ['v4', 'raw', 'v37'] as const;
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.code !== 'F8') return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      game.setPipeline(order[(order.indexOf(game.renderer.pipeline) + 1) % order.length]);
+      label.textContent = names[game.renderer.pipeline];
+      label.style.opacity = '1';
+      clearTimeout(hide);
+      hide = window.setTimeout(() => (label.style.opacity = '0'), 1600);
+    },
+    true,
+  );
 }

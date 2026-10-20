@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Game } from '../core/Game';
 import { probe } from './PerfProbe';
+import type { Pipeline } from '../core/Renderer';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -10,12 +11,45 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * short settle. Results include FPS, average/P95/P99 frame time, CPU and GPU ms and busy share,
  * draw calls, triangles, heap and collision-query cost.
  */
-export async function bench(game: Game, seconds = 3) {
+export async function bench(game: Game, seconds = 3, opts: { pipelines?: Pipeline[] } = {}) {
   const dev = (window as unknown as { __dev: { start(m: string): void; god(): void; noGuards(): void; tp(x: number, y: number, z: number, yaw?: number, pitch?: number): void; look(x: number, y: number, z: number): void; shoot(): void } }).__dev;
   const out: Record<string, unknown> = {};
+  const valid = () => document.hasFocus() && !document.hidden && game.state === 'play';
+  /**
+   * One measurement that only counts if the window stayed focused, visible and in play the whole
+   * time (an unfocused window is capped lower and a hidden one pauses: those numbers measure the
+   * power policy, not rendering). Up to three tries.
+   */
+  const one = async () => {
+    let r: Record<string, unknown> = {};
+    for (let k = 0; k < 3; k++) {
+      // A released pointer lock or a hidden tab pauses the game (nothing is drawn): resume it.
+      if (game.state === 'paused') (dev as unknown as { lock(): void }).lock();
+      await wait(700);
+      const ok0 = valid();
+      r = (await probe(game, seconds)) as unknown as Record<string, unknown>;
+      if (ok0 && valid()) return { ...r, valid: true, tries: k + 1 };
+    }
+    return { ...r, valid: false, tries: 3 };
+  };
+  let turn = 0;
   const m = async (name: string) => {
-    await wait(700);
-    out[name] = await probe(game, seconds);
+    if (!opts.pipelines) {
+      out[name] = await one();
+      return;
+    }
+    // Every pipeline at the same placement, the order rotated per scenario so drift (heat, battery)
+    // doesn't favour one of them.
+    const ps = opts.pipelines;
+    const res: Record<string, unknown> = {};
+    for (let i = 0; i < ps.length; i++) {
+      const p = ps[(i + turn) % ps.length];
+      game.setPipeline(p);
+      res[p] = await one();
+    }
+    turn++;
+    game.setPipeline('v4');
+    out[name] = res;
   };
   if (game.setting === 'desert') return benchDesert(game, dev, m, out);
   if (game.setting === 'jungle') return benchJungle(game, dev, m, out);

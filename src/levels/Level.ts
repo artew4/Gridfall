@@ -5,6 +5,7 @@ import type { IntroFrame } from '../cinematic/Intro';
 import type { Weapon } from '../player/Weapon';
 import type { Player } from '../player/Player';
 import type { Arsenal } from '../entities/types';
+import type { LookGrade } from '../core/Renderer';
 
 export type SettingId = 'tokyo' | 'desert' | 'jungle';
 export type Mode = 'story' | 'arcade';
@@ -93,6 +94,10 @@ export interface LevelLook {
   shadows: boolean;
   /** Film-grade shadow tint (r, g, b added in the darks). */
   shadowTint: [number, number, number];
+  /** 4.0 teal/orange split-tone in the grade pass (absent = off, the 3.7 grade). */
+  grade?: LookGrade;
+  /** The look before 4.0, for the DEV comparison toggle (F8), if the level changed it. */
+  legacy?: LevelLook;
 }
 
 /**
@@ -152,4 +157,6 @@ export interface LevelRuntime {
   /** Free everything the level created outside the scene graph (audio, timers, render targets). */
   dispose(): void;
   debug?(): Record<string, unknown>;
+  /** DEV comparison (F8): switch the level's own 4.0 visual additions on or off (materials, lights). */
+  setVisual?(v4: boolean): void;
 }
