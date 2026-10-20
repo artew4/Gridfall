@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Renderer } from './Renderer';
 import { Input } from './Input';
+import { InteractionController, type Interactable } from './Interaction';
 import { clamp, damp, rand } from './math';
 import { AudioEngine } from '../audio/AudioEngine';
 import { MusicDirector } from '../audio/music/MusicDirector';
@@ -47,15 +48,7 @@ export type Mode = 'story' | 'arcade';
 type State = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending';
 
 /** Something the player can use with E when close and facing it. */
-export interface Interactable {
-  pos: THREE.Vector3;
-  radius: number;
-  label: string;
-  enabled: () => boolean;
-  action: () => void;
-  /** Seconds E must be held (default: a single press). */
-  hold?: number;
-}
+export type { Interactable };
 
 const FOG_COLOR = new THREE.Color(0x0d0b19);
 
@@ -84,7 +77,7 @@ export class Game {
   private ending: Ending | null = null;
   endScreen: EndScreen;
   interactables: Interactable[] = [];
-  private focus: Interactable | null = null;
+  private interaction = new InteractionController();
   /** Why the run ended (death screen title). */
   private failReason = '';
   storyHud: StoryHud;
@@ -110,7 +103,6 @@ export class Game {
   private frustum = new THREE.Frustum();
   private projM = new THREE.Matrix4();
   stationKnown = false;
-  private holdT = 0;
   player!: Player;
   weapon!: Weapon;
   private projectiles!: Projectiles;
@@ -443,6 +435,7 @@ export class Game {
     this.hud.root.classList.toggle('story', this.mode === 'story');
     if (!fromCheckpoint) this.stats = { shots: 0, hits: 0, start: this.elapsed };
     this.zone = null;
+    this.interaction.reset();
     if (this.mode === 'story') {
       const st = this.district.storyStart;
       this.player.reset(st.x, st.z, st.yaw);
@@ -616,7 +609,6 @@ export class Game {
       this.player.update(dt, input, controls, this.elapsed);
       if (controls && this.player.alive) {
         if (input.pressed.has('KeyH')) this.weapon.toggleHolster();
-        if (input.pressed.has('KeyE') && this.focus && !this.focus.hold) this.focus.action();
         if (input.pressed.has('KeyR')) this.weapon.startReload();
         if (input.mouseDown && this.weapon.tryFire()) this.shoot();
       }
@@ -786,36 +778,12 @@ export class Game {
     }
   }
 
-  /** Nearest usable thing in front of the player, shown as a prompt. */
+  /** Nearest usable thing in front of the player, shown as a prompt; E is handled here only. */
   private updateInteraction(dt: number) {
     const p = this.player.pos;
     const fwd = this.player.forward(new THREE.Vector3());
-    let best: Interactable | null = null;
-    let bd = Infinity;
-    for (const it of this.interactables) {
-      if (!it.enabled()) continue;
-      const dx = it.pos.x - p.x, dz = it.pos.z - p.z;
-      const d = Math.hypot(dx, dz);
-      if (d > it.radius || Math.abs(it.pos.y - p.y) > 2) continue;
-      if (d > 0.8 && (dx * fwd.x + dz * fwd.z) / d < 0.2) continue;
-      if (d < bd) {
-        bd = d;
-        best = it;
-      }
-    }
-    if (best !== this.focus) this.holdT = 0;
-    this.focus = best;
-    let label = best ? `<b>E</b>${best.label}` : null;
-    if (best?.hold) {
-      if (this.input.key('KeyE') && this.input.locked) {
-        this.holdT += dt;
-        label = `<b>E</b>${best.label} ${'▮'.repeat(Math.ceil((this.holdT / best.hold) * 10)).padEnd(10, '▯')}`;
-        if (this.holdT >= best.hold) {
-          this.holdT = 0;
-          best.action();
-        }
-      } else this.holdT = 0;
-    }
+    const live = this.input.locked && this.player.alive;
+    const label = this.interaction.update(this.interactables, p, fwd, live && this.input.pressed.has('KeyE'), live && this.input.key('KeyE'), dt);
     // A local's doors are open and we're inside: say what that means.
     const inLocal = this.rail.train.inside(p) && this.rail.train.doorK > 0.5 && !this.rail.tt.active()?.s.escape;
     this.storyHud.setHint(label ?? (inLocal ? 'THIS LOCAL STOPS AT A SECURITY CHECKPOINT' : null));
