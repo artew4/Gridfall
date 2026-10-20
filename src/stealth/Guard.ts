@@ -180,7 +180,7 @@ export class Guard extends Enemy {
       if (dist <= this.range + 0.5) {
         const look = this.lookYaw;
         const cosH = dh > 1e-3 ? (Math.sin(look) * dx + Math.cos(look) * dz) / dh : 1;
-        zone = sightZone(cosH, dy, dh, this.range);
+        zone = sightZone(cosH, dy, dh, this.range, ri.engaged);
         if (zone) for (const h of VISION.samples) if (this.sec.sightLine(eye, _sample.set(p.pos.x, p.pos.y + h, p.pos.z))) visible++;
       }
     }

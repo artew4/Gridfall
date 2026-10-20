@@ -13,6 +13,8 @@ export const VISION = {
   /** How far up / down a guard looks without tilting his head, degrees. */
   lookUp: 40,
   lookDown: 55,
+  /** In a firefight officers look for the shooter, up as well: walkways and roofs aren't blind spots. */
+  lookUpEngaged: 70,
   /** Direct sight: a drawn weapon, or security already hunting the fugitive. */
   range: 16,
   /** A holstered, not-yet-wanted fugitive is only recognised this close. */
@@ -74,12 +76,12 @@ export type SightZone = 'cone' | 'peripheral' | 'touch' | null;
  * Where the target sits in the guard's view. `cosH`: cosine between the facing and the horizontal
  * direction to the target; `dy`: target height minus eye height; `dh`: horizontal distance.
  */
-export function sightZone(cosH: number, dy: number, dh: number, range: number): SightZone {
+export function sightZone(cosH: number, dy: number, dh: number, range: number, engaged = false): SightZone {
   const dist = Math.hypot(dh, dy);
   if (dist <= VISION.touch) return 'touch';
   if (dist > range) return null;
   const pitch = Math.atan2(dy, Math.max(1e-3, dh)) / DEG;
-  if (pitch > VISION.lookUp || pitch < -VISION.lookDown) return null;
+  if (pitch > (engaged ? VISION.lookUpEngaged : VISION.lookUp) || pitch < -VISION.lookDown) return null;
   if (cosH >= FOV_COS) return 'cone';
   if (dist <= VISION.peripheral && cosH >= PERIPHERAL_COS) return 'peripheral';
   return null;

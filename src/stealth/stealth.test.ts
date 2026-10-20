@@ -56,6 +56,11 @@ describe('Perception: view cone (3D)', () => {
     expect(sightZone(1, -3.5, 3, R)).toBe('cone');
     expect(sightZone(1, -6, 2, R)).toBe(null);
   });
+
+  it('in a firefight a guard looks up for the shooter (walkway right above him)', () => {
+    expect(sightZone(1, 4.5 + 1.1 - 1.75, 2.5, R)).toBe(null);
+    expect(sightZone(1, 4.5 + 1.1 - 1.75, 2.5, R, true)).toBe('cone');
+  });
 });
 
 describe('Perception: recognition', () => {
