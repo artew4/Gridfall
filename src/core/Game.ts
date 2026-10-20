@@ -188,6 +188,7 @@ export class Game {
     this.glows.buildHalos(s);
     this.rain = new Rain(s, this.glows, this.time, this.fog, {
       open: d.open,
+      holes: this.col.holes,
       surfaces: d.arch.surfaces.concat([
         { x0: -5, z0: 15, x1: -3.6, z1: 48, y: 0.12 },
         { x0: 3.6, z0: 15, x1: 5, z1: 48, y: 0.12 },
@@ -365,6 +366,7 @@ export class Game {
       this.weapon.raiseTarget = 1;
       this.weapon.setHolstered(true, true);
       this.security.clear();
+      this.setStationOpen(false);
       for (const p of this.district.patrols) this.security.spawnPatrol(p);
       this.crowd.setVisible(true);
       this.crowd.reset(this.player.pos);
@@ -379,6 +381,7 @@ export class Game {
       this.weapon.raiseTarget = 1;
       this.weapon.setHolstered(false, true);
       this.ctx.enemies = this.waves.enemies;
+      this.setStationOpen(false);
       this.storyHud.show(false);
       this.crowd.setVisible(false);
       this.crowd.civs.length = 0;
@@ -607,6 +610,14 @@ export class Game {
   }
 
   /** Snippets of conversation from calm people nearby. */
+  /** Lockdown on/off: station shutters, the stair links in the nav graph, where civilians may walk. */
+  setStationOpen(open: boolean) {
+    const m = this.district.metro;
+    for (const sh of m.shutters) sh.setOpen(open);
+    for (const e of m.entrances) this.nav.setLinks([[e.chain[0], e.chain[1]], [e.chain[1], e.chain[2]]], open);
+    this.crowd.setUnderground(open);
+  }
+
   private ambientChatter(dt: number) {
     this.chatterT -= dt;
     if (this.chatterT > 0) return;
@@ -684,6 +695,10 @@ export class Game {
     this.train.update(dt);
     this.fx.update(dt);
     this.district.kit.update(this.elapsed, dt);
+    for (const sh of this.district.metro.shutters) sh.update(dt);
+    this.audio.setUnderground(camPos.y < -2 ? 1 : 0);
+    // Thinner haze underground (no rain, stale air rather than street fog).
+    this.fog.density = damp(this.fog.density, camPos.y < -2 ? 0.012 : 0.022, 2, rawDt);
     this.district.billboard.offset.y = (this.elapsed * 0.035) % 1;
     this.events.update(dt, this.elapsed, camPos, this.train.rumble);
 

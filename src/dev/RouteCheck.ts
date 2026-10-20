@@ -11,11 +11,11 @@ type WP = [number, number, number]; // x, expected floor y, z
 const ROUTES: { name: string; pts: WP[] }[] = [
   {
     name: 'plaza loop: S1 → W2 → W1 → W3 → S2',
-    pts: [[0, 0, 12], [11, 0, 14], [13.7, 0, 14.2], [13.7, DECK, 3.5], [13.5, DECK, -7], [13.5, DECK, -13.5], [0, DECK, -13.5], [-13.5, DECK, -13.5], [-13.5, DECK, -2], [-13.7, DECK, 3.5], [-13.7, 0, 14.2], [-9, 0, 13.5]],
+    pts: [[0, 0, 12], [6, 0, 3.8], [11.5, 0, 3.8], [11.5, 0, 13.8], [13.7, 0, 14.2], [13.7, DECK, 3.5], [13.5, DECK, -7], [13.5, DECK, -13.5], [0, DECK, -13.5], [-13.5, DECK, -13.5], [-13.5, DECK, -2], [-13.7, DECK, 3.5], [-13.7, 0, 14.2], [-9, 0, 13.5]],
   },
   {
     name: 'Neon Alley → S4 → tech deck → W2 → S1 down',
-    pts: [[17, 0, -0.6], [30, 0, -0.6], [41.6, 0, -0.6], [41.6, 0, -2.1], [30.5, DECK, -2.1], [19, DECK, -2.1], [13.5, DECK, -2.1], [13.7, DECK, 3.5], [13.7, 0, 14.2], [8, 0, 12]],
+    pts: [[17, 0, -0.6], [30, 0, -0.6], [41.6, 0, -0.6], [41.6, 0, -2.1], [30.5, DECK, -2.1], [19, DECK, -2.1], [13.5, DECK, -2.1], [13.7, DECK, 3.5], [13.7, 0, 14.2], [11.5, 0, 13.8], [11.5, 0, 3.8], [6, 0, 3]],
   },
   {
     name: 'Service Passage → S3 → pipe gallery → W3',
@@ -40,6 +40,14 @@ const ROUTES: { name: string; pts: WP[] }[] = [
   {
     name: 'W2 → S5 → Sky Garden → Lantern Roof → bridge over Lantern St → West Terrace → S8 → W3',
     pts: [[13.5, 4.5, -2], [14.2, 4.5, 3.3], [23.4, 8.5, 3.3], [26, 8.5, 7.5], [17.5, 8.5, 12], [17.5, 8.5, 18], [7, 8.5, 20], [-7, 8.5, 20], [-12, 8.5, 19.5], [-16.2, 8.5, 12.5], [-16.2, 8.5, 8.7], [-16.2, 4.5, -0.8], [-13.5, 4.5, -1]],
+  },
+  {
+    name: 'metro: plaza entrance → concourse → gate → platform → alley exit',
+    pts: [[9.1, 0, 2.5], [9.1, 0, 3.6], [9.1, -6, 16.2], [9.1, -6, 18.2], [8.2, -6, 21.4], [8.2, -6, 25.2], [0, -6, 31.4], [-24, -6, 31.4], [-20, -6, 28.1], [-19, -6, 28.1], [-6.2, 0, 28.1], [-6.2, 0, 25.5], [0, 0, 25.5]],
+  },
+  {
+    name: 'metro: Service Passage staff door → corridor → maintenance → platform → gates',
+    pts: [[-34.5, 0, -3.5], [-34.5, 0, -3.1], [-34.5, -6, 9.6], [-34.5, -6, 13], [-34.5, -6, 20], [-30.5, -6, 25], [-30.5, -6, 28.3], [-30, -6, 31.4], [0, -6, 31.4], [0.8, -6, 25.2], [0.8, -6, 21.4], [4, -6, 19]],
   },
   {
     name: 'Lantern Street → torii → plaza',
@@ -139,6 +147,9 @@ function chase(game: Game, from: THREE.Vector3, goal: THREE.Vector3, seconds = 6
 
 export function runRouteCheck(game: Game) {
   const t0 = performance.now();
+  // The station is normally locked: open it for the check, then put it back.
+  const wasOpen = game.district.metro.shutters[0].open;
+  game.setStationOpen(true);
   const routes = ROUTES.map((r) => ({ name: r.name, ...walk(game, r.pts) }));
   // Vaults and drops: walkway railing to the plaza, Sky Garden low parapet onto S1, high parapets hold.
   const jumps = [
@@ -168,6 +179,8 @@ export function runRouteCheck(game: Game) {
     new THREE.Vector3(-8, 0, 8),
     new THREE.Vector3(37, 8.5, 10.5),
     new THREE.Vector3(-12, 8.5, 19.5),
+    new THREE.Vector3(-24, -6, 31.4),
+    new THREE.Vector3(6, -6, 21),
   ];
   const chases = [];
   for (const s of spawns) for (const g of goals) chases.push({ from: s.toArray(), to: g.toArray(), ...chase(game, s, g) });
@@ -184,6 +197,7 @@ export function runRouteCheck(game: Game) {
     chaseCount: chases.length,
     ms: Math.round(performance.now() - t0),
   };
+  game.setStationOpen(wasOpen);
   console.log('[route-check]', result);
   return result;
 }

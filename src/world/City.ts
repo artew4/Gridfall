@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { StaticBuilder, worldBox } from './Builder';
+import { subtractAll, type R } from './Rects';
 import { CollisionWorld } from './Collision';
 import { Glows } from './Glows';
 import { applyWet } from './Ground';
@@ -172,7 +173,7 @@ export class City {
   private upperPlane = new THREE.PlaneGeometry(4, 2.9);
 
   /** Asphalt everywhere, granite paving on the plaza, raised sidewalks with kerbs along the streets. */
-  ground(plaza: { x0: number; z0: number; x1: number; z1: number }, sidewalks: { x0: number; z0: number; x1: number; z1: number }[]) {
+  ground(plaza: R, sidewalks: R[], holes: R[] = []) {
     const b = this.ctx.builder;
     const m = this.mats;
     const plane = (w: number, d: number, tile: number) => {
@@ -182,14 +183,19 @@ export class City {
       g.rotateX(-Math.PI / 2);
       return g;
     };
-    const ground = new THREE.Mesh(plane(140, 140, 7), m.asphalt);
-    ground.position.set(0, 0, -5);
-    this.scene.add(ground);
-    const pw = plaza.x1 - plaza.x0;
-    const pd = plaza.z1 - plaza.z0;
-    const paving = new THREE.Mesh(plane(pw, pd, 6), m.paving);
-    paving.position.set((plaza.x0 + plaza.x1) / 2, 0.006, (plaza.z0 + plaza.z1) / 2);
-    this.scene.add(paving);
+    // Asphalt and plaza paving, both with the metro stairwells cut out.
+    const lay = (r: R, mat: THREE.Material, tile: number, y: number) => {
+      for (const p of subtractAll([r], holes)) {
+        const mesh = new THREE.Mesh(plane(p.x1 - p.x0, p.z1 - p.z0, tile), mat);
+        // Keep the texture continuous across the pieces.
+        const uv = mesh.geometry.attributes.uv as THREE.BufferAttribute;
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) + (p.x0 - r.x0) / tile, uv.getY(i) + (r.z1 - p.z1) / tile);
+        mesh.position.set((p.x0 + p.x1) / 2, y, (p.z0 + p.z1) / 2);
+        this.scene.add(mesh);
+      }
+    };
+    lay({ x0: -70, z0: -75, x1: 70, z1: 65 }, m.asphalt, 7, 0);
+    lay(plaza, m.paving, 6, 0.006);
     for (const s of sidewalks) {
       const w = s.x1 - s.x0;
       const d = s.z1 - s.z0;

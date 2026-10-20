@@ -771,3 +771,95 @@ export function crossTexture(): THREE.Texture {
   ctx.fillRect(S * 0.12, S * 0.38, S * 0.76, S * 0.24);
   return tex(c);
 }
+
+/** Station wall tiles: small white tiles, a line-colour band at shoulder height (one texture = 7.6 m of wall). */
+export function stationWallTexture(): THREE.Texture {
+  const W = 256;
+  const H = 1024;
+  const rnd = mulberry32(55);
+  const { c, ctx } = canvas(W, H);
+  noiseFill(ctx, W, H, [214, 216, 210], 10, rnd);
+  ctx.strokeStyle = 'rgba(70,74,80,0.35)';
+  ctx.lineWidth = 1.5;
+  const tile = H / 7.6 / 5; // 20 cm tiles
+  for (let y = 0; y < H; y += tile) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+  for (let x = 0; x < W; x += tile) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  }
+  // Wall runs from y=-7.6 (bottom of texture) to 0 (top). Band at -4.6..-4.25, skirting at the floor.
+  const yOf = (wy: number) => H - ((wy + 7.6) / 7.6) * H;
+  ctx.fillStyle = '#e4508a';
+  ctx.fillRect(0, yOf(-4.25), W, yOf(-4.6) - yOf(-4.25));
+  ctx.fillStyle = '#2a2c30';
+  ctx.fillRect(0, yOf(-5.85), W, yOf(-6.0) - yOf(-5.85));
+  ctx.fillRect(0, yOf(-7.05), W, yOf(-7.2) - yOf(-7.05));
+  grime(ctx, W, H, rnd, 25);
+  const t = tex(c, true, true);
+  return t;
+}
+
+/** Polished terrazzo for the station floor. */
+export function terrazzoTexture(): THREE.Texture {
+  const S = 512;
+  const rnd = mulberry32(57);
+  const { c, ctx } = canvas(S, S);
+  noiseFill(ctx, S, S, [150, 148, 152], 16, rnd);
+  for (let i = 0; i < 2600; i++) {
+    const v = 90 + rnd() * 120;
+    ctx.fillStyle = `rgb(${v},${v},${v + 8})`;
+    ctx.fillRect(rnd() * S, rnd() * S, 1 + rnd() * 3, 1 + rnd() * 3);
+  }
+  ctx.strokeStyle = 'rgba(40,40,46,0.6)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, S - 2, S - 2);
+  return tex(c, true, true);
+}
+
+/** Ceiling panels with fluorescent strips (emissive map as the second texture). */
+export function ceilingTextures(): { map: THREE.Texture; emissive: THREE.Texture } {
+  const S = 256;
+  const a = canvas(S, S);
+  a.ctx.fillStyle = '#3a3c42';
+  a.ctx.fillRect(0, 0, S, S);
+  a.ctx.strokeStyle = '#26282c';
+  a.ctx.lineWidth = 3;
+  a.ctx.strokeRect(0, 0, S, S);
+  a.ctx.fillStyle = '#d8e8ff';
+  a.ctx.fillRect(S * 0.45, 8, S * 0.1, S - 16);
+  const e = canvas(S, S);
+  e.ctx.fillStyle = '#000';
+  e.ctx.fillRect(0, 0, S, S);
+  e.ctx.fillStyle = '#e8f2ff';
+  e.ctx.fillRect(S * 0.45, 8, S * 0.1, S - 16);
+  return { map: tex(a.c, true, true), emissive: tex(e.c, true, true) };
+}
+
+/** Corrugated rolling shutter. */
+export function shutterTexture(): THREE.Texture {
+  const W = 128;
+  const H = 256;
+  const { c, ctx } = canvas(W, H);
+  for (let y = 0; y < H; y += 8) {
+    const g = ctx.createLinearGradient(0, y, 0, y + 8);
+    g.addColorStop(0, '#8c9096');
+    g.addColorStop(0.5, '#b8bcc2');
+    g.addColorStop(1, '#5c6066');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, y, W, 8);
+  }
+  ctx.fillStyle = 'rgba(200,30,30,0.85)';
+  ctx.font = `bold 20px ${JP_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.fillText('閉鎖中', W / 2, H * 0.45);
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('SECURITY LOCKDOWN', W / 2, H * 0.53);
+  return tex(c, true, true);
+}

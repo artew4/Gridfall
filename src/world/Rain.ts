@@ -9,11 +9,13 @@ const HASH_GLSL = /* glsl */ `
   }
 `;
 
-export const MAX_AREAS = 16;
+export const MAX_AREAS = 32;
 
 /** Rain-relevant geometry: where rain is blocked, where it lands above the ground, and open ground. */
 export interface RainAreas {
   open: [number, number, number, number][];
+  /** Stairwell openings: no splashes on thin air. */
+  holes?: { x0: number; z0: number; x1: number; z1: number }[];
   surfaces: { x0: number; z0: number; x1: number; z1: number; y: number }[];
   shelters: { x0: number; z0: number; x1: number; z1: number; y: number }[];
 }
@@ -25,6 +27,7 @@ const AREA_GLSL = /* glsl */ `
   uniform vec4 uSurf[${MAX_AREAS}];
   uniform float uSurfY[${MAX_AREAS}];
   uniform vec4 uOpen[${MAX_AREAS}];
+  uniform vec4 uHole[4];
   float inRect(vec2 p, vec4 r) { return step(r.x, p.x) * step(p.x, r.z) * step(r.y, p.y) * step(p.y, r.w); }
   float sheltered(vec3 p) {
     float s = 0.0;
@@ -41,6 +44,7 @@ const AREA_GLSL = /* glsl */ `
     float o = 0.0;
     for (int i = 0; i < ${MAX_AREAS}; i++) o = max(o, inRect(p, uOpen[i]));
     for (int i = 0; i < ${MAX_AREAS}; i++) o = max(o, inRect(p, uSurf[i]));
+    for (int i = 0; i < 4; i++) o *= 1.0 - inRect(p, uHole[i]);
     return o;
   }
 `;
@@ -70,6 +74,7 @@ export class Rain {
       uSurf: { value: rectArray(areas.surfaces) },
       uSurfY: { value: Array.from({ length: MAX_AREAS }, (_, i) => areas.surfaces[i]?.y ?? 0) },
       uOpen: { value: rectArray(areas.open) },
+      uHole: { value: rectArray(areas.holes ?? []).slice(0, 4) },
       uIntensity: { value: 1 },
       ...glows.uniforms,
     };

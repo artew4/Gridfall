@@ -79,7 +79,7 @@ const _b = new THREE.Vector3();
 export class Crowd {
   civs: Civ[] = [];
   private parts: Record<string, THREE.InstancedMesh> = {};
-  private allowed: number[];
+  private allowed: number[] = [];
   private rnd = mulberry32(7);
   /** A witness started phoning (HUD hint) / the call went through. */
   onCalling: (pos: THREE.Vector3) => void = () => {};
@@ -98,8 +98,7 @@ export class Crowd {
     private nav: Nav,
     private pois: Poi[],
   ) {
-    // Civilians walk the street level and the station; few go up to the walkways.
-    this.allowed = nav.nodes.map((_, i) => i).filter((i) => nav.nodes[i].y < 3 || Math.random() < 0.15);
+    this.setUnderground(false);
     this.buildMeshes();
     const c = document.createElement('canvas');
     c.width = c.height = 64;
@@ -163,6 +162,19 @@ export class Crowd {
     }
     for (const im of Object.values(this.parts)) if (im.instanceColor) im.instanceColor.needsUpdate = true;
     this.setVisible(false);
+  }
+
+  /** Civilians walk the street level (and the station once it's open); few go up to the walkways. */
+  setUnderground(open: boolean) {
+    const r = mulberry32(3);
+    this.allowed = this.nav.nodes
+      .map((_, i) => i)
+      .filter((i) => {
+        const y = this.nav.nodes[i].y - 1;
+        if (y < -1) return open;
+        if (y > 7) return r() < 0.08;
+        return y < 3 || r() < 0.15;
+      });
   }
 
   /** Only story mode has a population. */
