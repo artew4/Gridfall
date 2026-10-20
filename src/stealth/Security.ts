@@ -233,8 +233,9 @@ export class Security {
   }
 
   /** Something loud happened (shots). Guards in earshot react; civilians are told separately. */
-  gunshot(at: THREE.Vector3, byPlayer: boolean) {
+  gunshot(at: THREE.Vector3, byPlayer: boolean, by?: Guard) {
     this.onShot(at);
+    if (by) this.onHeard(by);
     if (!byPlayer) return;
     let heard = false;
     for (const g of this.guards) {
@@ -268,7 +269,11 @@ export class Security {
 
   bark(g: Guard, kind: string) {
     this.audio.radio(g.chest.clone(), kind);
+    this.onHeard(g);
   }
+
+  /** A guard made itself heard (bark, shot) — the HUD may mark roughly where. */
+  onHeard: (g: Guard) => void = () => {};
 
   onGuardDown(_g: Guard) {
     this.stats.guardsDown++;

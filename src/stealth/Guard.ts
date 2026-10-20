@@ -432,7 +432,7 @@ export class Guard extends Enemy {
           dir.normalize();
           ctx.projectiles.fire(muzzle, dir, 22);
           ctx.audio.enemyShot(muzzle);
-          this.sec.gunshot(muzzle, false);
+          this.sec.gunshot(muzzle, false, this);
           ctx.fx.add.spawn({ x: muzzle.x, y: muzzle.y, z: muzzle.z, r: 2, g: 3.5, b: 5, size: 0.4, life: 0.06 });
           this.leanX.impulse(-2);
         }

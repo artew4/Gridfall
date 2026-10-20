@@ -180,3 +180,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .cp-grid b { color: #f2fdff; font-weight: 400; }
 .cp-grid span { color: var(--cyan-dim); }
 .cp-notes { margin: 18px 0 10px; font-size: 10px; line-height: 1.8; letter-spacing: 0.18em; color: var(--cyan-dim); text-align: left; }
+
+/* ---------- Minimap ---------- */
+.minimap { position: absolute; top: 46px; right: 22px; width: 184px; height: 184px; border-radius: 50%; border: 1px solid var(--cyan-faint); box-shadow: 0 0 22px rgba(34, 232, 255, 0.08), inset 0 0 18px rgba(0, 0, 0, 0.6); z-index: 5; pointer-events: none; transition: opacity 0.4s; }
+.minimap .floor { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font-size: 9px; letter-spacing: 0.35em; color: var(--cyan-dim); font-family: var(--mono); }
+.minimap.hidden { opacity: 0; }
+@media (max-width: 900px) { .minimap { width: 140px; height: 140px; } .minimap canvas { width: 140px !important; height: 140px !important; } }

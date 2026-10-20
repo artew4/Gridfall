@@ -68,6 +68,8 @@ export interface MetroResult {
   platform: R;
   lights: THREE.PointLight[];
   doorZ: number;
+  /** Floor plan (for the minimap). */
+  rooms: R[];
 }
 
 /**
@@ -381,7 +383,7 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
   pois.push({ pos: new THREE.Vector3(-11.5, UG, 18.6), yaw: Math.PI, kind: 'shop' }, { pos: new THREE.Vector3(11, UG, 22), yaw: Math.PI / 2, kind: 'shop' });
 
   const shelters = rooms.filter((r) => !r.shaft).map((r) => ({ x0: r.x0, z0: r.z0, x1: r.x1, z1: r.z1, y: -0.05 }));
-  return { holes, shelters, shutters, boards, setDoors, nodes, links, entrances, pois, platform: rooms[3], lights, doorZ: SCREEN_Z };
+  return { holes, shelters, shutters, boards, setDoors, nodes, links, entrances, pois, platform: rooms[3], lights, doorZ: SCREEN_Z, rooms: rooms.filter((r) => r.x1 - r.x0 < 100) };
 }
 
 /** Station-style sign: line colour bar, Japanese and English. */
