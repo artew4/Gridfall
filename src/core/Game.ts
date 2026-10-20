@@ -451,6 +451,8 @@ export class Game {
 
   private resume() {
     this.freshClock = true;
+    // Keys pressed behind the menu (no frames ran) must not fire on the first frame back.
+    this.input.endFrame();
     this.state = this.stateBeforePause;
     this.menu.show(false);
     this.music.setPaused(false);
@@ -886,6 +888,7 @@ export class Game {
       case 'closingSoon':
         this.audio.departureMelody();
         this.audio.doorWarning(doorPos);
+        if (story && e.s.escape && !this.rail.train.inside(this.player.pos)) this.story.say('STATION PA', 'Final call: the last express to Kagerō Bay — doors are closing on Platform 1.', 3.4);
         if (story && this.rail.train.inside(this.player.pos) && !e.s.escape) this.story.say('KENJI (TEXT)', 'Wrong train! That local runs into a checkpoint — get off before the doors close!', 3.5);
         break;
       case 'held':
@@ -1105,7 +1108,11 @@ export class Game {
     this.district.kit.update(this.elapsed, dt);
     for (const sh of this.district.metro.shutters) sh.update(dt);
     // Security fighting the fugitive right by the train holds the escape train's doors.
-    const engaged = this.mode === 'story' && this.security.guards.some((g) => g.alive && g.gstate === 'combat' && g.pos.distanceTo(this.player.pos) < 14);
+    // The conductor holds the doors for a fugitive fighting his way to them — not once he's aboard.
+    const engaged =
+      this.mode === 'story' &&
+      !this.rail.train.inside(this.player.pos) &&
+      this.security.guards.some((g) => g.alive && g.gstate === 'combat' && g.pos.distanceTo(this.player.pos) < 14);
     this.rail.update(dt, this.player.pos, engaged);
     const under = camPos.y < -2;
     const nearWell = this.col.holes.some((h) => Math.hypot(Math.max(h.x0 - camPos.x, 0, camPos.x - h.x1), Math.max(h.z0 - camPos.z, 0, camPos.z - h.z1)) < 12);
