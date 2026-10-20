@@ -32,10 +32,24 @@ import { Security } from '../stealth/Security';
 import { StoryHud, type ThreatMark } from '../ui/StoryHud';
 import { SEARCH_TIME } from '../stealth/AlertSystem';
 import { Crowd } from '../city/Crowd';
+import { Rail, type RailEvent } from '../rail/Rail';
+import { fmt } from '../rail/Timetable';
+import { Ending } from '../story/Ending';
+import { EndScreen } from '../ui/EndScreen';
+import { CAR_CENTRES, TRACK_Z } from '../world/Metro';
 
 export type Mode = 'story' | 'arcade';
 
-type State = 'title' | 'intro' | 'play' | 'paused' | 'dead';
+type State = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending';
+
+/** Something the player can use with E when close and facing it. */
+export interface Interactable {
+  pos: THREE.Vector3;
+  radius: number;
+  label: string;
+  enabled: () => boolean;
+  action: () => void;
+}
 
 const FOG_COLOR = new THREE.Color(0x0d0b19);
 
@@ -60,6 +74,13 @@ export class Game {
   private stateBeforePause: State = 'play';
   security!: Security;
   crowd!: Crowd;
+  rail!: Rail;
+  private ending: Ending | null = null;
+  endScreen: EndScreen;
+  interactables: Interactable[] = [];
+  private focus: Interactable | null = null;
+  /** Why the run ended (death screen title). */
+  private failReason = '';
   storyHud: StoryHud;
   private chatterT = 2;
 
@@ -114,6 +135,7 @@ export class Game {
     this.hud = new Hud(document.body);
     this.storyHud = new StoryHud(document.body);
     this.storyHud.show(false);
+    this.endScreen = new EndScreen(document.body);
     this.settings = loadSettings();
     this.menu = new PauseMenu(document.body, this.settings);
     this.applySettings();
@@ -251,6 +273,11 @@ export class Game {
     this.security.onRadio = (text, tone) => this.storyHud.radioLine(text, tone);
     this.events.onSteam = (v) => this.security.addBlocker(v.clone().setY(v.y + 1.6), 2.4, 4.5);
     this.crowd = new Crowd(s, this.col, this.nav, d.pois);
+    this.rail = new Rail(s, this.col, d.metro);
+    this.rail.onEvent = (e) => this.onRail(e);
+    for (const b of d.metro.boards) {
+      this.interactables.push({ pos: b.readAt, radius: 3.2, label: 'READ DEPARTURES', enabled: () => this.mode === 'story', action: () => this.readBoard() });
+    }
     this.security.civilianBlocks = (a, b) => this.crowd.blocks(a, b);
     this.security.onShot = (at) => this.crowd.onGunshot(at, this.elapsed);
     this.crowd.onReport = (pos) => this.security.civilianReport(pos);
@@ -299,6 +326,11 @@ export class Game {
       this.music.setPaused(false);
       this.restart();
     };
+    this.endScreen.onRestart = () => {
+      this.endScreen.hide();
+      this.restart();
+    };
+    this.endScreen.onMenu = () => this.toTitle();
     this.menu.onChange = (s) => {
       this.applySettings();
       saveSettings(s);
@@ -333,7 +365,10 @@ export class Game {
     this.music.setPaused(false);
   }
 
+  private audioWorld = false;
   private startAudioWorld() {
+    if (this.audioWorld) return;
+    this.audioWorld = true;
     for (const g of this.signs) {
       if (g.hum) this.hums.push({ glow: g, h: this.audio.addHum(g.pos, 100 + Math.random() * 20), last: 1 });
     }
@@ -400,6 +435,9 @@ export class Game {
     this.weapon.reset();
     this.interactives.reset();
     this.events.reset();
+    this.rail.reset();
+    this.ending = null;
+    this.failReason = '';
     this.timeScale = 1;
     this.damageFx = 0;
     this.renderer.grade.uniforms.uFade.value = 0;
@@ -517,11 +555,18 @@ export class Game {
       if (f.raiseWeapon) this.weapon.raiseTarget = 1;
       if (f.hud) this.hud.show(this.hud.root, true);
       if (f.done) this.beginPlay();
+    } else if (this.state === 'ending' && this.ending) {
+      const f = this.ending.update(dt, this.camera);
+      const g = this.renderer.grade.uniforms;
+      g.uFade.value = f.fade;
+      g.uLetterbox.value = damp(g.uLetterbox.value, f.letterbox, 3, rawDt);
+      if (f.done && this.endScreen.root.classList.contains('hidden')) this.showEndScreen();
     } else if (this.state === 'play' || this.state === 'dead') {
       const controls = this.state === 'play' && input.locked;
       this.player.update(dt, input, controls, this.elapsed);
       if (controls && this.player.alive) {
         if (input.pressed.has('KeyH')) this.weapon.toggleHolster();
+        if (input.pressed.has('KeyE') && this.focus) this.focus.action();
         if (input.pressed.has('KeyR')) this.weapon.startReload();
         if (input.mouseDown && this.weapon.tryFire()) this.shoot();
       }
@@ -531,6 +576,7 @@ export class Game {
         this.crowd.update(dt, this.elapsed, this.player, this.weapon.visible, this.security.alert.level === 'pursuit');
         this.updateStoryHud(rawDt);
         this.ambientChatter(dt);
+        this.updateInteraction();
       } else {
         this.ctx.difficulty = this.waves.difficulty;
         this.waves.update(dt, this.ctx);
@@ -552,6 +598,7 @@ export class Game {
           this.hud.show(this.hud.root, false);
           this.storyHud.show(false);
           this.hud.showDeath({
+            title: this.failReason || undefined,
             wave: this.waves.wave,
             kills: this.mode === 'story' ? this.security.stats.guardsDown : this.waves.kills,
             accuracy: this.stats.shots ? this.stats.hits / this.stats.shots : 0,
@@ -607,6 +654,135 @@ export class Game {
       this.zone = z;
       this.hud.zoneShow(z.name, z.jp);
     }
+  }
+
+  // ------------------------------------------------------------------ rail, interaction, ending
+  private onRail(e: RailEvent) {
+    const story = this.mode === 'story' && this.state === 'play';
+    const doorPos = { x: CAR_CENTRES[1], y: -4.5, z: TRACK_Z - 1.5 };
+    switch (e.type) {
+      case 'approach':
+        if (e.s.kind === 'deadhead') {
+          this.audio.announce(1.6);
+          if (story && this.player.pos.y < -2) this.storyHud.radioLine('PA — A train is passing through. Please stand back. 通過電車にご注意ください', 'story');
+        } else {
+          this.audio.announce(2.8);
+          if (story && this.player.pos.y < -2) {
+            this.storyHud.radioLine(
+              e.s.escape
+                ? `PA — Now arriving: the last express for ${e.s.dest}. まもなく終電が参ります`
+                : `PA — Now arriving: local for ${e.s.dest}. まもなく各駅停車が参ります`,
+              'story',
+            );
+          }
+        }
+        break;
+      case 'doorsOpen':
+        this.audio.doorChime(doorPos, true);
+        break;
+      case 'closingSoon':
+        this.audio.departureMelody();
+        this.audio.doorWarning(doorPos);
+        if (story && this.rail.train.inside(this.player.pos) && !e.s.escape) this.storyHud.radioLine('THE DOORS ARE CLOSING — THIS LOCAL RUNS INTO A CHECKPOINT. GET OFF!', 'alert');
+        break;
+      case 'held':
+        if (story) this.storyHud.radioLine('PA — Door obstruction. The train is holding. ドアにご注意ください', 'warn');
+        break;
+      case 'doorsClosed':
+        this.audio.doorChime(doorPos, false);
+        if (story && e.aboard) {
+          if (e.s.escape) this.startEnding();
+          else this.caught();
+        }
+        break;
+      case 'depart':
+        break;
+    }
+  }
+
+  /** Nearest usable thing in front of the player, shown as a prompt. */
+  private updateInteraction() {
+    const p = this.player.pos;
+    const fwd = this.player.forward(new THREE.Vector3());
+    let best: Interactable | null = null;
+    let bd = Infinity;
+    for (const it of this.interactables) {
+      if (!it.enabled()) continue;
+      const dx = it.pos.x - p.x, dz = it.pos.z - p.z;
+      const d = Math.hypot(dx, dz);
+      if (d > it.radius || Math.abs(it.pos.y - p.y) > 2) continue;
+      if (d > 0.8 && (dx * fwd.x + dz * fwd.z) / d < 0.2) continue;
+      if (d < bd) {
+        bd = d;
+        best = it;
+      }
+    }
+    this.focus = best;
+    // A local's doors are open and we're inside: say what that means.
+    const inLocal = this.rail.train.inside(p) && this.rail.train.doorK > 0.5 && !this.rail.tt.active()?.s.escape;
+    this.storyHud.setHint(best ? `<b>E</b>${best.label}` : inLocal ? 'THIS LOCAL STOPS AT A SECURITY CHECKPOINT' : null);
+  }
+
+  private readBoard() {
+    const rows = this.rail.tt.upcoming(4).filter((s) => s.kind !== 'deadhead').slice(0, 3);
+    this.storyHud.radioLine(`BOARD ${fmt(this.rail.tt.now)} — ` + rows.map((s) => `${fmt(s.time)} ${s.escape ? 'LAST EXPRESS' : 'LOCAL'} ${s.dest}${s.escape ? '' : ' (CHECKPOINT)'}`).join(' · '), 'story');
+    this.onBoardRead();
+  }
+
+  /** Hook for the mission (reading the departures). */
+  onBoardRead: () => void = () => {};
+
+  private startEnding() {
+    this.state = 'ending';
+    this.ending = new Ending(this.rail.train, this.train);
+    this.hud.show(this.hud.root, false);
+    this.storyHud.show(false);
+    this.weapon.raiseTarget = 0;
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+
+  private showEndScreen() {
+    const a = this.security.alert;
+    const levels = ['UNNOTICED', 'SUSPICIOUS', 'ALERTED', 'SEARCH', 'PURSUIT'];
+    this.endScreen.show({
+      time: this.elapsed - this.stats.start,
+      guardsDown: this.security.stats.guardsDown,
+      detected: a.timesDetected,
+      escapes: a.escapes,
+      maxAlert: levels[a.maxRank],
+      alarmed: this.crowd.stats.alarmed,
+      harmed: this.crowd.stats.harmed,
+      accuracy: this.stats.shots ? this.stats.hits / this.stats.shots : 0,
+      interactions: this.envUses,
+    });
+  }
+  /** Environment used against security (cabinets, lamps, steam). */
+  envUses = 0;
+
+  /** Rode a local into the checkpoint. */
+  private caught() {
+    this.failReason = 'CAUGHT AT THE CHECKPOINT';
+    this.player.health = 0;
+    this.player.alive = false;
+  }
+
+  /** Back to the title screen with a clean world. */
+  toTitle() {
+    this.endScreen.hide();
+    this.hud.show(this.hud.death, false);
+    this.hud.show(this.hud.root, false);
+    this.storyHud.show(false);
+    this.menu.show(false);
+    this.waves.reset(this.scene);
+    this.security.clear();
+    this.crowd.setVisible(false);
+    this.crowd.civs.length = 0;
+    this.rail.reset();
+    this.ending = null;
+    this.timeScale = 1;
+    this.renderer.grade.uniforms.uLetterbox.value = 0;
+    this.state = 'title';
+    this.hud.show(this.hud.title, true);
   }
 
   /** Snippets of conversation from calm people nearby. */
@@ -696,6 +872,12 @@ export class Game {
     this.fx.update(dt);
     this.district.kit.update(this.elapsed, dt);
     for (const sh of this.district.metro.shutters) sh.update(dt);
+    // Security fighting the fugitive right by the train holds the escape train's doors.
+    const engaged = this.mode === 'story' && this.security.guards.some((g) => g.alive && g.gstate === 'combat' && g.pos.distanceTo(this.player.pos) < 14);
+    this.rail.update(dt, this.player.pos, engaged);
+    const under = camPos.y < -2;
+    const nearWell = this.col.holes.some((h) => Math.hypot(Math.max(h.x0 - camPos.x, 0, camPos.x - h.x1), Math.max(h.z0 - camPos.z, 0, camPos.z - h.z1)) < 12);
+    this.audio.metroRumble(this.rail.train.group.visible ? (under ? 1 : nearWell ? 0.25 : 0.04) : 0, this.rail.speed);
     this.audio.setUnderground(camPos.y < -2 ? 1 : 0);
     // Thinner haze underground (no rain, stale air rather than street fog).
     this.fog.density = damp(this.fog.density, camPos.y < -2 ? 0.012 : 0.022, 2, rawDt);

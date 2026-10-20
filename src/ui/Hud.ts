@@ -15,6 +15,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''):
 }
 
 export interface DeathStats {
+  title?: string;
   wave: number;
   kills: number;
   accuracy: number;
@@ -172,7 +173,7 @@ export class Hud {
   showDeath(s: DeathStats) {
     const mm = Math.floor(s.time / 60);
     const ss = Math.floor(s.time % 60);
-    this.death.innerHTML = `<div class="big">FLATLINED</div>
+    this.death.innerHTML = `<div class="big">${s.title ?? 'FLATLINED'}</div>
       <div class="hint" style="animation:none;margin-top:10px;font-family:var(--jp)">02:47 · 雨は止まない</div>
       <div class="stats">
         <span>WAVE</span><span>${String(s.wave).padStart(2, '0')}</span>

@@ -94,7 +94,8 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   // ======================================================================= Blocks
   // [x0, x1, z0, z1, height, variant, faces]
   // West Terrace (roof 8.5): the southwest block and the strip west of the plaza, with the S8 notch.
-  const NT = { tank: false };
+  const NT = { tank: false, walk: true };
+  const LOW = { tank: false };
   city.block(-21, -5, 15, 24, ROOF, 1, [
     { face: 'n', from: -15, to: -5, stores: ['shop', 'izakaya'] },
     { face: 'e', stores: ['izakaya', 'izakaya'] },
@@ -102,15 +103,15 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   ], rnd, NT);
   city.block(-21, -17.4, -2, 15, ROOF, 2, [{ face: 'w', stores: ['shutter', 'door', 'shutter'] }], rnd, NT);
   city.block(-17.4, -15, 7.6, 15, ROOF, 2, [{ face: 'e', stores: ['shop'] }], rnd, NT);
-  city.block(-17.4, -15, -2, 0.4, DECK, 2, [{ face: 'e' }], rnd, NT);
-  city.block(-17.4, -15, 0.4, 7.6, DECK, 2, [{ face: 'e', stores: ['shop'] }], rnd, NT);
+  city.block(-17.4, -15, -2, 0.4, DECK, 2, [{ face: 'e' }], rnd, LOW);
+  city.block(-17.4, -15, 0.4, 7.6, DECK, 2, [{ face: 'e', stores: ['shop'] }], rnd, LOW);
   // Back-alley block, split by the staff passage to the metro (door on the Service Passage).
   city.block(-45, -36, -2, 27, 12, 0, [{ face: 'n', stores: ['shutter', 'door'] }], rnd);
   city.block(-33, -24, -2, 27, 12, 0, [
     { face: 'e', stores: ['door', 'shutter', 'shutter', 'door', 'shutter', 'door', 'shutter'] },
     { face: 'n', stores: ['shutter', 'door'] },
   ], rnd);
-  city.block(-36, -33, 8.7, 27, 12, 0, [], rnd, NT);
+  city.block(-36, -33, 8.7, 27, 12, 0, [], rnd, LOW);
   city.block(-36, -33, -2, 8.7, 12, 0, [], rnd, { tank: false, y0: 3.2 });
   // South of the widened back-alley bend (z 24..29).
   city.block(-40, -24, 27, 50, 13, 2, [], rnd);
@@ -129,7 +130,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   // Sky Garden (8.5) on the block south of Neon Alley; the S5 notch climbs from the W2 balcony.
   city.block(15, 48, 4.6, 15, ROOF, 2, [{ face: 'w', from: 4.6, to: 15 }], rnd, NT);
   city.block(22.2, 48, 2, 4.6, ROOF, 2, [{ face: 'n', stores: ['izakaya', 'shutter', 'shop', 'door', 'shop', 'shutter'] }], rnd, NT);
-  city.block(15, 22.2, 2, 4.6, DECK, 2, [{ face: 'n', stores: ['shop'] }], rnd, NT);
+  city.block(15, 22.2, 2, 4.6, DECK, 2, [{ face: 'n', stores: ['shop'] }], rnd, LOW);
   city.block(15, 19, -21, -3, 10, 0, [
     { face: 'w', from: -15, to: -3, stores: ['shop', 'door', 'shop'], upper: ['door', 'shop'] },
     { face: 'e', stores: ['shutter', 'door', 'shutter', 'shutter'] },
@@ -143,7 +144,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   // Tech Roof (8.5) north of Neon Alley, the S7 notch climbs from the tech deck; the tower behind stays tall.
   city.block(31.2, 48, -9, -3, ROOF, 1, [{ face: 's', stores: ['shop', 'izakaya', 'shutter', 'door'], upper: ['shop', 'door', 'shop'] }], rnd, NT);
   city.block(23, 31.2, -9, -5.4, ROOF, 1, [{ face: 'w' }], rnd, NT);
-  city.block(23, 31.2, -5.4, -3, DECK, 1, [{ face: 's', stores: ['shop', 'shutter'] }, { face: 'w' }], rnd, NT);
+  city.block(23, 31.2, -5.4, -3, DECK, 1, [{ face: 's', stores: ['shop', 'shutter'] }, { face: 'w' }], rnd, LOW);
   city.block(23, 48, -21, -9, 17, 1, [{ face: 'w', stores: ['shutter', 'door', 'shutter'] }], rnd);
   city.block(6, 48, -58, -26, 22, 2, [
     { face: 'w', stores: ['shutter', 'door', 'shop', 'shutter', 'door', 'shutter', 'shop'] },
