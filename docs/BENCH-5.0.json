@@ -1,0 +1,46 @@
+{
+ "version": "5.0 (feature/tactical-ai-5.0)",
+ "machine": "Apple M5, Chrome, ANGLE Metal, 120 Hz display, DPR 2, on battery (97-98%, rAF 122 Hz, not throttled)",
+ "preset": "Balanced (pixel ratio 1.25, 60 FPS cap, 3 bloom levels; saved settings unchanged)",
+ "baseline": "4.2 (f8d3b19) served from a git worktree on port 5174 in the same browser tab, runs alternated with 5.0 on port 5173",
+ "aiBench": {
+  "method": "__dev.aiBench(): Arcade, god mode, wave 6 (10 alive), the player at the level start shooting at the nearest enemy every 0.6 s; 14 s settle, 5 s measured. aiMs = wall time inside Waves.update (director + decides + every enemy act); rays = collision raycasts made inside it. Each version: page reload, two rounds back to back; both rounds listed.",
+  "columns": ["fps", "cpuMsPerFrame", "gpuMsPerFrame", "frameMsP99", "aiMsAvg", "aiMsP95", "aiMsP99", "aiMsWorst", "raysPerFrame"],
+  "5.0": {
+   "tokyo": [[60, 2.89, 6.3, 23.8, 0.206, 0.4, 0.8, 1.0, 4.5], [60.2, 2.98, 6.86, 25.6, 0.183, 0.3, 0.7, 1.1, 4.2]],
+   "desert": [[60, 2.74, 5.53, 24.8, 0.373, 0.7, 1.2, 1.2, 7.1], [60, 2.34, 5.9, 25.0, 0.301, 0.6, 0.8, 1.3, 5.3]],
+   "jungle": [[60, 2.98, 6.42, 24.4, 0.345, 0.8, 1.0, 1.7, 6.9], [60, 2.4, 6.18, 25.4, 0.302, 0.7, 1.0, 1.7, 6.0]]
+  },
+  "4.2": {
+   "tokyo": [[60, 2.69, 6.71, 24.4, 0.285, 0.5, 0.8, 0.8, 45.9], [59.8, 2.89, 6.81, 25.8, 0.284, 0.5, 0.7, 0.9, 51.3]],
+   "desert": [[60, 2.33, 6.06, 24.8, 0.436, 1.2, 1.6, 1.8, 27.2], [60, 2.57, 5.72, 24.7, 0.405, 1.2, 1.5, 1.7, 29.6]],
+   "jungle": [[60, 2.73, 6.16, 24.2, 0.498, 1.4, 1.7, 2.1, 42.5], [60, 2.86, 6.25, 24.4, 0.434, 1.3, 1.6, 2.5, 32.6]]
+  },
+  "4.2_first_measurement": {
+   "note": "the very first baseline run of the session (same bench, before any 5.0 code existed)",
+   "tokyo": [60, 2.78, 6.42, 25.1, 0.26, 0.5, 0.7, 1.0, 42.1],
+   "desert": [60, 2.61, 5.44, 24.4, 0.479, 1.3, 2.2, 2.7, 29.9],
+   "jungle": [60, 2.95, 6.3, 24.9, 0.473, 1.5, 1.7, 1.8, 38.6]
+  }
+ },
+ "dev_bench": {
+  "method": "__dev.bench(3) per setting (Tokyo in Story mode with no guards; desert and jungle in Arcade, their 'fight' scenarios with waves). Page opened with ?setting=tokyo for both versions (same load order). All measurements valid (focused, visible, in play).",
+  "columns": ["fps", "cpuMsPerFrame", "gpuMsPerFrame", "frameMsP95", "drawCalls"],
+  "5.0": {
+   "tokyo": {"plaza": [60, 2.46, 6.52, 22.8, 194], "rooftop": [60, 2.76, 6.87, 23.7, 237], "metroConcourse": [60, 2.74, 6.24, 24.0, 150], "platform": [60, 2.9, 6.36, 23.7, 254], "platformTrain": [60, 2.73, 6.64, 23.8, 363], "overpassTrain": [60.2, 2.85, 6.22, 24.3, 222], "pursuit": [60, 2.82, 6.53, 24.0, 346], "firefight": [60, 2.72, 6.81, 22.5, 425]},
+   "desert": {"yardCalm": [59.9, 2.03, 5.19, 24.0, 89], "towerView": [60, 2.35, 6.14, 23.7, 93], "yardStorm": [60, 2.12, 5.34, 23.8, 91], "interiorStorm": [60.3, 2.04, 5.8, 24.0, 74], "dunesStorm": [60, 2.4, 6.03, 23.1, 100], "fightStorm": [60, 2.48, 5.41, 23.8, 133]},
+   "jungle": {"roadApproach": [60, 2.31, 6.46, 22.5, 111], "undergrowth": [60, 2.6, 5.8, 24.1, 109], "yard": [60, 2.55, 6.42, 23.3, 96], "barracks": [60, 2.07, 5.83, 23.8, 66], "watchtower": [60, 2.41, 6.45, 23.5, 92], "fight": [60, 2.39, 6.33, 23.7, 106]}
+  },
+  "4.2": {
+   "tokyo": {"plaza": [60, 2.32, 6.29, 23.8, 194], "rooftop": [60.3, 2.74, 6.38, 23.9, 331], "metroConcourse": [60, 2.55, 6.7, 23.5, 150], "platform": [60, 2.56, 6.25, 21.4, 159], "platformTrain": [60, 2.5, 6.47, 19.6, 278], "overpassTrain": [60, 2.58, 6.53, 24.1, 223], "pursuit": [60, 2.71, 6.54, 20.7, 340], "firefight": [60, 2.78, 6.55, 23.4, 425]},
+   "desert": {"yardCalm": [60, 2.34, 5.87, 23.6, 89], "towerView": [60, 2.38, 6.29, 23.4, 93], "yardStorm": [60, 2.32, 5.62, 24.0, 91], "interiorStorm": [60, 2.17, 6.03, 24.2, 74], "dunesStorm": [60, 2.32, 5.78, 24.1, 100], "fightStorm": [60, 2.5, 5.92, 24.0, 112]},
+   "jungle": {"roadApproach": [60, 2.71, 6.36, 19.8, 111], "undergrowth": [60, 2.69, 6.47, 23.6, 109], "yard": [60, 2.53, 6.73, 23.9, 96], "barracks": [60, 2.16, 6.31, 20.0, 66], "watchtower": [60.3, 2.43, 6.21, 17.6, 92], "fight": [60, 2.37, 6.27, 23.2, 137]}
+  },
+  "caveat": "Earlier in the session several 5.0 runs measured 4.7-6.2 ms CPU per frame in Tokyo for 15-25 s after a page load, uniformly slower in code 5.0 did not change (story rules 0.7-0.85 vs 0.45 ms). It did not depend on the AI (freezing Waves.update and hiding every enemy left it unchanged) and did not reproduce on later loads of the same build (2.6-2.8 ms). Recorded as a machine-state effect (on battery), not attributed to 5.0; the table above is a later, alternated pair."
+ },
+ "ai_cost_breakdown_desert": {
+  "method": "wall time per frame, 10 enemies, wave 6, after the steering cache",
+  "msPerFrame": {"waves_update_total": 0.415, "squad_update_incl_decides": 0.067, "nav_route": 0.078, "nav_clear_straight_line": 0.064},
+  "before_steering_cache": {"waves_update_total": 0.672, "nav_clear_straight_line": 0.263, "raycasts_per_frame": 23}
+ }
+}

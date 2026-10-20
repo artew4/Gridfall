@@ -9,7 +9,7 @@ import type { CollisionWorld } from '../world/Collision';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { Effects } from '../combat/Effects';
 import { Spring, clamp, damp, easeOut, rand } from '../core/math';
-import { GUNNER_MAG, createTac, nearestNode, type Squad, type TacAgent, type TacState } from './tactics/Squad';
+import { GUNNER_MAG, createTac, nearestNode, peekSight, type Squad, type TacAgent, type TacState } from './tactics/Squad';
 import { choose, type Option } from './tactics/Utility';
 import { evaluateCover, isProtected } from './tactics/Cover';
 
@@ -99,6 +99,12 @@ export abstract class Enemy {
   private directFrom = new THREE.Vector3(1e9, 0, 0);
   private directTo = new THREE.Vector3(1e9, 0, 0);
   private skipT = 0;
+  private wedgeAt = new THREE.Vector3();
+  private wedgeT = 0;
+  private unwedgeT = 0;
+  private unwedgeTo = new THREE.Vector3();
+  /** Times it had to step out of a wedge (DEV counter). */
+  unsticks = 0;
   private dieT = 0;
   private stepIdx = 0;
   private glowBase: THREE.Color;
@@ -212,6 +218,30 @@ export abstract class Enemy {
   protected steerTarget(goal: THREE.Vector3, ctx: EnemyCtx, dt: number): THREE.Vector3 {
     const from = new THREE.Vector3(this.pos.x, this.pos.y + 1, this.pos.z);
     const to = new THREE.Vector3(goal.x, goal.y + 1, goal.z);
+    // Pinned against something (a boulder the graph link skirts, another body in a doorway): it
+    // wants to go somewhere but hasn't moved half a metre in 1.5 s. Step back and to one side for
+    // 0.6 s, then plan again (5.0; the wedge recovery below only switches to the graph).
+    const far = Math.hypot(goal.x - this.pos.x, goal.z - this.pos.z) > 1.5;
+    if (!far || this.pos.distanceToSquared(this.wedgeAt) > 0.25) {
+      this.wedgeAt.copy(this.pos);
+      this.wedgeT = 0;
+    } else this.wedgeT += dt;
+    if (this.unwedgeT > 0) {
+      this.unwedgeT -= dt;
+      return this.unwedgeTo;
+    }
+    if (this.wedgeT > 1.5) {
+      this.wedgeT = 0;
+      this.unwedgeT = 0.6;
+      const dx = goal.x - this.pos.x, dz = goal.z - this.pos.z;
+      const l = Math.hypot(dx, dz) || 1;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      this.unwedgeTo.set(this.pos.x + (-dz / l) * side * 2 - (dx / l) * 0.6, this.pos.y, this.pos.z + (dx / l) * side * 2 - (dz / l) * 0.6);
+      this.path.length = 0;
+      this.pathT = 0;
+      this.unsticks++;
+      return this.unwedgeTo;
+    }
     // Straight at the goal only on the same level; otherwise the graph knows where the stairs are.
     // If a straight approach stops making progress (wedged in a corner), use the graph for a while.
     this.forcePathT -= dt;
@@ -304,6 +334,10 @@ export abstract class Enemy {
         const d = Math.sqrt(d2);
         desired.x += (dx / d) * (min - d) * 6;
         desired.z += (dz / d) * (min - d) * 6;
+      } else if (d2 <= 1e-6) {
+        // Exactly on top of each other (spawned on one point): part along a per-enemy direction.
+        desired.x += Math.cos(this.seed) * min * 6;
+        desired.z += Math.sin(this.seed) * min * 6;
       }
     }
     const accel = this.stagger > 0 ? 2 : 10;
@@ -546,7 +580,12 @@ export abstract class TacticalEnemy extends Enemy implements TacAgent {
     } else if (t.action === 'search') {
       if (t.phase !== 'look') {
         const pt = sq.claimSearch(this);
-        t.goal = pt ? pt.pos : null;
+        if (pt) t.goal = pt.pos;
+        else if (!t.goal && sq.lkp) {
+          // Every point taken or checked: sweep a random spot near where he was, not stand about.
+          const a = Math.random() * Math.PI * 2, r = 6 + Math.random() * 10;
+          t.goal = nearestNode(ctx, new THREE.Vector3(sq.lkp.x + Math.cos(a) * r, sq.lkp.y, sq.lkp.z + Math.sin(a) * r), sq.lkp.y, this.pos);
+        }
       }
     } else if (t.action === 'idle') {
       if (!t.goal || (t.phase === 'pause' && t.phaseT > 3)) {
@@ -665,13 +704,18 @@ export class Runner extends TacticalEnemy {
     if (t.suppression >= 0.8 && now > t.pinResistUntil) opts.push({ action: 'dodge', score: 0.95, interrupt: true });
     if (engaged && threat) {
       const d = Math.hypot(threat.x - this.pos.x, threat.z - this.pos.z);
-      const otherLevel = Math.abs(threat.y - this.pos.y) > 2;
-      if (!t.stagePos && !t.go && !otherLevel && sq.lkp) {
-        const a = t.slot;
-        const want = new THREE.Vector3(sq.lkp.x + Math.cos(a) * 11, sq.lkp.y, sq.lkp.z + Math.sin(a) * 11);
-        t.stagePos = nearestNode(ctx, want, sq.lkp.y, this.pos);
+      // A slot is planned once per engagement; on another level than him there's no slot to hold
+      // (decided now, not re-tested every decide: halfway up a stair the height difference flips).
+      if (!t.stagePos && !t.go && sq.lkp && t.action !== 'rush') {
+        if (Math.abs(threat.y - this.pos.y) > 2) t.go = true;
+        else {
+          const a = t.slot;
+          const want = new THREE.Vector3(sq.lkp.x + Math.cos(a) * 11, sq.lkp.y, sq.lkp.z + Math.sin(a) * 11);
+          t.stagePos = nearestNode(ctx, want, sq.lkp.y, this.pos);
+        }
       }
-      const rushNow = t.go || d < 7 || otherLevel || !t.stagePos;
+      // A charge in progress is kept until it lands (stage again only after a swing, from recover).
+      const rushNow = t.go || d < 7 || !t.stagePos || t.action === 'rush';
       opts.push({ action: 'rush', score: rushNow ? 0.85 : 0.1 });
       opts.push({ action: 'stage', score: rushNow ? 0 : 0.7 });
     } else this.calmOptions(ctx, opts);
@@ -788,11 +832,11 @@ export class Runner extends TacticalEnemy {
       case 'recover':
         desired.set(p.x - this.pos.x, 0, p.z - this.pos.z).normalize().multiplyScalar(-1.5);
         if (t.actionT > 0.55) {
-          // Keep at it up close; otherwise the director decides (back to the slot or charge again).
-          t.go = reach < 4;
+          // Keep at it up close; otherwise fall back to a (new) slot and wait for the next signal.
           t.stagePos = null;
           t.staged = false;
-          this.enter('rush', ctx);
+          t.go = reach < 4;
+          this.enter(t.go ? 'rush' : 'stage', ctx);
           t.urgent = true;
         }
         break;
@@ -873,6 +917,8 @@ export class Gunner extends TacticalEnemy {
   private laserMat: THREE.MeshBasicMaterial;
   private aimPoint = new THREE.Vector3();
   private aimAt = new THREE.Vector3();
+  /** Bursts called off because the muzzle was behind its own cover (DEV counter). */
+  blockedShots = 0;
 
   constructor(spawn: THREE.Vector3, difficulty: number, scene: THREE.Scene, perch: THREE.Vector3 | null = null, look: EnemyLook = NEON_SYNTHS) {
     super(look.buildGunner(), 150, spawn, 'gunner', look);
@@ -924,12 +970,16 @@ export class Gunner extends TacticalEnemy {
         t.coverCheckT = now + 1.5;
         let ev = sq.cover.get(t.coverId, threat, now);
         if (!ev) {
-          ev = evaluateCover(t.coverPos, threat, sq.los, (q) => !ctx.col.blocked(q, 0.35), Math.min(34, (ctx.sightRange ?? 60) + 1));
+          ev = evaluateCover(t.coverPos, threat, sq.los, (q) => !ctx.col.blocked(q, 0.35), Math.min(34, (ctx.sightRange ?? 60) + 1), peekSight(ctx));
           sq.cover.put(t.coverId, threat, now, ev);
         }
         if (!ev.protected) t.exposedT = Math.max(t.exposedT, 0.3);
-        else if (!ev.peek) t.coverStale = true;
-        else if (t.phase !== 'peek' && t.phase !== 'aim' && t.phase !== 'fire') {
+        else if (!ev.peek) {
+          // Two checks in a row without a shot (he may only be passing a pillar): then move.
+          if (t.noPeekChecks++ >= 1) t.coverStale = true;
+          t.coverCheckT = now + 0.75;
+        } else if (t.phase !== 'peek' && t.phase !== 'aim' && t.phase !== 'fire') {
+          t.noPeekChecks = 0;
           // The way out may change side as he moves.
           t.peekPos = ev.peek;
           t.peekKind = ev.kind;
@@ -951,6 +1001,7 @@ export class Gunner extends TacticalEnemy {
           t.peekKind = res.kind;
           t.exposedT = 0;
           t.coverStale = false;
+          t.noPeekChecks = 0;
           t.coverCheckT = now + 1.5;
           if (blown) sq.bark(this, 'blown');
           else if (t.role === 'flanker') sq.bark(this, t.side > 0 ? 'flankL' : 'flankR');
@@ -988,12 +1039,29 @@ export class Gunner extends TacticalEnemy {
     }
 
     // ---- Goals.
-    if (t.action === 'advance' && threat && (!t.goal || t.phase === 'move' && Math.hypot(t.goal.x - this.pos.x, t.goal.z - this.pos.z) < 1)) {
-      // No cover: work round on open ground (flankers to their side, others to a mid-range point).
+    // No cover: work round on open ground (flankers to their side, others to a mid-range point).
+    // Unable to see him from there (undergrowth, a corner), it closes in: the point comes nearer
+    // the longer it has been blind (15 m down to 5 m), re-planned every 3 s.
+    // (Blind since it last saw him, or since this advance began, whichever is later.)
+    const blind = Math.min(now - t.seenT, t.actionT);
+    const arrived = !!t.goal && Math.hypot(t.goal.x - this.pos.x, t.goal.z - this.pos.z) < 1;
+    if (t.action === 'advance' && threat && t.phase === 'move' && (!t.goal || arrived || (blind > 3 && now > t.advanceT))) {
+      t.advanceT = now + 3;
+      const r = blind > 3 ? Math.max(5, 15 - (blind - 3) * 2) : 15;
       const side = t.role === 'flanker' ? t.side : 0;
-      t.goal = side ? sq.openPoint(this, threat, ctx, 13, side) : nearestNode(ctx, new THREE.Vector3().subVectors(this.pos, threat).setY(0).setLength(15).add(threat), threat.y, this.pos);
+      // Still blind after 8 s (the nearest graph node may not be close enough): walk at the LKP itself
+      // (it stops 5 m short of him, where nothing conceals him any more).
+      if (blind > 8) t.goal = threat.clone();
+      else t.goal = side ? sq.openPoint(this, threat, ctx, Math.min(13, r), side) : nearestNode(ctx, new THREE.Vector3().subVectors(this.pos, threat).setY(0).setLength(r).add(threat), threat.y, this.pos);
     }
     this.planCalm(ctx);
+  }
+
+  /** The muzzle now (its matrices refreshed: off-screen and headless rigs aren't updated by a render). */
+  private muzzleWorld() {
+    const m = this.rig.muzzle!;
+    m.updateWorldMatrix(true, false);
+    return m.getWorldPosition(new THREE.Vector3());
   }
 
   private nextPop() {
@@ -1013,13 +1081,35 @@ export class Gunner extends TacticalEnemy {
     if (t.sees) this.aimAt.set(p.x, p.y + 1.25, p.z);
     else if (knows && sq.lkp) this.aimAt.set(sq.lkp.x, sq.lkp.y + 1.1, sq.lkp.z);
     this.faceTowards(this.aimAt, dt, 8);
-    const muzzle = this.rig.muzzle!.getWorldPosition(new THREE.Vector3());
+    const muzzle = this.muzzleWorld();
     if (t.phase === 'aim') {
       this.aimPoint.lerp(this.aimAt, 1 - Math.exp(-8 * dt));
       const T = t.role === 'sniper' ? 0.9 : 0.6;
       this.showLaser(muzzle, this.aimPoint, Math.min(1, t.phaseT / T));
-      if (!knows && t.phaseT > 0.25) return true;
+      if (!knows && t.phaseT > 0.25) {
+        // Looked out and he isn't where the peek was planned for: re-check the spot now.
+        t.coverCheckT = 0;
+        t.urgent = true;
+        return true;
+      }
       if (t.phaseT > T) {
+        // Never fire into its own cover or parapet: the eyes clear it, the muzzle may not.
+        const dir = new THREE.Vector3().subVectors(this.aimAt, muzzle).normalize();
+        const hit = ctx.col.raycast(muzzle, dir, 3);
+        if (hit && hit.dist < Math.min(3, muzzle.distanceTo(this.aimAt) - 0.5)) {
+          this.blockedShots++;
+          if (this.perch && t.peekPos) {
+            // Step towards the parapet edge (on the perch) and try again.
+            const step = new THREE.Vector3(this.aimAt.x - this.perch.x, 0, this.aimAt.z - this.perch.z).setLength(0.6);
+            const next = t.peekPos.clone().add(step);
+            if (next.distanceTo(this.perch) < 1.5 && !ctx.col.blocked(next, 0.4)) t.peekPos = next;
+            else t.peekPos = this.perch.clone();
+          } else {
+            t.coverStale = true;
+            t.urgent = true;
+          }
+          return true;
+        }
         this.setPhase('fire');
         this.shots = 0;
         this.burst = t.role === 'suppressor' ? 5 : 3;

@@ -392,7 +392,8 @@ export function buildFoliage(
   const concealment = (a: THREE.Vector3, b: THREE.Vector3) => {
     const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
     const len = Math.hypot(dx, dy, dz);
-    if (len < 5) return 1;
+    // Point blank (an arm's length plus a step or two) the bushes hide nothing.
+    if (len < 6) return 1;
     // March in 1 m steps; only the part of the line inside the undergrowth layer (≤ 1.9 m above
     // the ground there) counts; the first and last metre are the viewer's and target's own spot.
     let tau = 0;

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { Game } from '../core/Game';
-import { Squad } from '../enemies/tactics/Squad';
+import { Squad, type TacAgent } from '../enemies/tactics/Squad';
+
+const ZERO = new THREE.Vector3();
 import type { Input } from '../core/Input';
 import { Player } from '../player/Player';
 import { Runner, type EnemyCtx } from '../enemies/Enemy';
@@ -139,8 +141,9 @@ function chase(game: Game, from: THREE.Vector3, goal: THREE.Vector3, seconds = 6
   const dt = 1 / 30;
   for (let t = 0; t < seconds; t += dt) {
     ctx.time = t;
-    // A nav check, not a hunt: the squad is told where the target is (exact dispatch).
-    if (t === 0) ctx.squad.report(goal, 0);
+    // A nav check, not a hunt: the squad always knows exactly where the target is (as the 4.x
+    // chasers did), so this measures getting there; finding him is __dev.tactical()'s job.
+    ctx.squad.sighting(r as unknown as TacAgent, goal, ZERO);
     ctx.squad.update(ctx, enemies);
     r.update(dt, ctx);
     const dxz = Math.hypot(r.pos.x - goal.x, r.pos.z - goal.z);

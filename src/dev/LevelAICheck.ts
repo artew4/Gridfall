@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { Game } from '../core/Game';
-import { Squad } from '../enemies/tactics/Squad';
+import { Squad, type TacAgent } from '../enemies/tactics/Squad';
+
+const ZERO = new THREE.Vector3();
 import { Player } from '../player/Player';
 import { Gunner, Runner, type Enemy, type EnemyCtx } from '../enemies/Enemy';
 
@@ -12,6 +14,8 @@ import { Gunner, Runner, type Enemy, type EnemyCtx } from '../enemies/Enemy';
  *    reports how long each was stuck (no progress) and where;
  *  - gunners: from each spawn sample, against a player in the yard, must get a shot off.
  * `sight` overrides the visibility the gunners work with (a sandstorm's worst case by default).
+ * Since 5.0 the squad is fed the target's position every step (an all-knowing squad): this is a
+ * reachability check; whether they can *find* him is the tactical check's job.
  */
 export function checkLevelAI(game: Game, opts: { spawns?: number; seconds?: number; sight?: number } = {}) {
   const t0 = performance.now();
@@ -38,8 +42,9 @@ export function checkLevelAI(game: Game, opts: { spawns?: number; seconds?: numb
     let best = Infinity, lastGain = 0, worstStall = 0, stallAt: number[] = [];
     for (let t = 0; t < seconds; t += dt) {
       ctx.time = t;
-      // A nav check, not a hunt: the squad is told where the target is (exact dispatch).
-      if (t === 0) ctx.squad.report(goal, 0);
+      // A nav check, not a hunt: the squad always knows exactly where the target is (as the 4.x
+      // chasers did), so this measures getting there, not finding him (that's __dev.tactical()).
+      ctx.squad.sighting(e as unknown as TacAgent, goal, ZERO);
       ctx.squad.update(ctx, enemies);
       e.update(dt, ctx);
       if (done(e)) return { ok: true, t: +t.toFixed(1), worstStall: +worstStall.toFixed(1), stallAt };

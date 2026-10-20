@@ -252,6 +252,14 @@ The world renders through one post chain: scene → viewmodel → UnrealBloom �
 - **Wet leaves:** foliage is glossier, so it catches the canopy light.
 - **Light shafts:** five shafts of sun break through the canopy onto the watchtower, the middle of the yard, the flag and two giant trees by the cleared strip. Each lands on a matching sun fleck on the ground. They are light only: you, enemies and bullets pass straight through them.
 
+### Survival tactics (5.0)
+The survival enemies fight as a squad, in every setting:
+- **They take real cover.** A rifleman hunkers where the obstacle actually hides him from where you are, then pops up or leans out, fires a burst after a short laser warning, and ducks again. Walk round his cover and he notices within a fraction of a second ("He's flanking!") and moves.
+- **Roles.** One or two riflemen keep you pinned (suppressors keep shooting at where you were for a moment after you duck), the others work round your sides ("Flanking left!"). The melee units hold back on different sides and come in together when you reload in plain view, take a hit, turn your back, or once enough of them are in place ("Go, go, go!").
+- **Suppression.** Rounds cracking past a rifleman pin him: he ducks and stops shooting for a couple of seconds. Melee units juke sideways.
+- **No wallhacks.** Break line of sight and they go to where they last saw you, then spread out and search the area, then give up and roam. They hear your shots (roughly). In the jungle, thick undergrowth hides you from them as it hides them from you; the desert storm and the fog limit everyone's sight.
+- **Callouts** appear above the enemy who said them (dimmer when you can only hear him) with a voice from where he stands.
+
 ## Dev checks
 
 In `npm run dev`, these commands work in the browser console (they don't exist in production builds):
@@ -291,6 +299,11 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - `await __dev.sheet(['yard', 'tower'], ['v37', 'v4'])` (4.2, jungle views): a contact sheet of frozen frames in an overlay (click to close). `await __dev.hdr(names, hide?)`: linear HDR luminance percentiles per view, or, with `hide`, of the pixels those objects add.
   - **F8** (dev server only) cycles the render pipeline: 4.0 → RAW (no composer, the same materials) → 3.7 (the old look and materials) → 4.0. In the desert it switches the 4.1 additions (sun, grade, glare, glints, metals, haze) the same way. `__dev.pipeline('v37')` does the same from the console.
   - `__game.safety.recoveries`: how often the out-of-bounds safety net fired. It should stay 0, and each recovery is logged as `[safety]`.
+- Survival tactics (5.0):
+  - `await __dev.tactical()`: headless scenarios on the loaded setting: roles (suppressors, flank sides, shot tokens, rushes), the same with a moving player, flanking a gunner's cover (time until it relocates), suppression (pinned, silent, resumes), losing the squad (hunt, search, never his live position), the desert storm, and a 120 s soak (bounds, inside geometry, stalls, cost).
+  - `await __dev.tactics(true)`: overlay with roles, actions, cover lines (green while the cover hides the hunkered body from you, red once blown), peek spots, rush slots, the LKP and the search points.
+  - `await __dev.survival({ setting, seconds, startWave })`: a bot plays Arcade Survival (moves, aims, fires); reports kills, damage events, enemy shots, action shares, callouts and integrity.
+  - `await __dev.aiBench()`: 10 enemies per setting; AI milliseconds per frame (average, P95, P99, worst) and rays per frame. Compare with `docs/BENCH-5.0.json`.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
 
 ## Structure
@@ -325,7 +338,8 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
 - `src/levels`: the level contract and registry, arcade rules, and one folder per setting (`tokyo`, `desert`, `jungle`)
 - `src/entities`: weapon specs and enemy looks per setting (`weapons/`, `enemies/`)
 - `src/player`: FPS controller and the viewmodel weapon (holster, recoil, reload, pump and tube-loading mechanics)
-- `src/enemies`: models (merged per joint), Runner, Gunner, nav and arcade waves
+- `src/enemies`: models (merged per joint), Runner, Gunner (two-rate tactical brains), nav and arcade waves
+- `src/enemies/tactics`: the squad director, time-slicing scheduler, utility selection, dynamic cover and generated cover spots, callouts
 - `src/ui`: HUD, story HUD, minimap, marker, pause and settings menu, end screen
 - `src/dev`: route check and console helpers (DEV only)
 

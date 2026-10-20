@@ -52,11 +52,15 @@ export interface TacState extends Thinker {
   exposedT: number;
   /** The spot no longer gives a shot (he moved): find another, without the "blown" alarm. */
   coverStale: boolean;
+  /** Consecutive cover checks that found no peek (stale after two). */
+  noPeekChecks: number;
   coverCheckT: number;
   noCoverUntil: number;
   /** Spots this enemy failed to reach or that betrayed it: skipped until the time stored. */
   badCover: Map<number, number>;
   goal: THREE.Vector3 | null;
+  /** Next re-plan of an open-ground advance goal while blind. */
+  advanceT: number;
   searchIdx: number;
   /** Rusher: angular slot round the player (radians) and staging. */
   slot: number;
@@ -90,16 +94,21 @@ export interface SquadCtx {
   coverPoints: THREE.Vector3[];
   bounds: THREE.Box2;
   sightRange?: number;
+  /** Soft concealment along a sightline (1 clear … 0 hidden), if the level has any. */
+  concealment?: (a: THREE.Vector3, b: THREE.Vector3) => number;
   difficulty: number;
 }
+
+/** A peek must see through soft cover too (the same 0.35 the perception uses). */
+export const peekSight = (ctx: SquadCtx) => (ctx.concealment ? (a: THREE.Vector3, b: THREE.Vector3) => ctx.concealment!(a, b) >= 0.35 : undefined);
 
 export function createTac(owner: TacAgent): TacState {
   return {
     owner, nextThink: 0, urgent: true, role: 'none', side: 0, sees: false, seenT: -Infinity, lastDecide: 0,
     suppression: 0, pinnedUntil: -Infinity, pinResistUntil: -Infinity,
     action: 'emerge', phase: '', actionT: 0, phaseT: 0,
-    coverId: -1, coverPos: null, peekPos: null, peekKind: null, exposedT: 0, coverStale: false, coverCheckT: 0, noCoverUntil: -Infinity, badCover: new Map(),
-    goal: null, searchIdx: -1, slot: 0, stagePos: null, staged: false, stagedSince: 0, go: false, ammo: GUNNER_MAG, bestD: Infinity, progressT: 0, progressAt: new THREE.Vector3(),
+    coverId: -1, coverPos: null, peekPos: null, peekKind: null, exposedT: 0, coverStale: false, noPeekChecks: 0, coverCheckT: 0, noCoverUntil: -Infinity, badCover: new Map(),
+    goal: null, advanceT: 0, searchIdx: -1, slot: 0, stagePos: null, staged: false, stagedSince: 0, go: false, ammo: GUNNER_MAG, bestD: Infinity, progressT: 0, progressAt: new THREE.Vector3(),
   };
 }
 
@@ -305,16 +314,42 @@ export class Squad {
     if (!this.lkp) return;
     const c = this.lkp;
     const pts: { pos: THREE.Vector3; s: number }[] = [];
+    // Only places one can actually walk to from where he was (a shuttered station is not a lead).
+    let near = -1;
+    let nd = Infinity;
+    for (let i = 0; i < ctx.nav.nodes.length; i++) {
+      const n = ctx.nav.nodes[i];
+      const d = Math.hypot(n.x - c.x, n.z - c.z) + Math.abs(n.y - 1 - c.y) * 4;
+      if (d < nd) {
+        nd = d;
+        near = i;
+      }
+    }
+    const reach = near >= 0 ? ctx.nav.reachable(near) : null;
+    const reachable = (p: THREE.Vector3) => {
+      if (!reach) return true;
+      let best = -1;
+      let bd = Infinity;
+      for (let i = 0; i < ctx.nav.nodes.length; i++) {
+        const n = ctx.nav.nodes[i];
+        const d = Math.hypot(n.x - p.x, n.z - p.z) + Math.abs(n.y - 1 - p.y) * 4;
+        if (d < bd) {
+          bd = d;
+          best = i;
+        }
+      }
+      return reach.has(best);
+    };
     // Nav nodes round the LKP (any level within reach, so stairs and decks get checked) and the
     // cover spots there (corners he could be behind).
-    for (const n of ctx.nav.nodes) {
+    ctx.nav.nodes.forEach((n, i) => {
       const d = Math.hypot(n.x - c.x, n.z - c.z);
-      if (d > radius || Math.abs(n.y - 1 - c.y) > 10) continue;
+      if (d > radius || Math.abs(n.y - 1 - c.y) > 10 || (reach && !reach.has(i))) return;
       pts.push({ pos: new THREE.Vector3(n.x, n.y - 1, n.z), s: d + Math.abs(n.y - 1 - c.y) * 1.5 + Math.random() * 4 });
-    }
+    });
     for (const p of ctx.coverPoints) {
       const d = Math.hypot(p.x - c.x, p.z - c.z);
-      if (d <= radius && Math.abs(p.y - c.y) < 10) pts.push({ pos: p.clone(), s: d + Math.random() * 4 });
+      if (d <= radius && Math.abs(p.y - c.y) < 10 && reachable(p)) pts.push({ pos: p.clone(), s: d + Math.random() * 4 });
     }
     pts.sort((a, b) => a.s - b.s);
     this.searchPts = [{ pos: c.clone(), by: null, done: false }, ...pts.slice(0, 11).map((p) => ({ pos: p.pos, by: null, done: false }))];
@@ -363,10 +398,12 @@ export class Squad {
     this.note('attack', Math.atan2(a.pos.z - at.z, a.pos.x - at.x).toFixed(2));
   }
 
-  /** Few guns at once: a gunner must hold a token to aim and fire. Suppressors may exceed by one. */
+  /** Few guns at once: a ground gunner must hold a token to aim and fire. Suppressors may exceed by one. */
   requestShot(a: TacAgent, difficulty: number) {
+    // Snipers are limited by the perches, not by the ground team's tokens.
+    if (a.tac.role === 'sniper') return true;
     if (this.tokens.has(a)) return true;
-    const max = SQUAD.maxShooters + (difficulty >= 4 ? 1 : 0) + (a.tac.role === 'suppressor' || a.tac.role === 'sniper' ? 1 : 0);
+    const max = SQUAD.maxShooters + (difficulty >= 4 ? 1 : 0) + (a.tac.role === 'suppressor' ? 1 : 0);
     if (this.tokens.size >= max) return false;
     this.tokens.add(a);
     return true;
@@ -431,7 +468,7 @@ export class Squad {
       let ev = this.cover.get(i, threat, this.now);
       if (!ev) {
         if (k > 0 && !this.sched.canAfford(7)) break;
-        ev = evaluateCover(c, threat, this.los, free, range);
+        ev = evaluateCover(c, threat, this.los, free, range, peekSight(ctx));
         this.cover.put(i, threat, this.now, ev);
       }
       if (ev.protected && ev.peek && ev.kind) {
