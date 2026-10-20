@@ -57,7 +57,7 @@ export class AIDebug {
 
   private frame() {
     const g = this.game;
-    const sec = g.security;
+    const sec = g.tokyo.security;
     this.n = 0;
     let html = '';
     const cam = g.camera;

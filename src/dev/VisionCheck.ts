@@ -19,7 +19,7 @@ interface Run {
  * station, and timing. Returns a table of scenarios with pass/fail.
  */
 export function checkVision(game: Game) {
-  const sec = game.security;
+  const sec = game.tokyo.security;
   const ctx = sec.ctx;
   const player = game.player;
   const saved = { pos: player.pos.clone(), yaw: player.yaw, time: ctx.time, armed: sec.playerArmed };

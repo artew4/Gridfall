@@ -1,6 +1,17 @@
 import * as THREE from 'three';
 
-export type Surface = 'concrete' | 'metal' | 'glass' | 'wood' | 'flesh';
+export type Surface = 'concrete' | 'metal' | 'glass' | 'wood' | 'flesh' | 'sand';
+
+/**
+ * A walkable heightfield that replaces the flat street plane (open-terrain levels such as dunes).
+ * Continuous: it is always a floor under the body, never a wall, and nothing walks underneath it.
+ */
+export interface Terrain {
+  height(x: number, z: number): number;
+  /** No point of the terrain is higher than this (lets most rays skip it). */
+  maxHeight: number;
+  surface: Surface;
+}
 
 export interface Collider {
   min: THREE.Vector3;
@@ -51,6 +62,8 @@ export class CollisionWorld {
   dynamics: Collider[] = [];
   /** XZ rects where the ground plane at y=0 is absent (stairwells down to the metro). */
   holes: { x0: number; z0: number; x1: number; z1: number }[] = [];
+  /** Optional heightfield ground instead of the y=0 plane (holes don't apply to it). */
+  terrain: Terrain | null = null;
   private grid = new Map<number, Collider[]>();
   private dirty = true;
   private stampN = 0;
@@ -279,8 +292,15 @@ export class CollisionWorld {
 
   /** Highest walkable surface under a point that is no more than `reach` above the feet. */
   groundHeightAt(x: number, z: number, radius: number, feetY: number, reach = 0.3): number {
-    // The street plane only exists outside stairwells and only for things above it.
-    let h = feetY < -0.6 || this.inHole(x, z) ? -Infinity : 0;
+    let h: number;
+    if (this.terrain) {
+      // The highest point of the terrain under the foot circle: a continuous floor, never a ledge.
+      const t = this.terrain;
+      h = Math.max(t.height(x, z), t.height(x + radius, z), t.height(x - radius, z), t.height(x, z + radius), t.height(x, z - radius));
+    } else {
+      // The street plane only exists outside stairwells and only for things above it.
+      h = feetY < -0.6 || this.inHole(x, z) ? -Infinity : 0;
+    }
     const list = this.query(x - radius, z - radius, x + radius, z + radius);
     for (let i = 0; i < list.length; i++) {
       const c = list[i];
@@ -388,10 +408,20 @@ export class CollisionWorld {
       cylN = null;
     }
     // Ground plane (the street surface), from above or from the station below; open stairwells
-    // (holes) let rays through.
+    // (holes) let rays through. A terrain replaces the plane.
     let surface: Surface = 'concrete';
     const normal = out?.normal ?? new THREE.Vector3();
-    if ((dir.y < -1e-6 && oy > -0.5) || (dir.y > 1e-6 && oy < -0.5)) {
+    let terrainN: THREE.Vector3 | null = null;
+    if (this.terrain) {
+      const tg = this.rayTerrain(ox, oy, oz, dir, best);
+      if (tg < best) {
+        best = tg;
+        bestC = null;
+        cylN = null;
+        surface = this.terrain.surface;
+        terrainN = this.terrainNormal(ox + dir.x * tg, oz + dir.z * tg, this._tn);
+      }
+    } else if ((dir.y < -1e-6 && oy > -0.5) || (dir.y > 1e-6 && oy < -0.5)) {
       const tg = -oy / dir.y;
       if (tg > 0 && tg < best && !this.inHole(ox + dir.x * tg, oz + dir.z * tg)) {
         best = tg;
@@ -403,7 +433,8 @@ export class CollisionWorld {
       }
     }
     if (best >= maxDist) return null;
-    if (cylN) normal.set(cylN[0], cylN[1], cylN[2]);
+    if (terrainN && !bestC) normal.copy(terrainN);
+    else if (cylN) normal.set(cylN[0], cylN[1], cylN[2]);
     else {
       normal.set(0, 0, 0);
       normal.setComponent(bestAxis, bestSign);
@@ -416,6 +447,48 @@ export class CollisionWorld {
     res.surface = surface;
     res.collider = bestC;
     return res;
+  }
+
+  private _tn = new THREE.Vector3();
+
+  /**
+   * First crossing of a ray into the terrain within `maxDist` (or Infinity): marched in 0.75 m steps
+   * from where the ray first dips below the terrain's highest point, then refined by bisection.
+   * Rays starting under the surface ignore it (nothing is meant to be down there).
+   */
+  private rayTerrain(ox: number, oy: number, oz: number, dir: THREE.Vector3, maxDist: number): number {
+    const t = this.terrain!;
+    const above = (d: number) => oy + dir.y * d - t.height(ox + dir.x * d, oz + dir.z * d);
+    if (above(0) < 0) return Infinity;
+    let s0 = 0;
+    if (oy > t.maxHeight) {
+      if (dir.y >= -1e-6) return Infinity;
+      s0 = (oy - t.maxHeight) / -dir.y;
+      if (s0 >= maxDist) return Infinity;
+    }
+    const STEP = 0.75;
+    let prev = s0;
+    for (let d = s0 + STEP; ; d += STEP) {
+      const cur = Math.min(d, maxDist);
+      if (above(cur) < 0) {
+        let lo = prev, hi = cur;
+        for (let k = 0; k < 10; k++) {
+          const mid = (lo + hi) / 2;
+          if (above(mid) < 0) hi = mid;
+          else lo = mid;
+        }
+        return hi;
+      }
+      if (cur >= maxDist) return Infinity;
+      prev = cur;
+    }
+  }
+
+  /** Surface normal of the terrain from central differences. */
+  terrainNormal(x: number, z: number, out = new THREE.Vector3()) {
+    const t = this.terrain!;
+    const e = 0.25;
+    return out.set(t.height(x - e, z) - t.height(x + e, z), 2 * e, t.height(x, z - e) - t.height(x, z + e)).normalize();
   }
 
   private _dir = new THREE.Vector3();

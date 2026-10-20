@@ -30,6 +30,26 @@ export class Weapon {
   private flashes: THREE.Mesh[] = [];
   private flashLight: THREE.PointLight;
   fillLight: THREE.PointLight;
+  /** The viewmodel's own light rig (a level may relight it; setLights(null) restores the night look). */
+  private rig!: { hemi: THREE.HemisphereLight; key: THREE.DirectionalLight; rim: THREE.DirectionalLight };
+  private static NIGHT = { sky: 0x6070b0, ground: 0x301828, hemi: 1.2, key: 0xa8b8ff, keyI: 2.2, rim: 0xff5ac8, rimI: 1.6 };
+
+  /** Relight the viewmodel for a setting (null: the default night-city rig). */
+  setLights(l: { sky: number; ground: number; hemi: number; key: number; keyI: number; rim: number; rimI: number } | null) {
+    const v = l ?? Weapon.NIGHT;
+    this.rig.hemi.color.set(v.sky);
+    this.rig.hemi.groundColor.set(v.ground);
+    this.rig.hemi.intensity = v.hemi;
+    this.rig.key.color.set(v.key);
+    this.rig.key.intensity = v.keyI;
+    this.rig.rim.color.set(v.rim);
+    this.rig.rim.intensity = v.rimI;
+  }
+
+  /** Scale the key light (a level dims it indoors or in a storm). */
+  setKey(k: number) {
+    this.rig.key.intensity = k;
+  }
   private kickZ = new Spring(260, 20);
   private kickRot = new Spring(220, 17);
   private kickSide = new Spring(200, 18);
@@ -61,6 +81,7 @@ export class Weapon {
     const rim = new THREE.DirectionalLight(0xff5ac8, 1.6);
     rim.position.set(1.5, 0.5, -1.5);
     scene.add(rim);
+    this.rig = { hemi, key, rim };
     this.fillLight = new THREE.PointLight(0xff40c0, 0, 3, 1.0);
     this.fillLight.position.set(0.4, 0.2, 0.2);
     scene.add(this.fillLight);

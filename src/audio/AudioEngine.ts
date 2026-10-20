@@ -32,9 +32,20 @@ export class AudioEngine {
   private sirenTimer = 18;
   private carTimer = 6;
   private hornTimer = 11;
-  private rainFilter!: BiquadFilterNode;
-  private rainGain!: GainNode;
+  private rainFilter: BiquadFilterNode | null = null;
+  private rainGain: GainNode | null = null;
   private under = -1;
+  /**
+   * Everything the loaded level keeps playing (ambience beds, hums, loops, rumble) goes through this
+   * bus, and its sources are tracked, so a level switch can stop and disconnect all of it.
+   */
+  private levelBus!: GainNode;
+  private levelNodes: AudioScheduledSourceNode[] = [];
+  /** Which ambience the level asked for: drives the random events in update(). */
+  private ambience: 'city' | 'desert' | null = null;
+  private wind: { filter: BiquadFilterNode; gain: GainNode; hiss: GainNode; howl: BiquadFilterNode } | null = null;
+  private creakTimer = 9;
+  private flapTimer = 5;
   private rumble: { g: GainNode; lp: BiquadFilterNode; whine: OscillatorNode; wg: GainNode } | null = null;
   private hums: { gain: GainNode; base: number }[] = [];
 
@@ -100,7 +111,46 @@ export class AudioEngine {
     this.white = this.noiseBuffer('white');
     this.pink = this.noiseBuffer('pink');
     this.brown = this.noiseBuffer('brown');
-    this.startAmbience();
+    this.levelBus = ctx.createGain();
+    this.levelBus.connect(this.amb);
+  }
+
+  /** A looping source that belongs to the loaded level (stopped by clearLevel). */
+  private levelSrc<T extends AudioScheduledSourceNode>(n: T): T {
+    this.levelNodes.push(n);
+    return n;
+  }
+
+  /** Stops and disconnects every sound the loaded level started (level switch). */
+  clearLevel() {
+    if (!this.started) return;
+    for (const n of this.levelNodes) {
+      try {
+        n.stop();
+      } catch {
+        /* never started or already stopped */
+      }
+      n.disconnect();
+    }
+    this.levelNodes = [];
+    this.levelBus.disconnect();
+    this.levelBus = this.ctx.createGain();
+    this.levelBus.connect(this.amb);
+    this.rainFilter = this.rainGain = null;
+    this.rumble = null;
+    this.wind = null;
+    this.hums = [];
+    this.under = -1;
+    this.ambience = null;
+    this.reverbSend.gain.setTargetAtTime(1, this.now(), 0.1);
+  }
+
+  /** Ambience profile of the loaded level: the beds and the random events around the listener. */
+  setAmbience(kind: 'city' | 'desert') {
+    if (!this.started || this.ambience === kind) return;
+    this.ambience = kind;
+    if (kind === 'city') this.startAmbience();
+    else this.startDesert();
   }
 
   /** Slider value 0..1 → gain (squared for a more even perceived taper). */
@@ -306,27 +356,28 @@ export class AudioEngine {
   private startAmbience() {
     const ctx = this.ctx;
     const layer = (buf: AudioBuffer, type: BiquadFilterType, f: number, q: number, gain: number) => {
-      const s = this.noise(buf, true);
+      const s = this.levelSrc(this.noise(buf, true));
       const fl = this.filter(type, f, q);
       const g = ctx.createGain();
       g.gain.value = gain;
-      s.connect(fl).connect(g).connect(this.amb);
+      s.connect(fl).connect(g).connect(this.levelBus);
       return g;
     };
     // Rain: body, hiss, mid patter with slow swell. All through one filter so it can go muffled underground.
-    this.rainFilter = this.filter('lowpass', 20000);
+    const rainFilter = this.filter('lowpass', 20000);
+    this.rainFilter = rainFilter;
     this.rainGain = ctx.createGain();
-    this.rainFilter.connect(this.rainGain).connect(this.amb);
+    rainFilter.connect(this.rainGain).connect(this.levelBus);
     const rainLayer = (buf: AudioBuffer, type: BiquadFilterType, f: number, q: number, gain: number) => {
       const g = layer(buf, type, f, q, gain);
       g.disconnect();
-      g.connect(this.rainFilter);
+      g.connect(rainFilter);
       return g;
     };
     rainLayer(this.pink, 'lowpass', 1400, 0.5, 0.55);
     rainLayer(this.white, 'highpass', 4500, 0.5, 0.06);
     const patter = rainLayer(this.white, 'bandpass', 900, 0.6, 0.1);
-    const lfo = ctx.createOscillator();
+    const lfo = this.levelSrc(ctx.createOscillator());
     lfo.frequency.value = 0.07;
     const lfoG = ctx.createGain();
     lfoG.gain.value = 0.05;
@@ -337,9 +388,62 @@ export class AudioEngine {
     layer(this.pink, 'bandpass', 300, 0.4, 0.05);
   }
 
+  /**
+   * Desert wind: a low gusting body, a howl whose pitch wanders, and a hiss of blowing sand, all
+   * through one filter so the inside of a building muffles them. Strength follows the storm.
+   */
+  private startDesert() {
+    const ctx = this.ctx;
+    const filter = this.filter('lowpass', 20000);
+    const gain = ctx.createGain();
+    gain.gain.value = 0.3;
+    filter.connect(gain).connect(this.levelBus);
+    const bed = (buf: AudioBuffer, type: BiquadFilterType, f: number, q: number, level: number) => {
+      const src = this.levelSrc(this.noise(buf, true));
+      const fl = this.filter(type, f, q);
+      const g = ctx.createGain();
+      g.gain.value = level;
+      src.connect(fl).connect(g).connect(filter);
+      return { g, fl };
+    };
+    const body = bed(this.brown, 'lowpass', 220, 0.6, 0.9);
+    const howl = bed(this.pink, 'bandpass', 420, 4, 0.5);
+    const hiss = bed(this.white, 'highpass', 2600, 0.5, 0.0);
+    // Gusts: two slow, unrelated LFOs on the body level and the howl pitch.
+    const gust = this.levelSrc(ctx.createOscillator());
+    gust.frequency.value = 0.11;
+    const gg = ctx.createGain();
+    gg.gain.value = 0.45;
+    gust.connect(gg).connect(body.g.gain);
+    gust.start();
+    const wander = this.levelSrc(ctx.createOscillator());
+    wander.frequency.value = 0.043;
+    const wg = ctx.createGain();
+    wg.gain.value = 160;
+    wander.connect(wg).connect(howl.fl.frequency);
+    wander.start();
+    this.wind = { filter, gain, hiss: hiss.g, howl: howl.fl };
+    // Open air: little reverb outdoors.
+    this.reverbSend.gain.setTargetAtTime(0.3, this.now(), 0.2);
+  }
+
+  /**
+   * Desert: storm 0..1 drives the wind level and the sand hiss; indoors 0..1 muffles it and brings
+   * back a small-room reverb.
+   */
+  setWind(storm: number, indoors: number) {
+    if (!this.started || !this.wind) return;
+    const t = this.now();
+    const w = this.wind;
+    w.gain.gain.setTargetAtTime((0.22 + storm * 0.75) * (1 - indoors * 0.55), t, 0.4);
+    w.hiss.gain.setTargetAtTime(storm * storm * 0.22, t, 0.4);
+    w.filter.frequency.setTargetAtTime(indoors > 0.5 ? 650 : 20000, t, 0.35);
+    this.reverbSend.gain.setTargetAtTime(indoors > 0.5 ? 0.9 : 0.3, t, 0.3);
+  }
+
   /** Underground the rain becomes a distant muffled hiss through the stairwells. */
   setUnderground(k: number) {
-    if (!this.started || k === this.under) return;
+    if (!this.started || k === this.under || !this.rainFilter || !this.rainGain) return;
     this.under = k;
     const t = this.now();
     this.rainFilter.frequency.setTargetAtTime(k ? 380 : 20000, t, 0.6);
@@ -370,9 +474,9 @@ export class AudioEngine {
     o2g.gain.value = 0.3;
     o1.connect(bp);
     o2.connect(o2g).connect(bp);
-    bp.connect(g).connect(p).connect(this.amb);
-    o1.start();
-    o2.start();
+    bp.connect(g).connect(p).connect(this.levelBus);
+    this.levelSrc(o1).start();
+    this.levelSrc(o2).start();
     const h = { gain: g, base: 0.035 };
     this.hums.push(h);
     return h;
@@ -407,6 +511,8 @@ export class AudioEngine {
   /** Random environmental events: drips on metal, distant traffic, sirens. */
   update(dt: number, listenerPos: V3) {
     if (!this.started) return;
+    if (this.ambience === 'desert') return this.updateDesert(dt, listenerPos);
+    if (this.ambience !== 'city') return;
     this.dripTimer -= dt;
     while (this.dripTimer <= 0) {
       this.dripTimer += rand(0.03, 0.12);
@@ -429,6 +535,30 @@ export class AudioEngine {
     if (this.hornTimer <= 0) {
       this.hornTimer = rand(14, 32);
       this.carHorn();
+    }
+  }
+
+  /** Desert events: a sheet of tin creaking somewhere, a loose tarp snapping in a gust. */
+  private updateDesert(dt: number, l: V3) {
+    this.creakTimer -= dt;
+    if (this.creakTimer <= 0) {
+      this.creakTimer = rand(8, 20);
+      const a = rand(0, Math.PI * 2);
+      const d = rand(12, 35);
+      const o = this.out({ x: l.x + Math.cos(a) * d, y: rand(1, 4), z: l.z + Math.sin(a) * d }, 0.2, this.amb);
+      const t = this.now();
+      this.tone(o, 'sawtooth', rand(140, 220), rand(90, 130), 0.025, 0.08, rand(0.5, 1.1), t);
+      this.metal(o, rand(300, 520), 0.03, 0.6, [1, 2.76, 5.4], t + rand(0.2, 0.6));
+    }
+    this.flapTimer -= dt;
+    if (this.flapTimer <= 0) {
+      this.flapTimer = rand(4, 11);
+      const a = rand(0, Math.PI * 2);
+      const d = rand(6, 22);
+      const o = this.out({ x: l.x + Math.cos(a) * d, y: rand(1.5, 3), z: l.z + Math.sin(a) * d }, 0.1, this.amb);
+      const t = this.now();
+      const n = 3 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < n; i++) this.burst(o, this.pink, 'bandpass', rand(600, 1100), 1.2, 0.06, 0.003, 0.05, t + i * rand(0.07, 0.12));
     }
   }
 
@@ -599,6 +729,10 @@ export class AudioEngine {
     } else if (surface === 'wood') {
       this.burst(o, this.white, 'bandpass', 700, 1.5, 0.35, 0.001, 0.08);
       this.tone(o, 'sine', 300, 120, 0.2, 0.001, 0.08);
+    } else if (surface === 'sand') {
+      // A soft thud and a hiss of thrown grains.
+      this.burst(o, this.brown, 'lowpass', 500, 0.7, 0.4, 0.002, 0.09);
+      this.burst(o, this.white, 'bandpass', 3200, 0.8, 0.08, 0.004, 0.2);
     } else {
       this.burst(o, this.white, 'bandpass', 1800, 0.9, 0.3, 0.001, 0.07);
       this.burst(o, this.white, 'highpass', 4000, 0.7, 0.12, 0.001, 0.12); // spray of water and grit
@@ -845,32 +979,32 @@ export class AudioEngine {
     p.positionX.value = pos.x;
     p.positionY.value = pos.y;
     p.positionZ.value = pos.z;
-    p.connect(this.amb);
+    p.connect(this.levelBus);
     if (kind === 'fountain') {
-      const a = this.noise(this.white, true);
+      const a = this.levelSrc(this.noise(this.white, true));
       const bp = this.filter('bandpass', 1800, 0.6);
       const g = ctx.createGain();
       g.gain.value = 0.09;
       a.connect(bp).connect(g).connect(p);
-      const b = this.noise(this.pink, true);
+      const b = this.levelSrc(this.noise(this.pink, true));
       const lp = this.filter('lowpass', 500);
       const g2 = ctx.createGain();
       g2.gain.value = 0.12;
       b.connect(lp).connect(g2).connect(p);
-      const lfo = ctx.createOscillator();
+      const lfo = this.levelSrc(ctx.createOscillator());
       lfo.frequency.value = 0.31;
       const lg = ctx.createGain();
       lg.gain.value = 0.03;
       lfo.connect(lg).connect(g.gain);
       lfo.start();
     } else {
-      const a = this.noise(this.pink, true);
+      const a = this.levelSrc(this.noise(this.pink, true));
       const bp = this.filter('bandpass', 2600, 1.2);
       const g = ctx.createGain();
       g.gain.value = 0.05;
       a.connect(bp).connect(g).connect(p);
       // A cheesy jingle loop under the ball noise.
-      const o = ctx.createOscillator();
+      const o = this.levelSrc(ctx.createOscillator());
       o.type = 'square';
       const og = ctx.createGain();
       og.gain.value = 0.006;
@@ -996,17 +1130,17 @@ export class AudioEngine {
   metroRumble(level: number, speed: number) {
     if (!this.started) return;
     if (!this.rumble) {
-      const src = this.noise(this.brown, true);
+      const src = this.levelSrc(this.noise(this.brown, true));
       const lp = this.filter('lowpass', 300);
       const g = this.ctx.createGain();
       g.gain.value = 0;
-      src.connect(lp).connect(g).connect(this.amb);
-      const whine = this.ctx.createOscillator();
+      src.connect(lp).connect(g).connect(this.levelBus);
+      const whine = this.levelSrc(this.ctx.createOscillator());
       whine.type = 'sawtooth';
       const wg = this.ctx.createGain();
       wg.gain.value = 0;
       const wf = this.filter('bandpass', 900, 6);
-      whine.connect(wf).connect(wg).connect(this.amb);
+      whine.connect(wf).connect(wg).connect(this.levelBus);
       whine.start();
       this.rumble = { g, lp, whine, wg };
     }

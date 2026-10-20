@@ -1,3 +1,5 @@
+import type { LevelInfo, Mode } from '../levels/Level';
+
 const JP_NUM = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
 export function jpNumber(n: number): string {
   if (n <= 10) return JP_NUM[n];
@@ -88,12 +90,16 @@ export class Hud {
     this.title.id = 'title';
     this.title.innerHTML = `
       <h1>NEON RAIN</h1>
-      <div class="sub">ONE NIGHT · ONE CITY · ONE WAY OUT</div>
-      <div class="jp">東京 · 午前零時二十四分</div>
+      <div class="sub"></div>
+      <div class="jp"></div>
       <div class="loading">BUILDING THE CITY…</div>
       <div class="mainmenu hidden">
+        <div class="mm-label">SETTING <span class="jp">舞台</span></div>
+        <div class="settings-row"></div>
+        <div class="mm-label">MODE <span class="jp">モード</span></div>
         <button class="pm-btn primary" data-mode="story">STORY ESCAPE<span class="jp">脱出</span></button>
         <button class="pm-btn" data-mode="arcade">ARCADE SURVIVAL<span class="jp">生存</span></button>
+        <div class="mm-note"></div>
         <button class="pm-btn" data-act="settings">SETTINGS<span class="jp">設定</span></button>
         <button class="pm-btn" data-act="controls">CONTROLS<span class="jp">操作</span></button>
       </div>
@@ -123,6 +129,37 @@ export class Hud {
   setReady() {
     this.title.querySelector('.loading')?.remove();
     this.title.querySelector('.mainmenu')!.classList.remove('hidden');
+  }
+
+  /** The setting cards (one per level), built once from the registry. */
+  setLevels(levels: LevelInfo[]) {
+    const row = this.title.querySelector('.settings-row')!;
+    row.innerHTML = levels
+      .map(
+        (l) => `<button class="set-card" data-setting="${l.id}"><b>${l.name}</b><span class="jp">${l.jp}</span>
+        <span class="blurb">${l.blurb}</span><span class="modes">${l.modes.map((m) => (m === 'story' ? 'STORY' : 'SURVIVAL')).join(' · ')}</span></button>`,
+      )
+      .join('');
+  }
+
+  /**
+   * The selected setting: highlights its card, puts its lines under the title, enables only the
+   * modes it supports. While `loading`, the mode buttons wait for the level to finish building.
+   */
+  selectLevel(l: LevelInfo, loading: boolean) {
+    for (const b of Array.from(this.title.querySelectorAll<HTMLElement>('[data-setting]'))) b.classList.toggle('on', b.dataset.setting === l.id);
+    this.title.querySelector('.sub')!.textContent = l.tagline;
+    this.title.querySelector('.jp')!.textContent = l.jpLine;
+    const note = this.title.querySelector<HTMLElement>('.mm-note')!;
+    for (const b of Array.from(this.title.querySelectorAll<HTMLButtonElement>('[data-mode]'))) {
+      const ok = l.modes.includes(b.dataset.mode as Mode);
+      b.disabled = loading || !ok;
+      b.classList.toggle('off', !ok);
+    }
+    const primary = l.modes.includes('story') ? 'story' : 'arcade';
+    for (const b of Array.from(this.title.querySelectorAll<HTMLElement>('[data-mode]'))) b.classList.toggle('primary', b.dataset.mode === primary);
+    note.textContent = loading ? l.loading : l.modes.includes('story') ? '' : 'STORY ESCAPE IS SET IN TOKYO NIGHT';
+    note.classList.toggle('busy', loading);
   }
 
   /** Main menu: show the controls page or the buttons. */
@@ -187,14 +224,15 @@ export class Hud {
     this.bannerTimer = dur;
   }
 
-  /** Opening title card per mode. */
-  setCine(mode: 'story' | 'arcade') {
-    this.cine.innerHTML =
-      mode === 'story'
-        ? `<div class="t1">NEON RAIN</div><div class="t2">ONE NIGHT · ONE CITY · ONE WAY OUT</div>
-      <div class="t3">新宿区 三丁目 — SANCHŌME, SHINJUKU · 00:24<br/>SECURITY LOCKDOWN IN EFFECT · YOU ARE WANTED</div>`
-        : `<div class="t1">NEON RAIN</div><div class="t2">東京 · 午前 2:47</div>
-      <div class="t3">ARCADE SURVIVAL · ONE STREET. ONE GUN.<br/>RAINFALL 38MM/H · VISIBILITY LOW</div>`;
+  /** Opening title card (from the level, per mode). */
+  setCine(card: { t1: string; t2: string; t3: string }) {
+    this.cine.innerHTML = `<div class="t1">${card.t1}</div><div class="t2">${card.t2}</div>
+      <div class="t3">${card.t3}</div>`;
+  }
+
+  /** HUD corner: where and when (the story replaces the time as the clock runs). */
+  setPlace(place: string, clock: string) {
+    this.clockEl.innerHTML = `${place} · <b>${clock}</b>`;
   }
 
   setClock(t: string) {

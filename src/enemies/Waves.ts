@@ -22,6 +22,11 @@ export class Waves {
   spawns: THREE.Vector3[] = [];
   /** Rooftop sniper perches. */
   perches: THREE.Vector3[] = [];
+  /**
+   * Spawn no closer than this (default 12 m). A level with weather sets it to the current visibility,
+   * so enemies appear out of the storm rather than in plain sight.
+   */
+  minSpawnDistance: () => number = () => 12;
   onSniper: (at: THREE.Vector3) => void = () => {};
   /** The final hostile of a wave is all that's left. */
   onLastEnemy: () => void = () => {};
@@ -130,7 +135,10 @@ export class Waves {
     // Prefer spawns away from the player and out of their line of sight.
     const eye = new THREE.Vector3(p.x, p.y + 1.6, p.z);
     const list = this.spawns;
-    const candidates = list.filter((s) => s.distanceTo(p) > 12);
+    const minD = this.minSpawnDistance();
+    let candidates = list.filter((s) => s.distanceTo(p) > minD);
+    // Nothing that far (clear weather on an open map): the farthest third.
+    if (!candidates.length && minD > 12) candidates = list.slice().sort((a, b) => b.distanceTo(p) - a.distanceTo(p)).slice(0, Math.max(1, Math.ceil(list.length / 3)));
     const hidden = candidates.filter((s) => !ctx.col.lineOfSight(eye, new THREE.Vector3(s.x, s.y + 1.5, s.z)));
     const base = pick(hidden.length ? hidden : candidates.length ? candidates : list);
     const at = base.clone().add(new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)));

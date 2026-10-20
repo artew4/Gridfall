@@ -3,7 +3,7 @@ import type { Glows, Glow } from '../world/Glows';
 import type { Effects } from '../combat/Effects';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { EnemyCtx } from '../enemies/Enemy';
-import type { Breakable, CabinetSpot } from '../world/District';
+import type { Collider } from '../world/Collision';
 import { crossTexture } from '../world/Textures';
 
 const HITS_TO_TRIP = 3;
@@ -31,6 +31,24 @@ interface Medkit {
   group: THREE.Group;
   glow: Glow;
   respawn: number;
+}
+
+
+/** A light that goes out when shot (and comes back on restart). */
+export interface Breakable {
+  glow: Glow;
+  collider: Collider;
+  pos: THREE.Vector3;
+  /** Real light to kill as well, if any. */
+  light?: THREE.PointLight;
+  extra?: THREE.MeshBasicMaterial[];
+}
+
+/** An electrical cabinet: shoot it to arc the enemies around it. */
+export interface CabinetSpot {
+  pos: THREE.Vector3;
+  face: 'n' | 's' | 'e' | 'w';
+  collider: Collider;
 }
 
 /**

@@ -15,6 +15,7 @@ const GradeShader = {
     uLetterbox: { value: 0 },
     uAspect: { value: 1 },
     uFlash: { value: 0 },
+    uShadowTint: { value: [0.012, 0.01, 0.03] as [number, number, number] },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -23,6 +24,7 @@ const GradeShader = {
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform float uTime, uDamage, uAberration, uFade, uLetterbox, uAspect, uFlash;
+    uniform vec3 uShadowTint;
     varying vec2 vUv;
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
@@ -38,8 +40,7 @@ const GradeShader = {
 
       // Grade: cool shadows, slightly warm highlights, gentle contrast in log-ish space.
       float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-      vec3 shadowTint = vec3(0.012, 0.010, 0.030);
-      col += shadowTint * (1.0 - smoothstep(0.0, 0.25, lum));
+      col += uShadowTint * (1.0 - smoothstep(0.0, 0.25, lum));
       col = mix(col, col * vec3(1.04, 0.99, 0.95), smoothstep(0.4, 1.5, lum));
       col = mix(vec3(lum), col, 1.08);
 
@@ -68,6 +69,7 @@ const GradeShader = {
 export class Renderer {
   renderer: THREE.WebGLRenderer;
   composer: EffectComposer;
+  private scenePass: RenderPass;
   bloom: UnrealBloomPass;
   grade: ShaderPass;
   weaponPass: RenderPass;
@@ -93,7 +95,8 @@ export class Renderer {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.composer = new EffectComposer(r);
-    this.composer.addPass(new RenderPass(scene, camera));
+    this.scenePass = new RenderPass(scene, camera);
+    this.composer.addPass(this.scenePass);
 
     this.weaponPass = new RenderPass(weaponScene, weaponCamera);
     this.weaponPass.clear = false;
@@ -109,6 +112,24 @@ export class Renderer {
 
     window.addEventListener('resize', () => this.resize());
     this.resize();
+  }
+
+  /** A level switch draws a new scene. */
+  setScene(scene: THREE.Scene) {
+    this.scene = scene;
+    this.scenePass.scene = scene;
+  }
+
+  /** The loaded level's look: exposure, bloom, sun shadows, grade tint. */
+  setLook(l: { exposure: number; bloom: { strength: number; radius: number; threshold: number }; shadows: boolean; shadowTint: [number, number, number] }) {
+    const r = this.renderer;
+    r.toneMappingExposure = l.exposure;
+    this.bloom.strength = l.bloom.strength;
+    this.bloom.radius = l.bloom.radius;
+    this.bloom.threshold = l.bloom.threshold;
+    r.shadowMap.enabled = l.shadows;
+    r.shadowMap.type = THREE.PCFShadowMap;
+    this.grade.uniforms.uShadowTint.value = l.shadowTint;
   }
 
   get canvas() {

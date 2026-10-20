@@ -1,9 +1,5 @@
-export interface Zone {
-  id: string;
-  name: string;
-  jp: string;
-  rects: [number, number, number, number][]; // x0, z0, x1, z1
-}
+import type { Zone } from '../levels/Level';
+export type { Zone };
 
 /** Named areas of the district (the zone toast reads these). Upper walkways win when above deck height. */
 export const ZONES: Zone[] = [

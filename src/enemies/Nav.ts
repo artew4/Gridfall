@@ -6,6 +6,11 @@ export interface NavLayout {
   nodes: THREE.Vector3[];
   /** Hand-authored links, used for stairs (auto links only join nodes on the same level). */
   links: [number, number][];
+  /**
+   * Open terrain: auto links may also climb this much per metre (dunes). Floor continuity is still
+   * checked along the link, so a roof never links to the ground below it. Default 0 (flat levels).
+   */
+  slope?: number;
 }
 
 /** Probe height above the floor for walkability rays, plus a knee-high ray for low obstacles. */
@@ -33,7 +38,8 @@ export class Nav {
     for (let i = 0; i < this.nodes.length; i++) {
       for (let j = i + 1; j < this.nodes.length; j++) {
         const ni = this.nodes[i], nj = this.nodes[j];
-        if (Math.abs(ni.y - nj.y) > 0.5) continue;
+        const rise = 0.5 + (layout.slope ?? 0) * Math.hypot(ni.x - nj.x, ni.z - nj.z);
+        if (Math.abs(ni.y - nj.y) > rise) continue;
         if (ni.distanceTo(nj) < 14 && this.clear(ni, nj) && this.walkable(ni, nj)) link(i, j);
       }
     }
@@ -82,12 +88,19 @@ export class Nav {
       cand.push({ i, s: (n.x - q.x) ** 2 + (n.z - q.z) ** 2 + dy * dy * 9 });
     }
     cand.sort((a, b) => a.s - b.s);
-    // Rays are the expensive part: test in order of preference and stop at the first visible one.
+    // Rays are the expensive part: test in order of preference. A node a body can walk straight to
+    // (corridor clear down to knee height) wins over one merely visible across a low barrier — ending a
+    // route there would leave the walker pressed against the barrier. Fall back to the nearest visible.
+    let visible = -1;
+    let tried = 0;
     for (let k = 0; k < cand.length; k++) {
       const n = this.nodes[cand[k].i];
-      if (this.col.lineOfSight(q, n) && this.walkable(q, n)) return cand[k].i;
+      if (!this.col.lineOfSight(q, n) || !this.walkable(q, n)) continue;
+      if (this.clear(q, n)) return cand[k].i;
+      if (visible < 0) visible = cand[k].i;
+      if (++tried >= 12) break;
     }
-    return -1;
+    return visible;
   }
 
   /** Dijkstra; returns node indices from start to goal. */

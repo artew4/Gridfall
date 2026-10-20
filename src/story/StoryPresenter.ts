@@ -49,6 +49,13 @@ export class StoryPresenter {
     this.show(false);
   }
 
+  /** Level unloaded: take the objective HUD, subtitles and marker out of the page. */
+  dispose() {
+    this.hud.root.remove();
+    this.subs.root.remove();
+    this.marker.root.remove();
+  }
+
   show(on: boolean) {
     this.hud.show(on);
     this.subs.root.classList.toggle('hidden', !on);
@@ -136,11 +143,11 @@ export class StoryPresenter {
     const tab = g.input.key(KEYS.objective) && g.state === 'play';
     if (tab !== this.overview || tab) {
       this.overview = tab;
-      const esc = g.rail.tt.escapeService();
+      const esc = g.tokyo.rail.tt.escapeService();
       this.hud.setOverview(tab, {
         where: def?.place ? `${def.place}${def.target ? ` — ${Math.round(this.guidance.routeLength > 0 ? this.guidance.routeLength : p.distanceTo(def.target))} m away${Guidance.floorHint(p, def.target) ? `, ${Guidance.floorHint(p, def.target)}` : ''}` : ''}` : '',
         hint: def?.hints[Math.max(0, this.hintI - 1)] ?? def?.hints[0] ?? '',
-        train: g.mission.boardKnown && esc ? `Last express to Kagerō Bay — ${fmt(esc.time)}, Platform 1${esc.suspended ? ' (suspended: lockdown)' : ''}. Now ${fmt(g.rail.tt.now)}.` : '',
+        train: g.tokyo.mission.boardKnown && esc ? `Last express to Kagerō Bay — ${fmt(esc.time)}, Platform 1${esc.suspended ? ' (suspended: lockdown)' : ''}. Now ${fmt(g.tokyo.rail.tt.now)}.` : '',
       });
     }
 
@@ -159,8 +166,8 @@ export class StoryPresenter {
     const g = this.g;
     const def = this.def;
     if (!def || !def.hints.length) return;
-    const level = g.security.alert.level;
-    const fighting = level === 'pursuit' || g.security.hostiles(30) > 0;
+    const level = g.tokyo.security.alert.level;
+    const fighting = level === 'pursuit' || g.tokyo.security.hostiles(30) > 0;
     if (fighting) return;
     if (def.target) {
       const d = this.guidance.routeLength > 0 ? this.guidance.routeLength : g.player.pos.distanceTo(def.target);
@@ -181,12 +188,12 @@ export class StoryPresenter {
   /** First minutes: one control at a time, when it matters. */
   private onboarding() {
     const g = this.g;
-    if (g.mode !== 'story' || g.mission.act !== 1) return;
+    if (g.mode !== 'story' || g.tokyo.mission.act !== 1) return;
     if (this.playT > 1) this.tip('move', '[W][A][S][D] move · mouse to look · [SHIFT] sprint · [SPACE] jump');
     if (this.playT > 9) this.tip('holster', 'Your gun is holstered. [X] draws it — but a drawn weapon makes guards and civilians notice you.');
     if (this.playT > 17) this.tip('objective', 'Your objective is top-left; the ◆ marker shows the way. Hold [TAB] for details.');
     if (g.weapon.visible) this.tip('drawn', 'Weapon drawn. [X] holsters it again — do that before you walk past patrols.');
-    for (const k of g.intel.map.values()) {
+    for (const k of g.tokyo.intel.map.values()) {
       if (k.yaw !== null) {
         this.tip('cones', 'Minimap: the coloured cone is where a guard is looking. Yellow = patrol, orange = suspicious, red = hunting you.');
         break;

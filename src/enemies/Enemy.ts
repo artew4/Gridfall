@@ -25,6 +25,11 @@ export interface EnemyCtx {
   bounds: THREE.Box2;
   /** Rooftop sniper spots (floor positions). */
   perches: THREE.Vector3[];
+  /**
+   * How far anyone can see right now (fog, a sandstorm), if the level limits it. Enemies don't see
+   * through what hides them from the player; they still hear and hunt.
+   */
+  sightRange?: number;
   damagePlayer(dmg: number, from: THREE.Vector3): void;
 }
 
@@ -165,7 +170,9 @@ export abstract class Enemy {
   }
 
   protected canSee(ctx: EnemyCtx, target: THREE.Vector3) {
-    return ctx.col.lineOfSight(_v.set(this.pos.x, this.pos.y + 1.5, this.pos.z), target);
+    _v.set(this.pos.x, this.pos.y + 1.5, this.pos.z);
+    if (ctx.sightRange !== undefined && _v.distanceTo(target) > ctx.sightRange) return false;
+    return ctx.col.lineOfSight(_v, target);
   }
 
   /** Returns the immediate steering target towards goal, using the waypoint graph when blocked. */
@@ -505,14 +512,17 @@ export class Gunner extends Enemy {
       this.setState('cooldown');
       return;
     }
+    // A cover we're leaving because it gave no sight is not picked again straight away.
+    const prev = this.cover;
     if (this.cover) ctx.occupied.delete(this.cover);
-    const head = new THREE.Vector3(ctx.player.pos.x, ctx.player.pos.y + 1.5, ctx.player.pos.z);
+    // The same aim point think() uses for "sees", so a chosen cover really gives a shot.
+    const head = new THREE.Vector3(ctx.player.pos.x, ctx.player.pos.y + 1.4, ctx.player.pos.z);
     let best: THREE.Vector3 | null = null;
     let bestScore = Infinity;
     for (const c of ctx.coverPoints) {
-      if (ctx.occupied.has(c)) continue;
+      if (ctx.occupied.has(c) || (c === prev && this.noSight > 1.6)) continue;
       const d = c.distanceTo(ctx.player.pos);
-      if (d < 7 || d > 30) continue;
+      if (d < 7 || d > Math.min(30, ctx.sightRange ?? 30)) continue;
       if (!ctx.col.lineOfSight(new THREE.Vector3(c.x, c.y + 1.5, c.z), head)) continue;
       const score = c.distanceTo(this.pos) + Math.abs(d - 15) * 0.5 + Math.random() * 4;
       if (score < bestScore) {
