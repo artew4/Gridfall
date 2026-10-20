@@ -9,10 +9,12 @@ export interface Settings {
   /** Graphics preset and frame cap (the cap follows the preset unless changed). */
   quality: QualityPreset;
   fps: FpsCap;
+  /** One-time control tips in story mode. */
+  tips: boolean;
 }
 
 const KEY = 'neonrain.settings';
-export const DEFAULTS: Settings = { master: 80, music: 60, sfx: 85, muted: false, quality: 'balanced', fps: 60 };
+export const DEFAULTS: Settings = { master: 80, music: 60, sfx: 85, muted: false, quality: 'balanced', fps: 60, tips: true };
 
 const pct = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : d);
 
@@ -29,6 +31,7 @@ export function loadSettings(): Settings {
       muted: typeof o.muted === 'boolean' ? o.muted : DEFAULTS.muted,
       quality: o.quality === 'power' || o.quality === 'balanced' || o.quality === 'high' ? o.quality : DEFAULTS.quality,
       fps: FPS_CAPS.includes(o.fps as FpsCap) ? (o.fps as FpsCap) : DEFAULTS.fps,
+      tips: typeof o.tips === 'boolean' ? o.tips : DEFAULTS.tips,
     };
   } catch {
     return { ...DEFAULTS };

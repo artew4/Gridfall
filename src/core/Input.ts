@@ -1,3 +1,5 @@
+import { CAPTURED } from './Bindings';
+
 export class Input {
   keys = new Set<string>();
   pressed = new Set<string>();
@@ -13,7 +15,7 @@ export class Input {
 
   constructor(private element: HTMLElement) {
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
+      if (CAPTURED.has(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);
       this.onAnyKey();

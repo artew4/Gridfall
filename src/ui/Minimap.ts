@@ -88,7 +88,7 @@ export class Minimap {
     this.root.classList.toggle('hidden', !on);
   }
 
-  draw(player: THREE.Vector3, yaw: number, objective: THREE.Vector3 | null, blips: Blip[], station: THREE.Vector3 | null) {
+  draw(player: THREE.Vector3, yaw: number, objective: THREE.Vector3 | null, blips: Blip[], station: THREE.Vector3 | null, route: THREE.Vector3[] = []) {
     const g = this.ctx;
     const s = this.dpr;
     g.setTransform(s, 0, 0, s, 0, 0);
@@ -186,6 +186,24 @@ export class Minimap {
       }
     }
     g.globalAlpha = 1;
+    // Route to the objective along streets and stairs (dotted; brighter on the player's level).
+    if (route.length > 1) {
+      g.lineWidth = 2;
+      g.setLineDash([2, 4]);
+      g.lineCap = 'round';
+      for (let i = 1; i < route.length; i++) {
+        const a = route[i - 1], b = route[i];
+        const same = Math.abs(a.y - player.y) < 2 && Math.abs(b.y - player.y) < 2;
+        g.strokeStyle = same ? 'rgba(255,210,122,0.85)' : 'rgba(255,210,122,0.35)';
+        const [x0, y0] = toScreen(a.x, a.z);
+        const [x1, y1] = toScreen(b.x, b.z);
+        g.beginPath();
+        g.moveTo(x0, y0);
+        g.lineTo(x1, y1);
+        g.stroke();
+      }
+      g.setLineDash([]);
+    }
     // Objective.
     if (objective) {
       const [x, y] = clampEdge(toScreen(objective.x, objective.z));

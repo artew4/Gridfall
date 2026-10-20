@@ -193,3 +193,72 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .pm-btn.pm-chip.on { color: #fff; border-color: var(--cyan); background: rgba(120, 235, 255, 0.12); box-shadow: 0 0 12px rgba(120, 235, 255, 0.18) inset; }
 .pm-note { font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; color: rgba(160, 220, 235, 0.55); margin-top: 2px; }
 .pm-panel { max-height: 94vh; overflow-y: auto; }
+
+/* ---------- 3.2: objectives, marker, subtitles, tips ---------- */
+:root { --amber: #ffd27a; --amber-dim: rgba(255, 210, 122, 0.45); }
+.objhud { z-index: 6; }
+/* Persistent objective panel, top-left. */
+.obj-panel { position: absolute; top: clamp(14px, 2.4vh, 26px); left: clamp(14px, 1.8vw, 28px); width: clamp(260px, 27vw, 430px); padding: 10px 14px 10px 14px; border-left: 2px solid var(--amber-dim); background: linear-gradient(90deg, rgba(4, 8, 18, 0.72), rgba(4, 8, 18, 0)); transition: opacity 0.4s; }
+.obj-panel.empty { opacity: 0; }
+.obj-tag { display: flex; justify-content: space-between; gap: 12px; font-size: 9px; letter-spacing: 0.45em; color: var(--amber-dim); }
+.obj-tag span { letter-spacing: 0.3em; color: var(--cyan-dim); white-space: nowrap; }
+.obj-title { margin-top: 4px; font-size: clamp(14px, 1.25vw, 19px); letter-spacing: 0.22em; color: #fff4dc; text-shadow: 0 0 10px rgba(255, 190, 90, 0.25); }
+.obj-title .jp { font-family: var(--jp); font-size: 0.6em; letter-spacing: 0.25em; color: var(--amber-dim); margin-left: 12px; }
+.obj-text { margin-top: 5px; font-size: clamp(11px, 0.85vw, 13px); letter-spacing: 0.06em; line-height: 1.45; color: rgba(232, 250, 255, 0.92); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.obj-dist { margin-top: 6px; font-size: 11px; letter-spacing: 0.3em; color: var(--amber); min-height: 0; }
+.obj-dist:empty { display: none; }
+.obj-hint { margin-top: 8px; font-size: 12px; line-height: 1.45; letter-spacing: 0.03em; color: #cfe9ff; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; max-height: 0; opacity: 0; overflow: hidden; transition: opacity 0.5s, max-height 0.5s; }
+.obj-hint.on { opacity: 1; max-height: 120px; }
+.obj-panel.flash .obj-title { animation: objflash 1.6s ease-out; }
+/* New-objective banner. */
+.obj-banner { position: absolute; top: 21vh; left: 50%; transform: translate(-50%, -10px); min-width: min(520px, 86vw); max-width: 86vw; padding: 14px 34px 16px; text-align: center; border-top: 1px solid var(--amber-dim); border-bottom: 1px solid var(--amber-dim); background: linear-gradient(90deg, transparent, rgba(4, 8, 18, 0.82) 18%, rgba(4, 8, 18, 0.82) 82%, transparent); opacity: 0; transition: opacity 0.5s, transform 0.5s; }
+.obj-banner.on { opacity: 1; transform: translate(-50%, 0); }
+.ob-act { font-size: 10px; letter-spacing: 0.5em; color: var(--cyan-dim); margin-bottom: 8px; }
+.ob-act .jp, .ov-act .jp { font-family: var(--jp); margin-left: 10px; letter-spacing: 0.3em; }
+.ob-done { font-size: 10px; letter-spacing: 0.45em; color: #9dffc6; margin-bottom: 8px; }
+.ob-label { font-size: 9px; letter-spacing: 0.6em; color: var(--amber-dim); }
+.ob-title { margin-top: 6px; font-size: clamp(20px, 2.1vw, 30px); font-weight: 300; letter-spacing: 0.32em; color: #fff4dc; text-shadow: 0 0 18px rgba(255, 190, 90, 0.35); }
+.ob-title.small { font-size: clamp(16px, 1.5vw, 22px); }
+.ob-text { margin-top: 8px; font-size: clamp(12px, 1vw, 15px); letter-spacing: 0.04em; color: rgba(232, 250, 255, 0.9); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+/* TAB overview. */
+.obj-overview { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(620px, 90vw); padding: 24px 30px; border: 1px solid var(--cyan-faint); border-left: 2px solid var(--amber-dim); background: rgba(4, 7, 16, 0.9); opacity: 0; transition: opacity 0.2s; }
+.obj-overview.on { opacity: 1; }
+.ov-act { font-size: 10px; letter-spacing: 0.5em; color: var(--cyan-dim); }
+.ov-title { margin: 10px 0 6px; font-size: 22px; font-weight: 300; letter-spacing: 0.3em; color: #fff4dc; }
+.ov-title .jp { font-family: var(--jp); font-size: 12px; color: var(--amber-dim); margin-left: 12px; }
+.ov-text, .ov-why, .ov-row span { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.55; color: rgba(232, 250, 255, 0.92); }
+.ov-why { margin: 10px 0 14px; color: rgba(200, 225, 240, 0.8); font-size: 13px; }
+.ov-row { display: grid; grid-template-columns: 70px 1fr; gap: 12px; margin: 6px 0; align-items: baseline; }
+.ov-row b { font-weight: 400; font-size: 10px; letter-spacing: 0.4em; color: var(--amber-dim); }
+.ov-keys { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--cyan-faint); font-size: 10px; letter-spacing: 0.15em; color: var(--cyan-dim); line-height: 2.2; }
+kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin: 0 4px; text-align: center; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: #fff; border: 1px solid var(--cyan-dim); border-bottom-width: 2px; border-radius: 3px; background: rgba(120, 235, 255, 0.08); }
+/* One-time tips. */
+.obj-tip { position: absolute; left: 50%; bottom: 25vh; transform: translateX(-50%); max-width: 80vw; padding: 8px 16px; font-size: 12px; letter-spacing: 0.12em; color: #e8fbff; background: rgba(4, 8, 18, 0.7); border: 1px solid var(--cyan-faint); opacity: 0; transition: opacity 0.4s; text-align: center; }
+.obj-tip.on { opacity: 1; }
+/* Subtitles. */
+.subtitles { position: fixed; left: 50%; bottom: clamp(70px, 12vh, 130px); transform: translateX(-50%); width: min(860px, 88vw); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 7; }
+.sub { padding: 7px 16px 8px; max-width: 100%; text-align: center; background: rgba(2, 4, 10, 0.68); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: clamp(14px, 1.15vw, 18px); line-height: 1.4; color: #f4f8ff; opacity: 0; transform: translateY(6px); transition: opacity 0.25s, transform 0.25s; }
+.sub.on { opacity: 1; transform: none; }
+.sub b { font-family: var(--mono); font-weight: 400; font-size: 0.68em; letter-spacing: 0.35em; margin-right: 12px; color: var(--amber); }
+.sub.sp-stationpa b { color: #8fd8ff; }
+.sub.sp-dispatch b, .sub.sp-security b { color: #ff8a8a; }
+.sub.sp-board b, .sub.sp-news b { color: var(--cyan); }
+/* Objective marker. */
+.wmarker { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 4; transition: opacity 0.3s; }
+.wm-diamond { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; transform: rotate(45deg); border: 2px solid var(--amber); background: rgba(255, 210, 122, 0.22); box-shadow: 0 0 12px rgba(255, 190, 90, 0.5); }
+.wmarker.waypoint .wm-diamond { left: -7px; top: -7px; width: 14px; height: 14px; background: none; border-style: dashed; }
+.wm-arrow { position: absolute; left: -6px; top: -6px; width: 12px; height: 12px; display: none; }
+.wmarker.off .wm-arrow { display: block; }
+.wm-arrow::after { content: ''; position: absolute; left: 22px; top: 1px; border: 5px solid transparent; border-left: 8px solid var(--amber); }
+.wm-label, .wm-dist { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 10px; letter-spacing: 0.3em; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
+.wm-label { top: -34px; color: #fff4dc; }
+.wm-dist { top: 16px; color: var(--amber); }
+.wmarker.occluded { opacity: 0.45; }
+.wmarker.occluded .wm-diamond { background: none; }
+.wmarker.off .wm-label { display: none; }
+/* The interaction prompt, bigger and closer to the crosshair. */
+.prompt { top: 58%; padding: 7px 14px; font-size: 13px; letter-spacing: 0.22em; border-color: var(--amber-dim); }
+.prompt b { display: inline-block; min-width: 22px; padding: 0 6px; text-align: center; color: #fff; border: 1px solid var(--cyan-dim); border-bottom-width: 2px; border-radius: 3px; background: rgba(120, 235, 255, 0.1); }
+/* Police radio: a compact feed under the objective panel. */
+.radio { top: clamp(130px, 17vh, 180px); bottom: auto; left: clamp(14px, 1.8vw, 28px); max-width: 32vw; }
+@media (max-width: 900px) { .obj-panel { width: 60vw; } .radio { display: none; } }
