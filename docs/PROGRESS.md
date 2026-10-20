@@ -121,8 +121,46 @@ Validation (Chrome, Apple M5, `npm run dev`):
 - **Bench (Balanced):** jungle 60 FPS in all 6 scenarios, GPU 6.07–6.35 ms, CPU 1.9–2.3 ms, 65–129 draw calls, ~374k triangles (3.6: 324k). Same session: the desert takes 5.6–6.0 ms and Tokyo 6.5–6.7 ms.
 - **Tests and build:** 75 unit tests pass; the production build has no dev tools.
 
+## 4.0: visual overhaul, vertical slice on Tokyo (Lantern Street, the plaza)
+Branch `feature/visual-overhaul-tokyo-4.0`, based on 3.7 (`37566b6`). Numbers: `docs/BENCH-4.0.json`.
+
+| Step | Commit | Notes |
+|---|---|---|
+| Phases 1–3 | d59e6ba | bloom and grade retune, F8 comparison, wet model, reflection catchers, street AO, interleaved bench |
+| Phases 4–5 | (this commit) | validation results, benchmark, docs |
+
+**Already in place before 4.0** (not rebuilt):
+- `EffectComposer` with RenderPass (world), a viewmodel pass, UnrealBloom, a grade pass and OutputPass;
+- ACES filmic tone mapping;
+- a DOM HUD;
+- shader wet ground with puddles, ripples and additive neon streaks.
+
+4.0 retuned and extended these.
+
+Validation (Chrome, Apple M5, `npm run dev`, Balanced applied in memory; saved settings unchanged):
+- **Bloom threshold from data:** HDR buffer, 480×270, emissives off. Lit surfaces above 1.0: ≤ 0.012% of pixels in four of five views. The fifth has a pre-existing sign-light hot spot (0.11%, unchanged with the 4.0 additions off). With everything on, the plaza goes from 1.57% above 0.92 to 0.75% above 1.0: dim window emissives stop blooming, neon (2.6–55) doesn't.
+- **Reflection catchers:** real `PointLight`s first. They cost +2.1 ms GPU in the metro (none visible there) and +0.8 ms at the plaza, and at the sign's height they changed 0.07% of a frame. Moved into the wet shader (specular only, widened lobe, ≤ 2.2 m): 3.9% of a Lantern Street frame at intensity 5, cost within noise. Point lights stay at 15, as in 3.7.
+- **Component cost** (GPU ms, mean of 2, interleaved):
+
+  | View | 4.0 | 3.7 | raw | 4.0 without catchers | 4.0 without AO |
+  |---|---|---|---|---|---|
+  | Lantern St | 6.18 | 5.78 | 5.82 | 6.45 | 5.61 |
+  | Plaza | 6.09 | 5.87 | 5.53 | 5.67 | 5.77 |
+  | Metro | 5.32 | 5.16 | 4.53 | 5.16 | 5.15 |
+
+- **Bench, 8 scenarios × 3 pipelines, interleaved, all valid:**
+  - GPU: 4.0 4.76–5.99 ms, raw 4.23–5.70 ms, 3.7 4.96–5.91 ms;
+  - CPU 4.1–6.9 ms;
+  - draw calls 4.0 151–448, raw 139–392.
+- **60 FPS: NOT VERIFIED in this session.** The laptop was on battery at 18–20%, and Chrome capped `requestAnimationFrame` at ~31 Hz (Energy Saver) in every pipeline, 3.7 included. Frame cost (GPU ≤ 6 ms, CPU ≤ 7 ms) is far inside 16.7 ms. Re-run `__dev.bench(3, { pipelines: ['v4', 'raw', 'v37'] })` plugged in.
+- **World:** `world()` 0 findings and 14,486 reachable cells (as 3.3); `stress({samples: 2000})` 0 of 64,000; the `colliders()` overlay matches. No collider changed.
+- **Quit to menu (Tokyo, 5 rounds with a wave):** geometries 268, textures 112, programs 126, DOM 247, all flat (the AO texture is freed through `userData`).
+- **Cross-setting:** the desert and jungle keep their 3.7 bloom and grade (split 0).
+- **Tests and build:** 75 unit tests pass; the production bundle has no dev code (`__dev`, F8).
+
 ## Next
 Human playtest:
+- 4.0 items: does the teal/orange read as cinematic or as a filter, is the bloom too tight now, do the puddle reflections and the street AO read in motion, F8 side by side; and the frame rate with the charger in.
 - 3.7 items: does the road pull you to the gate, is the cleared strip a fair kill zone, do defenders out of the barracks feel like a garrison, are the guards readable in the mist, the doorways and stairs by feel, the watchtower and comms roof as positions.
 - 3.6 items: the shotgun's feel (kick, pump timing, the boom), whether 8 m one-shot range feels right, hunters' readability in the undergrowth and mist, the climbable logs, the dappled light, the jungle soundscape.
 - 3.5 items: the rifle's feel (recoil, rate, sound), whether the mercenaries read well at a distance and in the storm, the clutter as cover, quitting to the menu and starting again.

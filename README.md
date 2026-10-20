@@ -1,4 +1,4 @@
-# NEON RAIN 3.7: Three Settings
+# NEON RAIN 4.0: Three Settings (Tokyo visual slice)
 
 One night in Shinjuku. One gun you'd rather keep holstered. One last train. Or an outpost in the dunes, and a sandstorm coming. Or a walled firebase deep in the rainforest, and a road up to its gate.
 
@@ -230,6 +230,16 @@ Each track can also set `beatsPerBar` (default 4) and `offset` (seconds before b
 - In a hidden tab, rendering stops, audio is suspended and a running game pauses. It stays paused until you resume.
 - Resolution adapts down if the frame rate can't hold the cap.
 
+### Tokyo look (4.0)
+The world renders through one post chain: scene → viewmodel → UnrealBloom → grade (aberration, split-tone, vignette, grain, fades) → OutputPass (ACES filmic, sRGB). The HUD, crosshair and menus are HTML over the canvas, so bloom and grading never touch them.
+- **Bloom only from emissives:** threshold 1.0 (HDR luminance), strength 0.7, radius 0.9. Neon, lamps, muzzle flashes and sparks are brighter than 1; lit walls and streets never are.
+- **Teal and orange:** shadows lifted toward teal, highlights pushed warm, highlights a little more saturated.
+- **Wet streets:** mirror-flat puddles (roughness 0.02, a touch of metalness), damp rims (0.32), dry asphalt (~0.6). Neon spills into the puddles below eight signs in Lantern Street and the plaza (a specular-only light evaluated by the ground shader), next to the existing reflection streaks.
+- **Street AO:** alleys, wall feet and the ground under walkways are darker, from a small occlusion texture baked from the map at load (15 ms).
+- **No real-time shadows in Tokyo** (none in 3.7 either): night light comes from neon, and a muzzle-flash shadow would need six extra scene renders per shot.
+
+Desert Outpost and Deep Jungle keep their 3.7 look.
+
 ## Dev checks
 
 In `npm run dev`, these commands work in the browser console (they don't exist in production builds):
@@ -264,7 +274,9 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - `await __dev.stress({ samples, fps })`: the real controller from sampled reachable cells in 8 directions, walking and sprint-jumping. `fps` takes rates and `'spiky'`, for example `[20, 30, 60, 120, 'spiky']`.
   - `await __dev.train()`: boarding at every door, closed doors, riding a departing car, and someone standing in a doorway as the doors close (with the real rail).
   - `await __dev.colliders(true)`: the collision overlay around the camera.
-  - `await __dev.bench(3)`: fixed benchmark scenarios for the loaded setting (Tokyo, the desert or the jungle). Compare the results with `docs/BENCH-3.2.json` … `docs/BENCH-3.7.json`.
+  - `await __dev.bench(3)`: fixed benchmark scenarios for the loaded setting (Tokyo, the desert or the jungle). Compare the results with `docs/BENCH-3.2.json` … `docs/BENCH-4.0.json`. A measurement only counts if the window stayed focused, visible and in play (`valid`); an unfocused window or Chrome's Energy Saver caps the frame rate.
+  - `await __dev.bench(3, { pipelines: ['v4', 'raw', 'v37'] })` (4.0): every scenario in each render pipeline, interleaved.
+  - **F8** (dev server only) cycles the render pipeline: 4.0 → RAW (no composer, the same materials) → 3.7 (the old look and materials) → 4.0. `__dev.pipeline('v37')` does the same from the console.
   - `__game.safety.recoveries`: how often the out-of-bounds safety net fired. It should stay 0, and each recovery is logged as `[safety]`.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
 
