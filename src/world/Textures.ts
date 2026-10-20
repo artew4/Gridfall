@@ -863,3 +863,78 @@ export function shutterTexture(): THREE.Texture {
   ctx.fillText('SECURITY LOCKDOWN', W / 2, H * 0.53);
   return tex(c, true, true);
 }
+
+/**
+ * The manhunt notice (billboard and street posters): Kurogane's wanted card for the player,
+ * portrait 4.2 : 13 like the rooftop billboard. The face is a stylised scanline portrait.
+ */
+export function wantedTexture(): THREE.Texture {
+  const W = 336;
+  const H = 1040;
+  const { c, ctx } = canvas(W, H);
+  ctx.fillStyle = '#07040a';
+  ctx.fillRect(0, 0, W, H);
+  // Header.
+  ctx.fillStyle = '#ff2448';
+  ctx.fillRect(0, 0, W, 150);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 74px "Hiragino Kaku Gothic ProN", sans-serif';
+  ctx.fillText('指名手配', W / 2, 88);
+  ctx.font = 'bold 34px Menlo, monospace';
+  ctx.fillText('W A N T E D', W / 2, 136);
+  // Portrait: head and shoulders in cyan scanlines.
+  const px = W / 2, py = 410;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(30, 180, W - 60, 420);
+  ctx.clip();
+  ctx.fillStyle = '#04141c';
+  ctx.fillRect(30, 180, W - 60, 420);
+  ctx.fillStyle = '#5fe6ff';
+  ctx.beginPath();
+  ctx.ellipse(px, py - 40, 78, 98, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(px - 160, 600);
+  ctx.quadraticCurveTo(px - 140, py + 70, px, py + 70);
+  ctx.quadraticCurveTo(px + 140, py + 70, px + 160, 600);
+  ctx.fill();
+  // Hood shadow and eyes.
+  ctx.fillStyle = '#04141c';
+  ctx.beginPath();
+  ctx.ellipse(px, py - 92, 92, 60, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(px - 52, py - 52, 34, 9);
+  ctx.fillRect(px + 18, py - 52, 34, 9);
+  for (let y = 180; y < 600; y += 6) {
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(30, y, W - 60, 3);
+  }
+  ctx.restore();
+  ctx.strokeStyle = '#5fe6ff';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(30, 180, W - 60, 420);
+  // Details.
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 40px Menlo, monospace';
+  ctx.fillText('ARASHI KAITO', W / 2, 668);
+  ctx.font = '30px "Hiragino Kaku Gothic ProN", sans-serif';
+  ctx.fillStyle = '#9ff1ff';
+  ctx.fillText('嵐 海斗', W / 2, 708);
+  ctx.font = '19px Menlo, monospace';
+  ctx.fillStyle = '#ffd27a';
+  ctx.fillText('EX-KUROGANE CONTRACTOR', W / 2, 760);
+  ctx.fillStyle = '#ff8090';
+  ctx.fillText('DATA VAULT BOMBING', W / 2, 800);
+  ctx.fillStyle = '#ff2448';
+  ctx.font = 'bold 26px Menlo, monospace';
+  ctx.fillText('ARMED · DANGEROUS', W / 2, 860);
+  ctx.fillStyle = '#9ff1ff';
+  ctx.font = '17px Menlo, monospace';
+  ctx.fillText('REPORT SIGHTINGS', W / 2, 930);
+  ctx.fillText('KUROGANE SECURITY', W / 2, 956);
+  ctx.font = '22px "Hiragino Kaku Gothic ProN", sans-serif';
+  ctx.fillText('黒鉄警備保障', W / 2, 1000);
+  return tex(c);
+}

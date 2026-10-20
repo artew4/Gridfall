@@ -796,7 +796,8 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
       new THREE.Vector3(0, 0, 46.5),
       new THREE.Vector3(21, 0, -17),
     ],
-    storyStart: { x: -11, z: 25.5, yaw: Math.PI / 2 },
+    // Facing the alley mouth (east, towards Lantern Street and the plaza).
+    storyStart: { x: -11, z: 25.5, yaw: -Math.PI / 2 },
     relay,
     metro,
     pois: [

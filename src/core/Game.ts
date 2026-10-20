@@ -42,6 +42,8 @@ import { EndScreen } from '../ui/EndScreen';
 import { CAR_CENTRES, TRACK_Z } from '../world/Metro';
 import { Mission } from '../story/Mission';
 import { StoryPresenter } from '../story/StoryPresenter';
+import { StoryIntro } from '../cinematic/StoryIntro';
+import { Manhunt } from '../world/Manhunt';
 import { Minimap } from '../ui/Minimap';
 import { PlayerIntel, intelRange } from '../stealth/PlayerIntel';
 
@@ -112,7 +114,12 @@ export class Game {
   private projectiles!: Projectiles;
   nav!: Nav;
   waves = new Waves();
-  private intro: Intro | null = null;
+  private intro: Intro | StoryIntro | null = null;
+  /** The story world was set up for the opening; gameplay continues with it. */
+  private storyPrepared = false;
+  manhunt!: Manhunt;
+  /** Stand-in for the player during the opening (the crowd keeps its detail around the camera). */
+  private introProxy = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), alive: true, sprinting: false };
   private coverPoints: THREE.Vector3[] = [];
   private occupied = new Set<THREE.Vector3>();
   private hemi!: THREE.HemisphereLight;
@@ -346,6 +353,7 @@ export class Game {
     this.waves.onLastEnemy = () => this.music.accent();
 
     this.story = new StoryPresenter(this);
+    this.manhunt = new Manhunt(s, this.col, d.billboard);
     this.mission = new Mission(this);
     this.intel = new PlayerIntel(this.col);
     this.minimap = new Minimap(this.hud.root, {
@@ -428,12 +436,8 @@ export class Game {
       if (!locked && (this.state === 'play' || this.state === 'intro')) this.pause();
       else if (locked && this.state === 'paused') this.resume();
     };
-    this.input.onAnyKey = () => {
-      if (this.state === 'intro' && this.intro && this.intro.t > 0.4) this.intro.skip();
-    };
-    window.addEventListener('mousedown', () => {
-      if (this.state === 'intro' && this.intro && this.intro.t > 0.4) this.intro.skip();
-    });
+    this.input.onAnyKey = () => this.skipIntro();
+    window.addEventListener('mousedown', () => this.skipIntro());
   }
 
   private pause() {
@@ -465,17 +469,56 @@ export class Game {
   private startIntro() {
     this.state = 'intro';
     const st = this.district.storyStart;
-    this.intro = new Intro(
-      this.scene,
-      this.audio,
-      this.projectiles.light,
-      this.mode === 'story' ? { end: new THREE.Vector3(st.x, 1.65, st.z), endLook: new THREE.Vector3(st.x - 10, 1.65, st.z) } : {},
-    );
     this.hud.setCine(this.mode);
-    // A train rolls over the plaza while the camera glides in.
-    this.train.startNow(1, -190);
     this.hud.show(this.hud.skip, true);
     this.hud.skip.style.opacity = '1';
+    if (this.mode === 'story') {
+      // The district is live during the opening: crowds, patrols on their beats, trains.
+      this.prepareStory();
+      const look = new THREE.Vector3(st.x - Math.sin(st.yaw) * 10, 1.65, st.z - Math.cos(st.yaw) * 10);
+      this.intro = new StoryIntro(
+        {
+          scene: this.scene,
+          say: (sp, text, sec) => this.story.say(sp, text, sec),
+          sfx: (k) => {
+            if (k === 'radio') this.audio.radio(null, 'dispatch');
+            else if (k === 'siren') this.audio.siren();
+            else if (k === 'phone') this.audio.uiBlip();
+            else this.train.startNow(1, -190);
+          },
+          wanted: (on) => this.manhunt.setMode(on ? 'on' : 'cycle'),
+          light: this.projectiles.light,
+        },
+        new THREE.Vector3(st.x, 1.65, st.z),
+        look,
+      );
+      return;
+    }
+    this.intro = new Intro(this.scene, this.audio, this.projectiles.light, {});
+    // A train rolls over the plaza while the camera glides in.
+    this.train.startNow(1, -190);
+  }
+
+  private skipIntro() {
+    if (this.state !== 'intro' || !this.intro || this.intro.t < 0.4) return;
+    const before = this.intro.t;
+    this.intro.skip();
+    // Lines of skipped shots don't trail into the game.
+    if (this.intro instanceof StoryIntro && this.intro.t !== before) this.story.subs.clear();
+  }
+
+  /** Story world for the opening (act 1): the player is parked at the start, unseen. */
+  private prepareStory() {
+    const st = this.district.storyStart;
+    this.player.reset(st.x, st.z, st.yaw);
+    this.weapon.setHolstered(true, true);
+    this.crowd.setVisible(true);
+    this.ctx.enemies = this.security.guards;
+    this.story.clear();
+    this.mission.setup(false);
+    this.security.blind = true;
+    this.manhunt.setMode('cycle');
+    this.storyPrepared = true;
   }
 
   private beginPlay(fromCheckpoint = false) {
@@ -498,12 +541,17 @@ export class Game {
       this.ctx.enemies = this.security.guards;
       this.storyHud.clear();
       this.storyHud.show(true);
-      this.story.clear();
+      // Subtitles of the opening may still be finishing; the objective starts fresh.
+      if (!this.storyPrepared || fromCheckpoint) this.story.clear();
       this.story.show(true);
       this.minimap.show(true);
       this.intel.clear();
       this.stationKnown = false;
-      this.mission.start(fromCheckpoint);
+      this.security.blind = false;
+      this.manhunt.setMode('cycle');
+      if (this.storyPrepared && !fromCheckpoint) this.mission.begin(false);
+      else this.mission.start(fromCheckpoint);
+      this.storyPrepared = false;
       if (fromCheckpoint) this.storyHud.radioLine('CHECKPOINT', 'info');
     } else {
       const st = this.district.start;
@@ -516,6 +564,7 @@ export class Game {
       this.minimap.show(false);
       this.story.clear();
       this.story.show(false);
+      this.manhunt.setMode('off');
       this.crowd.setVisible(false);
       this.crowd.civs.length = 0;
       this.waves.startNext();
@@ -649,6 +698,14 @@ export class Game {
       this.renderer.grade.uniforms.uFade.value = damp(this.renderer.grade.uniforms.uFade.value, 0.25, 1.5, rawDt);
     } else if (this.state === 'intro' && this.intro) {
       const f = this.intro.update(dt, this.camera);
+      if (this.mode === 'story') {
+        this.security.update(dt);
+        this.introProxy.pos.copy(this.camera.position).setY(Math.min(this.camera.position.y, 6));
+        this.crowd.update(dt, this.elapsed, this.introProxy as unknown as Player, false, false);
+        this.story.subs.update(dt);
+        this.story.subs.root.classList.remove('hidden');
+        this.manhunt.update(dt);
+      }
       const g = this.renderer.grade.uniforms;
       g.uFade.value = f.fade;
       g.uLetterbox.value = f.letterbox;
@@ -907,6 +964,9 @@ export class Game {
     this.rail.reset();
     this.story.clear();
     this.story.show(false);
+    this.manhunt.setMode('off');
+    this.security.blind = false;
+    this.storyPrepared = false;
     this.ending = null;
     this.timeScale = 1;
     this.renderer.grade.uniforms.uLetterbox.value = 0;
