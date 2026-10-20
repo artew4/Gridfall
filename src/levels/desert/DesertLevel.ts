@@ -16,6 +16,7 @@ export const DESERT_INFO: LevelInfo = {
   blurb: 'An outpost in open dunes, harsh sun, sandstorms that blind you. Survival.',
   modes: ['arcade'],
   loading: 'RAISING THE OUTPOST…',
+  windowTitle: 'NEON RAIN — Desert Outpost',
   tagline: 'HOLD THE OUTPOST · WATCH THE STORM',
   jpLine: '砂漠 · 午後二時十分',
   place: 'OUTPOST KESTREL',

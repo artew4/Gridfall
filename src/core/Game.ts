@@ -313,6 +313,7 @@ export class Game {
     level.attach();
     this.rules = this.arcade;
 
+    document.title = level.info.windowTitle;
     this.renderer.setLook(level.look);
     this.hud.setPlace(level.info.place, level.info.clock);
     if (this.ready) this.applyGraphics();

@@ -34,6 +34,7 @@ export const TOKYO_INFO: LevelInfo = {
   blurb: 'Rain, neon and a vertical district over a metro station. Story and survival.',
   modes: ['story', 'arcade'],
   loading: 'BUILDING THE CITY…',
+  windowTitle: 'NEON RAIN — Tokyo After Midnight',
   tagline: 'ONE NIGHT · ONE CITY · ONE WAY OUT',
   jpLine: '東京 · 午前零時二十四分',
   place: 'SHINJUKU-KU',

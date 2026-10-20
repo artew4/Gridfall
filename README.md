@@ -1,8 +1,8 @@
-# NEON RAIN 3.2: Cinematic Escape
+# NEON RAIN 3.4: Two Settings
 
-One night in Shinjuku. One gun you'd rather keep holstered. One last train.
+One night in Shinjuku. One gun you'd rather keep holstered. One last train. Or an outpost in the dunes, and a sandstorm coming.
 
-A single-player stealth-action escape built with Three.js + TypeScript + Vite. Everything (geometry, textures, signage, sound and music) is generated procedurally at startup: no external assets.
+A single-player stealth-action game built with Three.js + TypeScript + Vite. Its engine (controller, shooting, AI, collision, survival waves) now runs several settings. Everything (geometry, textures, signage, sound and music) is generated procedurally at startup: no external assets.
 
 ## Run
 
@@ -13,7 +13,31 @@ npm test         # unit tests (vitest)
 npm run build    # type-check + production build into dist/
 ```
 
-Pick a mode on the main menu (the click also unlocks audio and captures the mouse). Any key or click skips the opening.
+On the main menu, pick a **setting**, then a **mode**. The click also unlocks audio and captures the mouse. Any key or click skips the opening. The menu remembers the last setting; `?setting=desert` or `?setting=tokyo` in the URL picks one directly.
+
+| Setting | Modes |
+|---|---|
+| **TOKYO NIGHT** — rain, neon, a vertical district over a metro station | Story Escape, Arcade Survival |
+| **DESERT OUTPOST** — open dunes, harsh sun, sandstorms | Arcade Survival |
+
+Switching settings builds the new one behind the menu and frees the old one completely. How levels work and how to add one: `docs/LEVELS.md`.
+
+## Desert Outpost
+
+- **The map:**
+  - Outpost Kestrel sits on a flat pad inside a HESCO barrier with four gates. Rolling dunes run out to sandstone mesas that close the map.
+  - Six buildings you can walk into: the barracks (two rooms), the motor pool (a truck inside), the trading post (an L-shaped hall with a walkable roof terrace up an outside stair), the clinic, the watchtower (a ground room, with a stair to a roof platform under a canopy) and the generator shed.
+- **The sun:**
+  - harsh light from the south-west, with hard shadows;
+  - interiors are dark, lit only by windows, doors and bare bulbs (you can shoot them out).
+- **The sandstorm:** it comes in cycles (calm, rising, peak, easing).
+  - At the peak you see about 25 m, and the sun goes red and the shadows wash out.
+  - Sand streaks and rolling dust blow along the wind.
+  - Inside a building the air is clear and the wind is muffled.
+- **Survival:**
+  - Enemies spawn out in the dunes, beyond what the storm lets you see, and close in through the gates.
+  - They can't see through the dust either: gunners have to get within sight to shoot. Runners hunt you anyway, so listen for footsteps and screeches.
+  - Snipers take the watchtower and trading-post roofs. Medkits are in the barracks and the clinic; shoot the electrical cabinets to arc enemies near them.
 
 ## The story
 
@@ -192,7 +216,13 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - It steers the real controller with real keys along the route the game shows.
   - It presses E and holds E at the prompts, and fights or hides when hunted.
   - It boards the express and logs every objective and subtitle.
-- World integrity (3.3). The reasoning and results are in `docs/WORLD-VALIDATION-3.3.md`:
+- Settings (3.4):
+  - `__dev.start('arcade', 'desert')` loads a setting and plays immediately. `__game.loadLevel('tokyo')` switches settings.
+  - `await __dev.levelAI({ spawns: 24, sight: 25 })` works on any level: the nav graph from every spawn, runners to every test goal (inside every building, every roof), and gunners must get a shot off within the given sight range.
+  - `__game.debug().memory` lists GPU geometries and textures. After switching back and forth, they must return to the same numbers.
+  - `__game.level.storm.clock.set('peak', 1)` (desert) forces the storm.
+  - Checkpoints in Tokyo-only tools are `game.tokyo.*`; they throw if Tokyo isn't loaded.
+- World integrity (3.3), which in 3.4 works on any level. The reasoning and results are in `docs/WORLD-VALIDATION-3.3.md`:
   - `await __dev.world()`: scans the whole map on a 0.5 m grid with the real collision and finds escapes, track-pit access, traps, areas outside the designed zones, invisible walls, visuals you can walk through and gaps you can't fit through.
   - `await __dev.stress({ samples, fps })`: the real controller from sampled reachable cells in 8 directions, walking and sprint-jumping. `fps` takes rates and `'spiky'`, for example `[20, 30, 60, 120, 'spiky']`.
   - `await __dev.train()`: boarding at every door, closed doors, riding a departing car, and someone standing in a doorway as the doors close (with the real rail).
