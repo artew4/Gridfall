@@ -268,6 +268,49 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
   fascia(holeB.x0 - 0.3, 27, holeB.x0, holeB.z1 + 0.3); // west, over the stair foot
   // C: Service Passage staff door (top at z=-2) → service corridor (bottom at z=8.7).
   arch.stair({ x0: -36, z0: -2, x1: -33, z1: 8.7, axis: 'z', rise: -1, rails: [], bottom: UG, top: 0, vault: false });
+  // Stairwell finish: yellow safety nosing on every tread and LED handrail strips on both walls, so the
+  // stairs read as stairs (they were near-black wedges: no light reaches them). Static, merged,
+  // no extra lights.
+  const nosingMat = new THREE.MeshStandardMaterial({ color: 0xe8c21a, roughness: 0.5, emissive: 0x3a2c00 });
+  const ledMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 1.6, 1.8) });
+  const _q = new THREE.Quaternion();
+  const _m4 = new THREE.Matrix4();
+  const trimStair = (r: R, axis: 'x' | 'z', rise: 1 | -1, bot: number, top: number, walls: (-1 | 1)[]) => {
+    const H = top - bot;
+    const steps = Math.round(H / 0.25);
+    const L = axis === 'x' ? r.x1 - r.x0 : r.z1 - r.z0;
+    const W = axis === 'x' ? r.z1 - r.z0 : r.x1 - r.x0;
+    const run = L / steps;
+    const riseH = H / steps;
+    // Along-axis coordinate of the bottom end and the direction of ascent.
+    const a0 = rise > 0 ? (axis === 'x' ? r.x0 : r.z0) : axis === 'x' ? r.x1 : r.z1;
+    const mid = axis === 'x' ? (r.z0 + r.z1) / 2 : (r.x0 + r.x1) / 2;
+    const at = (a: number, y: number, c: number) => (axis === 'x' ? new THREE.Vector3(a, y, c) : new THREE.Vector3(c, y, a));
+    for (let i = 0; i < steps; i++) {
+      const a = a0 + rise * (i * run + 0.035);
+      const y = bot + (i + 0.5) * riseH + 0.006;
+      const p = at(a, y, mid);
+      b.add(axis === 'x' ? worldBox(0.07, 0.012, W - 0.1, 1) : worldBox(W - 0.1, 0.012, 0.07, 1), nosingMat, p.x, p.y, p.z);
+    }
+    for (const side of walls) {
+      const c = mid + side * (W / 2 - 0.04);
+      const from = at(a0, bot + 0.95, c);
+      const to = at(a0 + rise * L, top + 0.95, c);
+      const d = to.clone().sub(from);
+      const len = d.length();
+      _q.setFromUnitVectors(new THREE.Vector3(1, 0, 0), d.normalize());
+      _m4.compose(from.clone().add(to).multiplyScalar(0.5), _q, new THREE.Vector3(1, 1, 1));
+      b.addMatrix(worldBox(len, 0.035, 0.035, 1), ledMat, _m4);
+    }
+    // Soft glow at the foot and the head of the stair (bloom only, no light).
+    for (const [a, y] of [[a0 + rise * 0.6, bot + 2.2], [a0 + rise * (L - 0.6), top + 1.6]] as const) {
+      glows.add({ pos: at(a, y, mid), color: new THREE.Color(0.6, 0.95, 1), radius: 4, base: 0.6, haloSize: 1.6, haloStrength: 0.12, mode: 'steady' });
+    }
+  };
+  trimStair(rooms[0], 'z', -1, UG, 0, [-1, 1]);
+  trimStair(holeB, 'x', 1, UG, 0, [-1]);
+  trimStair(rooms[8], 'z', -1, UG, 0, [-1, 1]);
+
   // Street-level guard rails round the stairwells (never vaultable: it's a long way down).
   arch.rail({ x0: 7.6, z0: 4.6, x1: 10.6, z1: 15 }, 'w', 4.6, 15, 0, false);
   arch.rail({ x0: 7.6, z0: 4.6, x1: 10.6, z1: 15 }, 'e', 4.6, 15, 0, false);
