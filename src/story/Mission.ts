@@ -7,9 +7,10 @@ import { ROOF } from '../world/District';
 import { UG } from '../world/Metro';
 import { fmt, type Service } from '../rail/Timetable';
 import type { AlertLevel } from '../stealth/AlertSystem';
+import { Conversation } from './Conversation';
 
 export type Act = 1 | 2 | 3 | 4;
-type Step = 'meet' | 'ambush' | 'board' | 'relay' | 'manhunt' | 'train' | 'done';
+type Step = 'meet' | 'talk' | 'ambush' | 'board' | 'relay' | 'manhunt' | 'train' | 'done';
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
@@ -62,7 +63,7 @@ export class Mission {
   step: Step = 'meet';
   private stepT = 0;
   private kenji = -1;
-  private talkT = -1;
+  private talk = new Conversation(DIALOGUE, 11.6);
   private relayHits = 0;
   private relayCollider: Collider | null = null;
   private relayDown = false;
@@ -75,7 +76,7 @@ export class Mission {
   private stationSquad = false;
   private sweepers: { guard: { setG(s: 'return'): void; hostile: boolean; alive: boolean }; until: number }[] = [];
   private relayInteract = { pos: v(0, 0, 0), radius: 2.4, label: 'SABOTAGE RELAY · HOLD', hold: 2, enabled: () => this.step === 'relay', action: () => this.sabotage() };
-  private kenjiInteract = { pos: KENJI.clone(), radius: 2.6, label: 'TALK TO KENJI', enabled: () => this.step === 'meet', action: () => this.talk() };
+  private kenjiInteract = { pos: KENJI.clone(), radius: 2.6, label: 'TALK TO KENJI', enabled: () => this.step === 'meet', action: () => this.meetKenji() };
   checkpoint: { act: Act; pos: THREE.Vector3; yaw: number; health: number } = { act: 1, pos: v(0, 0, 0), yaw: 0, health: 100 };
 
   constructor(private g: Game) {
@@ -105,7 +106,7 @@ export class Mission {
     this.relayHits = 0;
     this.relayDown = act >= 4;
     this.boardReadT = -1;
-    this.talkT = -1;
+    this.talk.stop();
     this.sweepers = [];
     this.roofSquad = act >= 4;
     this.stationSquad = act >= 4;
@@ -172,6 +173,10 @@ export class Mission {
         hud.setObjective('Meet Kenji at the ramen stall in the Fountain Plaza.', '噴水広場の屋台で健二に会え');
         g.marker.set(KENJI);
         break;
+      case 'talk':
+        hud.setObjective('Listen to Kenji.', '健二の話を聞け');
+        g.marker.set(null);
+        break;
       case 'ambush':
         hud.setObjective('Lose the security squad.', '追っ手を撒け');
         g.marker.set(null);
@@ -199,9 +204,9 @@ export class Mission {
   }
 
   // ------------------------------------------------------------------ beats
-  private talk() {
-    this.talkT = 0;
-    this.g.marker.set(null);
+  private meetKenji() {
+    if (this.step !== 'meet' || !this.talk.start()) return;
+    this.setStep('talk');
   }
 
   private boardRead() {
@@ -246,18 +251,14 @@ export class Mission {
     const a = g.security.alert;
 
     // Kenji's conversation, then the ambush.
-    if (this.talkT >= 0) {
-      const before = this.talkT;
-      this.talkT += dt;
-      for (const [at, line] of DIALOGUE) if (before < at && this.talkT >= at) g.storyHud.radioLine(line, 'story');
-      if (this.talkT >= 11.6) {
-        this.talkT = -1;
-        if (this.kenji >= 0) g.crowd.release(this.kenji, g.player.pos);
-        g.security.ambush(KENJI, 3);
-        g.audio.radio(null, 'dispatch');
-        g.storyHud.radioLine('DISPATCH — SUSPECT LOCATED AT THE FOUNTAIN PLAZA STALL. MOVE IN.', 'alert');
-        this.setStep('ambush');
-      }
+    const talk = this.talk.update(dt);
+    for (const line of talk.lines) g.storyHud.radioLine(line, 'story');
+    if (talk.done) {
+      if (this.kenji >= 0) g.crowd.release(this.kenji, g.player.pos);
+      g.security.ambush(KENJI, 3);
+      g.audio.radio(null, 'dispatch');
+      g.storyHud.radioLine('DISPATCH — SUSPECT LOCATED AT THE FOUNTAIN PLAZA STALL. MOVE IN.', 'alert');
+      this.setStep('ambush');
     }
 
     if (this.boardReadT >= 0 && this.step === 'board') {
