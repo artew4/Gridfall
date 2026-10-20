@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Renderer } from './Renderer';
+import { Renderer, type Pipeline } from './Renderer';
 import { Input } from './Input';
 import { InteractionController, type Interactable } from './Interaction';
 import { StaticBuilder } from '../world/Builder';
@@ -219,6 +219,17 @@ export class Game {
     this.perf.lowT = this.perf.highT = 0;
   }
 
+  /**
+   * Render pipeline (DEV comparison, F8 in DevTools): 4.0 (the composer with the 4.0 look), RAW (the
+   * same world and materials straight to the canvas, no composer: what the post chain costs) or 3.7
+   * (the composer and materials as they were in 3.7). Recompiles once per switch.
+   */
+  setPipeline(p: Pipeline) {
+    this.renderer.setPipeline(p);
+    this.level.setVisual?.(p !== 'v37');
+    this.renderer.renderer.compile(this.scene, this.camera);
+  }
+
   // ------------------------------------------------------------------ engine and levels
   /** What lives across levels: the viewmodel and the survival callbacks. */
   private buildEngine() {
@@ -320,6 +331,7 @@ export class Game {
 
     document.title = level.info.windowTitle;
     this.renderer.setLook(level.look);
+    level.setVisual?.(this.renderer.pipeline !== 'v37');
     this.hud.setPlace(level.info.place, level.info.clock);
     if (this.ready) this.applyGraphics();
     // Compile everything up front so the first shot doesn't hitch.

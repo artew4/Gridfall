@@ -44,6 +44,28 @@ const RIPPLE_GLSL = /* glsl */ `
   }
 `;
 
+/**
+ * 4.0 wet model on (1) or the 3.7 one (0), shared by every wet material (DEV comparison, F8).
+ * 4.0: a noise-driven roughness field. Puddles are mirror-flat (roughness → 0.02, a touch of
+ * metalness so their diffuse drops and the reflection carries them), a damp ring round each puddle
+ * (~0.32), dry patches at ~0.6 with grain. The same noise as the reflection streaks, so they line up.
+ */
+export const WET4 = { value: 1 };
+
+/** Reflection catchers (see ReflectionCatchers.ts): up to this many, evaluated only by wet ground. */
+export const MAX_CATCHERS = 8;
+/**
+ * Their positions (world) and colours × intensity (0 = unused), shared by every wet material and
+ * written once a frame. Range: the cutoff distance, as a PointLight's `distance`.
+ */
+export const CATCHERS = {
+  pos: { value: Array.from({ length: MAX_CATCHERS }, () => new THREE.Vector3(0, -1e4, 0)) },
+  col: { value: Array.from({ length: MAX_CATCHERS }, () => new THREE.Vector3()) },
+  range: { value: 11 },
+  /** Source radius (m): the lobe is widened as for a sphere light of this size (a sign, not a point). */
+  radius: { value: 1.2 },
+};
+
 export interface WetOptions {
   puddles: boolean;
   /** Overall wetness for non-puddle areas. */
@@ -54,6 +76,11 @@ export interface WetOptions {
 export function applyWet(mat: THREE.MeshStandardMaterial, time: { value: number }, opts: WetOptions) {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = time;
+    shader.uniforms.uWet4 = WET4;
+    shader.uniforms.uCatchPos = CATCHERS.pos;
+    shader.uniforms.uCatchCol = CATCHERS.col;
+    shader.uniforms.uCatchRange = CATCHERS.range;
+    shader.uniforms.uCatchRadius = CATCHERS.radius;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vWetPos;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvWetPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -63,6 +90,10 @@ export function applyWet(mat: THREE.MeshStandardMaterial, time: { value: number 
         `#include <common>
         varying vec3 vWetPos;
         uniform float uTime;
+        uniform float uWet4;
+        uniform vec3 uCatchPos[${MAX_CATCHERS}];
+        uniform vec3 uCatchCol[${MAX_CATCHERS}];
+        uniform float uCatchRange, uCatchRadius;
         ${WET_NOISE_GLSL}
         ${RIPPLE_GLSL}`,
       )
@@ -70,15 +101,47 @@ export function applyWet(mat: THREE.MeshStandardMaterial, time: { value: number 
         '#include <map_fragment>',
         `#include <map_fragment>
         float camDist = length(vWetPos - cameraPosition);
-        float puddle = ${opts.puddles ? 'puddleMask(vWetPos.xz)' : '0.0'};
+        float wetN = wFbm(vWetPos.xz * 0.16);
+        float puddle = ${opts.puddles ? 'smoothstep(0.5, 0.58, wetN)' : '0.0'};
+        float damp = smoothstep(0.36, 0.52, wetN);
         diffuseColor.rgb *= mix(${(1 - opts.wet * 0.45).toFixed(3)}, 0.22, puddle);`,
       )
       .replace(
         '#include <roughnessmap_fragment>',
         `#include <roughnessmap_fragment>
-        roughnessFactor = mix(roughnessFactor * ${(1 - opts.wet * 0.5).toFixed(3)}, 0.035, puddle);
+        float rough37 = mix(roughnessFactor * ${(1 - opts.wet * 0.5).toFixed(3)}, 0.035, puddle);
+        float dry4 = 0.6 + (wNoise(vWetPos.xz * 1.7) - 0.5) * 0.14;
+        float rough4 = mix(mix(dry4, 0.32, damp), 0.02, puddle);
+        roughnessFactor = mix(rough37, rough4, uWet4);
         // Fight specular aliasing far away.
         roughnessFactor = max(roughnessFactor, smoothstep(10.0, 60.0, camDist) * 0.25);`,
+      )
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+        // Reflection catchers: point lights, specular only, on wet ground only (the same GGX lobe and
+        // falloff three.js uses for a PointLight with decay 2 and this cutoff). The lobe is widened
+        // as for a sphere light (Karis 2013: alpha' = alpha + radius / (2 distance)), without the
+        // energy renormalisation: a sign is a large source, and a mirror puddle should show a patch
+        // of its colour, not a pinpoint.
+        if (uWet4 > 0.0) {
+          PhysicalMaterial cm = material;
+          for (int i = 0; i < ${MAX_CATCHERS}; i++) {
+            vec3 lVec = (viewMatrix * vec4(uCatchPos[i], 1.0)).xyz - geometryPosition;
+            float dist = length(lVec);
+            if (dist > uCatchRange || dot(uCatchCol[i], uCatchCol[i]) == 0.0) continue;
+            vec3 L = lVec / dist;
+            float a2 = clamp(pow2(material.roughness) + uCatchRadius / (2.0 * dist), 0.0, 1.0);
+            cm.roughness = sqrt(a2);
+            vec3 irr = saturate(dot(geometryNormal, L)) * uCatchCol[i] * getDistanceAttenuation(dist, uCatchRange, 2.0);
+            reflectedLight.directSpecular += irr * BRDF_GGX(L, geometryViewDir, geometryNormal, cm) * uWet4;
+          }
+        }`,
+      )
+      .replace(
+        '#include <metalnessmap_fragment>',
+        `#include <metalnessmap_fragment>
+        metalnessFactor = mix(metalnessFactor, 0.15, puddle * uWet4);`,
       )
       .replace(
         '#include <normal_fragment_maps>',

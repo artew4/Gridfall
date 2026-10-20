@@ -16,6 +16,12 @@ const GradeShader = {
     uAspect: { value: 1 },
     uFlash: { value: 0 },
     uShadowTint: { value: [0.012, 0.01, 0.03] as [number, number, number] },
+    // 4.0 split-tone (0 = off, the 3.7 grade): shadows lifted toward uTeal, highlights pushed toward
+    // uWarm. Works on linear HDR before tone mapping (OutputPass applies ACES after this pass).
+    uSplit: { value: 0 },
+    uTeal: { value: [0.0, 0.016, 0.026] as [number, number, number] },
+    uWarm: { value: [1.12, 0.97, 0.84] as [number, number, number] },
+    uSplitSat: { value: 1.0 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -24,7 +30,8 @@ const GradeShader = {
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform float uTime, uDamage, uAberration, uFade, uLetterbox, uAspect, uFlash;
-    uniform vec3 uShadowTint;
+    uniform vec3 uShadowTint, uTeal, uWarm;
+    uniform float uSplit, uSplitSat;
     varying vec2 vUv;
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
@@ -43,6 +50,17 @@ const GradeShader = {
       col += uShadowTint * (1.0 - smoothstep(0.0, 0.25, lum));
       col = mix(col, col * vec3(1.04, 0.99, 0.95), smoothstep(0.4, 1.5, lum));
       col = mix(vec3(lum), col, 1.08);
+
+      // Teal and orange (4.0): cool lift in the darks, warm push in the highlights, a little extra
+      // saturation in the brights so neon keeps its hue after the warm push. Off (uSplit = 0) in 3.7.
+      if (uSplit > 0.0) {
+        float sh = 1.0 - smoothstep(0.0, 0.14, lum);
+        float hi = smoothstep(0.22, 1.6, lum);
+        col += uTeal * sh * uSplit;
+        col *= mix(vec3(1.0), uWarm, hi * uSplit);
+        float l2 = dot(col, vec3(0.2126, 0.7152, 0.0722));
+        col = mix(vec3(l2), col, mix(1.0, uSplitSat, hi * uSplit));
+      }
 
       // Vignette.
       float vig = (1.0 - smoothstep(0.25, 1.05, sqrt(r2) * 1.15));
@@ -66,7 +84,24 @@ const GradeShader = {
   `,
 };
 
+/** Post pipeline: the 4.0 look, the 3.7 look (same passes, old parameters), or no composer at all. */
+export type Pipeline = 'v4' | 'v37' | 'raw';
+
+export interface LookGrade {
+  /** 0..1 strength of the teal/orange split. */
+  split: number;
+  teal: [number, number, number];
+  warm: [number, number, number];
+  /** Saturation multiplier in the highlights. */
+  sat: number;
+}
+
+type Look = { exposure: number; bloom: { strength: number; radius: number; threshold: number }; shadows: boolean; shadowTint: [number, number, number]; grade?: LookGrade; legacy?: Look };
+
 export class Renderer {
+  /** DEV comparison switch (F8): what the next frames are drawn with. */
+  pipeline: Pipeline = 'v4';
+  private look: Look | null = null;
   renderer: THREE.WebGLRenderer;
   composer: EffectComposer;
   private scenePass: RenderPass;
@@ -121,7 +156,10 @@ export class Renderer {
   }
 
   /** The loaded level's look: exposure, bloom, sun shadows, grade tint. */
-  setLook(l: { exposure: number; bloom: { strength: number; radius: number; threshold: number }; shadows: boolean; shadowTint: [number, number, number] }) {
+  setLook(look: Look) {
+    this.look = look;
+    // The 3.7 comparison uses the level's legacy parameters if it has them (only Tokyo changed in 4.0).
+    const l = this.pipeline === 'v37' && look.legacy ? look.legacy : look;
     const r = this.renderer;
     r.toneMappingExposure = l.exposure;
     this.bloom.strength = l.bloom.strength;
@@ -130,6 +168,20 @@ export class Renderer {
     r.shadowMap.enabled = l.shadows;
     r.shadowMap.type = THREE.PCFShadowMap;
     this.grade.uniforms.uShadowTint.value = l.shadowTint;
+    const gr = l.grade;
+    const u = this.grade.uniforms;
+    u.uSplit.value = gr ? gr.split : 0;
+    if (gr) {
+      u.uTeal.value = gr.teal;
+      u.uWarm.value = gr.warm;
+      u.uSplitSat.value = gr.sat;
+    }
+  }
+
+  /** Switch the post pipeline (re-applies the level's look for the chosen version). */
+  setPipeline(p: Pipeline) {
+    this.pipeline = p;
+    if (this.look) this.setLook(this.look);
   }
 
   get canvas() {
@@ -173,7 +225,20 @@ export class Renderer {
   }
 
   render(time: number) {
-    this.renderer.info.reset();
+    const r = this.renderer;
+    r.info.reset();
+    if (this.pipeline === 'raw') {
+      // No composer: the world straight to the canvas (ACES and sRGB applied by the renderer), then
+      // the viewmodel over it. No bloom, grade, vignette, grain, fades or letterbox.
+      r.setRenderTarget(null);
+      r.autoClear = false;
+      r.clear();
+      r.render(this.scene, this.camera);
+      r.clearDepth();
+      r.render(this.weaponScene, this.weaponCamera);
+      r.autoClear = true;
+      return;
+    }
     this.grade.uniforms.uTime.value = time;
     this.composer.render();
   }

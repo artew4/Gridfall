@@ -6,7 +6,9 @@ import type { SignGlow } from '../../world/Signs';
 import { buildDistrict, type DistrictResult } from '../../world/District';
 import { Fountain } from '../../world/Fountain';
 import { Events } from '../../world/Events';
-import { createStreak, updateStreaks } from '../../world/Ground';
+import { createStreak, updateStreaks, WET4 } from '../../world/Ground';
+import { applyAO, bakeAO, type AOBake } from '../../world/AOField';
+import { ReflectionCatchers } from '../../world/ReflectionCatchers';
 import { Rain, Steam } from '../../world/Rain';
 import { Train } from '../../world/Train';
 import { smokeTexture } from '../../world/Textures';
@@ -59,7 +61,22 @@ const FOG_COLOR = new THREE.Color(0x0d0b19);
 export class TokyoLevel implements LevelRuntime {
   readonly info = TOKYO_INFO;
   data: LevelData;
-  readonly look: LevelLook = { exposure: 1.05, bloom: { strength: 0.85, radius: 0.65, threshold: 0.92 }, shadows: false, shadowTint: [0.012, 0.01, 0.03] };
+  /**
+   * 4.0 look: bloom only from HDR emissives (threshold above the brightest lit surface, so neon,
+   * lamps, flashes and sparks glow and nothing else does), moderate strength, a wide radius; a teal
+   * and orange split-tone. `legacy` is the 3.7 look for the F8 comparison.
+   */
+  readonly look: LevelLook = {
+    exposure: 1.05,
+    bloom: { strength: 0.7, radius: 0.9, threshold: 1.0 },
+    shadows: false,
+    shadowTint: [0.004, 0.012, 0.03],
+    grade: { split: 1, teal: [0.0, 0.012, 0.02], warm: [1.12, 0.97, 0.84], sat: 1.18 },
+    legacy: { exposure: 1.05, bloom: { strength: 0.85, radius: 0.65, threshold: 0.92 }, shadows: false, shadowTint: [0.012, 0.01, 0.03] },
+  };
+  /** 4.0: street-level AO bake and the wet-street reflection catchers. */
+  private ao: AOBake;
+  catchers: ReflectionCatchers;
   flash = 0;
 
   city: City;
@@ -117,6 +134,11 @@ export class TokyoLevel implements LevelRuntime {
     this.city.ctx.builder.build(s);
     this.city.buildSky();
 
+    // 4.0: street-level AO from the collision world, into the facades, storefronts and the ground.
+    this.ao = bakeAO(game.col, d.bounds.min, d.bounds.max);
+    const m = this.city.mats;
+    for (const mat of [...m.facade, m.concrete, m.darkConcrete, ...Object.values(m.store), m.asphalt, m.sidewalk, m.paving]) applyAO(mat, this.ao);
+
     // Bake an environment map of the lit district once: wet and metal surfaces reflect neon for free.
     game.glows.update(0, new THREE.Vector3());
     const pmrem = new THREE.PMREMGenerator(game.renderer.renderer);
@@ -125,6 +147,13 @@ export class TokyoLevel implements LevelRuntime {
     s.environmentIntensity = 0.9;
     game.weaponScene.environment = this.env.texture;
     pmrem.dispose();
+
+    // 4.0: reflection catchers at the brightest unlit neon in Lantern Street and round the plaza
+    // (evaluated by the wet ground only; see ReflectionCatchers.ts).
+    this.catchers = new ReflectionCatchers(game.glows.list, [
+      [-3.1, 6.4, 31], [3.2, 5.6, 25], [3.1, 6.8, 37], // Lantern Street
+      [12.9, 8.6, 9.5], [-9.5, 8, 13], [8, 6.2, 13.2], [-10, 8.4, -13.2], [13.9, 7, -9], // the plaza
+    ]);
 
     for (const g of game.glows.list) {
       if (g.reflect) {
@@ -282,6 +311,7 @@ export class TokyoLevel implements LevelRuntime {
     const game = this.game;
     const { dt, rawDt, camPos } = f;
     game.glows.update(f.elapsed, camPos);
+    this.catchers.update();
     updateStreaks(this.streaks, camPos);
     this.rain.update(f.elapsed, camPos);
     const w = this.rain.uniforms.uWind.value as THREE.Vector2;
@@ -361,7 +391,16 @@ export class TokyoLevel implements LevelRuntime {
     this.rail.reset();
   }
 
+  /** DEV comparison (F8): the 4.0 additions on (AO, wet model, catchers) or off (the 3.7 look). */
+  setVisual(v4: boolean) {
+    this.ao.on.value = v4 ? 1 : 0;
+    WET4.value = v4 ? 1 : 0;
+    this.catchers.setEnabled(v4);
+  }
+
   dispose() {
+    WET4.value = 1;
+    this.catchers.dispose();
     this.env.dispose();
     this.minimap.dispose();
     this.story.dispose();
@@ -369,6 +408,9 @@ export class TokyoLevel implements LevelRuntime {
 
   debug() {
     return {
+      aoBakeMs: +this.ao.ms.toFixed(1),
+      aoGrid: [this.ao.texture.image.width, this.ao.texture.image.height],
+      catchers: this.catchers.list.length,
       alert: this.security.alert.level,
       civilians: Object.entries(this.crowd.civs.reduce((m: Record<string, number>, c) => ((m[c.state] = (m[c.state] ?? 0) + 1), m), {})),
       guards: this.security.guards.map((g) => ({ s: g.gstate, susp: +g.suspicion.toFixed(2), p: g.pos.toArray().map((v) => +v.toFixed(1)), r: g.reinforcement })),
