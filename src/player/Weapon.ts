@@ -3,24 +3,27 @@ import { Spring, damp, clamp, easeInOut, easeOut, rand } from '../core/math';
 import { flashTexture, makeAmmoDisplay } from '../world/Textures';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { Player } from './Player';
+import type { WeaponSpec } from '../entities/types';
+import { KITSUNE_9 } from '../entities/weapons/kitsune9';
 
-const MAG = 12;
-const FIRE_INTERVAL = 0.14;
-const RELOAD_TIME = 1.35;
-const REST = new THREE.Vector3(0.15, -0.145, -0.36);
+/** The reload timeline below is authored for this length and scaled to each weapon's. */
+const BASE_RELOAD = 1.35;
 
 /**
- * The "Kitsune-9" plasma-assisted pistol. Lives in its own scene rendered on top of the world,
- * so it never clips into walls. All of the feel is here: springs for kick, slide cycling,
- * sway, bob, muzzle flash and a timeline-based reload.
+ * The player's viewmodel. Lives in its own scene rendered on top of the world, so it never clips
+ * into walls. The mechanics are here (springs for kick, slide or bolt cycling, sway, bob, muzzle
+ * flash, a timeline-based reload); the model and the numbers come from the level's WeaponSpec.
  */
 export class Weapon {
   root = new THREE.Group(); // pose
   gun = new THREE.Group(); // recoil target
   slide = new THREE.Group();
   mag = new THREE.Group();
-  ammo = MAG;
-  maxAmmo = MAG;
+  spec: WeaponSpec = KITSUNE_9;
+  ammo = KITSUNE_9.mag;
+  maxAmmo = KITSUNE_9.mag;
+  private magRest = new THREE.Vector3();
+  private flashTex: THREE.Texture | null = null;
   reloading = false;
   private reloadT = 0;
   private autoReloadT = 0;
@@ -67,8 +70,8 @@ export class Weapon {
   muzzleWorld = new THREE.Vector3();
   onReloadDone: () => void = () => {};
 
-  constructor(public scene: THREE.Scene, public camera: THREE.PerspectiveCamera, private audio: AudioEngine) {
-    this.build();
+  constructor(public scene: THREE.Scene, public camera: THREE.PerspectiveCamera, private audio: AudioEngine, spec: WeaponSpec = KITSUNE_9) {
+    this.stripMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 2.4, 3.0) });
     this.scene.add(this.root);
     this.root.add(this.gun);
 
@@ -88,106 +91,69 @@ export class Weapon {
     this.flashLight = new THREE.PointLight(0xffb060, 0, 2, 1.5);
     this.flashLight.position.set(0.15, -0.05, -0.6);
     scene.add(this.flashLight);
-    this.ammoDisplay.draw(this.ammo, MAG, false);
-    this.stripMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 2.4, 3.0) });
-    this.gun.traverse((o) => {
-      if (o instanceof THREE.Mesh && o.userData.strip) o.material = this.stripMat;
-    });
+    this.setSpec(spec);
   }
 
-  private build() {
-    const metal = new THREE.MeshStandardMaterial({ color: 0x6a6e78, metalness: 0.8, roughness: 0.32, envMapIntensity: 1.4 });
-    const polymer = new THREE.MeshStandardMaterial({ color: 0x2c2e35, metalness: 0.25, roughness: 0.5, envMapIntensity: 1.0 });
-    const accent = new THREE.MeshStandardMaterial({ color: 0xb0b5bf, metalness: 0.9, roughness: 0.18, envMapIntensity: 2 });
-    const glove = new THREE.MeshStandardMaterial({ color: 0x24242a, roughness: 0.65, metalness: 0.1 });
-    const sleeve = new THREE.MeshStandardMaterial({ color: 0x2a2d3a, roughness: 0.8 });
-    const strip = new THREE.MeshBasicMaterial({ color: 0x40e0ff });
-    const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D, rx = 0) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-      mesh.position.set(x, y, z);
-      mesh.rotation.x = rx;
-      parent.add(mesh);
-      return mesh;
-    };
-    // Slide (moves on recoil).
-    this.gun.add(this.slide);
-    box(0.034, 0.03, 0.2, metal, 0, 0.022, -0.005, this.slide);
-    box(0.026, 0.008, 0.18, accent, 0, 0.04, -0.01, this.slide);
-    for (let i = 0; i < 6; i++) box(0.036, 0.022, 0.003, polymer, 0, 0.022, 0.06 + i * 0.006, this.slide); // serrations
-    for (const s of [-1, 1]) {
-      const st = box(0.002, 0.004, 0.13, strip, s * 0.0175, 0.016, -0.03, this.slide);
-      st.userData.strip = true;
-    }
-    // Sights.
-    box(0.006, 0.008, 0.006, metal, 0, 0.044, -0.098, this.slide);
-    const dot = box(0.003, 0.003, 0.002, strip, 0, 0.048, -0.098, this.slide);
-    dot.userData.strip = true;
-    box(0.026, 0.009, 0.008, metal, 0, 0.042, 0.088, this.slide);
-    // Ammo display on the back of the slide.
-    const disp = new THREE.Mesh(new THREE.PlaneGeometry(0.022, 0.011), new THREE.MeshBasicMaterial({ map: this.ammoDisplay.texture, color: new THREE.Color(1.6, 1.6, 1.6) }));
-    disp.position.set(0, 0.024, 0.0955);
-    this.slide.add(disp);
-
-    // Frame, rail, barrel shroud with an emissive ring.
-    box(0.03, 0.022, 0.17, polymer, 0, -0.004, -0.012, this.gun);
-    box(0.02, 0.01, 0.06, polymer, 0, -0.018, -0.07, this.gun);
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.03, 12), metal);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.02, -0.115);
-    this.gun.add(barrel);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.0105, 0.0018, 6, 16), strip);
-    ring.userData.strip = true;
-    ring.position.set(0, 0.02, -0.12);
-    this.gun.add(ring);
-    // Trigger guard and trigger.
-    box(0.006, 0.004, 0.05, polymer, 0, -0.034, -0.01, this.gun);
-    box(0.006, 0.02, 0.004, polymer, 0, -0.025, -0.035, this.gun);
-    box(0.004, 0.016, 0.004, accent, 0, -0.02, -0.005, this.gun, 0.3);
-    // Grip with the magazine inside.
-    box(0.028, 0.095, 0.042, polymer, 0, -0.058, 0.055, this.gun, 0.22);
-    this.mag.position.set(0, -0.06, 0.057);
-    this.mag.rotation.x = 0.22;
-    this.gun.add(this.mag);
-    box(0.02, 0.09, 0.03, metal, 0, -0.012, 0, this.mag);
-    box(0.03, 0.01, 0.046, accent, 0, -0.058, 0, this.mag);
-
-    // Gloved hands and sleeve so the gun feels held, not floating.
-    const hand = new THREE.Group();
-    this.gun.add(hand);
-    box(0.04, 0.07, 0.06, glove, 0.006, -0.06, 0.06, hand, 0.22);
-    box(0.016, 0.016, 0.05, glove, 0.02, -0.02, 0.03, hand); // thumb
-    box(0.038, 0.06, 0.05, glove, -0.024, -0.07, 0.04, hand, 0.4); // support hand
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.36, 10), sleeve);
-    arm.rotation.x = Math.PI / 2 - 0.35;
-    arm.rotation.z = 0.2;
-    arm.position.set(0.035, -0.12, 0.24);
-    hand.add(arm);
-    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.037, 0.012, 10), strip);
-    cuff.userData.strip = true;
-    cuff.rotation.copy(arm.rotation);
-    cuff.position.set(0.02, -0.09, 0.105);
-    hand.add(cuff);
-    const arm2 = arm.clone();
-    arm2.rotation.z = -0.6;
-    arm2.position.set(-0.11, -0.13, 0.22);
-    hand.add(arm2);
-
-    // Muzzle flash: two crossed additive cards with a hot core.
-    const ft = flashTexture();
-    const fm = new THREE.MeshBasicMaterial({ map: ft, color: new THREE.Color(6, 4.2, 2.6), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-    const front = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.16), fm);
-    front.position.set(0, 0.02, -0.15);
-    const side = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.09), fm);
+  /**
+   * Swap the weapon (a level's arsenal). The previous model is freed: the viewmodel outlives levels,
+   * so anything left behind here would leak across every switch.
+   */
+  setSpec(spec: WeaponSpec) {
+    if (this.spec === spec && this.gun.children.length) return;
+    this.disposeModel();
+    this.spec = spec;
+    this.slide.position.set(0, 0, 0);
+    this.mag.position.set(0, 0, 0);
+    this.mag.rotation.set(0, 0, 0);
+    spec.build({ gun: this.gun, slide: this.slide, mag: this.mag, display: this.ammoDisplay.texture });
+    this.magRest.copy(this.mag.position);
+    // Muzzle flash: two crossed additive cards with a hot core, at the weapon's muzzle.
+    const [fx, fy, fz] = spec.flash.at;
+    const k = spec.flash.size;
+    this.flashTex = flashTexture();
+    const fm = new THREE.MeshBasicMaterial({ map: this.flashTex, color: new THREE.Color(...spec.flash.color), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(0.16 * k, 0.16 * k), fm);
+    front.position.set(fx, fy, fz);
+    const side = new THREE.Mesh(new THREE.PlaneGeometry(0.22 * k, 0.09 * k), fm);
     side.rotation.y = Math.PI / 2;
-    side.position.set(0, 0.02, -0.2);
+    side.position.set(fx, fy, fz - 0.05 * k);
     const side2 = side.clone();
     side2.rotation.set(Math.PI / 2, Math.PI / 2, 0);
-    this.flashes.push(front, side, side2);
+    this.flashes = [front, side, side2];
     for (const f of this.flashes) {
       f.visible = false;
       f.renderOrder = 10;
       this.gun.add(f);
     }
+    this.flashLight.color.set(spec.flash.light);
+    this.flashLight.position.set(spec.muzzle[0], spec.muzzle[1] + 0.05, spec.muzzle[2] + 0.1);
+    this.gun.traverse((o) => {
+      if (o instanceof THREE.Mesh && o.userData.strip) o.material = this.stripMat;
+    });
+    this.maxAmmo = spec.mag;
+    this.reset();
+  }
+
+  private disposeModel() {
+    const mats = new Set<THREE.Material>();
+    this.gun.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.geometry.dispose();
+      for (const mat of Array.isArray(m.material) ? m.material : [m.material]) if (mat !== this.stripMat) mats.add(mat);
+    });
+    for (const m of mats) m.dispose();
+    this.flashTex?.dispose();
+    this.flashTex = null;
+    this.slide.clear();
+    this.mag.clear();
+    this.gun.clear();
+    this.flashes = [];
+  }
+
+  /** "Low" for the HUD and the strips: three rounds on a pistol, a fifth of a rifle magazine. */
+  get lowAmmo() {
+    return Math.max(3, Math.round(this.spec.mag * 0.2));
   }
 
   get canFire() {
@@ -215,7 +181,7 @@ export class Weapon {
     if (h) {
       if (this.reloading) {
         this.reloading = false;
-        this.ammoDisplay.draw(this.ammo, MAG, false);
+        this.ammoDisplay.draw(this.ammo, this.spec.mag, false);
       }
       this.autoReloadT = 0;
       this.raiseTarget = 0;
@@ -235,38 +201,39 @@ export class Weapon {
       return false;
     }
     this.ammo--;
-    this.cooldown = FIRE_INTERVAL;
-    this.kickZ.impulse(2.4);
-    this.kickRot.impulse(14 + rand(-2, 2));
-    this.kickSide.impulse(rand(-3, 3));
-    this.slideS.value = 0.032;
+    const k = this.spec.kick;
+    this.cooldown = this.spec.fireInterval;
+    this.kickZ.impulse(k.z);
+    this.kickRot.impulse(k.rot + rand(-k.rotJitter, k.rotJitter));
+    this.kickSide.impulse(rand(-k.side, k.side));
+    this.slideS.value = k.slide;
     this.flashT = 0.05;
     for (const f of this.flashes) {
       f.visible = true;
       f.rotation.z = rand(0, Math.PI * 2);
       f.scale.setScalar(rand(0.8, 1.25));
     }
-    this.bloom = Math.min(1, this.bloom + 0.3);
-    this.audio.gunshot();
-    this.ammoDisplay.draw(this.ammo, MAG, false);
+    this.bloom = Math.min(1, this.bloom + this.spec.bloomPerShot);
+    this.audio.gunshot(this.spec.sound);
+    this.ammoDisplay.draw(this.ammo, this.spec.mag, false);
     // Auto-reload on empty after the same short beat as before, but on the game clock (pauses with it).
     if (this.ammo === 0) this.autoReloadT = 0.25;
     return true;
   }
 
   startReload() {
-    if (this.holstered || this.reloading || this.ammo === MAG || this.raise < 0.5) return;
+    if (this.holstered || this.reloading || this.ammo === this.spec.mag || this.raise < 0.5) return;
     this.reloading = true;
     this.reloadT = 0;
     this.reloadStage = 0;
-    this.ammoDisplay.draw(0, MAG, true);
+    this.ammoDisplay.draw(0, this.spec.mag, true);
   }
 
   reset() {
-    this.ammo = MAG;
+    this.ammo = this.spec.mag;
     this.reloading = false;
     this.autoReloadT = 0;
-    this.ammoDisplay.draw(this.ammo, MAG, false);
+    this.ammoDisplay.draw(this.ammo, this.spec.mag, false);
   }
 
   update(dt: number, player: Player, mouseDX: number, mouseDY: number, time: number) {
@@ -296,8 +263,9 @@ export class Weapon {
     let magVis = true;
     if (this.reloading) {
       this.reloadT += dt;
-      const t = this.reloadT;
-      rTilt = t < 0.2 ? easeOut(t / 0.2) : t > 1.12 ? 1 - easeInOut((t - 1.12) / (RELOAD_TIME - 1.12)) : 1;
+      // Authored for BASE_RELOAD; a slower weapon plays the same beats stretched.
+      const t = (this.reloadT * BASE_RELOAD) / this.spec.reloadTime;
+      rTilt = t < 0.2 ? easeOut(t / 0.2) : t > 1.12 ? 1 - easeInOut((t - 1.12) / (BASE_RELOAD - 1.12)) : 1;
       if (t > 0.22 && this.reloadStage === 0) {
         this.reloadStage = 1;
         this.audio.reload('out');
@@ -309,8 +277,8 @@ export class Weapon {
         this.reloadStage = 2;
         this.audio.reload('in');
         this.kickZ.impulse(-0.8);
-        this.ammo = MAG;
-        this.ammoDisplay.draw(this.ammo, MAG, false);
+        this.ammo = this.spec.mag;
+        this.ammoDisplay.draw(this.ammo, this.spec.mag, false);
       }
       if (t > 0.98 && this.reloadStage === 2) {
         this.reloadStage = 3;
@@ -318,12 +286,12 @@ export class Weapon {
         this.slideS.value = 0.035;
         this.kickRot.impulse(-4);
       }
-      if (t >= RELOAD_TIME) {
+      if (t >= BASE_RELOAD) {
         this.reloading = false;
         this.onReloadDone();
       }
     }
-    this.mag.position.y = -0.06 + magY;
+    this.mag.position.y = this.magRest.y + magY;
     this.mag.visible = magVis;
     this.slide.position.z = Math.max(0, this.slideS.value);
 
@@ -337,10 +305,11 @@ export class Weapon {
     const idle = Math.sin(time * 1.3) * 0.002;
     const lowered = 1 - this.raise;
 
+    const [rx, ry, rz] = this.spec.rest;
     this.root.position.set(
-      REST.x + this.swayX + bx + this.sprintBlend * -0.02,
-      REST.y + this.swayY + by + idle - lowered * 0.32 - this.sprintBlend * 0.04 - rTilt * 0.03 + player.landDip.value * 0.05,
-      REST.z + this.sprintBlend * 0.03,
+      rx + this.swayX + bx + this.sprintBlend * -0.02,
+      ry + this.swayY + by + idle - lowered * 0.32 - this.sprintBlend * 0.04 - rTilt * 0.03 + player.landDip.value * 0.05,
+      rz + this.sprintBlend * 0.03,
     );
     this.root.rotation.set(
       lowered * -0.9 + this.sprintBlend * -0.35 + rTilt * 0.3 + this.swayY * 2,
@@ -351,8 +320,9 @@ export class Weapon {
     this.gun.rotation.set(this.kickRot.value * 0.02, this.kickSide.value * 0.01, this.kickSide.value * 0.015);
 
     // Strip glow tracks remaining ammo, flashing red when low.
-    const frac = this.ammo / MAG;
-    if (this.ammo <= 3 && !this.reloading) {
+    if (!this.spec.ammoGlow) return;
+    const frac = this.ammo / this.spec.mag;
+    if (this.ammo <= this.lowAmmo && !this.reloading) {
       const p = 0.5 + 0.5 * Math.sin(time * 10);
       this.stripMat.color.setRGB(2.5 + p, 0.2, 0.4);
     } else {

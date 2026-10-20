@@ -25,6 +25,8 @@ import { PlayerIntel } from '../../stealth/PlayerIntel';
 import { Intro } from '../../cinematic/Intro';
 import { StoryIntro } from '../../cinematic/StoryIntro';
 import { TokyoStory } from './TokyoStory';
+import { KITSUNE_9 } from '../../entities/weapons/kitsune9';
+import { NEON_SYNTHS } from '../../entities/enemies/neon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime, Mode, ModeRules } from '../Level';
 
 export const TOKYO_INFO: LevelInfo = {
@@ -35,6 +37,7 @@ export const TOKYO_INFO: LevelInfo = {
   modes: ['story', 'arcade'],
   loading: 'BUILDING THE CITY…',
   windowTitle: 'NEON RAIN — Tokyo After Midnight',
+  arsenal: { weapon: KITSUNE_9, enemies: NEON_SYNTHS },
   tagline: 'ONE NIGHT · ONE CITY · ONE WAY OUT',
   jpLine: '東京 · 午前零時二十四分',
   place: 'SHINJUKU-KU',

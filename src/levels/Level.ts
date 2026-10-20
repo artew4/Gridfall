@@ -4,6 +4,7 @@ import type { Breakable, CabinetSpot } from '../gameplay/Interactives';
 import type { IntroFrame } from '../cinematic/Intro';
 import type { Weapon } from '../player/Weapon';
 import type { Player } from '../player/Player';
+import type { Arsenal } from '../entities/types';
 
 export type SettingId = 'tokyo' | 'desert';
 export type Mode = 'story' | 'arcade';
@@ -37,6 +38,8 @@ export interface LevelInfo {
   clock: string;
   /** Opening title card per mode. */
   cine: Partial<Record<Mode, { t1: string; t2: string; t3: string }>>;
+  /** The player's weapon and the survival enemies of this setting. */
+  arsenal: Arsenal;
 }
 
 /**

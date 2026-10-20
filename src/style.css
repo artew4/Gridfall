@@ -42,6 +42,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .ammo .pips { display: flex; gap: 3px; justify-content: flex-end; margin: 8px 0 6px; }
 .ammo .pip { width: 4px; height: 12px; background: var(--cyan); box-shadow: 0 0 4px rgba(120,235,255,0.5); transition: opacity 0.1s; }
 .ammo .pip.off { opacity: 0.12; box-shadow: none; }
+.ammo .pips.many { gap: 2px; }
+.ammo .pips.many .pip { width: 3px; height: 10px; }
 .ammo.low .pip, .ammo.low .val .cur { color: var(--red); background: var(--red); }
 .ammo.low .val .cur { background: none; }
 .ammo .reload { font-size: 10px; letter-spacing: 0.3em; color: var(--red); height: 12px; }

@@ -281,7 +281,12 @@ export class Game {
       aboard: (p) => level.aboard(p),
     });
     this.safety.reset(this.player.pos);
-    this.projectiles = new Projectiles(s, this.col, this.fx, this.audio);
+    // The setting's arsenal: the player's weapon, the enemies' look (and their rounds).
+    const arsenal = level.info.arsenal;
+    this.weapon.setSpec(arsenal.weapon);
+    this.hud.setWeapon(arsenal.weapon.name, arsenal.weapon.jp, arsenal.weapon.mag, this.weapon.lowAmmo);
+    this.waves.look = arsenal.enemies;
+    this.projectiles = new Projectiles(s, this.col, this.fx, this.audio, arsenal.enemies);
     this.projectiles.onPlayerHit = (dmg, from) => this.damagePlayer(dmg, from);
     this.nav = new Nav(this.col, d.nav);
 
@@ -417,6 +422,7 @@ export class Game {
       this.audio.start();
       this.input.requestLock();
     };
+    this.menu.onQuit = () => void this.toTitle();
     this.menu.onRestart = () => {
       this.menu.show(false);
       this.music.setPaused(false);
@@ -426,7 +432,7 @@ export class Game {
       this.endScreen.hide();
       this.restart(false);
     };
-    this.endScreen.onMenu = () => this.toTitle();
+    this.endScreen.onMenu = () => void this.toTitle();
     this.menu.onChange = (s) => {
       this.applySettings();
       saveSettings(s);
@@ -531,7 +537,8 @@ export class Game {
     const dir = cam.getWorldDirection(new THREE.Vector3());
     const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
     const up = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
-    const spread = 0.003 + this.player.moveAmount * 0.012 + this.weapon.bloom * 0.018 + (this.player.onGround ? 0 : 0.03);
+    const w = this.weapon.spec;
+    const spread = w.spread + this.player.moveAmount * 0.012 + this.weapon.bloom * 0.018 + (this.player.onGround ? 0 : 0.03);
     const a = Math.random() * Math.PI * 2;
     const r = Math.sqrt(Math.random()) * spread;
     dir.addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
@@ -557,17 +564,18 @@ export class Game {
       target = null;
       eh = null;
     }
-    const muzzle = cam.localToWorld(new THREE.Vector3(0.15, -0.1, -0.55));
+    const muzzle = cam.localToWorld(new THREE.Vector3(...w.muzzle));
     const end = origin.clone().addScaledVector(dir, maxDist);
-    this.fx.tracer(muzzle, end);
+    this.fx.tracer(muzzle, end, new THREE.Color(...w.tracer));
     this.fx.muzzleSmoke(muzzle, dir);
-    this.fx.ejectShell(cam.localToWorld(new THREE.Vector3(0.18, -0.08, -0.35)), right, up);
+    this.fx.ejectShell(cam.localToWorld(new THREE.Vector3(...w.shell)), right, up);
+    this.muzzleLight.color.set(w.flash.light);
     this.muzzleLight.position.copy(muzzle);
     this.muzzleT = 0.06;
 
     if (target && eh) {
       this.stats.hits++;
-      const dmg = 34 * eh.mult * rand(0.95, 1.05);
+      const dmg = w.damage * eh.mult * rand(0.95, 1.05);
       const killed = target.takeHit(dmg, dir, eh.point, this.ctx);
       this.hud.hitmarker(killed);
       this.audio.hitmarker(killed);
@@ -584,14 +592,15 @@ export class Game {
       wh.collider?.onHit?.(wh);
     }
 
-    // Camera kick: a bit of permanent climb plus a springy punch.
-    this.player.pitch += 0.007;
-    this.player.yaw += rand(-0.002, 0.002);
-    this.player.kickPitch.impulse(5);
-    this.player.kickYaw.impulse(rand(-1.5, 1.5));
-    this.player.kickRoll.impulse(rand(-1, 1));
-    this.player.fovPunch = 1.6;
-    this.player.trauma = Math.min(1, this.player.trauma + 0.08);
+    // Camera kick: a bit of permanent climb plus a springy punch (per weapon).
+    const c = w.camera;
+    this.player.pitch += c.climb;
+    this.player.yaw += rand(-c.yaw, c.yaw);
+    this.player.kickPitch.impulse(c.pitchKick);
+    this.player.kickYaw.impulse(rand(-c.yawKick, c.yawKick));
+    this.player.kickRoll.impulse(rand(-c.roll, c.roll));
+    this.player.fovPunch = c.fov;
+    this.player.trauma = Math.min(1, this.player.trauma + c.trauma);
   }
 
   // ------------------------------------------------------------------ frame
@@ -716,20 +725,52 @@ export class Game {
     this.storyHud.setHint(label ?? fallbackHint);
   }
 
-  /** Back to the title screen with a clean world. */
-  toTitle() {
+  /**
+   * Back to the main menu (pause menu QUIT, end card MENU). Nothing of the run survives: the mode's
+   * systems clean up, then the level is torn down completely (enemies and spawners, projectiles,
+   * effects, its sounds, DOM and GPU resources) and rebuilt fresh behind the title.
+   */
+  async toTitle() {
+    if (this.loading) return;
+    if (document.pointerLockElement) document.exitPointerLock();
+    this.state = 'title';
+    this.loading = true;
+    this.input.keys.clear();
+    this.input.endFrame();
     this.endScreen.hide();
+    this.menu.show(false);
     this.hud.show(this.hud.death, false);
     this.hud.show(this.hud.root, false);
+    this.hud.show(this.hud.skip, false);
+    this.hud.cine.style.opacity = '0';
+    this.storyHud.clear();
     this.storyHud.show(false);
-    this.menu.show(false);
-    this.waves.reset(this.scene);
     this.rules.toTitle();
-    this.level.reset();
-    this.timeScale = 1;
-    this.renderer.grade.uniforms.uLetterbox.value = 0;
-    this.state = 'title';
+    this.rules = this.arcade;
+    this.music.setPaused(false);
     this.hud.show(this.hud.title, true);
+    this.hud.selectLevel(this.level.info, true);
+    const g = this.renderer.grade.uniforms;
+    g.uFade.value = 1;
+    g.uLetterbox.value = 0;
+    g.uDamage.value = 0;
+    g.uFlash.value = 0;
+    // Let the menu paint before the synchronous rebuild.
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 20)));
+    try {
+      this.loadLevel(this.setting);
+    } finally {
+      this.loading = false;
+    }
+    this.weapon.reset();
+    this.weapon.setHolstered(false, true);
+    this.weapon.raiseTarget = 0;
+    this.timeScale = 1;
+    this.damageFx = 0;
+    this.failReason = '';
+    this.zone = this.zoneCandidate = null;
+    this.interaction.reset();
+    this.hud.selectLevel(this.level.info, false);
   }
 
   /** Keeps 60 fps: drops render resolution after sustained slow frames, restores it with headroom. */

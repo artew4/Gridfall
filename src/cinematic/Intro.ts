@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildGunner, type Rig } from '../enemies/Models';
+import { buildGunner, disposeRig, type Rig } from '../enemies/Models';
 import { clamp, easeInOut, smoothstep } from '../core/math';
 import type { AudioEngine } from '../audio/AudioEngine';
 
@@ -137,5 +137,6 @@ export class Intro {
     this.rim.intensity = 0;
     this.rim.distance = 9;
     this.scene.remove(this.silhouette.root);
+    disposeRig(this.silhouette);
   }
 }

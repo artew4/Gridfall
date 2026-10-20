@@ -656,8 +656,9 @@ export class AudioEngine {
   }
 
   // ------------------------------------------------------------------ weapon
-  gunshot() {
+  gunshot(kind: 'plasma' | 'rifle' = 'plasma') {
     if (!this.started) return;
+    if (kind === 'rifle') return this.rifleShot();
     const t = this.now();
     const o = this.out(null, 0.9);
     const p = rand(0.95, 1.05);
@@ -670,6 +671,26 @@ export class AudioEngine {
     const z = this.filter('bandpass', 2400, 4);
     z.connect(o);
     this.tone(z, 'sawtooth', 2600, 700, 0.3, 0.001, 0.07, t);
+  }
+
+  /**
+   * Assault rifle: a hard supersonic crack, a short low punch, the bolt's metallic clack and a dry
+   * slap off the nearest walls. Kinetic, no electronics; slight variation so bursts don't machine-gun
+   * the same sample.
+   */
+  private rifleShot() {
+    const t = this.now();
+    const o = this.out(null, 0.55);
+    const p = rand(0.94, 1.06);
+    this.burst(o, this.white, 'highpass', 2600 * p, 0.6, 1.1, 0.0005, 0.03, t);
+    this.burst(o, this.white, 'bandpass', 1100 * p, 0.9, 0.9, 0.001, 0.09, t, 300);
+    this.burst(o, this.brown, 'lowpass', 900, 0.7, 1.2, 0.002, 0.16, t, 120);
+    this.tone(o, 'sine', 110 * p, 42, 1.2, 0.002, 0.12, t);
+    // Bolt carrier slamming home.
+    this.metal(o, rand(1700, 2000), 0.09, 0.05, [1, 1.9, 3.1], t + 0.028);
+    this.burst(o, this.white, 'bandpass', 4200, 2, 0.12, 0.001, 0.02, t + 0.03);
+    // Dry slap back from the surroundings.
+    this.burst(o, this.pink, 'bandpass', 700, 0.8, 0.22, 0.004, 0.12, t + 0.09 + rand(0, 0.03), 300);
   }
 
   /** Holster: cloth rustle and a soft clip; draw: a quick metallic slide. */
@@ -758,10 +779,16 @@ export class AudioEngine {
     if (kill) this.tone(o, 'sine', 2250, 2250, 0.06, 0.001, 0.12, this.now() + 0.06);
   }
 
-  enemyDeath(pos: V3) {
+  enemyDeath(pos: V3, voice: 'synth' | 'human' = 'synth') {
     if (!this.started) return;
     const t = this.now();
     const o = this.out(pos, 0.5);
+    if (voice === 'human') {
+      // A cut-off grunt and the body hitting the sand.
+      this.voice(o, t, 1, rand(110, 150), 5, 0.12, true);
+      this.burst(o, this.brown, 'lowpass', 400, 0.7, 0.5, 0.004, 0.25, t + 0.35);
+      return;
+    }
     this.tone(o, 'sine', 90, 35, 0.6, 0.005, 0.5, t);
     this.burst(o, this.white, 'lowpass', 3000, 0.7, 0.4, 0.003, 0.35, t, 200);
     // Digital glitch descending in steps.
@@ -809,17 +836,32 @@ export class AudioEngine {
     this.burst(o, this.white, 'bandpass', 2000, 0.8, 0.4 * loud, 0.001, 0.08);
   }
 
-  enemyShot(pos: V3) {
+  enemyShot(pos: V3, voice: 'synth' | 'human' = 'synth') {
     if (!this.started) return;
     const o = this.out(pos, 0.7);
+    if (voice === 'human') {
+      // A rifle at range: crack, thump and a dry tail.
+      const t = this.now();
+      this.burst(o, this.white, 'highpass', 2200, 0.6, 0.45, 0.0005, 0.03, t);
+      this.burst(o, this.brown, 'lowpass', 700, 0.7, 0.6, 0.002, 0.14, t, 120);
+      this.burst(o, this.pink, 'bandpass', 600, 0.8, 0.15, 0.005, 0.18, t + 0.08);
+      return;
+    }
     this.tone(o, 'square', 900, 140, 0.25, 0.002, 0.18);
     this.tone(o, 'sawtooth', 2400, 600, 0.12, 0.001, 0.1);
     this.burst(o, this.white, 'bandpass', 1500, 1, 0.3, 0.001, 0.12);
   }
 
-  gunnerCharge(pos: V3) {
+  gunnerCharge(pos: V3, voice: 'synth' | 'human' = 'synth') {
     if (!this.started) return;
     const o = this.out(pos, 0.2);
+    if (voice === 'human') {
+      // Shouldering the rifle: sling rattle and the safety snapping off.
+      const t = this.now();
+      this.burst(o, this.pink, 'bandpass', 2400, 1.5, 0.08, 0.005, 0.12, t);
+      this.metal(o, 2600, 0.06, 0.04, [1, 2.3], t + 0.18);
+      return;
+    }
     this.tone(o, 'sine', 300, 1400, 0.12, 0.6, 0.1);
     this.tone(o, 'triangle', 600, 2800, 0.04, 0.6, 0.1);
   }
@@ -831,16 +873,27 @@ export class AudioEngine {
     this.tone(o, 'sine', 500, 80, 0.2, 0.001, 0.15);
   }
 
-  plasmaWhiz(pos: V3) {
+  plasmaWhiz(pos: V3, voice: 'synth' | 'human' = 'synth') {
     if (!this.started) return;
     const o = this.out(pos, 0.1);
+    if (voice === 'human') {
+      // A round snapping past: a sharp supersonic crack.
+      this.burst(o, this.white, 'highpass', 3500, 0.8, 0.22, 0.0005, 0.025);
+      return;
+    }
     this.tone(o, 'sawtooth', 1200, 500, 0.08, 0.02, 0.2);
   }
 
-  runnerScreech(pos: V3) {
+  runnerScreech(pos: V3, voice: 'synth' | 'human' = 'synth') {
     if (!this.started) return;
     const t = this.now();
     const o = this.out(pos, 0.6);
+    if (voice === 'human') {
+      // A raider's war cry: a shouted phrase, rough and loud.
+      this.voice(o, t, 3, rand(170, 230), 6, 0.24, true);
+      this.burst(o, this.white, 'bandpass', 1800, 1.2, 0.05, 0.02, 0.5, t);
+      return;
+    }
     const bp = this.filter('bandpass', 1400, 4);
     bp.connect(o);
     const osc = this.ctx.createOscillator();

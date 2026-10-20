@@ -57,13 +57,13 @@ export function checkLevelAI(game: Game, opts: { spawns?: number; seconds?: numb
   const runners = [];
   for (const s of sample) {
     for (const g of goals) {
-      const r = sim(new Runner(s.clone(), 0), g, (e) => Math.hypot(e.pos.x - g.x, e.pos.z - g.z) < 2.6 && Math.abs(e.pos.y - g.y) < 1.2);
+      const r = sim(new Runner(s.clone(), 0, game.waves.look), g, (e) => Math.hypot(e.pos.x - g.x, e.pos.z - g.z) < 2.6 && Math.abs(e.pos.y - g.y) < 1.2);
       runners.push({ from: s.toArray().map((v) => +v.toFixed(1)), to: g.toArray().map((v) => +v.toFixed(2)), ...r });
     }
   }
   const yard = goals[goals.length - 4] ?? goals[0];
   const gunners = sample.map((s) => {
-    const r = sim(new Gunner(s.clone(), 0, new THREE.Scene()), yard, (e) => (e as Gunner).state === 'aim' || (e as Gunner).state === 'fire');
+    const r = sim(new Gunner(s.clone(), 0, new THREE.Scene(), null, game.waves.look), yard, (e) => (e as Gunner).state === 'aim' || (e as Gunner).state === 'fire');
     return { from: s.toArray().map((v) => +v.toFixed(1)), ...r };
   });
   const times = runners.filter((r) => r.ok).map((r) => r.t as number);
