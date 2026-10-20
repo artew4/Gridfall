@@ -192,6 +192,13 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - It steers the real controller with real keys along the route the game shows.
   - It presses E and holds E at the prompts, and fights or hides when hunted.
   - It boards the express and logs every objective and subtitle.
+- World integrity (3.3). The reasoning and results are in `docs/WORLD-VALIDATION-3.3.md`:
+  - `await __dev.world()`: scans the whole map on a 0.5 m grid with the real collision and finds escapes, track-pit access, traps, areas outside the designed zones, invisible walls, visuals you can walk through and gaps you can't fit through.
+  - `await __dev.stress({ samples, fps })`: the real controller from sampled reachable cells in 8 directions, walking and sprint-jumping. `fps` takes rates and `'spiky'`, for example `[20, 30, 60, 120, 'spiky']`.
+  - `await __dev.train()`: boarding at every door, closed doors, riding a departing car, and someone standing in a doorway as the doors close (with the real rail).
+  - `await __dev.colliders(true)`: the collision overlay around the camera.
+  - `await __dev.bench(3)`: fixed benchmark scenarios. Compare the results with `docs/BENCH-3.2.json`.
+  - `__game.safety.recoveries`: how often the out-of-bounds safety net fired. It should stay 0, and each recovery is logged as `[safety]`.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
 
 ## Structure
