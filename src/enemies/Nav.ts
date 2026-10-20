@@ -34,7 +34,7 @@ export class Nav {
       for (let j = i + 1; j < this.nodes.length; j++) {
         const ni = this.nodes[i], nj = this.nodes[j];
         if (Math.abs(ni.y - nj.y) > 0.5) continue;
-        if (ni.distanceTo(nj) < 14 && this.clear(ni, nj)) link(i, j);
+        if (ni.distanceTo(nj) < 14 && this.clear(ni, nj) && this.walkable(ni, nj)) link(i, j);
       }
     }
     for (const [i, j] of layout.links) link(i, j);
@@ -52,22 +52,42 @@ export class Nav {
     );
   }
 
-  /** Nearest node that can be seen from a body-height point, preferring the same level. */
-  nearestVisible(q: THREE.Vector3): number {
-    let best = -1;
-    let bd = Infinity;
-    for (let pass = 0; pass < 2 && best < 0; pass++) {
-      for (let i = 0; i < this.nodes.length; i++) {
-        const n = this.nodes[i];
-        if (pass === 0 && Math.abs(n.y - q.y) > 1.5) continue;
-        const d = n.distanceToSquared(q);
-        if (d < bd && this.col.lineOfSight(q, n)) {
-          bd = d;
-          best = i;
-        }
-      }
+  /**
+   * There is floor all the way between two body-height points (no alley, stairwell or roof edge in
+   * between). Line of sight alone would happily link two rooftops across a street.
+   */
+  walkable(a: THREE.Vector3, b: THREE.Vector3) {
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    const n = Math.max(1, Math.ceil(len / 0.75));
+    for (let i = 1; i < n; i++) {
+      const t = i / n;
+      const x = a.x + (b.x - a.x) * t;
+      const z = a.z + (b.z - a.z) * t;
+      const feet = a.y + (b.y - a.y) * t - BODY;
+      const g = this.col.groundHeightAt(x, z, 0.2, feet, 0.7);
+      if (g < feet - 0.7) return false;
     }
-    return best;
+    return true;
+  }
+
+  /**
+   * Best node to start or end a path at: visible, close, and on (or near) the same level. Height
+   * differences weigh heavily, so halfway up a stair the stair's own nodes win over the street below.
+   */
+  nearestVisible(q: THREE.Vector3): number {
+    const cand: { i: number; s: number }[] = [];
+    for (let i = 0; i < this.nodes.length; i++) {
+      const n = this.nodes[i];
+      const dy = n.y - q.y;
+      cand.push({ i, s: (n.x - q.x) ** 2 + (n.z - q.z) ** 2 + dy * dy * 9 });
+    }
+    cand.sort((a, b) => a.s - b.s);
+    // Rays are the expensive part: test in order of preference and stop at the first visible one.
+    for (let k = 0; k < cand.length; k++) {
+      const n = this.nodes[cand[k].i];
+      if (this.col.lineOfSight(q, n) && this.walkable(q, n)) return cand[k].i;
+    }
+    return -1;
   }
 
   /** Dijkstra; returns node indices from start to goal. */
@@ -94,6 +114,57 @@ export class Nav {
     const out: number[] = [];
     for (let v = to; v >= 0; v = prev[v]) out.unshift(v);
     return out[0] === from ? out : [];
+  }
+
+  /** Shortest distances from every node to `goal`, plus the next hop towards it. */
+  private toward(goal: number) {
+    const n = this.nodes.length;
+    const dist = new Float64Array(n).fill(Infinity);
+    const next = new Int32Array(n).fill(-1);
+    const done = new Uint8Array(n);
+    dist[goal] = 0;
+    for (let k = 0; k < n; k++) {
+      let u = -1;
+      for (let i = 0; i < n; i++) if (!done[i] && (u < 0 || dist[i] < dist[u])) u = i;
+      if (u < 0 || dist[u] === Infinity) break;
+      done[u] = 1;
+      for (const v of this.edges[u]) {
+        const nd = dist[u] + this.nodes[u].distanceTo(this.nodes[v]);
+        if (nd < dist[v]) {
+          dist[v] = nd;
+          next[v] = u;
+        }
+      }
+    }
+    return { dist, next };
+  }
+
+  /**
+   * Route from a body-height position to a goal position: enters the graph at the reachable node with
+   * the lowest (distance to it + remaining distance to the goal), so an agent never walks back to a
+   * node behind it just because that node happens to be the closest.
+   */
+  route(from: THREE.Vector3, to: THREE.Vector3): number[] {
+    const b = this.nearestVisible(to);
+    if (b < 0) return [];
+    const { dist, next } = this.toward(b);
+    const cand: { i: number; s: number }[] = [];
+    for (let i = 0; i < this.nodes.length; i++) {
+      if (dist[i] === Infinity) continue;
+      const n = this.nodes[i];
+      const dy = n.y - from.y;
+      const d = Math.sqrt((n.x - from.x) ** 2 + (n.z - from.z) ** 2 + dy * dy * 9);
+      cand.push({ i, s: d + dist[i] });
+    }
+    cand.sort((x, y) => x.s - y.s);
+    for (const c of cand) {
+      const n = this.nodes[c.i];
+      if (!this.clear(from, n) || !this.walkable(from, n)) continue;
+      const out: number[] = [];
+      for (let v = c.i; v >= 0 && out.length < 200; v = next[v]) out.push(v);
+      return out;
+    }
+    return [];
   }
 
   /** Indices reachable from a node (connectivity check for the dev route test). */

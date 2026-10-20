@@ -111,16 +111,18 @@ export class City {
    * A city block: one box with detailed facades on the listed sides (ledges, parapet, storefronts,
    * awnings), plus rooftop clutter. Bare sides stay plain (they face other blocks).
    */
-  block(x0: number, x1: number, z0: number, z1: number, h: number, variant: number, faces: FaceSpec[], rnd: () => number) {
+  block(x0: number, x1: number, z0: number, z1: number, h: number, variant: number, faces: FaceSpec[], rnd: () => number, opts: { tank?: boolean; y0?: number } = {}) {
     const b = this.ctx.builder;
     const m = this.mats;
     const w = x1 - x0;
     const d = z1 - z0;
-    b.add(worldBox(w, h, d, 16, rnd() * 4, 0), m.facade[variant], (x0 + x1) / 2, h / 2, (z0 + z1) / 2);
-    this.col.add(x0, 0, z0, x1, h, z1, 'concrete');
+    const y0 = opts.y0 ?? 0;
+    b.add(worldBox(w, h - y0, d, 16, rnd() * 4, 0), m.facade[variant], (x0 + x1) / 2, (h + y0) / 2, (z0 + z1) / 2);
+    this.col.add(x0, y0, z0, x1, h, z1, 'concrete');
     for (const f of faces) this.facade(x0, x1, z0, z1, h, f, rnd);
-    // Rooftop water tank for the silhouette.
-    if (h < 24 && w > 5 && d > 5 && rnd() < 0.6) {
+    // Rooftop water tank for the silhouette (not on roofs people walk on).
+    const tankRoll = rnd();
+    if (opts.tank !== false && h < 24 && w > 5 && d > 5 && tankRoll < 0.6) {
       const tx = x0 + w * (0.3 + rnd() * 0.4);
       const tz = z0 + d * (0.3 + rnd() * 0.4);
       b.add(new THREE.CylinderGeometry(1.1, 1.1, 2.2, 10), m.paintedMetal, tx, h + 2.2, tz);

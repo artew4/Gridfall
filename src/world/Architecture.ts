@@ -31,6 +31,10 @@ export interface StairSpec {
   /** Sides that get a railing (the others sit against a wall). */
   rails: Edge[];
   top?: number;
+  /** Height of the low end (default 0). */
+  bottom?: number;
+  /** Railings can be jumped over (default true; false over long drops). */
+  vault?: boolean;
 }
 
 /**
@@ -65,7 +69,7 @@ export class Architecture {
   }
 
   /** A slab walkway with railings on the given edges, minus gaps (where stairs or other walkways join). */
-  walkway(r: Rect, rails: { edge: Edge; from?: number; to?: number }[], columns: [number, number][] = [], y = DECK) {
+  walkway(r: Rect, rails: { edge: Edge; from?: number; to?: number; vault?: boolean }[], columns: [number, number][] = [], y = DECK) {
     const { builder: b, col, mats } = this.ctx;
     const w = r.x1 - r.x0;
     const d = r.z1 - r.z0;
@@ -77,15 +81,46 @@ export class Architecture {
     this.shelters.push({ ...r, y: y - SLAB });
     this.surfaces.push({ ...r, y });
     this.decks.push(r);
-    for (const rl of rails) this.rail(r, rl.edge, rl.from, rl.to, y);
+    for (const rl of rails) this.rail(r, rl.edge, rl.from, rl.to, y, rl.vault ?? true);
     for (const [x, z] of columns) {
       b.add(worldBox(0.4, y - SLAB, 0.4, 2), mats.darkConcrete, x, (y - SLAB) / 2, z);
       col.addCentered(x, (y - SLAB) / 2, z, 0.4, y - SLAB, 0.4, 'concrete');
     }
   }
 
+  /** Walkable roof: wet deck surface over a building top (the building box is the collider). */
+  roofDeck(r: Rect, y: number) {
+    const g = new THREE.PlaneGeometry(r.x1 - r.x0, r.z1 - r.z0);
+    const uv = g.attributes.uv as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * ((r.x1 - r.x0) / 3), uv.getY(i) * ((r.z1 - r.z0) / 3));
+    g.rotateX(-Math.PI / 2);
+    this.ctx.builder.add(g, this.deckMat, (r.x0 + r.x1) / 2, y + 0.012, (r.z0 + r.z1) / 2);
+    this.surfaces.push({ ...r, y });
+    this.decks.push(r);
+  }
+
+  /**
+   * Concrete parapet along an axis-aligned segment. Low ones (0.55 m) can be jumped over to drop to a
+   * walkway or stair below; high ones (1.1 m) guard long drops and are never vaultable.
+   */
+  parapet(x0: number, z0: number, x1: number, z1: number, y: number, low: boolean) {
+    const { builder: b, col, mats } = this.ctx;
+    const h = low ? 0.55 : 1.1;
+    const t = 0.28;
+    const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
+    const len = alongX ? Math.abs(x1 - x0) : Math.abs(z1 - z0);
+    const cx = (x0 + x1) / 2;
+    const cz = (z0 + z1) / 2;
+    b.add(alongX ? worldBox(len, h, t, 2) : worldBox(t, h, len, 2), mats.darkConcrete, cx, y + h / 2, cz);
+    // Cap trim catches light on the edge.
+    b.add(alongX ? worldBox(len, 0.05, t + 0.06, 1) : worldBox(t + 0.06, 0.05, len, 1), this.railMat, cx, y + h + 0.025, cz);
+    const c = alongX ? col.add(Math.min(x0, x1), y, cz - t / 2, Math.max(x0, x1), y + h, cz + t / 2, 'concrete') : col.add(cx - t / 2, y, Math.min(z0, z1), cx + t / 2, y + h, Math.max(z0, z1), 'concrete');
+    c.vault = low;
+    return c;
+  }
+
   /** Railing along one edge of a rect (from/to clip it along the edge). */
-  rail(r: Rect, edge: Edge, from?: number, to?: number, y = DECK) {
+  rail(r: Rect, edge: Edge, from?: number, to?: number, y = DECK, vault = true) {
     const { builder: b, col } = this.ctx;
     const alongX = edge === 'n' || edge === 's';
     const a0 = from ?? (alongX ? r.x0 : r.z0);
@@ -109,8 +144,9 @@ export class Architecture {
     const sf = fixed + (edge === 'n' || edge === 'w' ? -0.01 : 0.01);
     b.add(box(len, 0.04, 0.02), this.stripMat, ...(alongX ? [mid, y - SLAB - 0.03, sf] : [sf, y - SLAB - 0.03, mid]) as [number, number, number]);
     const t = 0.12;
-    if (alongX) col.add(a0, y, f - t / 2, a1, y + RAIL_H, f + t / 2, 'metal');
-    else col.add(f - t / 2, y, a0, f + t / 2, y + RAIL_H, a1, 'metal');
+    const c = alongX ? col.add(a0, y, f - t / 2, a1, y + RAIL_H, f + t / 2, 'metal') : col.add(f - t / 2, y, a0, f + t / 2, y + RAIL_H, a1, 'metal');
+    c.vault = vault;
+    return c;
   }
 
   /**
@@ -120,12 +156,14 @@ export class Architecture {
   stair(s: StairSpec) {
     const { builder: b, col } = this.ctx;
     const top = s.top ?? DECK;
+    const bot = s.bottom ?? 0;
+    const H = top - bot;
     const alongX = s.axis === 'x';
     const L = alongX ? s.x1 - s.x0 : s.z1 - s.z0;
     const W = alongX ? s.z1 - s.z0 : s.x1 - s.x0;
-    const steps = Math.round(top / 0.25);
+    const steps = Math.round(H / 0.25);
     const run = L / steps;
-    const rise = top / steps;
+    const rise = H / steps;
 
     // Stepped profile in (run, height), extruded across the width.
     const shape = new THREE.Shape();
@@ -142,7 +180,7 @@ export class Architecture {
     const up = new THREE.Vector3(0, 1, 0);
     const across = new THREE.Vector3().crossVectors(runDir, up);
     // Half a riser down so the smooth ramp passes through the middle of every tread.
-    const start = new THREE.Vector3(0, -rise / 2, 0);
+    const start = new THREE.Vector3(0, bot - rise / 2, 0);
     if (alongX) start.x = s.rise > 0 ? s.x0 : s.x1;
     else start.z = s.rise > 0 ? s.z0 : s.z1;
     // `across` points to one side; start the extrusion on the side it points away from.
@@ -153,20 +191,20 @@ export class Architecture {
     geo.dispose();
 
     // Feet: smooth ramp.
-    col.addRamp(s.x0, s.z0, s.x1, s.z1, s.axis, s.rise > 0 ? 0 : top, s.rise > 0 ? top : 0);
+    col.addRamp(s.x0, s.z0, s.x1, s.z1, s.axis, s.rise > 0 ? bot : top, s.rise > 0 ? top : bot);
     // Bullets and walls: stepped fill boxes, tops never above the ramp, excluded from standing.
     const seg = 8;
     for (let i = 1; i < seg; i++) {
-      const h = (top * i) / seg;
+      const h = bot + (H * i) / seg;
       const a = (L * i) / seg;
       const a2 = (L * (i + 1)) / seg;
       let c;
       if (alongX) {
         const xa = s.rise > 0 ? s.x0 + a : s.x1 - a2;
-        c = col.add(xa, 0, s.z0, xa + (a2 - a), h, s.z1, 'concrete');
+        c = col.add(xa, bot, s.z0, xa + (a2 - a), h, s.z1, 'concrete');
       } else {
         const za = s.rise > 0 ? s.z0 + a : s.z1 - a2;
-        c = col.add(s.x0, 0, za, s.x1, h, za + (a2 - a), 'concrete');
+        c = col.add(s.x0, bot, za, s.x1, h, za + (a2 - a), 'concrete');
       }
       c.floor = false;
     }
@@ -176,18 +214,18 @@ export class Architecture {
       const fixed = e === 'n' ? s.z0 : e === 's' ? s.z1 : e === 'w' ? s.x0 : s.x1;
       const inset = e === 'n' || e === 'w' ? 0.06 : -0.06;
       const f = fixed + inset;
-      const slope = Math.atan2(top, L);
-      const len = Math.hypot(top, L);
+      const slope = Math.atan2(H, L);
+      const len = Math.hypot(H, L);
       const midA = alongX ? (s.x0 + s.x1) / 2 : (s.z0 + s.z1) / 2;
       // Handrail rotated to the slope.
       const rot = alongX ? [0, 0, s.rise * slope] : [-s.rise * slope, 0, 0];
       const rail = alongX ? worldBox(len, 0.06, 0.08, 1) : worldBox(0.08, 0.06, len, 1);
-      const pos: [number, number, number] = alongX ? [midA, top / 2 + RAIL_H, f] : [f, top / 2 + RAIL_H, midA];
+      const pos: [number, number, number] = alongX ? [midA, bot + H / 2 + RAIL_H, f] : [f, bot + H / 2 + RAIL_H, midA];
       b.add(rail, this.railMat, pos[0], pos[1], pos[2], rot[0], rot[1], rot[2]);
       const n = Math.max(2, Math.round(L / 1.4));
       for (let i = 0; i <= n; i++) {
         const t = i / n;
-        const h = top * t;
+        const h = bot + H * t;
         const a = alongX ? (s.rise > 0 ? s.x0 + L * t : s.x1 - L * t) : s.rise > 0 ? s.z0 + L * t : s.z1 - L * t;
         const p: [number, number, number] = alongX ? [a, h + RAIL_H / 2, f] : [f, h + RAIL_H / 2, a];
         b.add(worldBox(0.06, RAIL_H, 0.06, 1), this.railMat, ...p);
@@ -198,13 +236,15 @@ export class Architecture {
       if (alongX) {
         const xa = s.rise > 0 ? s.x0 + open : s.x0;
         const xb = s.rise > 0 ? s.x1 : s.x1 - open;
-        const c = col.add(xa, 0, f - t / 2, xb, top + RAIL_H, f + t / 2, 'metal');
+        const c = col.add(xa, bot, f - t / 2, xb, top + RAIL_H, f + t / 2, 'metal');
         c.ray = false;
+        c.vault = s.vault ?? true;
       } else {
         const za = s.rise > 0 ? s.z0 + open : s.z0;
         const zb = s.rise > 0 ? s.z1 : s.z1 - open;
-        const c = col.add(f - t / 2, 0, za, f + t / 2, top + RAIL_H, zb, 'metal');
+        const c = col.add(f - t / 2, bot, za, f + t / 2, top + RAIL_H, zb, 'metal');
         c.ray = false;
+        c.vault = s.vault ?? true;
       }
     }
     this.stairs.push(s);
