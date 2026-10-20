@@ -119,6 +119,7 @@ export class Rail {
   /** Timetable phase with this rail's door holds applied. */
   private active() {
     for (const s of this.tt.services) {
+      if (s.suspended) continue;
       const t = toReal(this.tt.now - s.time);
       const dwell = s.kind === 'deadhead' ? 0 : this.dwellOf(s);
       if (t >= -APPROACH_S && t < 0) return { s, phase: 'approach' as const, t };
@@ -175,7 +176,7 @@ export class Rail {
         g.font = '12px sans-serif';
         g.fillStyle = here ? '#7fe8b0' : s.escape ? '#ffb03a' : s.kind === 'local' ? '#ff6a6a' : '#7a7e86';
         g.textAlign = 'right';
-        g.fillText(here ? 'BOARDING 乗車中' : s.escape ? s.note : s.note, 502, y);
+        g.fillText(here ? 'BOARDING 乗車中' : s.suspended ? 'SUSPENDED · LOCKDOWN 運休' : s.note, 502, y);
         g.textAlign = 'left';
       });
       b.texture.needsUpdate = true;

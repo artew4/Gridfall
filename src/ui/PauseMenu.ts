@@ -15,6 +15,8 @@ export class PauseMenu {
   private muteBtn: HTMLButtonElement;
   private sliders = {} as Record<SliderKey, { input: HTMLInputElement; val: HTMLElement }>;
   private restartArmed = false;
+  /** 'settings': opened from the main menu (no restart; RESUME reads BACK). */
+  mode: 'pause' | 'settings' = 'pause';
 
   constructor(parent: HTMLElement, private settings: Settings) {
     this.root.id = 'pausemenu';
@@ -53,6 +55,10 @@ export class PauseMenu {
     this.root.addEventListener('click', (e) => {
       const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
       if (act === 'resume') {
+        if (this.mode === 'settings') {
+          this.show(false);
+          return;
+        }
         this.setHint('LOCKING POINTER…');
         this.onResume();
       } else if (act === 'restart') {
@@ -91,9 +97,14 @@ export class PauseMenu {
     return !this.root.classList.contains('hidden');
   }
 
-  show(on: boolean) {
+  show(on: boolean, mode: 'pause' | 'settings' = 'pause') {
     this.root.classList.toggle('hidden', !on);
     if (on) {
+      this.mode = mode;
+      const settings = mode === 'settings';
+      this.root.querySelector('.pm-title')!.innerHTML = settings ? 'SETTINGS<span class="jp">設定</span>' : 'PAUSED<span class="jp">一時停止</span>';
+      this.root.querySelector('[data-act="resume"]')!.innerHTML = settings ? 'BACK<span class="jp">戻る</span>' : 'RESUME<span class="jp">再開</span>';
+      (this.root.querySelector('[data-act="restart"]') as HTMLElement).style.display = settings ? 'none' : '';
       this.restartArmed = false;
       this.root.querySelector('[data-act="restart"]')!.innerHTML = 'RESTART<span class="jp">最初から</span>';
       this.setHint('');

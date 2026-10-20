@@ -10,6 +10,8 @@ Branch `feature/cinematic-escape` (baseline tag `v2.0`). No remote push.
 | 2 | e9ae8d2 | instanced civilians: witnesses + reports, panic/recovery; DEV `window.__dev` helpers |
 | 3a | 8afb8b7 | rooftop layer (8.5 m), bridges, stairs S5–S8, vaulting, nav walkability + goal-rooted routing |
 | 3b | cdc04c8 | Sakura Line station (−6 m), three entrances with lockdown shutters |
+| 4 | 511ef22 | timetable (tested), metro train with interior, boarding, ending + end card |
+| 5 | (this) | Mission: 4 acts, ambush/relay/station set pieces, checkpoints, director sweeps; main menu (Story/Arcade/Settings/Controls); story intro |
 
 ## Verification commands
 - `npm test`: vitest unit tests (stealth state machines, rect utilities, timetable)

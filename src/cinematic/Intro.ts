@@ -14,6 +14,12 @@ export interface IntroFrame {
 
 const END_POS = new THREE.Vector3(0, 1.65, 24);
 const END_LOOK = new THREE.Vector3(0, 1.65, 14);
+
+export interface IntroOptions {
+  /** Where the camera lands (the player's eyes) and what it looks at. */
+  end?: THREE.Vector3;
+  endLook?: THREE.Vector3;
+}
 /** On the W1 walkway across the plaza, framed by the fountain's rings. */
 const SIL_POS = new THREE.Vector3(3.2, 4.5, -13.3);
 
@@ -43,7 +49,12 @@ export class Intro {
   private rimColor = new THREE.Color();
 
   /** `rim` is an idle scene light borrowed for the backlight (adding a light would recompile every shader). */
-  constructor(private scene: THREE.Scene, private audio: AudioEngine, private rim: THREE.PointLight) {
+  private endPos: THREE.Vector3;
+  private endLook: THREE.Vector3;
+
+  constructor(private scene: THREE.Scene, private audio: AudioEngine, private rim: THREE.PointLight, opts: IntroOptions = {}) {
+    this.endPos = opts.end ?? END_POS;
+    this.endLook = opts.endLook ?? END_LOOK;
     this.rimColor.copy(rim.color);
     rim.color.set(0x7fe6ff);
     rim.distance = 9;
@@ -81,10 +92,10 @@ export class Intro {
     this.startQ.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), roll));
 
     // Final settle into first person.
-    this.m.lookAt(END_POS, END_LOOK, new THREE.Vector3(0, 1, 0));
+    this.m.lookAt(this.endPos, this.endLook, new THREE.Vector3(0, 1, 0));
     this.endQ.setFromRotationMatrix(this.m);
     const b = easeInOut(clamp((t - 11.2) / 1.6, 0, 1));
-    cam.position.copy(pos).lerp(END_POS, b);
+    cam.position.copy(pos).lerp(this.endPos, b);
     cam.quaternion.copy(this.startQ).slerp(this.endQ, b);
     // Slow punch-in on the silhouette, released as we drop into first person.
     const punch = smoothstep(7.8, 9.2, t) * (1 - smoothstep(10.3, 11.3, t));

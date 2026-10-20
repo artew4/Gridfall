@@ -27,6 +27,8 @@ export interface Service {
   /** Boarding this one ends the story. */
   escape: boolean;
   note: string;
+  /** Listed but not running (station lockdown). */
+  suspended?: boolean;
 }
 
 const LOCAL_DESTS: [string, string][] = [
@@ -111,6 +113,7 @@ export class Timetable {
   /** The service whose train should be on the line right now, with the phase it's in. */
   active(): { s: Service; phase: 'approach' | 'stopped' | 'depart'; t: number } | null {
     for (const s of this.services) {
+      if (s.suspended) continue;
       const t = toReal(this.now - s.time); // seconds relative to arrival
       const dwell = this.dwell(s);
       if (t >= -APPROACH_S && t < 0) return { s, phase: 'approach', t };
