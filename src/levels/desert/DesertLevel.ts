@@ -8,6 +8,8 @@ import { Sandstorm } from './Sandstorm';
 import { DesertIntro } from './DesertIntro';
 import { sandTexture } from './textures';
 import { damp } from '../../core/math';
+import { JACKAL_AR } from '../../entities/weapons/jackal';
+import { DESERT_MERCS } from '../../entities/enemies/mercs';
 
 export const DESERT_INFO: LevelInfo = {
   id: 'desert',
@@ -17,6 +19,7 @@ export const DESERT_INFO: LevelInfo = {
   modes: ['arcade'],
   loading: 'RAISING THE OUTPOST…',
   windowTitle: 'NEON RAIN — Desert Outpost',
+  arsenal: { weapon: JACKAL_AR, enemies: DESERT_MERCS },
   tagline: 'HOLD THE OUTPOST · WATCH THE STORM',
   jpLine: '砂漠 · 午後二時十分',
   place: 'OUTPOST KESTREL',

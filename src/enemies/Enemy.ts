@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { buildGunner, buildRunner, disposeRig, GUNNER_ACCENT, RUNNER_ACCENT, type Rig } from './Models';
+import { disposeRig, type Rig } from './Models';
+import type { EnemyLook } from '../entities/types';
+import { NEON_SYNTHS } from '../entities/enemies/neon';
 import type { Nav } from './Nav';
 import type { Projectiles } from './Projectiles';
 import type { Player } from '../player/Player';
@@ -87,7 +89,8 @@ export abstract class Enemy {
   abstract accent: THREE.Color;
   abstract heavy: boolean;
 
-  constructor(rig: Rig, maxHp: number, spawn: THREE.Vector3, public kind: 'runner' | 'gunner') {
+  /** How this enemy looks and sounds (the setting's EnemyLook). */
+  constructor(rig: Rig, maxHp: number, spawn: THREE.Vector3, public kind: 'runner' | 'gunner', public look: EnemyLook = NEON_SYNTHS) {
     this.rig = rig;
     this.hp = maxHp;
     this.pos.copy(spawn);
@@ -132,7 +135,7 @@ export abstract class Enemy {
     this.leanX.impulse(localZ * k);
     this.leanZ.impulse(-localX * k);
     this.vel.addScaledVector(dir, this.heavy ? 0.6 : 1.8);
-    ctx.fx.enemyHit(point, dir, this.accent);
+    ctx.fx.enemyHit(point, dir, this.accent, this.look.organic);
     ctx.audio.hitEnemy(point, this.heavy);
     this.onHit(ctx);
     if (this.hp <= 0) {
@@ -150,8 +153,8 @@ export abstract class Enemy {
     this.alive = false;
     this.state = 'dying';
     this.dieT = 0;
-    ctx.fx.deathBurst(this.chest.clone(), this.accent);
-    ctx.audio.enemyDeath(this.chest);
+    ctx.fx.deathBurst(this.chest.clone(), this.accent, this.look.organic);
+    ctx.audio.enemyDeath(this.chest, this.look.voice);
     this.onDeath(ctx);
   }
 
@@ -330,6 +333,16 @@ export abstract class Enemy {
     r.legR.rotation.x = -fall * 0.2;
     r.armL.rotation.x = -fall * 1.5;
     r.armR.rotation.x = -fall * 1.1;
+    if (this.look.organic) {
+      // A body: it lies still, then the sand takes it (no glitch, no sparks).
+      r.root.position.copy(this.pos);
+      if (t > 2.6) r.root.position.y -= (t - 2.6) * 1.1;
+      if (t > 3.7) {
+        r.root.visible = false;
+        this.dead = true;
+      }
+      return;
+    }
     // Digital glitch dissolve.
     if (t > 0.45) {
       const k = (t - 0.45) / 0.9;
@@ -376,12 +389,13 @@ export class Runner extends Enemy {
     { y: 1.15, r: 0.33, mult: 1, fwd: 0.15 },
     { y: 0.6, r: 0.28, mult: 0.75 },
   ];
-  accent = RUNNER_ACCENT;
+  accent: THREE.Color;
   heavy = false;
   private zig = rand(0.8, 1.4);
 
-  constructor(spawn: THREE.Vector3, difficulty: number) {
-    super(buildRunner(), 60, spawn, 'runner');
+  constructor(spawn: THREE.Vector3, difficulty: number, look: EnemyLook = NEON_SYNTHS) {
+    super(look.buildRunner(), 60, spawn, 'runner', look);
+    this.accent = look.runnerAccent;
     this.speed = 5.6 + difficulty * 0.35 + rand(-0.3, 0.3);
     this.rig.body.userData.baseY = 0.95;
   }
@@ -394,7 +408,7 @@ export class Runner extends Enemy {
       case 'emerge':
         if (this.stateT > 0.55) {
           this.setState('chase');
-          ctx.audio.runnerScreech(this.chest);
+          ctx.audio.runnerScreech(this.chest, this.look.voice);
         }
         this.faceTowards(p, dt, 4);
         break;
@@ -480,7 +494,7 @@ export class Gunner extends Enemy {
     { y: 1.32, r: 0.4, mult: 1 },
     { y: 0.62, r: 0.32, mult: 0.75 },
   ];
-  accent = GUNNER_ACCENT;
+  accent: THREE.Color;
   heavy = true;
   private cover: THREE.Vector3 | null = null;
   private noSight = 0;
@@ -493,8 +507,9 @@ export class Gunner extends Enemy {
   /** Rooftop sniper: holds its perch, strafing a little, instead of moving between covers. */
   perch: THREE.Vector3 | null = null;
 
-  constructor(spawn: THREE.Vector3, difficulty: number, scene: THREE.Scene, perch: THREE.Vector3 | null = null) {
-    super(buildGunner(), 150, spawn, 'gunner');
+  constructor(spawn: THREE.Vector3, difficulty: number, scene: THREE.Scene, perch: THREE.Vector3 | null = null, look: EnemyLook = NEON_SYNTHS) {
+    super(look.buildGunner(), 150, spawn, 'gunner', look);
+    this.accent = look.gunnerAccent;
     this.perch = perch;
     this.speed = 3.1 + difficulty * 0.1;
     this.rig.body.userData.baseY = 1.0;
@@ -573,7 +588,7 @@ export class Gunner extends Enemy {
         if (dist < 5) desired.add(new THREE.Vector3(this.pos.x - p.x, 0, this.pos.z - p.z).normalize().multiplyScalar(2.5));
         if (this.stateT > rand(1.2, 2.0) - ctx.difficulty * 0.05 && sees && ctx.player.alive) {
           this.setState('aim');
-          ctx.audio.gunnerCharge(this.chest);
+          ctx.audio.gunnerCharge(this.chest, this.look.voice);
         }
         if (this.noSight > 1.6 && !this.perch) this.pickCover(ctx);
         break;
@@ -604,7 +619,7 @@ export class Gunner extends Enemy {
           dir.z += rand(-0.03, 0.03);
           dir.normalize();
           ctx.projectiles.fire(muzzle, dir, 24 + ctx.difficulty);
-          ctx.audio.enemyShot(muzzle);
+          ctx.audio.enemyShot(muzzle, this.look.voice);
           ctx.fx.add.spawn({ x: muzzle.x, y: muzzle.y, z: muzzle.z, r: 5, g: 2.5, b: 0.6, size: 0.45, life: 0.06 });
           this.leanX.impulse(-2);
         }
@@ -665,6 +680,7 @@ export class Gunner extends Enemy {
   dispose(scene: THREE.Scene) {
     super.dispose(scene);
     scene.remove(this.laser);
+    this.laser.geometry.dispose();
     this.laserMat.dispose();
   }
 }

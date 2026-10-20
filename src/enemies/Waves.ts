@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Enemy, Gunner, Runner, type EnemyCtx } from './Enemy';
 import { pick, rand } from '../core/math';
+import type { EnemyLook } from '../entities/types';
+import { NEON_SYNTHS } from '../entities/enemies/neon';
 
 /** Snipers start appearing on rooftops from this wave on (drawn from the same gunner count). */
 const SNIPER_WAVE = 4;
@@ -22,6 +24,8 @@ export class Waves {
   spawns: THREE.Vector3[] = [];
   /** Rooftop sniper perches. */
   perches: THREE.Vector3[] = [];
+  /** What the enemies of the loaded setting look and sound like. */
+  look: EnemyLook = NEON_SYNTHS;
   /**
    * Spawn no closer than this (default 12 m). A level with weather sets it to the current visibility,
    * so enemies appear out of the storm rather than in plain sight.
@@ -123,7 +127,7 @@ export class Waves {
       const perch = this.freePerch();
       if (perch && perch.distanceTo(p) > 8) {
         this.snipersThisWave++;
-        const e = new Gunner(perch.clone(), this.difficulty, ctx.scene, perch);
+        const e = new Gunner(perch.clone(), this.difficulty, ctx.scene, perch, this.look);
         e.yaw = Math.atan2(p.x - perch.x, p.z - perch.z);
         this.enemies.push(e);
         ctx.scene.add(e.rig.root);
@@ -144,7 +148,7 @@ export class Waves {
     const at = base.clone().add(new THREE.Vector3(rand(-1, 1), 0, rand(-1, 1)));
     // Jitter must never push a spawn into a wall.
     if (ctx.col.blocked(at, 0.5)) at.copy(base);
-    const e = kind === 'runner' ? new Runner(at, this.difficulty) : new Gunner(at, this.difficulty, ctx.scene);
+    const e = kind === 'runner' ? new Runner(at, this.difficulty, this.look) : new Gunner(at, this.difficulty, ctx.scene, null, this.look);
     e.yaw = Math.atan2(p.x - at.x, p.z - at.z);
     this.enemies.push(e);
     ctx.scene.add(e.rig.root);

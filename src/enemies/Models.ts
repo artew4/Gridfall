@@ -24,16 +24,18 @@ export interface Rig {
 }
 
 const geoCache = new Map<string, THREE.BufferGeometry>();
-function boxGeo(w: number, h: number, d: number) {
+export function boxGeo(w: number, h: number, d: number) {
   const k = `b${w},${h},${d}`;
   let g = geoCache.get(k);
   if (!g) geoCache.set(k, (g = new THREE.BoxGeometry(w, h, d)));
+  g.userData.shared = true;
   return g;
 }
-function cylGeo(rt: number, rb: number, h: number, seg: number) {
+export function cylGeo(rt: number, rb: number, h: number, seg: number) {
   const k = `c${rt},${rb},${h},${seg}`;
   let g = geoCache.get(k);
   if (!g) geoCache.set(k, (g = new THREE.CylinderGeometry(rt, rb, h, seg)));
+  g.userData.shared = true;
   return g;
 }
 
@@ -53,7 +55,7 @@ export const GUNNER_ACCENT = new THREE.Color(1.0, 0.55, 0.08);
  * (pivot, material) instead of one per part. Animation is unaffected: pivots keep their transforms.
  * The merged geometries are owned by the rig; `disposeRig` frees them.
  */
-function mergeRig(rig: Rig): Rig {
+export function mergeRig(rig: Rig): Rig {
   const groups = new Map<THREE.Object3D, Map<THREE.Material, THREE.Mesh[]>>();
   for (const m of rig.parts) {
     const byMat = groups.get(m.parent!) ?? new Map<THREE.Material, THREE.Mesh[]>();
@@ -84,16 +86,27 @@ function mergeRig(rig: Rig): Rig {
       parts.push(mesh);
     }
   }
+  // Everything not shared between rigs belongs to this one and is freed with it: merged geometries,
+  // one-off parts (a sphere alone on its pivot), per-rig materials. (Before 3.5 only the merged ones
+  // were freed: each runner leaked its head sphere, each gunner its lamp material.)
+  const ownedMats = new Set<THREE.Material>();
+  for (const m of parts) {
+    if (!m.geometry.userData.shared && !owned.includes(m.geometry)) owned.push(m.geometry);
+    const mat = m.material as THREE.Material;
+    if (!mat.userData.shared) ownedMats.add(mat);
+  }
   rig.parts = parts;
   rig.root.userData.ownedGeos = owned;
+  rig.root.userData.ownedMats = [...ownedMats];
   return rig;
 }
 
 export function disposeRig(rig: Rig) {
   for (const g of (rig.root.userData.ownedGeos as THREE.BufferGeometry[] | undefined) ?? []) g.dispose();
+  for (const m of (rig.root.userData.ownedMats as THREE.Material[] | undefined) ?? []) m.dispose();
 }
 
-function pivot(parent: THREE.Object3D, x: number, y: number, z: number) {
+export function pivot(parent: THREE.Object3D, x: number, y: number, z: number) {
   const g = new THREE.Group();
   g.position.set(x, y, z);
   parent.add(g);

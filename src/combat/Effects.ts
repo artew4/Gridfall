@@ -269,7 +269,8 @@ export class Effects {
   }
 
   /** Enemy hit: electric blue-white sparks and dark coolant spray (they are not entirely human). */
-  enemyHit(pos: THREE.Vector3, dir: THREE.Vector3, accent: THREE.Color) {
+  enemyHit(pos: THREE.Vector3, dir: THREE.Vector3, accent: THREE.Color, organic = false) {
+    if (organic) return this.fleshHit(pos, dir);
     const n = dir.clone().negate();
     this.sparks(pos, n, 10, new THREE.Color(0.6, 0.85, 1.0), 5);
     this.sparks(pos, dir, 6, accent, 4);
@@ -283,7 +284,36 @@ export class Effects {
     this.add.spawn({ x: pos.x, y: pos.y, z: pos.z, r: accent.r * 3, g: accent.g * 3, b: accent.b * 3, size: 0.5, life: 0.08 });
   }
 
-  deathBurst(pos: THREE.Vector3, accent: THREE.Color) {
+  /** A human hit: cloth dust kicked off the impact and a few dark droplets (no sparks, no glow). */
+  private fleshHit(pos: THREE.Vector3, dir: THREE.Vector3) {
+    for (let i = 0; i < 6; i++) {
+      this.smoke.spawn({
+        x: pos.x, y: pos.y, z: pos.z,
+        vx: dir.x * rand(0.5, 1.5) + rand(-0.4, 0.4), vy: rand(0.1, 0.8), vz: dir.z * rand(0.5, 1.5) + rand(-0.4, 0.4),
+        r: 0.62, g: 0.52, b: 0.38, a: 0.45, size: rand(0.08, 0.14), grow: 1.1, life: rand(0.5, 0.9), drag: 3,
+      });
+    }
+    for (let i = 0; i < 7; i++) {
+      this.smoke.spawn({
+        x: pos.x, y: pos.y, z: pos.z,
+        vx: dir.x * rand(1, 2.5) + rand(-0.6, 0.6), vy: rand(0, 1.4), vz: dir.z * rand(1, 2.5) + rand(-0.6, 0.6),
+        r: 0.16, g: 0.03, b: 0.02, a: 0.9, size: rand(0.025, 0.045), life: rand(0.3, 0.55), gravity: 9, bounce: 0.05,
+      });
+    }
+  }
+
+  deathBurst(pos: THREE.Vector3, accent: THREE.Color, organic = false) {
+    if (organic) {
+      // The body drops: a puff of sand dust where it falls, nothing else.
+      for (let i = 0; i < 12; i++) {
+        this.smoke.spawn({
+          x: pos.x + rand(-0.4, 0.4), y: pos.y - 1.0 + rand(0, 0.3), z: pos.z + rand(-0.4, 0.4),
+          vx: rand(-0.6, 0.6), vy: rand(0.1, 0.6), vz: rand(-0.6, 0.6),
+          r: 0.66, g: 0.55, b: 0.4, a: 0.4, size: 0.35, grow: 1.4, life: rand(1.0, 1.8), drag: 1.5,
+        });
+      }
+      return;
+    }
     for (let i = 0; i < 40; i++) {
       const v = new THREE.Vector3(rand(-1, 1), rand(0, 1.5), rand(-1, 1)).normalize().multiplyScalar(rand(2, 7));
       const c = Math.random() < 0.5 ? accent : new THREE.Color(0.7, 0.9, 1);

@@ -11,11 +11,13 @@ export class PauseMenu {
   root = document.createElement('div');
   onResume: () => void = () => {};
   onRestart: () => void = () => {};
+  onQuit: () => void = () => {};
   onChange: (s: Settings) => void = () => {};
   private hint: HTMLElement;
   private muteBtn: HTMLButtonElement;
   private sliders = {} as Record<SliderKey, { input: HTMLInputElement; val: HTMLElement }>;
   private restartArmed = false;
+  private quitArmed = false;
   /** 'settings': opened from the main menu (no restart; RESUME reads BACK). */
   mode: 'pause' | 'settings' = 'pause';
 
@@ -28,6 +30,7 @@ export class PauseMenu {
         <button class="pm-btn primary" data-act="resume">RESUME<span class="jp">再開</span></button>
         <div class="pm-hint"></div>
         <button class="pm-btn" data-act="restart">RESTART<span class="jp">最初から</span></button>
+        <button class="pm-btn" data-act="quit">QUIT TO MAIN MENU<span class="jp">メニューへ</span></button>
         <div class="pm-sep"><span>AUDIO</span><span class="jp">音量</span></div>
         ${(['master', 'music', 'sfx'] as SliderKey[])
           .map(
@@ -86,6 +89,14 @@ export class PauseMenu {
           return;
         }
         this.onRestart();
+      } else if (act === 'quit') {
+        // Two-step as well: the run is lost.
+        if (!this.quitArmed) {
+          this.quitArmed = true;
+          this.root.querySelector('[data-act="quit"]')!.innerHTML = 'CONFIRM QUIT<span class="jp">確認</span>';
+          return;
+        }
+        this.onQuit();
       } else if (act === 'fps') {
         const i = FPS_CAPS.indexOf(this.settings.fps);
         this.settings.fps = FPS_CAPS[(i + 1) % FPS_CAPS.length];
@@ -136,8 +147,11 @@ export class PauseMenu {
       this.root.querySelector('.pm-title')!.innerHTML = settings ? 'SETTINGS<span class="jp">設定</span>' : 'PAUSED<span class="jp">一時停止</span>';
       this.root.querySelector('[data-act="resume"]')!.innerHTML = settings ? 'BACK<span class="jp">戻る</span>' : 'RESUME<span class="jp">再開</span>';
       (this.root.querySelector('[data-act="restart"]') as HTMLElement).style.display = settings ? 'none' : '';
+      (this.root.querySelector('[data-act="quit"]') as HTMLElement).style.display = settings ? 'none' : '';
       this.restartArmed = false;
+      this.quitArmed = false;
       this.root.querySelector('[data-act="restart"]')!.innerHTML = 'RESTART<span class="jp">最初から</span>';
+      this.root.querySelector('[data-act="quit"]')!.innerHTML = 'QUIT TO MAIN MENU<span class="jp">メニューへ</span>';
       this.setHint('');
       this.sync();
     }

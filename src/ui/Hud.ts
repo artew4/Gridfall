@@ -67,15 +67,10 @@ export class Hud {
     this.segs.forEach((s) => bar.appendChild(s));
     this.health.append(el('div', 'label', 'VITAL<span class="jp">生命</span>'), bar, this.healthVal);
 
-    const pipWrap = el('div', 'pips');
-    for (let i = 0; i < 12; i++) {
-      const p = el('div', 'pip');
-      this.pips.push(p);
-      pipWrap.appendChild(p);
-    }
     const val = el('div', 'val');
     val.append(this.ammoCur, el('span', 'max', '/ ∞'));
-    this.ammo.append(val, pipWrap, this.reloadEl, el('div', 'label', 'KITSUNE-9<span class="jp">狐</span>'));
+    this.ammo.append(val, this.pipWrap, this.reloadEl, this.weaponLabel);
+    this.setWeapon('KITSUNE-9', '狐', 12, 3);
 
     const wave = el('div', 'panel wave');
     const wl = el('div', 'label', 'WAVE');
@@ -179,10 +174,28 @@ export class Hud {
     this.healthVal.textContent = String(Math.ceil(h)).padStart(3, '0');
   }
 
+  private pipWrap = el('div', 'pips');
+  private weaponLabel = el('div', 'label');
+  private lowAmmo = 3;
+
+  /** The weapon of the loaded level: its name and one pip per round (smaller pips for big magazines). */
+  setWeapon(name: string, jp: string, mag: number, low: number) {
+    this.weaponLabel.innerHTML = `${name}<span class="jp">${jp}</span>`;
+    this.lowAmmo = low;
+    this.pipWrap.innerHTML = '';
+    this.pips = [];
+    this.pipWrap.classList.toggle('many', mag > 16);
+    for (let i = 0; i < mag; i++) {
+      const p = el('div', 'pip');
+      this.pips.push(p);
+      this.pipWrap.appendChild(p);
+    }
+  }
+
   setAmmo(a: number, reloading: boolean) {
     this.ammoCur.textContent = reloading ? '--' : String(a).padStart(2, '0');
     this.pips.forEach((p, i) => p.classList.toggle('off', i >= a));
-    this.ammo.classList.toggle('low', a <= 3 && !reloading);
+    this.ammo.classList.toggle('low', a <= this.lowAmmo && !reloading);
     this.reloadEl.textContent = reloading ? 'RELOADING' : a === 0 ? 'PRESS R' : '';
   }
 
