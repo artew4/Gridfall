@@ -6,7 +6,7 @@ import type { Weapon } from '../player/Weapon';
 import type { Player } from '../player/Player';
 import type { Arsenal } from '../entities/types';
 
-export type SettingId = 'tokyo' | 'desert';
+export type SettingId = 'tokyo' | 'desert' | 'jungle';
 export type Mode = 'story' | 'arcade';
 
 /** A named area of a level (the zone toast reads these). Rects are x0, z0, x1, z1. */
