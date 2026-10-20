@@ -106,8 +106,12 @@ export function installDevTools(game: Game) {
       w.__tacDebug.set(on);
     },
     /** Headless tactical scenarios on the loaded level (roles, flank, suppress, ghost, soak). */
-    async tactical(which?: ('roles' | 'flank' | 'suppress' | 'ghost' | 'ghostStorm' | 'soak')[], opts: { soakSeconds?: number; stormSight?: number } = {}) {
+    async tactical(which?: ('roles' | 'rolesMoving' | 'flank' | 'suppress' | 'ghost' | 'ghostStorm' | 'soak')[], opts: { soakSeconds?: number; stormSight?: number } = {}) {
       return (await import('./TacticsCheck')).checkTactics(game, which, opts);
+    },
+    /** Arcade Survival played live by a bot (moves, aims, fires): AI behaviour, barks, integrity. */
+    async survival(opts: { setting?: SettingId; seconds?: number; startWave?: number } = {}) {
+      return (await import('./SurvivalRun')).survivalRun(game, opts);
     },
     /** Survival AI under load on each level: frame cost, AI wall time, rays per frame. */
     async aiBench(opts: { levels?: SettingId[]; seconds?: number; settle?: number } = {}) {

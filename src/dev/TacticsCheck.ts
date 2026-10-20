@@ -30,6 +30,8 @@ interface World {
   player: Player;
   enemies: Enemy[];
   shots: number;
+  /** Rounds that would hit geometry within 3 m of the muzzle (its own cover or parapet). */
+  blocked: number;
   t: number;
   /** Cost per step of the squad update plus every enemy update (ms), worst and mean. */
   costMax: number;
@@ -41,7 +43,7 @@ function world(game: Game, sight?: number): World {
   const player = new Player(game.col, game.audio);
   const enemies: Enemy[] = [];
   const sq = new Squad();
-  const w: World = { ctx: null as unknown as EnemyCtx, sq, player, enemies, shots: 0, t: 0, costMax: 0, costSum: 0, steps: 0 };
+  const w: World = { ctx: null as unknown as EnemyCtx, sq, player, enemies, shots: 0, blocked: 0, t: 0, costMax: 0, costSum: 0, steps: 0 };
   w.ctx = {
     ...game.ctx,
     scene: new THREE.Scene(),
@@ -51,7 +53,13 @@ function world(game: Game, sight?: number): World {
     squad: sq,
     fx: stub() as EnemyCtx['fx'],
     audio: stub() as EnemyCtx['audio'],
-    projectiles: { fire: () => void w.shots++ } as unknown as EnemyCtx['projectiles'],
+    projectiles: {
+      fire: (from: THREE.Vector3, dir: THREE.Vector3) => {
+        w.shots++;
+        const h = game.col.raycast(from, dir, 3);
+        if (h && h.dist < Math.min(3, from.distanceTo(player.pos) - 0.5)) w.blocked++;
+      },
+    } as unknown as EnemyCtx['projectiles'],
     damagePlayer: () => {},
     sightRange: sight ?? game.ctx.sightRange,
     time: 0,
@@ -120,8 +128,14 @@ function walker(game: Game, w: World, goal: THREE.Vector3, speed: number) {
   };
 }
 
-/** A firing position for the scenarios: the level's start (always open, reachable, central). */
+/**
+ * A firing position for the scenarios: the level's start (always open and reachable) — except in
+ * the jungle, whose start is the road through the undergrowth, where no cover has a view through the
+ * bushes (they fight from the undergrowth there); the compound yard inside the gate instead (the
+ * bench's 'yard' placement).
+ */
 function stand(game: Game) {
+  if (game.setting === 'jungle') return new THREE.Vector3(0, 0, 5.5);
   const s = game.level.data.start;
   return new THREE.Vector3(s.x, s.y ?? 0, s.z);
 }
@@ -136,10 +150,15 @@ function place(w: World, game: Game, p: THREE.Vector3) {
 }
 
 // ---------------------------------------------------------------------- roles
-function roles(game: Game, seconds = 40) {
+function roles(game: Game, seconds = 40, moving = false) {
   const w = world(game);
   const p = stand(game);
   place(w, game, p);
+  // Moving: he wanders between nodes within 14 m of the start at 4 m/s (a player who doesn't stand still).
+  const near = game.nav.nodes.filter((n) => Math.hypot(n.x - p.x, n.z - p.z) < 14 && Math.abs(n.y - 1 - p.y) < 0.6);
+  let go = moving ? walker(game, w, p, 4) : () => true;
+  const phases = new Map<string, number>();
+  const lastPh = new Map<Enemy, string>();
   const sp = spawnsNear(game, p, 12);
   const kinds: ('runner' | 'gunner')[] = ['gunner', 'runner', 'gunner', 'runner', 'gunner', 'runner', 'gunner', 'runner'];
   kinds.forEach((k, i) => spawnAt(w, k, sp[i % sp.length].clone().add(new THREE.Vector3((i % 3) - 1, 0, ((i + 1) % 3) - 1)), game));
@@ -148,8 +167,21 @@ function roles(game: Game, seconds = 40) {
   const prevPhase = new Map<Enemy, string>();
   const share = new Map<string, number>();
   for (let i = 0; i < seconds / DT; i++) {
+    if (go() && moving && near.length) {
+      const n = near[Math.floor(Math.random() * near.length)];
+      go = walker(game, w, new THREE.Vector3(n.x, n.y - 1, n.z), 4);
+    }
     step(w);
     const gs = w.enemies.filter((e) => e.kind === 'gunner' && e.alive) as TacticalEnemy[];
+    for (const g of gs) {
+      const ph = g.tac.phase;
+      const prev = lastPh.get(g) ?? '';
+      if (ph !== prev && (ph === 'peek' || ph === 'fire' || (prev === 'aim' && ph !== 'fire'))) {
+        const k = prev === 'aim' && ph !== 'fire' ? 'aimAborted' : ph === 'peek' ? 'peeks' : 'bursts';
+        phases.set(k, (phases.get(k) ?? 0) + 1);
+      }
+      lastPh.set(g, ph);
+    }
     maxSupp = Math.max(maxSupp, gs.filter((g) => g.tac.role === 'suppressor').length);
     for (const e of w.enemies as TacticalEnemy[]) if (e.alive) {
       const k = `${e.kind[0]}:${e.tac.action}`;
@@ -177,6 +209,10 @@ function roles(game: Game, seconds = 40) {
     gunnerTimeInCoverFight: r2(coverTime / Math.max(1e-6, gunnerTime)),
     popAndShootCycles: peeks,
     shotsFired: w.shots,
+    shotsIntoOwnCover: w.blocked,
+    peeks: phases.get('peeks') ?? 0,
+    bursts: phases.get('bursts') ?? 0,
+    aimAborted: phases.get('aimAborted') ?? 0,
     rushes: rushes.map(([t, , d]) => `${t}s ${d}`),
     attacks: attacks.length,
     attackSectors: sectors.size,
@@ -399,7 +435,10 @@ function soak(game: Game, seconds = 120) {
   const add = () => {
     const kind = spawned % 5 < 3 ? 'gunner' : 'runner';
     const far = sp.filter((s) => s.distanceTo(w.player.pos) > 15);
-    spawnAt(w, kind, (far.length ? far : sp)[Math.floor(Math.random() * (far.length || sp.length))], game);
+    const base = (far.length ? far : sp)[Math.floor(Math.random() * (far.length || sp.length))];
+    // ±1 m like the waves (never into a wall).
+    const at = base.clone().add(new THREE.Vector3(Math.random() * 2 - 1, 0, Math.random() * 2 - 1));
+    spawnAt(w, kind, game.col.blocked(at, 0.5) ? base : at, game);
     spawned++;
   };
   for (let i = 0; i < 10; i++) add();
@@ -410,7 +449,7 @@ function soak(game: Game, seconds = 120) {
   const oob: string[] = [];
   const inside = new Map<Enemy, number>();
   const insideBad: string[] = [];
-  const last = new Map<Enemy, { at: THREE.Vector3; t: number }>();
+  const last = new Map<Enemy, { at: THREE.Vector3; t: number; action: string }>();
   const stalls: string[] = [];
   const coverOob: string[] = [];
   const actions = new Map<string, number>();
@@ -449,7 +488,7 @@ function soak(game: Game, seconds = 120) {
       if (!e.alive) continue;
       const q = e.pos;
       actions.set(e.tac.action, (actions.get(e.tac.action) ?? 0) + DT);
-      const hk = `${e.tac.action}/${e.tac.phase} nr${e.noRoute ? 1 : 0}`;
+      const hk = `${e.tac.action}/${e.tac.phase} nr${e.noRoute ? 1 : 0} u${e.unsticks} ${e.state}`;
       if (histKey.get(e) !== hk) {
         histKey.set(e, hk);
         const h = hist.get(e) ?? [];
@@ -467,10 +506,10 @@ function soak(game: Game, seconds = 120) {
       const moving = ['takeCover', 'hunt', 'search', 'idle', 'stage', 'rush', 'advance'].includes(e.tac.action) && e.tac.phase !== 'look' && e.tac.phase !== 'pause';
       const goal = e.tac.action === 'takeCover' ? e.tac.coverPos : e.tac.action === 'stage' ? e.tac.stagePos : e.tac.goal;
       const l = last.get(e);
-      if (!l || !moving || q.distanceTo(l.at) > 0.75) last.set(e, { at: q.clone(), t: w.t });
+      if (!l || !moving || q.distanceTo(l.at) > 0.75 || l.action !== e.tac.action) last.set(e, { at: q.clone(), t: w.t, action: e.tac.action });
       else if (w.t - l.t > 8 && goal && goal.distanceTo(q) > 2) {
         stalls.push(`${r1(w.t)} ${e.kind} ${e.tac.action} at ${arr(q)} → ${arr(goal)} | ${(hist.get(e) ?? []).join(' ; ')}`);
-        last.set(e, { at: q.clone(), t: w.t });
+        last.set(e, { at: q.clone(), t: w.t, action: e.tac.action });
       }
       const cp = e.tac.coverPos;
       if (cp && (cp.x < bounds.min.x || cp.x > bounds.max.x || cp.z < bounds.min.y || cp.z > bounds.max.y)) coverOob.push(arr(cp).join(','));
@@ -497,11 +536,12 @@ function soak(game: Game, seconds = 120) {
 }
 
 /** Runs the scenarios on the loaded level. */
-export function checkTactics(game: Game, which: ('roles' | 'flank' | 'suppress' | 'ghost' | 'ghostStorm' | 'soak')[] = ['roles', 'flank', 'suppress', 'ghost', 'soak'], opts: { soakSeconds?: number; stormSight?: number } = {}) {
+export function checkTactics(game: Game, which: ('roles' | 'rolesMoving' | 'flank' | 'suppress' | 'ghost' | 'ghostStorm' | 'soak')[] = ['roles', 'rolesMoving', 'flank', 'suppress', 'ghost', 'soak'], opts: { soakSeconds?: number; stormSight?: number } = {}) {
   const t0 = performance.now();
   const out: Record<string, unknown> = { level: game.setting, nodes: game.nav.nodes.length, cover: game.level.data.coverPoints.length, sight: game.ctx.sightRange ?? null };
   for (const k of which) {
     if (k === 'roles') out.roles = roles(game);
+    if (k === 'rolesMoving') out.rolesMoving = roles(game, 40, true);
     if (k === 'flank') out.flank = flank(game);
     if (k === 'suppress') out.suppress = suppress(game);
     if (k === 'ghost') out.ghost = ghost(game);

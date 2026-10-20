@@ -59,7 +59,7 @@ export function isProtected(spot: THREE.Vector3, threat: THREE.Vector3, los: Los
  * options in order — standing over low cover, then leaning left or right of tall cover, then a wider
  * step out.
  */
-export function evaluateCover(spot: THREE.Vector3, threat: THREE.Vector3, los: LosFn, free: FreeFn, range = Infinity): CoverEval {
+export function evaluateCover(spot: THREE.Vector3, threat: THREE.Vector3, los: LosFn, free: FreeFn, range = Infinity, sight?: LosFn): CoverEval {
   const p = isProtected(spot, threat, los);
   if (!p.ok) return { protected: false, peek: null, kind: null, rays: p.rays };
   let rays = p.rays;
@@ -74,7 +74,10 @@ export function evaluateCover(spot: THREE.Vector3, threat: THREE.Vector3, los: L
     const at = new THREE.Vector3(spot.x + px * off, spot.y, spot.z + pz * off);
     if (off !== 0 && !free(at)) continue;
     rays++;
-    if (los(_a.set(at.x, at.y + COVER.standEye, at.z), chest)) return { protected: true, peek: at, kind, rays };
+    // Protection is hard cover only (rounds go through bushes); a peek must also *see* (`sight`
+    // adds soft concealment such as undergrowth, where the level has it).
+    _a.set(at.x, at.y + COVER.standEye, at.z);
+    if (los(_a, chest) && (!sight || sight(_a, chest))) return { protected: true, peek: at, kind, rays };
   }
   return { protected: true, peek: null, kind: null, rays };
 }
