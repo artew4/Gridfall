@@ -24,7 +24,7 @@ export const PRESETS: Record<QualityPreset, PresetSpec> = {
 
 export const FPS_CAPS: FpsCap[] = [30, 60, 90, 120];
 
-export type LoopState = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending';
+export type LoopState = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending' | 'endcard';
 
 /**
  * How often to draw in each state. Menus and the title don't need the full rate; a paused game
@@ -32,6 +32,9 @@ export type LoopState = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending
  */
 export function effectiveCap(cap: FpsCap, state: LoopState, focused: boolean): number {
   if (state === 'paused') return 0;
+  // Behind the (nearly opaque) end card, and the death screen's slow motion.
+  if (state === 'endcard') return 10;
+  if (state === 'dead') return Math.min(cap, 30);
   if (state === 'title') return focused ? Math.min(cap, 30) : 10;
   return cap;
 }
