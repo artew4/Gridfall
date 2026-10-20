@@ -98,6 +98,12 @@ export class Mission {
   // ------------------------------------------------------------------ lifecycle
   /** New story or retry from the checkpoint. */
   start(fromCheckpoint: boolean) {
+    this.setup(fromCheckpoint);
+    this.begin(fromCheckpoint);
+  }
+
+  /** The world for this act: patrols, crowd, trains, shutters (the opening plays over it). */
+  setup(fromCheckpoint: boolean) {
     const g = this.g;
     const act: Act = fromCheckpoint ? this.checkpoint.act : 1;
     this.act = act;
@@ -126,7 +132,12 @@ export class Mission {
     }
     if (act >= 4) this.openStation(false);
     this.kenji = act === 1 ? g.crowd.pin(KENJI, Math.PI, 0xc8a020) : -1;
-    g.story.setAct(act);
+  }
+
+  /** Control handed to the player: the act and its first objective. */
+  begin(fromCheckpoint: boolean) {
+    const act = this.act;
+    this.g.story.setAct(act);
     this.setStep(act === 1 ? 'meet' : act === 2 ? 'board' : act === 3 ? 'relay' : 'train');
     if (!fromCheckpoint) this.saveCheckpoint();
   }

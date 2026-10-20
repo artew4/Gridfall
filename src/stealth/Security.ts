@@ -372,9 +372,16 @@ export class Security {
   }
 
   // ------------------------------------------------------------------ frame
+  /** Opening cinematic: guards walk their beats but don't look for anyone. */
+  blind = false;
+
   update(dt: number) {
     const ctx = this.ctx;
     const t = ctx.time;
+    if (this.blind) {
+      for (const g of this.guards) g.update(dt, ctx);
+      return;
+    }
     // Staggered perception: 8 Hz near the player, 3 Hz far away, offset from each other.
     for (const g of this.guards) {
       g.percT += dt;
