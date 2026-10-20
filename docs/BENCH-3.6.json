@@ -1,0 +1,48 @@
+{
+  "version": "3.6 (feature/jungle-setting-3.6) — Deep Jungle on Balanced, with Desert Outpost and TokyoNight regression in the same session",
+  "machine": "Apple M5, Chrome, ANGLE Metal, 120 Hz display, DPR 2, same window and session",
+  "method": "__dev.bench(3) with the Balanced preset applied in memory (pixel ratio 1.25, 60 FPS cap, 3 bloom levels; the saved settings were not changed). Jungle run 1 had foliage built at High density (the level was loaded before the preset switch); run 2 rebuilt it at Balanced density.",
+  "columns": ["fps", "frameMsP95", "cpuMsPerFrame", "gpuMsPerFrame", "drawCalls", "triangles"],
+  "jungle_balanced_foliage_high_density": {
+    "foliage": {"bushes": 1548, "ferns": 1875, "grass": 3250, "bigleaf": 475, "crowns": 80, "canopy": 168, "vines": 325},
+    "templeApproach": [60, 23.3, 2.56, 5.91, 70, 374635],
+    "undergrowth": [60.2, 23.1, 2.35, 6.17, 70, 374635],
+    "terraceOverlook": [60, 23.2, 2.06, 6.0, 53, 373893],
+    "forestLongView": [60, 23.3, 2.33, 5.82, 70, 374635],
+    "shrine": [59.9, 23.5, 1.94, 5.93, 58, 374265],
+    "fight": [60, 23.6, 2.61, 5.71, 176, 377297]
+  },
+  "jungle_balanced": {
+    "foliage": {"bushes": 1281, "ferns": 1500, "grass": 2600, "bigleaf": 380, "crowns": 80, "canopy": 143, "vines": 260},
+    "templeApproach": [60, 23.4, 2.24, 6.31, 70, 323625],
+    "undergrowth": [60, 23.5, 2.12, 5.71, 70, 323625],
+    "terraceOverlook": [60, 23.4, 1.86, 6.38, 53, 322883],
+    "forestLongView": [60, 23.4, 2.14, 6.11, 70, 323625],
+    "shrine": [60, 23.5, 1.84, 6.28, 58, 323255],
+    "fight": [60, 23.8, 2.55, 5.82, 92, 323803]
+  },
+  "desert_balanced_regression": {
+    "yardCalm": [60, 23.6, 1.31, 4.41, 89],
+    "towerView": [60, 23.4, 1.48, 5.29, 93],
+    "yardStorm": [60, 21.7, 1.36, 5.01, 91],
+    "interiorStorm": [59.6, 22.2, 1.31, 5.06, 74],
+    "dunesStorm": [60, 23.3, 1.48, 5.27, 100],
+    "fightStorm": [60, 23.4, 1.38, 5.22, 91]
+  },
+  "tokyo_balanced_regression": {
+    "plaza": [60, 23.3, 2.15, 6.25, 194],
+    "rooftop": [60, 23.2, 2.12, 6.49, 237],
+    "metroConcourse": [60.3, 23.4, 2.04, 6.36, 150],
+    "platform": [60, 22.8, 2.09, 6.36, 169],
+    "platformTrain": [60.1, 22.7, 2.18, 6.49, 269],
+    "overpassTrain": [60, 23.6, 2.08, 6.32, 222],
+    "pursuit": [60.2, 23.3, 2.22, 6.64, 346],
+    "firefight": [60, 23.2, 2.47, 6.49, 424]
+  },
+  "notes": [
+    "P95 ~23 ms appears in every setting and in 3.4's numbers: frame pacing of a 60 FPS cap on a 120 Hz display, not jungle cost.",
+    "Foliage density barely moves GPU time (−51k triangles, no measurable change): the instanced, opaque undergrowth is not the bottleneck, so no foliage optimisation was needed.",
+    "Each foliage InstancedMesh spans the whole map (one bounding sphere), so it is never frustum-culled; all ~324k triangles are submitted every frame at ~6 ms GPU.",
+    "Not measured: temperature or wattage; weaker GPUs."
+  ]
+}

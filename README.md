@@ -1,6 +1,6 @@
-# NEON RAIN 3.5: Two Settings
+# NEON RAIN 3.6: Three Settings
 
-One night in Shinjuku. One gun you'd rather keep holstered. One last train. Or an outpost in the dunes, and a sandstorm coming.
+One night in Shinjuku. One gun you'd rather keep holstered. One last train. Or an outpost in the dunes, and a sandstorm coming. Or a temple deep in the rainforest, and hunters in the undergrowth.
 
 A single-player stealth-action game built with Three.js + TypeScript + Vite. Its engine (controller, shooting, AI, collision, survival waves) now runs several settings. Everything (geometry, textures, signage, sound and music) is generated procedurally at startup: no external assets.
 
@@ -13,12 +13,13 @@ npm test         # unit tests (vitest)
 npm run build    # type-check + production build into dist/
 ```
 
-On the main menu, pick a **setting**, then a **mode**. In a run, the pause menu (Esc) has **QUIT TO MAIN MENU** (it asks for confirmation). The click also unlocks audio and captures the mouse. Any key or click skips the opening. The menu remembers the last setting; `?setting=desert` or `?setting=tokyo` in the URL picks one directly.
+On the main menu, pick a **setting**, then a **mode**. In a run, the pause menu (Esc) has **QUIT TO MAIN MENU** (it asks for confirmation). The click also unlocks audio and captures the mouse. Any key or click skips the opening. The menu remembers the last setting; `?setting=tokyo`, `?setting=desert` or `?setting=jungle` in the URL picks one directly.
 
 | Setting | Modes |
 |---|---|
 | **TOKYO NIGHT** — rain, neon, a vertical district over a metro station | Story Escape, Arcade Survival |
 | **DESERT OUTPOST** — open dunes, harsh sun, sandstorms | Arcade Survival |
+| **DEEP JUNGLE** — temple ruins under the canopy, mist, close quarters | Arcade Survival |
 
 Switching settings builds the new one behind the menu and frees the old one completely. How levels work and how to add one: `docs/LEVELS.md`.
 
@@ -41,6 +42,30 @@ Switching settings builds the new one behind the menu and frees the old one comp
   - Enemies spawn out in the dunes, beyond what the storm lets you see, and close in through the gates.
   - They can't see through the dust either: gunners have to get within sight to shoot. Runners hunt you anyway, so listen for footsteps and screeches.
   - Snipers take the watchtower and trading-post roofs. Medkits are in the barracks and the clinic; shoot the electrical cabinets to arc enemies near them.
+
+## Deep Jungle
+
+- **The map:**
+  - The Temple of the Seventh Rain stands in a flat clearing. It has two stepped terraces (1.5 m and 3 m) with stone stairs, broken rim walls and pillars as cover, and a shrine on top with two doorways, windows and an altar.
+  - Two fallen giant trees lean against the lower terrace. Walk up them.
+  - Around the temple are ruins, an archway and an archaeologists' dig camp (work lamps you can shoot out, a generator cabinet, a medkit).
+  - The forest rolls out to dark rock walls. It holds giant buttressed trees, slimmer trunks, fallen logs, mossy blocks and two outlying watch platforms.
+- **The air:**
+  - teal mist hangs low on the forest floor;
+  - visibility is about 58 m;
+  - morning sun breaks through the canopy in flecks (the light on your gun changes as you walk through them);
+  - insects, birds, frogs and dripping leaves. The insects fall silent after a gunshot.
+- **Your weapon:** the BOAR M12 pump shotgun.
+  - Eight pellets per shell, devastating up close: one shell drops a stalker out to about 8 m. It falls off fast beyond 10 m.
+  - After each shot you rack the pump.
+  - Six shells, loaded one at a time. Pull the trigger to stop loading and fire.
+- **The enemies:** guerrilla hunters in woodland camo, with leaves sewn onto their shoulders.
+  - Stalkers (red bandanas, painted faces, machetes) rush you out of the undergrowth.
+  - Trackers (boonie hats, rifles with lasers) take cover, and snipe from the watch platforms.
+- **Survival:**
+  - Hunters spawn deep in the forest, at least 30 m out, inside thick undergrowth. They see no further through the mist than you do (50 m).
+  - Plants hide bodies but don't stop rounds.
+  - Medkits are in the shrine and the dig camp.
 
 ## The story
 
@@ -230,7 +255,7 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - `await __dev.stress({ samples, fps })`: the real controller from sampled reachable cells in 8 directions, walking and sprint-jumping. `fps` takes rates and `'spiky'`, for example `[20, 30, 60, 120, 'spiky']`.
   - `await __dev.train()`: boarding at every door, closed doors, riding a departing car, and someone standing in a doorway as the doors close (with the real rail).
   - `await __dev.colliders(true)`: the collision overlay around the camera.
-  - `await __dev.bench(3)`: fixed benchmark scenarios. Compare the results with `docs/BENCH-3.2.json`.
+  - `await __dev.bench(3)`: fixed benchmark scenarios for the loaded setting (Tokyo, the desert or the jungle). Compare the results with `docs/BENCH-3.2.json` … `docs/BENCH-3.6.json`.
   - `__game.safety.recoveries`: how often the out-of-bounds safety net fired. It should stay 0, and each recovery is logged as `[safety]`.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
 
@@ -263,7 +288,9 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - collision: boxes, ramps, cylinders, holes and vault flags, with a grid broadphase
 - `src/gameplay`: cabinets, medkits, breakable lights
 - `src/audio`: Web Audio SFX and ambience with volume groups; `music/` holds the director, layered score and file backend
-- `src/player`: FPS controller and pistol (holster)
+- `src/levels`: the level contract and registry, arcade rules, and one folder per setting (`tokyo`, `desert`, `jungle`)
+- `src/entities`: weapon specs and enemy looks per setting (`weapons/`, `enemies/`)
+- `src/player`: FPS controller and the viewmodel weapon (holster, recoil, reload, pump and tube-loading mechanics)
 - `src/enemies`: models (merged per joint), Runner, Gunner, nav and arcade waves
 - `src/ui`: HUD, story HUD, minimap, marker, pause and settings menu, end screen
 - `src/dev`: route check and console helpers (DEV only)
@@ -280,5 +307,10 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
 - There's no voice acting; dialogue is subtitles with radio and phone sound cues.
 - The cinematic characters are the game's low-poly rigs, so close shots stay deliberately dark and short.
 - The power figures are GPU and CPU busy time measured in the browser. Temperature and wattage were not measured.
+- Jungle:
+  - Plants are soft: they hide bodies but don't block bullets or enemy sight (by design: no alpha cut-outs to ray-test against).
+  - The forest floor uses the sand footstep sound.
+  - Enemies take the stairs, not the climbable logs, when they plan a route. They still run up a log when they chase straight at you.
+  - The shotgun's feel (recoil, pump timing, sound) has not been checked by a human player.
 
 Git tags: `v1.0` is the single-street original, `v2.0` is the vertical district wave shooter, `v3.0` is the cinematic escape before the stealth overhaul, and `v3.1` is the stealth and pursuit overhaul.

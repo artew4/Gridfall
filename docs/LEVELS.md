@@ -12,6 +12,7 @@ A level owns everything about a place: geometry, collision, lights, weather, amb
 |---|---|---|
 | TOKYO NIGHT | Story Escape, Arcade Survival | `src/levels/tokyo/` (`TokyoLevel`, `TokyoStory`) plus the Tokyo content modules in `src/world`, `src/story`, `src/rail`, `src/stealth`, `src/city` |
 | DESERT OUTPOST | Arcade Survival | `src/levels/desert/` (`DesertLevel`, `Outpost`, `Terrain`, `Sandstorm`, `DesertIntro`, `textures`) |
+| DEEP JUNGLE | Arcade Survival | `src/levels/jungle/` (`JungleLevel`, `Ruins`, `Foliage`, `Terrain`, `JungleIntro`, `textures`) |
 
 ## How it fits together
 
@@ -43,6 +44,7 @@ Each `LevelInfo` carries an `arsenal`: `{ weapon: WeaponSpec, enemies: EnemyLook
 |---|---|---|
 | TOKYO NIGHT | `KITSUNE_9`: the plasma pistol (12 rds, cyan ammo strips). The default, unchanged from 3.4. | `NEON_SYNTHS`: hooded blade runners and armoured gunners, neon visors, sparks and a glitch dissolve on death, plasma bolts. The default. |
 | DESERT OUTPOST | `JACKAL_AR`: assault rifle (30 rds, ~650 rpm, orange flash and tracers, rifle sound) | `DESERT_MERCS`: scavengers (head wrap, goggles, machete) and contractors (plate carrier, helmet, rifle with a laser). Dust-and-blood hits, bodies sink into the sand, war cries and rifle cracks, orange rifle tracers. |
+| DEEP JUNGLE (3.6) | `BOAR_SHOTGUN`: pump shotgun (6 shells loaded one at a time, 8 pellets, 0.82 s pump, deep boom) | `JUNGLE_HUNTERS`: stalkers (bandana, face paint, machete) and trackers (boonie hat, chest rig, rifle with a laser); woodland camo and opaque leaf tufts; organic; human voices. |
 
 - **`WeaponSpec`:**
   - the model builder (fills the gun, the slide or bolt that cycles, and the magazine);
@@ -50,6 +52,11 @@ Each `LevelInfo` carries an `arsenal`: `{ weapon: WeaponSpec, enemies: EnemyLook
   - viewmodel kick and camera recoil;
   - rest pose, muzzle and ejection points;
   - flash and tracer colours, sound, and whether ammo glows on the gun.
+
+  Optional (3.6):
+  - `pellets`: several hitscan rays per pull, with spread and damage falloff;
+  - `cycle`: a pump or bolt action after each shot;
+  - `perRound`: a tube magazine loaded one round at a time, which the trigger interrupts.
 
   `Weapon` keeps all the mechanics and `setSpec()` swaps the model, freeing the previous one (the viewmodel outlives levels).
 - **`EnemyLook`:**
@@ -81,7 +88,7 @@ The end card's MENU button takes the same path. Verified over 4 mixed rounds (To
    - For open ground, set `game.col.terrain = { height(x, z), maxHeight, surface }`. The controller, AI, rays and the world check all follow it, and Nav needs `slope` in its layout.
    - Return `data` from the constructor, and `look` (exposure, bloom, shadows, grade tint).
    - `attach()` runs after the engine created the player, nav and enemy context. Use it for systems that need them, and for engine hooks such as `waves.minSpawnDistance` and `ctx.sightRange`.
-   - `dispose()` frees what isn't in the scene graph: render targets, the shadow map, and engine hooks you changed.
+   - `dispose()` frees what isn't in the scene graph: render targets, the shadow map, engine hooks you changed, and textures hung on lights (`SpotLight.map`). `disposeScene` only reaches textures through materials, so a light cookie leaked one texture per load until 3.6 freed it.
 2. **Register it.** Add an entry to `LEVELS` in `src/levels/registry.ts`, and the id to `SettingId` and `LEVEL_ORDER`.
 3. **Follow the geometry rules from 3.3** (see `docs/WORLD-DEFECTS-3.3.md`):
    - walls at least 0.3 m thick;
@@ -115,3 +122,18 @@ The engine uses `visibility` for:
 - **spawn distance** (`waves.minSpawnDistance`): enemies appear out of the storm, not in plain sight.
 
 Interiors are passed to the particle shaders, so no sand is drawn inside a building, while the storm stays visible through doors and windows.
+
+## Dense foliage and atmosphere (jungle, 3.6)
+
+- **Foliage:**
+  - every plant kind is one `InstancedMesh` of opaque, flat-shaded, low-poly geometry: bushes, ferns, sedge, big-leaf plants, slim-tree crowns, the high canopy and vines;
+  - no alpha blending or alpha test, so no sorting, no overdraw blending, and early-z still works;
+  - a vertex-shader sway (by height above the plant's base, phase from the instance position) costs no CPU;
+  - plants are `userData.soft`: you walk through them and they don't block rays;
+  - density scales with the graphics preset at load (Power 0.6×, Balanced 1×, High 1.25×).
+- **Mist:** two terrain-following sheets (0.3 m and 1.1 m up). The alpha is two scrolling noise lookups, faded within 9 m of the camera so you never see a sheet's edge. The terraces stand above it.
+- **Sun:**
+  - a far `SpotLight` projects a dapple texture (`map`, a light cookie) with a static shadow map: `autoUpdate = false`, one render after load;
+  - the level reads the cookie on the CPU through `shadow.matrix` to drive the viewmodel's key light.
+- **Fog sets the engine hooks:** `ctx.sightRange` = 85% of the fog's 90% distance; `waves.minSpawnDistance` = 30 m.
+- **Root flares:** one collider cylinder per giant tree, up to above jump reach, then the trunk. The pockets between buttress roots are inside it, so nothing wedges itself there.

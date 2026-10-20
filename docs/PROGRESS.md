@@ -78,8 +78,31 @@ Branch `feature/desert-polish-3.5`, based on 3.4 (`90ce917`).
 | Phase 3 | 17a5c12 | clutter and cover, organic dunes, transition, detail map, brush |
 | Phase 4 | (this commit) | validation, docs |
 
+## 3.6: Deep Jungle, pump shotgun, guerrilla hunters
+Branch `feature/jungle-setting-3.6`, based on 3.5 (`d9dac12`). Architecture notes: `docs/LEVELS.md`. Performance: `docs/BENCH-3.6.json`.
+
+| Step | Commit | Notes |
+|---|---|---|
+| Phase 3 | 8e92c83 | multi-pellet hitscan, pump cycle, tube reload (engine, setting-agnostic); BOAR shotgun; jungle hunters; shotgun and jungle audio |
+| Phases 1, 2, 4 | 82152e2 | Deep Jungle: registration, temple, forest, foliage, mist, dappled sun, nav (includes the fixes from validation: log bank, stair cheeks, nav lanes, light-cookie leak) |
+| Phase 5 | (this commit) | validation results, benchmark, docs |
+
+Validation (Chrome, Apple M5, `npm run dev`):
+- **World and stress:**
+  - `world()`: 0 findings; 63,728 reachable cells, every zone reached;
+  - `stress` (3000 samples × 8 directions × 5 rate profiles × walk and sprint-jump): 0 of 240,000 runs failed.
+  - Before the fixes it caught a pocket beside a climbable log and a pinch on a stair cheek.
+- **Level AI:**
+  - `levelAI` at sight 25: runners 315/315, gunners 21/21, graph connected;
+  - at sight 300: 314/315, then 315/315 on a second run. The one stall was a runner on the shrine's outside corner (intermittent).
+- **Quit to menu:** 5 jungle rounds (waves, shotgun fired, reload). GPU geometries 87, textures 36, programs 56, DOM 214, level audio 10, scene children 57 and InstancedMeshes 9 are flat after the cookie fix (textures had grown by 1 per round).
+- **Cross-setting:** jungle → desert → Tokyo → jungle → desert. Each setting keeps its own weapon, enemy look, ambience, fog and engine hooks (spawn distance, sight range, static shadows restored for Tokyo). Single-shot damage is unchanged (Kitsune 33–35, Jackal 20–22).
+- **Bench (Balanced):** jungle 60 FPS in all 6 scenarios, GPU 5.7–6.4 ms, 53–92 draw calls. The desert (4.4–5.3 ms) and Tokyo (6.3–6.6 ms) match 3.5.
+- **Tests and build:** 74 unit tests pass; the production build has no dev tools.
+
 ## Next
 Human playtest:
+- 3.6 items: the shotgun's feel (kick, pump timing, the boom), whether 8 m one-shot range feels right, hunters' readability in the undergrowth and mist, the climbable logs, the dappled light, the jungle soundscape.
 - 3.5 items: the rifle's feel (recoil, rate, sound), whether the mercenaries read well at a distance and in the storm, the clutter as cover, quitting to the menu and starting again.
 Earlier items:
 - 3.4 items: the setting menu, the desert in calm and in the storm (can you hear them coming?), the buildings' doors and stairs, whether the storm feels fair, and the performance on your machine.
