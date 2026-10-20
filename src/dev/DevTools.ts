@@ -103,6 +103,18 @@ export function installDevTools(game: Game) {
       if (p) game.setPipeline(p);
       return game.renderer.pipeline;
     },
+    /** Frozen-frame contact sheet of the level's fixed views (× pipelines for an A/B). */
+    async sheet(names?: string[], pipes?: ('v4' | 'raw' | 'v37')[]) {
+      const c = await (await import('./Shots')).sheet(game, names, pipes);
+      return [c.width, c.height];
+    },
+    async hideSheet() {
+      (await import('./Shots')).hideSheet();
+    },
+    /** Linear HDR luminance percentiles per view (optionally of what `hide()` returns, by diff). */
+    async hdr(names?: string[], hide?: () => THREE.Object3D[]) {
+      return (await import('./Shots')).hdr(game, names, hide);
+    },
     /** Frame rate, CPU and GPU milliseconds per frame, busy share (power proxy). */
     async perf(seconds = 4) {
       return (await import('./PerfProbe')).probe(game, seconds);

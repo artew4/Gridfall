@@ -22,6 +22,9 @@ const GradeShader = {
     uTeal: { value: [0.0, 0.016, 0.026] as [number, number, number] },
     uWarm: { value: [1.12, 0.97, 0.84] as [number, number, number] },
     uSplitSat: { value: 1.0 },
+    // 4.2 shadow hue: the darks multiplied toward this colour (1,1,1 = off) below uLo luminance.
+    uShadowMul: { value: [1, 1, 1] as [number, number, number] },
+    uLo: { value: 0.14 },
     // 4.1 bleach bypass (all 0 = off): desaturate the midtones, crush the darkest values, and a
     // silver-retention contrast push around mid-grey.
     uDesat: { value: 0 },
@@ -44,8 +47,8 @@ const GradeShader = {
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
     uniform float uTime, uDamage, uAberration, uFade, uLetterbox, uAspect, uFlash;
-    uniform vec3 uShadowTint, uTeal, uWarm;
-    uniform float uSplit, uSplitSat, uDesat, uCrush, uContrast;
+    uniform vec3 uShadowTint, uTeal, uWarm, uShadowMul;
+    uniform float uSplit, uSplitSat, uLo, uDesat, uCrush, uContrast;
     uniform vec2 uHi;
     uniform float uHazePx, uHorizon, uBand;
     uniform vec2 uRes, uGunMin, uGunMax;
@@ -96,8 +99,11 @@ const GradeShader = {
       // Teal and orange (4.0): cool lift in the darks, warm push in the highlights, a little extra
       // saturation in the brights so neon keeps its hue after the warm push. Off (uSplit = 0) in 3.7.
       if (uSplit > 0.0) {
-        float sh = 1.0 - smoothstep(0.0, 0.14, lum);
+        float sh = 1.0 - smoothstep(0.0, uLo, lum);
         float hi = smoothstep(uHi.x, uHi.y, lum);
+        // 4.2: re-hue the darks multiplicatively (keeps them dark; the additive lift only shows in
+        // near-black).
+        col *= mix(vec3(1.0), uShadowMul, sh * uSplit);
         col += uTeal * sh * uSplit;
         col *= mix(vec3(1.0), uWarm, hi * uSplit);
         float l2 = dot(col, vec3(0.2126, 0.7152, 0.0722));
@@ -143,6 +149,9 @@ export interface LookGrade {
   contrast?: number;
   /** Highlight mask range for the warm push (default 0.22..1.6, a night scene). */
   hi?: [number, number];
+  /** 4.2: multiplicative hue of the darks (default 1,1,1) and the luminance where they end (default 0.14). */
+  shadow?: [number, number, number];
+  lo?: number;
 }
 
 type Look = { exposure: number; bloom: { strength: number; radius: number; threshold: number }; shadows: boolean; shadowTint: [number, number, number]; grade?: LookGrade; legacy?: Look };
@@ -231,6 +240,8 @@ export class Renderer {
     u.uCrush.value = gr?.crush ?? 0;
     u.uContrast.value = gr?.contrast ?? 0;
     u.uHi.value.set(...(gr?.hi ?? [0.22, 1.6]));
+    u.uShadowMul.value = gr?.shadow ?? [1, 1, 1];
+    u.uLo.value = gr?.lo ?? 0.14;
     if (gr) {
       u.uTeal.value = gr.teal;
       u.uWarm.value = gr.warm;
