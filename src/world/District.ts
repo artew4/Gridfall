@@ -14,6 +14,7 @@ import { billboardTexture } from './Textures';
 import { worldBox } from './Builder';
 import { mulberry32 } from '../core/math';
 import { ZONES } from './Zones';
+import { buildMetro, METRO_HOLES, type MetroResult } from './Metro';
 
 /*
   Tokyo Vertical District (metres, y up, player starts facing -z):
@@ -74,6 +75,7 @@ export interface DistrictResult {
   patrols: { route: THREE.Vector3[]; post?: boolean }[];
   doors: THREE.Vector3[];
   storyStart: { x: number; z: number; yaw: number };
+  metro: MetroResult;
   /** Act 3 objective: the security relay on the Sky Garden. */
   relay: THREE.Vector3;
   /** Where civilians linger. Yaw: direction faced (atan2 of facing x, z). */
@@ -171,6 +173,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
       { x0: -6, z0: -58, x1: -4.6, z1: -15 },
       { x0: 4.6, z0: -58, x1: 6, z1: -15 },
     ],
+    METRO_HOLES,
   );
   city.markings(
     [
@@ -205,6 +208,9 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   arch.stair({ x0: -15, z0: 5, x1: -12.4, z1: 13, axis: 'z', rise: -1, rails: ['e'] });
   arch.stair({ x0: -40, z0: -6, x1: -32, z1: -4.2, axis: 'x', rise: 1, rails: ['s'] });
   arch.stair({ x0: 32, z0: -3, x1: 40, z1: -1.2, axis: 'x', rise: -1, rails: ['s'] });
+
+  // ======================================================================= Underground metro
+  const metro = buildMetro(ctx, arch, kit);
 
   // ======================================================================= Rooftop layer (8.5)
   // Roof decks.
@@ -543,10 +549,10 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   stallGlow.materials.push({ mat: stallMat, base: stallMat.color.clone() });
   breakables.push({ glow: stallGlow, collider: col.add(-8.2, 2.0, 11.4, -7.8, 2.4, 11.8, 'glass', false), pos: bulb.position.clone() });
   kit.planter(-9.5, 4.5, rnd);
-  kit.planter(9.5, 4.5, rnd);
+  kit.planter(9.6, -1.6, rnd);
   kit.planter(-8.5, -7.5, rnd);
   kit.planter(8.5, -7.5, rnd);
-  kit.bench(6.8, 13.6, true);
+  kit.bench(3.6, 12.6, true);
   kit.bench(-11.6, -2.0, false);
   kit.bench(11.6, -6.0, false);
   kit.bollards([[-4, 15.5], [-2.6, 15.5], [2.6, 15.5], [4, 15.5], [-4.6, -15.5], [4.6, -15.5]]);
@@ -683,7 +689,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   const N = (x: number, y: number, z: number) => nodes.push(new THREE.Vector3(x, y, z)) - 1;
   // Plaza ring around the fountain, corners and the walkway undersides.
   for (let i = 0; i < 8; i++) N(Math.cos((i * Math.PI) / 4) * 7.5, 0, Math.sin((i * Math.PI) / 4) * 7.5);
-  for (const [x, z] of [[-11, -11], [11, -11], [-11, 11], [11, 11], [0, -13.5], [-13, -4], [13, -0.5], [0, 13], [-11, 0], [11, -5]]) N(x, 0, z);
+  for (const [x, z] of [[-11, -11], [11, -11], [-11, 11], [11.5, 11], [11.5, 13.8], [0, -13.5], [-13, -4], [13, -0.5], [0, 13], [-11, 0], [11, -5]]) N(x, 0, z);
   // Lantern Street.
   for (const z of [18, 25, 32, 39, 45]) N(0, 0, z);
   // Back alley.
@@ -737,6 +743,11 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   chain3([15.8, 0, 1.1], [24.5, ROOF / 2, 1.1], s6top);
   chain3([23.5, DECK, -4.2], [27.6, (DECK + ROOF) / 2, -4.2], s7top);
   chain3([-16.2, DECK, -0.8], [-16.2, (DECK + ROOF) / 2, 4], s8top);
+  // Station: append its graph (indices shifted).
+  const base = nodes.length;
+  nodes.push(...metro.nodes);
+  for (const [a, c] of metro.links) links.push([a + base, c + base]);
+  metro.entrances = metro.entrances.map((e) => ({ name: e.name, chain: e.chain.map((i) => i + base) }));
 
   // ======================================================================= Combat layout
   const coverPoints = [
@@ -799,7 +810,9 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
     ],
     storyStart: { x: -11, z: 25.5, yaw: Math.PI / 2 },
     relay,
+    metro,
     pois: [
+      ...metro.pois,
       // Lantern Street shopfronts (west faces -x, east faces +x).
       ...[29, 33, 37.5, 41].map((z) => ({ pos: v(-3.0, 0, z), yaw: -Math.PI / 2, kind: 'shop' as const })),
       ...[18, 26.5, 31, 39].map((z) => ({ pos: v(3.0, 0, z), yaw: Math.PI / 2, kind: 'shop' as const })),

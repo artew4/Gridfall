@@ -167,6 +167,18 @@ export class Nav {
     return [];
   }
 
+  /** Opens or closes hand links (e.g. a shuttered stairwell). */
+  setLinks(pairs: [number, number][], open: boolean) {
+    for (const [i, j] of pairs) {
+      this.edges[i] = this.edges[i].filter((v) => v !== j);
+      this.edges[j] = this.edges[j].filter((v) => v !== i);
+      if (open) {
+        this.edges[i].push(j);
+        this.edges[j].push(i);
+      }
+    }
+  }
+
   /** Indices reachable from a node (connectivity check for the dev route test). */
   reachable(from: number): Set<number> {
     const seen = new Set<number>([from]);

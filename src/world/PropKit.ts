@@ -73,17 +73,17 @@ export class PropKit {
   }
 
   /** Drinks vending machine backed against a wall; returns its glowing front material. */
-  vending(x: number, z: number, face: Face, theme: 'red' | 'white') {
+  vending(x: number, z: number, face: Face, theme: 'red' | 'white', y = 0) {
     const { builder: b, col, scene } = this.ctx;
     const [nx, nz] = NORMAL[face];
     const alongX = nz !== 0;
-    b.add(alongX ? worldBox(1.05, 1.9, 0.8, 1) : worldBox(0.8, 1.9, 1.05, 1), this.vendBody[theme], x, 0.95, z);
+    b.add(alongX ? worldBox(1.05, 1.9, 0.8, 1) : worldBox(0.8, 1.9, 1.05, 1), this.vendBody[theme], x, y + 0.95, z);
     const mesh = new THREE.Mesh(this.front, this.vendFront[theme]);
-    mesh.position.set(x + nx * 0.405, 0.98, z + nz * 0.405);
+    mesh.position.set(x + nx * 0.405, y + 0.98, z + nz * 0.405);
     mesh.rotation.y = ROT[face];
     scene.add(mesh);
-    if (alongX) col.addCentered(x, 0.95, z, 1.05, 1.9, 0.8, 'metal');
-    else col.addCentered(x, 0.95, z, 0.8, 1.9, 1.05, 'metal');
+    if (alongX) col.addCentered(x, y + 0.95, z, 1.05, 1.9, 0.8, 'metal');
+    else col.addCentered(x, y + 0.95, z, 0.8, 1.9, 1.05, 'metal');
     return this.vendFront[theme];
   }
 

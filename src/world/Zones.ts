@@ -26,7 +26,17 @@ export const ROOFTOPS: Zone[] = [
   { id: 'westterrace', name: 'WEST TERRACE', jp: '西テラス', rects: [[-21, -2, -5, 24]] },
 ];
 
+export const STATION: Zone[] = [
+  { id: 'platform', name: 'SAKURA LINE · PLATFORM 1', jp: '桜線 1番線', rects: [[-40, 27, 40, 33]] },
+  { id: 'concourse', name: 'SAKURA LINE · CONCOURSE', jp: '桜線 改札', rects: [[-14, 15, 14, 27]] },
+  { id: 'maintenance', name: 'MAINTENANCE', jp: '保守室', rects: [[-36, -2, -24, 27]] },
+];
+
 export function zoneAt(x: number, y: number, z: number): Zone | null {
+  if (y < -2) {
+    for (const zn of STATION) for (const [x0, z0, x1, z1] of zn.rects) if (x >= x0 && x <= x1 && z >= z0 && z <= z1) return zn;
+    return STATION[1];
+  }
   if (y > 7) {
     for (const zn of ROOFTOPS) for (const [x0, z0, x1, z1] of zn.rects) if (x >= x0 && x <= x1 && z >= z0 && z <= z1) return zn;
   }

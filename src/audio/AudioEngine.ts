@@ -32,6 +32,9 @@ export class AudioEngine {
   private sirenTimer = 18;
   private carTimer = 6;
   private hornTimer = 11;
+  private rainFilter!: BiquadFilterNode;
+  private rainGain!: GainNode;
+  private under = -1;
   private hums: { gain: GainNode; base: number }[] = [];
 
   start() {
@@ -273,10 +276,19 @@ export class AudioEngine {
       s.connect(fl).connect(g).connect(this.amb);
       return g;
     };
-    // Rain: body, hiss, mid patter with slow swell.
-    layer(this.pink, 'lowpass', 1400, 0.5, 0.55);
-    layer(this.white, 'highpass', 4500, 0.5, 0.06);
-    const patter = layer(this.white, 'bandpass', 900, 0.6, 0.1);
+    // Rain: body, hiss, mid patter with slow swell. All through one filter so it can go muffled underground.
+    this.rainFilter = this.filter('lowpass', 20000);
+    this.rainGain = ctx.createGain();
+    this.rainFilter.connect(this.rainGain).connect(this.amb);
+    const rainLayer = (buf: AudioBuffer, type: BiquadFilterType, f: number, q: number, gain: number) => {
+      const g = layer(buf, type, f, q, gain);
+      g.disconnect();
+      g.connect(this.rainFilter);
+      return g;
+    };
+    rainLayer(this.pink, 'lowpass', 1400, 0.5, 0.55);
+    rainLayer(this.white, 'highpass', 4500, 0.5, 0.06);
+    const patter = rainLayer(this.white, 'bandpass', 900, 0.6, 0.1);
     const lfo = ctx.createOscillator();
     lfo.frequency.value = 0.07;
     const lfoG = ctx.createGain();
@@ -286,6 +298,15 @@ export class AudioEngine {
     // Distant city rumble.
     layer(this.brown, 'lowpass', 160, 0.5, 0.35);
     layer(this.pink, 'bandpass', 300, 0.4, 0.05);
+  }
+
+  /** Underground the rain becomes a distant muffled hiss through the stairwells. */
+  setUnderground(k: number) {
+    if (!this.started || k === this.under) return;
+    this.under = k;
+    const t = this.now();
+    this.rainFilter.frequency.setTargetAtTime(k ? 380 : 20000, t, 0.6);
+    this.rainGain.gain.setTargetAtTime(k ? 0.35 : 1, t, 0.6);
   }
 
   /** Electric buzz of a neon sign, positioned in the world. Gain is driven by the sign's flicker. */
