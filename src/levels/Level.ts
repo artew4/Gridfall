@@ -27,6 +27,8 @@ export interface LevelInfo {
   modes: Mode[];
   /** Shown while the level builds. */
   loading: string;
+  /** Browser tab title while this setting is loaded. */
+  windowTitle: string;
   /** Title screen lines under NEON RAIN. */
   tagline: string;
   jpLine: string;
