@@ -452,8 +452,11 @@ function crossesSolid(game: Game, a: THREE.Vector3, b: THREE.Vector3, feetY: num
  * the body crosses a solid wall, falls into the track pit or below the world, leaves the playable
  * extent, or ends somewhere the world scan says nobody can stand (inside geometry / a void).
  * Failures carry position, velocity, input, frame step and the collider involved.
+ *
+ * `fps`: the frame-time profiles to run. A number is a fixed rate; 'spiky' alternates 120 FPS frames
+ * with hitches (the game clamps any frame to 1/20 s), seeded so failures reproduce.
  */
-export function stressController(game: Game, opts: { samples?: number; seconds?: number } = {}) {
+export function stressController(game: Game, opts: { samples?: number; seconds?: number; fps?: (number | 'spiky')[] } = {}) {
   const t0 = performance.now();
   const world = checkWorld(game, { stationOpen: true });
   const cells = world.reachableCells;
@@ -476,7 +479,7 @@ export function stressController(game: Game, opts: { samples?: number; seconds?:
   for (let k = 0; k < n; k++) {
     const [x, h, z] = cells[Math.floor(k * stride)];
     for (let dir = 0; dir < 8; dir++) {
-      for (const dt of [1 / 20, 1 / 60]) {
+      for (const profile of opts.fps ?? [20, 60]) {
         for (const mode of ['walk', 'sprintJump'] as const) {
           runs++;
           P.reset(x, z, (dir * Math.PI) / 4, h);
@@ -484,7 +487,15 @@ export function stressController(game: Game, opts: { samples?: number; seconds?:
           keys.add('KeyW');
           if (mode === 'sprintJump') keys.add('ShiftLeft');
           let fail: Record<string, unknown> | null = null;
-          for (let t = 0; t < (opts.seconds ?? 1.2); t += dt) {
+          let seed = (k * 8 + dir) * 7919 + 1;
+          const nextDt = () => {
+            if (profile !== 'spiky') return 1 / profile;
+            seed = (seed * 16807) % 2147483647;
+            const r = seed / 2147483647;
+            return r < 0.12 ? 1 / 20 : r < 0.2 ? 1 / 30 : 1 / 120;
+          };
+          let dt = nextDt();
+          for (let t = 0; t < (opts.seconds ?? 1.2); t += dt, dt = nextDt()) {
             (inp as unknown as { pressed: Set<string> }).pressed = new Set(mode === 'sprintJump' && Math.floor(t / 0.45) !== Math.floor((t - dt) / 0.45) ? ['Space'] : []);
             prev.copy(P.pos);
             P.update(dt, inp, true, t);
@@ -493,15 +504,22 @@ export function stressController(game: Game, opts: { samples?: number; seconds?:
             else if (P.pos.y < UG - 0.6) fail = { why: 'fell into the track pit / below the station' };
             else if (P.pos.x < b.min.x || P.pos.x > b.max.x || P.pos.z < b.min.y || P.pos.z > b.max.y) fail = { why: 'left the playable extent' };
             if (fail) {
-              Object.assign(fail, { start: [x, h, z], dir, fps: Math.round(1 / dt), mode, t: +t.toFixed(2), pos: P.pos.toArray().map((q) => +q.toFixed(2)), vel: P.vel.toArray().map((q) => +q.toFixed(2)), onGround: P.onGround, zone: zoneAt(P.pos.x, P.pos.y, P.pos.z)?.name ?? '' });
+              Object.assign(fail, { start: [x, h, z], dir, fps: profile, dt: +dt.toFixed(4), mode, t: +t.toFixed(2), pos: P.pos.toArray().map((q) => +q.toFixed(2)), vel: P.vel.toArray().map((q) => +q.toFixed(2)), onGround: P.onGround, zone: zoneAt(P.pos.x, P.pos.y, P.pos.z)?.name ?? '' });
               break;
             }
           }
           // Ended inside geometry, or standing on nothing (grid aliasing near walls isn't a failure).
+          // One idle frame first: a run can end on the exact frame it lands from a vault, still
+          // overlapping the rail it jumped over (by design while airborne); that resolves next frame.
+          if (!fail) {
+            keys.clear();
+            (inp as unknown as { pressed: Set<string> }).pressed = new Set();
+            P.update(1 / 60, inp, true, 99);
+          }
           if (!fail && P.onGround) {
             const inGeo = game.col.blocked(P.pos, P.radius - 0.02, 1.8);
             const floor = game.col.groundHeightAt(P.pos.x, P.pos.z, P.radius * 0.6, P.pos.y);
-            if (inGeo || Math.abs(floor - P.pos.y) > 0.05) fail = { why: inGeo ? 'ended inside geometry' : 'standing on nothing', start: [x, h, z], dir, fps: Math.round(1 / dt), mode, pos: P.pos.toArray().map((q) => +q.toFixed(2)), zone: zoneAt(P.pos.x, P.pos.y, P.pos.z)?.name ?? '', grid: standableNear(P.pos) };
+            if (inGeo || Math.abs(floor - P.pos.y) > 0.05) fail = { why: inGeo ? 'ended inside geometry' : 'standing on nothing', start: [x, h, z], dir, fps: profile, mode, pos: P.pos.toArray().map((q) => +q.toFixed(2)), zone: zoneAt(P.pos.x, P.pos.y, P.pos.z)?.name ?? '', grid: standableNear(P.pos) };
           }
           if (fail) fails.push(fail);
         }

@@ -77,8 +77,12 @@ export function installDevTools(game: Game) {
       return (await import('./WorldCheck')).checkWorld(game, opts);
     },
     /** Real-controller stress runs from sampled reachable cells (walls, falls, voids). */
-    async stress(opts: { samples?: number; seconds?: number } = {}) {
+    async stress(opts: { samples?: number; seconds?: number; fps?: (number | 'spiky')[] } = {}) {
       return (await import('./WorldCheck')).stressController(game, opts);
+    },
+    /** Train and platform doors: boarding, closed doors, riding, doorway obstruction (real Rail). */
+    async train() {
+      return (await import('./TrainCheck')).checkTrain(game);
     },
     /** The fixed version-comparison benchmark (current preset). */
     async bench(seconds = 3) {
