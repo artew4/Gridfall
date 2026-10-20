@@ -1,6 +1,6 @@
-# NEON RAIN 3.6: Three Settings
+# NEON RAIN 3.7: Three Settings
 
-One night in Shinjuku. One gun you'd rather keep holstered. One last train. Or an outpost in the dunes, and a sandstorm coming. Or a temple deep in the rainforest, and hunters in the undergrowth.
+One night in Shinjuku. One gun you'd rather keep holstered. One last train. Or an outpost in the dunes, and a sandstorm coming. Or a walled firebase deep in the rainforest, and a road up to its gate.
 
 A single-player stealth-action game built with Three.js + TypeScript + Vite. Its engine (controller, shooting, AI, collision, survival waves) now runs several settings. Everything (geometry, textures, signage, sound and music) is generated procedurally at startup: no external assets.
 
@@ -45,27 +45,36 @@ Switching settings builds the new one behind the menu and frees the old one comp
 
 ## Deep Jungle
 
-- **The map:**
-  - The Temple of the Seventh Rain stands in a flat clearing. It has two stepped terraces (1.5 m and 3 m) with stone stairs, broken rim walls and pillars as cover, and a shrine on top with two doorways, windows and an altar.
-  - Two fallen giant trees lean against the lower terrace. Walk up them.
-  - Around the temple are ruins, an archway and an archaeologists' dig camp (work lamps you can shoot out, a generator cabinet, a medkit).
-  - The forest rolls out to dark rock walls. It holds giant buttressed trees, slimmer trunks, fallen logs, mossy blocks and two outlying watch platforms.
+- **The map (3.7, Firebase Viper):** a walled paramilitary compound in the north half of the rainforest, laid out for an assault.
+  - You start on a mud road at the south edge of the map. It winds up through the jungle (boulders, an outer checkpoint with a sandbag bunker, a burnt-out jeep, a half barrier) to the gate.
+  - Round the wall is a 7 m cleared strip: bare ground, the kill zone. Concertina wire across the south strip funnels a frontal attack to the gate.
+  - The gate sits between two bunker towers (snipers on top). There is also a narrow postern in the north wall and a blown breach in the west wall.
+  - Inside:
+    - the **barracks** (bunks, lockers, a rifle rack; the defenders turn out of here);
+    - the **comms center** (consoles, server racks, a map table; an outside stair to a roof with a radio mast and a dish);
+    - the **watchtower** by the gate (a sandbagged platform 4.5 m up);
+    - a **motor pool** carport (a six-wheel truck, a jeep, a fuel bowser);
+    - a **supply depot** of shipping containers under a camo net;
+    - an MG nest facing the gate, jersey-barrier and HESCO lines, the flag, a helipad.
+  - Cover: outside, giant buttressed trees, fallen logs and boulders; inside, sandbags, concrete barriers, crates, containers and the parked vehicles.
+  - Floodlights and bulbs can be shot out. Three electrical cabinets (the gate, the barracks, the comms center) discharge into anyone standing near.
 - **The air:**
-  - teal mist hangs low on the forest floor;
+  - teal mist hangs low on the forest floor (it stays out of the rooms);
   - visibility is about 58 m;
-  - morning sun breaks through the canopy in flecks (the light on your gun changes as you walk through them);
+  - morning sun breaks through the canopy in flecks, and the canopy opens over the compound (the light on your gun changes as you walk through them and goes when you're under a roof);
   - insects, birds, frogs and dripping leaves. The insects fall silent after a gunshot.
 - **Your weapon:** the BOAR M12 pump shotgun.
-  - Eight pellets per shell, devastating up close: one shell drops a stalker out to about 8 m. It falls off fast beyond 10 m.
+  - Eight pellets per shell, devastating up close: one shell drops a breacher out to about 8 m. It falls off fast beyond 10 m.
   - After each shot you rack the pump.
   - Six shells, loaded one at a time. Pull the trigger to stop loading and fire.
-- **The enemies:** guerrilla hunters in woodland camo, with leaves sewn onto their shoulders.
-  - Stalkers (red bandanas, painted faces, machetes) rush you out of the undergrowth.
-  - Trackers (boonie hats, rifles with lasers) take cover, and snipe from the watch platforms.
+- **The enemies:** the paramilitary garrison, in olive-drab tiger stripe with black plate carriers, helmets, gloves and boots.
+  - Breachers (black balaclavas, amber goggles, knee pads, short black machetes) rush you.
+  - Riflemen (helmets with night-vision mounts and headsets, radios, black rifles with optics and lasers) take cover, and snipe from the gate towers, the watchtower and the comms roof.
 - **Survival:**
-  - Hunters spawn deep in the forest, at least 30 m out, inside thick undergrowth. They see no further through the mist than you do (50 m).
+  - Attackers come out of the jungle, at least 30 m away and mostly from behind you (on the far side from the compound), so they push you toward the gate. They see no further through the mist than you do (50 m).
+  - Defenders turn out of the barracks once you're 14 m or more from it (about a third of spawns while it's eligible).
   - Plants hide bodies but don't stop rounds.
-  - Medkits are in the shrine and the dig camp.
+  - Medkits are in the comms center and on the watchtower.
 
 ## The story
 
@@ -255,7 +264,7 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - `await __dev.stress({ samples, fps })`: the real controller from sampled reachable cells in 8 directions, walking and sprint-jumping. `fps` takes rates and `'spiky'`, for example `[20, 30, 60, 120, 'spiky']`.
   - `await __dev.train()`: boarding at every door, closed doors, riding a departing car, and someone standing in a doorway as the doors close (with the real rail).
   - `await __dev.colliders(true)`: the collision overlay around the camera.
-  - `await __dev.bench(3)`: fixed benchmark scenarios for the loaded setting (Tokyo, the desert or the jungle). Compare the results with `docs/BENCH-3.2.json` … `docs/BENCH-3.6.json`.
+  - `await __dev.bench(3)`: fixed benchmark scenarios for the loaded setting (Tokyo, the desert or the jungle). Compare the results with `docs/BENCH-3.2.json` … `docs/BENCH-3.7.json`.
   - `__game.safety.recoveries`: how often the out-of-bounds safety net fired. It should stay 0, and each recovery is logged as `[safety]`.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
 
@@ -310,7 +319,8 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
 - Jungle:
   - Plants are soft: they hide bodies but don't block bullets or enemy sight (by design: no alpha cut-outs to ray-test against).
   - The forest floor uses the sand footstep sound.
-  - Enemies take the stairs, not the climbable logs, when they plan a route. They still run up a log when they chase straight at you.
-  - The shotgun's feel (recoil, pump timing, sound) has not been checked by a human player.
+  - Survival runs on the assault layout, but there is no assault mission yet: no objectives, no scripted breach, the gate is always open.
+  - Concertina and the compound's walls block sight for enemies as well as movement (the nav graph needs them to).
+  - The shotgun's feel (recoil, pump timing, sound) and the base's flow (is the push to the gate natural?) have not been checked by a human player.
 
 Git tags: `v1.0` is the single-street original, `v2.0` is the vertical district wave shooter, `v3.0` is the cinematic escape before the stealth overhaul, and `v3.1` is the stealth and pursuit overhaul.

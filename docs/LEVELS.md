@@ -12,7 +12,7 @@ A level owns everything about a place: geometry, collision, lights, weather, amb
 |---|---|---|
 | TOKYO NIGHT | Story Escape, Arcade Survival | `src/levels/tokyo/` (`TokyoLevel`, `TokyoStory`) plus the Tokyo content modules in `src/world`, `src/story`, `src/rail`, `src/stealth`, `src/city` |
 | DESERT OUTPOST | Arcade Survival | `src/levels/desert/` (`DesertLevel`, `Outpost`, `Terrain`, `Sandstorm`, `DesertIntro`, `textures`) |
-| DEEP JUNGLE | Arcade Survival | `src/levels/jungle/` (`JungleLevel`, `Ruins`, `Foliage`, `Terrain`, `JungleIntro`, `textures`) |
+| DEEP JUNGLE | Arcade Survival | `src/levels/jungle/` (`JungleLevel`, `Base`, `Foliage`, `Terrain`, `JungleIntro`, `textures`) |
 
 ## How it fits together
 
@@ -44,7 +44,7 @@ Each `LevelInfo` carries an `arsenal`: `{ weapon: WeaponSpec, enemies: EnemyLook
 |---|---|---|
 | TOKYO NIGHT | `KITSUNE_9`: the plasma pistol (12 rds, cyan ammo strips). The default, unchanged from 3.4. | `NEON_SYNTHS`: hooded blade runners and armoured gunners, neon visors, sparks and a glitch dissolve on death, plasma bolts. The default. |
 | DESERT OUTPOST | `JACKAL_AR`: assault rifle (30 rds, ~650 rpm, orange flash and tracers, rifle sound) | `DESERT_MERCS`: scavengers (head wrap, goggles, machete) and contractors (plate carrier, helmet, rifle with a laser). Dust-and-blood hits, bodies sink into the sand, war cries and rifle cracks, orange rifle tracers. |
-| DEEP JUNGLE (3.6) | `BOAR_SHOTGUN`: pump shotgun (6 shells loaded one at a time, 8 pellets, 0.82 s pump, deep boom) | `JUNGLE_HUNTERS`: stalkers (bandana, face paint, machete) and trackers (boonie hat, chest rig, rifle with a laser); woodland camo and opaque leaf tufts; organic; human voices. |
+| DEEP JUNGLE (3.6, 3.7) | `BOAR_SHOTGUN`: pump shotgun (6 shells loaded one at a time, 8 pellets, 0.82 s pump, deep boom) | `JUNGLE_GUARDS` (3.7, replaces 3.6's `JUNGLE_HUNTERS`): breachers (helmet over a balaclava, amber goggles, knee pads, black machete) and riflemen (helmet with NVG mount and headset, plate carrier, radio, black rifle with optic and laser); olive-drab tiger stripe and black kit; organic; human voices. |
 
 - **`WeaponSpec`:**
   - the model builder (fills the gun, the slide or bolt that cycles, and the magazine);
@@ -131,9 +131,28 @@ Interiors are passed to the particle shaders, so no sand is drawn inside a build
   - a vertex-shader sway (by height above the plant's base, phase from the instance position) costs no CPU;
   - plants are `userData.soft`: you walk through them and they don't block rays;
   - density scales with the graphics preset at load (Power 0.6×, Balanced 1×, High 1.25×).
-- **Mist:** two terrain-following sheets (0.3 m and 1.1 m up). The alpha is two scrolling noise lookups, faded within 9 m of the camera so you never see a sheet's edge. The terraces stand above it.
+- **Mist:** two terrain-following sheets (0.3 m and 1.1 m up). The alpha is two scrolling noise lookups, faded within 9 m of the camera so you never see a sheet's edge. A uniform list of room rectangles (up to 6) masks it out of the buildings (3.7).
 - **Sun:**
   - a far `SpotLight` projects a dapple texture (`map`, a light cookie) with a static shadow map: `autoUpdate = false`, one render after load;
   - the level reads the cookie on the CPU through `shadow.matrix` to drive the viewmodel's key light.
 - **Fog sets the engine hooks:** `ctx.sightRange` = 85% of the fog's 90% distance; `waves.minSpawnDistance` = 30 m.
 - **Root flares:** one collider cylinder per giant tree, up to above jump reach, then the trunk. The pockets between buttress roots are inside it, so nothing wedges itself there.
+
+## Assault-ready layout (jungle, 3.7)
+
+The jungle runs Arcade Survival on a map built for a future linear assault mission: start → approach → breach → clear.
+
+- **Flow by terrain:** the start is at the map's south edge on a road (`roadX(z)` in `Terrain.ts`, flattened by the height function). The compound (`BASE`) is flat, with a flat `STRIP` (7 m) of cleared ground round its wall, and the hills blend in over 10 m beyond that.
+- **Entrances:** the gate (main, south), a postern (north) and a breach (west). No dead ends: every zone has at least two ways in, and the nav graph is connected from every spawn (`levelAI.graphOk`).
+- **Funnel, not a wall:** concertina runs across the south strip (solid, 1.15 m, not vaultable) leave the road and the chicane open.
+- **Engine hooks used (new in 3.7, setting-agnostic):**
+  - `Waves.minSpawnDistance(spawn)`: per spawn point (the barracks 14 m, the jungle 30 m);
+  - `Waves.pickSpawn(pool, player)`: the level weights eligible spawns (barracks 35% while any is eligible; jungle spawns behind the player relative to the compound 70%). Both reset in `dispose()`.
+- **Collision rules applied (3.3):**
+  - every prop is seen and solid with the same bounds;
+  - trees stand ≥ 7 m from the wall (keep-clear rect plus gap; measured minimum 7.35 m), so no tree-to-wall slot exists;
+  - talus rocks overlap the cliff or stand ≥ 0.8 m clear of every cliff box;
+  - low rubble (≤ 0.7 m) is plain solid, not `vault` (the vault rule skips a rail while airborne above `top − 0.62`, which for a low slab is the whole jump);
+  - long stairs (3.65 m and 4.5 m up) have a mid nav node; they're walled on both sides, so the node can't auto-link to the ground beside them;
+  - a 2.2 m screen over the comms roof's parapet beside its stair, so a runner on the stair never sees (and chases straight at) a target on the roof.
+- **Room-aware atmosphere:** `shade` rects (rooms, carport, depot net, watchtower roof) zero the viewmodel's sun; the mist is masked out of the rooms.
