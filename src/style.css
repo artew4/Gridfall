@@ -186,3 +186,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .minimap .floor { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font-size: 9px; letter-spacing: 0.35em; color: var(--cyan-dim); font-family: var(--mono); }
 .minimap.hidden { opacity: 0; }
 @media (max-width: 900px) { .minimap { width: 140px; height: 140px; } .minimap canvas { width: 140px !important; height: 140px !important; } }
+
+/* Graphics presets in the pause / settings menu. */
+.pm-row { display: flex; gap: 6px; }
+.pm-btn.pm-chip { flex: 1; margin: 8px 0 0; padding: 9px 6px; text-align: center; font-size: 10px; letter-spacing: 0.18em; }
+.pm-btn.pm-chip.on { color: #fff; border-color: var(--cyan); background: rgba(120, 235, 255, 0.12); box-shadow: 0 0 12px rgba(120, 235, 255, 0.18) inset; }
+.pm-note { font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; color: rgba(160, 220, 235, 0.55); margin-top: 2px; }
+.pm-panel { max-height: 94vh; overflow-y: auto; }

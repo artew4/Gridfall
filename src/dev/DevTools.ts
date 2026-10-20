@@ -56,6 +56,10 @@ export function installDevTools(game: Game) {
       w.__aiDebug ??= new AIDebug(game);
       w.__aiDebug.set(on);
     },
+    /** Frame rate, CPU and GPU milliseconds per frame, busy share (power proxy). */
+    async perf(seconds = 4) {
+      return (await import('./PerfProbe')).probe(game, seconds);
+    },
     /** Headless pursuit scenarios (escape, hide, shots, re-detection). */
     async pursuit() {
       return (await import('./PursuitCheck')).checkPursuit(game);

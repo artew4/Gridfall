@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Renderer } from './Renderer';
 import { Input } from './Input';
 import { InteractionController, type Interactable } from './Interaction';
+import { FramePacer, PRESETS, effectiveCap } from './Performance';
 import { clamp, damp, rand } from './math';
 import { AudioEngine } from '../audio/AudioEngine';
 import { MusicDirector } from '../audio/music/MusicDirector';
@@ -123,6 +124,9 @@ export class Game {
   private deadT = 0;
   private stats = { shots: 0, hits: 0, start: 0 };
   private clock = new THREE.Timer();
+  private pacer = new FramePacer();
+  /** The next drawn frame starts the clock afresh (after a pause, a hidden tab, a stall). */
+  private freshClock = true;
   elapsed = 0;
   private ready = false;
   ctx!: EnemyCtx;
@@ -167,9 +171,52 @@ export class Game {
     await new Promise((r) => setTimeout(r, 30));
     this.buildWorld();
     this.ready = true;
+    this.applyGraphics();
     this.hud.setReady();
     this.bindUi();
-    this.renderer.renderer.setAnimationLoop(() => this.frame());
+    this.startLoop();
+    this.bindPower();
+  }
+
+  /** The display-refresh callback: draws only when the frame cap and the game state call for it. */
+  private startLoop() {
+    this.pacer.reset();
+    this.freshClock = true;
+    this.renderer.renderer.setAnimationLoop((now) => {
+      if (!this.pacer.tick(now, effectiveCap(this.settings.fps, this.state, document.hasFocus()))) return;
+      this.frame();
+    });
+  }
+
+  /**
+   * Hidden tab: no drawing, no simulation, audio suspended; a game in progress is paused and stays
+   * paused (behind the menu) until the player resumes it.
+   */
+  private bindPower() {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (this.state === 'play' || this.state === 'intro') this.pause();
+        this.renderer.renderer.setAnimationLoop(null);
+        this.audio.setSuspended(true);
+        this.music.setSuspended(true);
+      } else {
+        this.audio.setSuspended(false);
+        this.music.setSuspended(false);
+        this.startLoop();
+      }
+    });
+  }
+
+  /** Graphics preset: resolution ceiling, bloom, decorative lights. The frame cap is its own setting. */
+  private applyGraphics() {
+    const p = PRESETS[this.settings.quality];
+    const r = this.renderer;
+    r.maxPixelRatio = Math.min(window.devicePixelRatio, p.pixelRatio);
+    r.renderer.setPixelRatio(r.maxPixelRatio);
+    r.resize();
+    r.setBloomLevels(p.bloomLevels);
+    for (const g of this.signs) if (g.light) g.light.visible = p.signLights;
+    this.perf.lowT = this.perf.highT = 0;
   }
 
   private buildWorld() {
@@ -321,6 +368,7 @@ export class Game {
     this.audio.setVolume('music', s.music / 100);
     this.audio.setVolume('sfx', s.sfx / 100);
     this.audio.setMuted(s.muted);
+    if (this.ready) this.applyGraphics();
   }
 
   private bindUi() {
@@ -395,6 +443,7 @@ export class Game {
   }
 
   private resume() {
+    this.freshClock = true;
     this.state = this.stateBeforePause;
     this.menu.show(false);
     this.music.setPaused(false);
@@ -576,7 +625,10 @@ export class Game {
   // ------------------------------------------------------------------ frame
   private frame() {
     this.clock.update();
-    const rawDt = Math.min(this.clock.getDelta(), 1 / 30);
+    // Time-based simulation: dt is the real time since the last drawn frame (so the frame cap never
+    // changes game speed), clamped so a hitch can't tunnel anything through a wall.
+    const rawDt = this.freshClock ? 0 : Math.min(this.clock.getDelta(), 1 / 20);
+    this.freshClock = false;
     const paused = this.state === 'paused';
     const dt = paused ? 0 : rawDt * this.timeScale;
     this.elapsed += dt;
@@ -942,14 +994,15 @@ export class Game {
     p.frames = 0;
     if (this.state !== 'play' && this.state !== 'intro') return;
     const pr = this.renderer.renderer.getPixelRatio();
-    if (p.fps < 50) {
+    const cap = this.settings.fps;
+    if (p.fps < cap * 0.83) {
       p.lowT += 0.5;
       p.highT = 0;
-      if (p.lowT >= 3 && pr > 1) {
+      if (p.lowT >= 3 && pr > this.renderer.minPixelRatio) {
         this.renderer.setPixelRatio(pr - 0.25);
         p.lowT = 0;
       }
-    } else if (p.fps > 58) {
+    } else if (p.fps > cap * 0.95) {
       p.highT += 0.5;
       p.lowT = 0;
       if (p.highT >= 10 && pr < this.renderer.maxPixelRatio) {

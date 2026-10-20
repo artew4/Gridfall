@@ -130,6 +130,13 @@ export class Score {
     this.timer = window.setInterval(() => this.tick(), 25);
   }
 
+  /** Stops / restarts the note scheduler (hidden tab: no timer at all). */
+  setSuspended(on: boolean) {
+    if (!this.started) return;
+    window.clearInterval(this.timer);
+    if (!on) this.timer = window.setInterval(() => this.tick(), 25);
+  }
+
   /** Desired intensity (0..1); smoothing happens per frame in `update`. */
   set(target: number) {
     this.target = Math.max(0, Math.min(1, target));

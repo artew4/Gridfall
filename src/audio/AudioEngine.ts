@@ -109,6 +109,13 @@ export class AudioEngine {
     this.applyVolumes();
   }
 
+  /** Hidden tab: stop the audio thread entirely (nothing plays, nothing is computed). */
+  setSuspended(on: boolean) {
+    if (!this.started) return;
+    if (on) void this.ctx.suspend();
+    else void this.ctx.resume();
+  }
+
   setMuted(m: boolean) {
     this.muted = m;
     this.applyVolumes();

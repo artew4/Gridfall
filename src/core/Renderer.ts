@@ -80,7 +80,7 @@ export class Renderer {
     public weaponCamera: THREE.PerspectiveCamera,
   ) {
     const r = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
-    r.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    r.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
     r.setSize(window.innerWidth, window.innerHeight);
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.05;
@@ -115,12 +115,16 @@ export class Renderer {
     return this.renderer.domElement;
   }
 
-  /** Highest pixel ratio we ever render at. */
-  readonly maxPixelRatio = Math.min(window.devicePixelRatio, 1.5);
+  /** Highest pixel ratio we render at (set by the graphics preset, never above the display's). */
+  maxPixelRatio = Math.min(window.devicePixelRatio, 1.25);
+  /** Lowest the adaptive resolution may go. */
+  get minPixelRatio() {
+    return Math.min(this.maxPixelRatio, 0.75);
+  }
 
   /** Adaptive resolution: lowered when the frame rate sags, restored when there's headroom. */
   setPixelRatio(pr: number) {
-    const v = Math.max(1, Math.min(this.maxPixelRatio, pr));
+    const v = Math.max(this.minPixelRatio, Math.min(this.maxPixelRatio, pr));
     if (Math.abs(v - this.renderer.getPixelRatio()) < 0.01) return;
     this.renderer.setPixelRatio(v);
     this.resize();
@@ -138,6 +142,13 @@ export class Renderer {
     this.weaponCamera.aspect = w / h;
     this.weaponCamera.updateProjectionMatrix();
     this.grade.uniforms.uAspect.value = w / h;
+  }
+
+  /** 3 or 5 blur levels; with 3 the remaining levels are weighted up a little to keep the glow. */
+  setBloomLevels(n: 3 | 5) {
+    const u = this.bloom.compositeMaterial.uniforms.bloomFactors;
+    this.bloom.nMips = n;
+    u.value = n === 5 ? [1, 0.8, 0.6, 0.4, 0.2] : [1.1, 1.0, 0.95, 0, 0];
   }
 
   render(time: number) {
