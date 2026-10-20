@@ -36,13 +36,15 @@ export class Player {
   private lastStepIdx = 0;
   private wasOnGround = true;
   private fallSpeed = 0;
+  private peakY = 0;
   /** World-space direction of the last hit, for the HUD indicator. */
   lastHitFrom = new THREE.Vector3();
 
   constructor(private col: CollisionWorld, private audio: AudioEngine) {}
 
-  reset(x: number, z: number, yaw: number) {
-    this.pos.set(x, 0, z);
+  reset(x: number, z: number, yaw: number, y = 0) {
+    this.pos.set(x, y, z);
+    this.peakY = y;
     this.vel.set(0, 0, 0);
     this.yaw = yaw;
     this.pitch = 0;
@@ -91,15 +93,21 @@ export class Player {
     this.vel.y -= GRAVITY * dt;
     this.pos.addScaledVector(this.vel, dt);
 
-    this.col.resolveCircle(this.pos, this.radius, 1.8);
+    // Airborne: railings marked as vaultable can be jumped over.
+    this.col.resolveCircle(this.pos, this.radius, 1.8, 0.3, !this.onGround);
     const ground = this.col.groundHeightAt(this.pos.x, this.pos.z, this.radius * 0.6, this.pos.y);
+    if (!this.onGround && this.pos.y > this.peakY) this.peakY = this.pos.y;
     // Stick to stairs and kerbs when walking down instead of briefly going airborne.
     if (this.wasOnGround && this.vel.y <= 0 && this.pos.y > ground && this.pos.y - ground < 0.35) this.pos.y = ground;
     if (this.pos.y <= ground) {
       if (!this.wasOnGround && this.fallSpeed > 3) {
         this.landDip.impulse(-Math.min(this.fallSpeed, 8) * 0.25);
         this.audio.land();
+        // Only genuinely long falls hurt (none of the district's drops do; high parapets guard the rest).
+        const drop = this.peakY - ground;
+        if (drop > 10) this.damage((drop - 10) * 12, this.pos.clone().setY(this.pos.y - 1), time);
       }
+      this.peakY = ground;
       this.pos.y = ground;
       this.vel.y = 0;
       this.onGround = true;

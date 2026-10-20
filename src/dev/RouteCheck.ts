@@ -15,7 +15,7 @@ const ROUTES: { name: string; pts: WP[] }[] = [
   },
   {
     name: 'Neon Alley → S4 → tech deck → W2 → S1 down',
-    pts: [[17, 0, 0.5], [30, 0, 0.5], [41.6, 0, 0.5], [41.6, 0, -2.1], [30.5, DECK, -2.1], [19, DECK, -2.1], [13.5, DECK, -2.1], [13.7, DECK, 3.5], [13.7, 0, 14.2], [8, 0, 12]],
+    pts: [[17, 0, -0.6], [30, 0, -0.6], [41.6, 0, -0.6], [41.6, 0, -2.1], [30.5, DECK, -2.1], [19, DECK, -2.1], [13.5, DECK, -2.1], [13.7, DECK, 3.5], [13.7, 0, 14.2], [8, 0, 12]],
   },
   {
     name: 'Service Passage → S3 → pipe gallery → W3',
@@ -31,7 +31,15 @@ const ROUTES: { name: string; pts: WP[] }[] = [
   },
   {
     name: 'Railway Street → trackside → Neon Alley → plaza',
-    pts: [[0, 0, -10], [0, 0, -20], [3, 0, -21.9], [9, 0, -21.9], [15, 0, -21.9], [20.6, 0, -21.9], [21, 0, -9], [21, 0, 0.5], [17, 0, 0.5], [10, 0, 1.5]],
+    pts: [[0, 0, -10], [0, 0, -20], [3, 0, -21.9], [9, 0, -21.9], [15, 0, -21.9], [20.6, 0, -21.9], [21, 0, -9], [21, 0, -0.6], [17, 0, -0.6], [10, 0, 1.5]],
+  },
+  {
+    name: 'rooftop circuit: S6 up → Sky Garden → bridge → Tech Roof → S7 down → tech deck',
+    pts: [[13, 0, 1], [15.8, 0, 1.1], [33, 8.5, 1.1], [41.2, 8.5, 3.6], [41.2, 8.5, -4.5], [33, 8.5, -4.2], [23.5, 4.5, -4.2], [23.5, 4.5, -2.1], [19, 4.5, -2.1]],
+  },
+  {
+    name: 'W2 → S5 → Sky Garden → Lantern Roof → bridge over Lantern St → West Terrace → S8 → W3',
+    pts: [[13.5, 4.5, -2], [14.2, 4.5, 3.3], [23.4, 8.5, 3.3], [26, 8.5, 7.5], [17.5, 8.5, 12], [17.5, 8.5, 18], [7, 8.5, 20], [-7, 8.5, 20], [-12, 8.5, 19.5], [-16.2, 8.5, 12.5], [-16.2, 8.5, 8.7], [-16.2, 4.5, -0.8], [-13.5, 4.5, -1]],
   },
   {
     name: 'Lantern Street → torii → plaza',
@@ -82,8 +90,35 @@ function walk(game: Game, pts: WP[]) {
   return { ok: true, maxStep: +maxStep.toFixed(3), maxAt };
 }
 
+/**
+ * Runs at a railing/parapet and jumps: `expect` says whether the player should end up below
+ * (vaultable) or stay on top (guarded drop).
+ */
+function jump(game: Game, from: [number, number, number], yaw: number, expectDrop: boolean) {
+  const p = new Player(game.col, game.audio);
+  p.reset(from[0], from[2], yaw, from[1]);
+  const input = fakeInput();
+  const keys = (input as unknown as { keys: Set<string>; pressed: Set<string> });
+  const dt = 1 / 60;
+  let jumped = false;
+  let t = 0;
+  for (; t < 2.2; t += dt) {
+    // Run in, jump, then let go of W once airborne so we test the drop, not a sprint across the plaza.
+    if (t > 1.2) keys.keys.delete('KeyW');
+    // Jump once, when about a metre from the edge (we've stopped making progress or reached speed).
+    if (!jumped && t > 0.35) {
+      keys.pressed.add('Space');
+      jumped = true;
+    }
+    p.update(dt, input, true, t);
+    keys.pressed.clear();
+  }
+  const dropped = p.pos.y < from[1] - 2;
+  return { ok: dropped === expectDrop, from, end: p.pos.toArray().map((v) => +v.toFixed(2)), hp: Math.round(p.health) };
+}
+
 /** Spawns a runner at a spawn point and checks it reaches a stationary player at `goal`. */
-function chase(game: Game, from: THREE.Vector3, goal: THREE.Vector3, seconds = 45) {
+function chase(game: Game, from: THREE.Vector3, goal: THREE.Vector3, seconds = 60) {
   const scene = new THREE.Scene();
   const target = new Player(game.col, game.audio);
   target.reset(goal.x, goal.z, 0);
@@ -105,6 +140,15 @@ function chase(game: Game, from: THREE.Vector3, goal: THREE.Vector3, seconds = 4
 export function runRouteCheck(game: Game) {
   const t0 = performance.now();
   const routes = ROUTES.map((r) => ({ name: r.name, ...walk(game, r.pts) }));
+  // Vaults and drops: walkway railing to the plaza, Sky Garden low parapet onto S1, high parapets hold.
+  const jumps = [
+    { name: 'vault W1 railing → plaza', ...jump(game, [0, 4.5, -13.2], Math.PI, true) },
+    { name: 'vault W2 railing → plaza', ...jump(game, [13.2, 4.5, -6], Math.PI / 2, true) },
+    { name: 'drop Sky Garden low parapet → S1', ...jump(game, [16.3, 8.5, 7], Math.PI / 2, true) },
+    { name: 'high parapet holds (Sky Garden over Neon Alley)', ...jump(game, [27, 8.5, 3.3], 0, false) },
+    { name: 'high parapet holds (West Terrace over plaza)', ...jump(game, [-10, 8.5, 16.2], 0, false) },
+    { name: 'bridge railing holds (over Lantern Street)', ...jump(game, [0, 8.5, 20], 0, false) },
+  ];
 
   // Navigation graph: every node reachable from every spawn.
   const nav = game.nav;
@@ -122,12 +166,16 @@ export function runRouteCheck(game: Game) {
     new THREE.Vector3(-13.5, DECK, -1),
     new THREE.Vector3(24, DECK, -2.1),
     new THREE.Vector3(-8, 0, 8),
+    new THREE.Vector3(37, 8.5, 10.5),
+    new THREE.Vector3(-12, 8.5, 19.5),
   ];
   const chases = [];
   for (const s of spawns) for (const g of goals) chases.push({ from: s.toArray(), to: g.toArray(), ...chase(game, s, g) });
 
   const result = {
     routesOk: routes.every((r) => r.ok),
+    jumpsOk: jumps.every((j) => j.ok),
+    jumps,
     graphOk: graph.every((g) => g.reach === g.of),
     chasesOk: chases.every((c) => c.ok),
     routes,

@@ -21,6 +21,8 @@ export interface Collider {
   cx?: number;
   cz?: number;
   r?: number;
+  /** A railing the player can jump over mid-jump (NPCs never vault). */
+  vault?: boolean;
   /** Called when a player bullet hits this collider. */
   onHit?: (hit: RayHit) => void;
   /** Broadphase dedupe stamp. */
@@ -43,6 +45,8 @@ const CELL = 8;
  */
 export class CollisionWorld {
   colliders: Collider[] = [];
+  /** XZ rects where the ground plane at y=0 is absent (stairwells down to the metro). */
+  holes: { x0: number; z0: number; x1: number; z1: number }[] = [];
   private grid = new Map<number, Collider[]>();
   private dirty = true;
   private stampN = 0;
@@ -148,6 +152,11 @@ export class CollisionWorld {
     return out;
   }
 
+  inHole(x: number, z: number) {
+    for (const h of this.holes) if (x > h.x0 && x < h.x1 && z > h.z0 && z < h.z1) return true;
+    return false;
+  }
+
   /** Ramp surface height at a point (clamped into the ramp's footprint). */
   rampHeight(c: Collider, x: number, z: number) {
     const a = c.axis === 'x' ? x : z;
@@ -161,7 +170,7 @@ export class CollisionWorld {
    * Pushes a vertical cylinder (feet at pos.y) out of all solids it overlaps, in XZ.
    * Iterated a few times so corners resolve cleanly. Returns true if any contact happened.
    */
-  resolveCircle(pos: THREE.Vector3, radius: number, height: number, step = 0.3): boolean {
+  resolveCircle(pos: THREE.Vector3, radius: number, height: number, step = 0.3, vaulting = false): boolean {
     let hit = false;
     for (let iter = 0; iter < 3; iter++) {
       let moved = false;
@@ -171,6 +180,8 @@ export class CollisionWorld {
         if (!c.solid) continue;
         // Low boxes (curbs) are stepped onto rather than blocking; high ones are walked under.
         if (pos.y + height < c.min.y || c.max.y <= pos.y + step) continue;
+        // Mid-jump with the feet high enough: clear the railing.
+        if (vaulting && c.vault && pos.y > c.max.y - 0.62) continue;
         if (c.kind === 'cyl') {
           const dx = pos.x - c.cx!;
           const dz = pos.z - c.cz!;
@@ -217,7 +228,8 @@ export class CollisionWorld {
 
   /** Highest walkable surface under a point that is no more than `reach` above the feet. */
   groundHeightAt(x: number, z: number, radius: number, feetY: number, reach = 0.3): number {
-    let h = 0;
+    // The street plane only exists outside stairwells and only for things above it.
+    let h = feetY < -0.6 || this.inHole(x, z) ? -Infinity : 0;
     const list = this.query(x - radius, z - radius, x + radius, z + radius);
     for (let i = 0; i < list.length; i++) {
       const c = list[i];
@@ -233,7 +245,8 @@ export class CollisionWorld {
         if (Math.hypot(x - c.cx!, z - c.cz!) > c.r! + radius) continue;
         top = c.max.y;
       } else top = c.max.y;
-      if (top > feetY + reach) continue;
+      // Ramps are continuous surfaces: a slightly bigger step onto them is never a ledge.
+      if (top > feetY + (c.kind === 'ramp' ? Math.max(reach, 0.5) : reach)) continue;
       if (top > h) h = top;
     }
     return h;
@@ -326,9 +339,9 @@ export class CollisionWorld {
     // Ground plane.
     let surface: Surface = 'concrete';
     const normal = out?.normal ?? new THREE.Vector3();
-    if (dir.y < -1e-6) {
+    if (dir.y < -1e-6 && oy > -0.5) {
       const tg = -oy / dir.y;
-      if (tg > 0 && tg < best) {
+      if (tg > 0 && tg < best && !this.inHole(ox + dir.x * tg, oz + dir.z * tg)) {
         best = tg;
         bestC = null;
         bestAxis = 1;

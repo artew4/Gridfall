@@ -68,6 +68,10 @@ export abstract class Enemy {
   stun = 0;
   protected fallV = 0;
   private path: number[] = [];
+  private forcePathT = 0;
+  private noProgressT = 0;
+  private bestGoalD = Infinity;
+  private lastGoal = new THREE.Vector3(1e9, 0, 0);
   private pathT = 0;
   private dieT = 0;
   private stepIdx = 0;
@@ -169,16 +173,30 @@ export abstract class Enemy {
     const from = new THREE.Vector3(this.pos.x, this.pos.y + 1, this.pos.z);
     const to = new THREE.Vector3(goal.x, goal.y + 1, goal.z);
     // Straight at the goal only on the same level; otherwise the graph knows where the stairs are.
-    if (Math.abs(to.y - from.y) < 1 && ctx.nav.clear(from, to)) {
+    // If a straight approach stops making progress (wedged in a corner), use the graph for a while.
+    this.forcePathT -= dt;
+    const dGoal = Math.hypot(goal.x - this.pos.x, goal.z - this.pos.z);
+    if (this.lastGoal.distanceToSquared(goal) > 4) {
+      this.lastGoal.copy(goal);
+      this.bestGoalD = Infinity;
+    }
+    if (dGoal < this.bestGoalD - 0.3) {
+      this.bestGoalD = dGoal;
+      this.noProgressT = 0;
+    } else this.noProgressT += dt;
+    if (this.noProgressT > 1.2 && dGoal > 2.5) {
+      this.forcePathT = 2.5;
+      this.noProgressT = 0;
+      this.bestGoalD = dGoal;
+    }
+    if (this.forcePathT <= 0 && Math.abs(to.y - from.y) < 1 && ctx.nav.clear(from, to)) {
       this.path.length = 0;
       return goal;
     }
     this.pathT -= dt;
     if (this.pathT <= 0 || this.path.length === 0) {
       this.pathT = 0.6 + Math.random() * 0.3;
-      const a = ctx.nav.nearestVisible(from);
-      const b = ctx.nav.nearestVisible(to);
-      this.path = a >= 0 && b >= 0 ? ctx.nav.path(a, b) : [];
+      this.path = ctx.nav.route(from, to);
     }
     // Skip waypoints we can already see past (never across levels, or we'd cut under a walkway).
     const level = (n: THREE.Vector3) => Math.abs(n.y - from.y) < 1;
@@ -205,7 +223,7 @@ export abstract class Enemy {
       this.fallV = 0;
     }
     const b = ctx.bounds;
-    if (this.pos.y < -1 || this.pos.x < b.min.x || this.pos.x > b.max.x || this.pos.z < b.min.y || this.pos.z > b.max.y) {
+    if (this.pos.y < -9 || this.pos.x < b.min.x || this.pos.x > b.max.x || this.pos.z < b.min.y || this.pos.z > b.max.y) {
       const i = ctx.nav.nearestVisible(new THREE.Vector3(this.pos.x, this.pos.y + 1, this.pos.z));
       const n = ctx.nav.nodes[i >= 0 ? i : 0];
       this.pos.set(n.x, n.y - 1, n.z);

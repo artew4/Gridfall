@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import type { City } from './City';
 import { RAIL } from './City';
 import { Architecture, DECK } from './Architecture';
+
+/** Height of the walkable rooftop layer. */
+export const ROOF = 8.5;
 import { PropKit } from './PropKit';
 import { addSign, type SignGlow, type SignSpec } from './Signs';
 import type { Glow } from './Glows';
@@ -71,6 +74,8 @@ export interface DistrictResult {
   patrols: { route: THREE.Vector3[]; post?: boolean }[];
   doors: THREE.Vector3[];
   storyStart: { x: number; z: number; yaw: number };
+  /** Act 3 objective: the security relay on the Sky Garden. */
+  relay: THREE.Vector3;
   /** Where civilians linger. Yaw: direction faced (atan2 of facing x, z). */
   pois: { pos: THREE.Vector3; yaw: number; kind: 'shop' | 'shelter' | 'wait' | 'chat' }[];
 }
@@ -86,32 +91,43 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
 
   // ======================================================================= Blocks
   // [x0, x1, z0, z1, height, variant, faces]
-  city.block(-21, -5, 15, 24, 11, 1, [
+  // West Terrace (roof 8.5): the southwest block and the strip west of the plaza, with the S8 notch.
+  const NT = { tank: false };
+  city.block(-21, -5, 15, 24, ROOF, 1, [
     { face: 'n', from: -15, to: -5, stores: ['shop', 'izakaya'] },
     { face: 'e', stores: ['izakaya', 'izakaya'] },
     { face: 's', stores: ['shutter', 'door', 'shutter', 'shutter'] },
-  ], rnd);
-  city.block(-21, -15, -2, 15, 9, 2, [
-    { face: 'e', stores: ['shop', 'door', 'shop', 'shutter'], upper: ['door'] },
-    { face: 'w', stores: ['shutter', 'door', 'shutter'] },
-  ], rnd);
-  city.block(-45, -24, -2, 27, 12, 0, [
+  ], rnd, NT);
+  city.block(-21, -17.4, -2, 15, ROOF, 2, [{ face: 'w', stores: ['shutter', 'door', 'shutter'] }], rnd, NT);
+  city.block(-17.4, -15, 7.6, 15, ROOF, 2, [{ face: 'e', stores: ['shop'] }], rnd, NT);
+  city.block(-17.4, -15, -2, 0.4, DECK, 2, [{ face: 'e' }], rnd, NT);
+  city.block(-17.4, -15, 0.4, 7.6, DECK, 2, [{ face: 'e', stores: ['shop'] }], rnd, NT);
+  // Back-alley block, split by the staff passage to the metro (door on the Service Passage).
+  city.block(-45, -36, -2, 27, 12, 0, [{ face: 'n', stores: ['shutter', 'door'] }], rnd);
+  city.block(-33, -24, -2, 27, 12, 0, [
     { face: 'e', stores: ['door', 'shutter', 'shutter', 'door', 'shutter', 'door', 'shutter'] },
-    { face: 'n', stores: ['shutter', 'door', 'shutter', 'shutter', 'door'] },
+    { face: 'n', stores: ['shutter', 'door'] },
   ], rnd);
-  city.block(-40, -5, 27, 50, 13, 2, [
-    { face: 'e', from: 27, to: 48, stores: ['izakaya', 'shop', 'izakaya', 'door', 'izakaya'] },
-    { face: 'n', from: -24, to: -5, stores: ['shutter', 'shop', 'door', 'shutter'] },
+  city.block(-36, -33, 8.7, 27, 12, 0, [], rnd, NT);
+  city.block(-36, -33, -2, 8.7, 12, 0, [], rnd, { tank: false, y0: 3.2 });
+  // South of the widened back-alley bend (z 24..29).
+  city.block(-40, -24, 27, 50, 13, 2, [], rnd);
+  city.block(-24, -5, 29, 50, 13, 2, [
+    { face: 'e', from: 29, to: 48, stores: ['izakaya', 'shop', 'izakaya', 'door', 'izakaya'] },
+    { face: 'n', stores: ['shutter', 'shop', 'door', 'shutter'] },
   ], rnd);
-  city.block(5, 40, 15, 50, 15, 0, [
-    { face: 'w', from: 15, to: 48, stores: ['shop', 'door', 'izakaya', 'shop', 'shutter', 'door', 'shop', 'izakaya'] },
+  // Lantern Roof (8.5) over the east side of Lantern Street, the rest of the block stays tall.
+  city.block(5, 20, 15, 24, ROOF, 0, [
+    { face: 'w', stores: ['shop', 'door'] },
     { face: 'n', from: 5, to: 15, stores: ['shop', 'shop'] },
-  ], rnd);
+  ], rnd, NT);
+  city.block(5, 20, 24, 50, 15, 0, [{ face: 'w', from: 24, to: 48, stores: ['door', 'izakaya', 'shop', 'shutter', 'door', 'shop'] }], rnd);
+  city.block(20, 40, 15, 50, 15, 0, [], rnd);
   city.block(-40, 40, 48, 66, 16, 1, [{ face: 'n', from: -5, to: 5, stores: ['shutter', 'door'] }], rnd);
-  city.block(15, 48, 2, 15, 13, 2, [
-    { face: 'w', from: 2, to: 15 },
-    { face: 'n', stores: ['shop', 'door', 'shop', 'izakaya', 'shutter', 'shop', 'door', 'shutter'] },
-  ], rnd);
+  // Sky Garden (8.5) on the block south of Neon Alley; the S5 notch climbs from the W2 balcony.
+  city.block(15, 48, 4.6, 15, ROOF, 2, [{ face: 'w', from: 4.6, to: 15 }], rnd, NT);
+  city.block(22.2, 48, 2, 4.6, ROOF, 2, [{ face: 'n', stores: ['izakaya', 'shutter', 'shop', 'door', 'shop', 'shutter'] }], rnd, NT);
+  city.block(15, 22.2, 2, 4.6, DECK, 2, [{ face: 'n', stores: ['shop'] }], rnd, NT);
   city.block(15, 19, -21, -3, 10, 0, [
     { face: 'w', from: -15, to: -3, stores: ['shop', 'door', 'shop'], upper: ['door', 'shop'] },
     { face: 'e', stores: ['shutter', 'door', 'shutter', 'shutter'] },
@@ -122,10 +138,11 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
     { face: 'w', stores: ['shop'] },
     { face: 'n', stores: ['shutter', 'shutter'] },
   ], rnd);
-  city.block(23, 48, -21, -3, 17, 1, [
-    { face: 's', stores: ['shop', 'izakaya', 'shutter', 'door', 'shop', 'shutter'], upper: ['shop', 'door', 'shop', 'shop'] },
-    { face: 'w', stores: ['shutter', 'door', 'shutter', 'shutter'] },
-  ], rnd);
+  // Tech Roof (8.5) north of Neon Alley, the S7 notch climbs from the tech deck; the tower behind stays tall.
+  city.block(31.2, 48, -9, -3, ROOF, 1, [{ face: 's', stores: ['shop', 'izakaya', 'shutter', 'door'], upper: ['shop', 'door', 'shop'] }], rnd, NT);
+  city.block(23, 31.2, -9, -5.4, ROOF, 1, [{ face: 'w' }], rnd, NT);
+  city.block(23, 31.2, -5.4, -3, DECK, 1, [{ face: 's', stores: ['shop', 'shutter'] }, { face: 'w' }], rnd, NT);
+  city.block(23, 48, -21, -9, 17, 1, [{ face: 'w', stores: ['shutter', 'door', 'shutter'] }], rnd);
   city.block(6, 48, -58, -26, 22, 2, [
     { face: 'w', stores: ['shutter', 'door', 'shop', 'shutter', 'door', 'shutter', 'shop'] },
     { face: 's', from: 6, to: 23, stores: ['shutter', 'door', 'shutter', 'shop'] },
@@ -189,8 +206,159 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   arch.stair({ x0: -40, z0: -6, x1: -32, z1: -4.2, axis: 'x', rise: 1, rails: ['s'] });
   arch.stair({ x0: 32, z0: -3, x1: 40, z1: -1.2, axis: 'x', rise: -1, rails: ['s'] });
 
-  // Sniper perches: two rooftops with low parapets, and a maintenance catwalk on the overpass.
-  col.add(-15.3, 9, -2, -15, 9.6, 15, 'concrete');
+  // ======================================================================= Rooftop layer (8.5)
+  // Roof decks.
+  const roofs = [
+    { x0: 15, z0: 4.6, x1: 48, z1: 15 }, // Sky Garden
+    { x0: 22.2, z0: 2, x1: 48, z1: 4.6 },
+    { x0: 31.2, z0: -9, x1: 48, z1: -3 }, // Tech Roof
+    { x0: 23, z0: -9, x1: 31.2, z1: -5.4 },
+    { x0: 5, z0: 15, x1: 20, z1: 24 }, // Lantern Roof
+    { x0: -21, z0: 15, x1: -5, z1: 24 }, // West Terrace
+    { x0: -21, z0: -2, x1: -17.4, z1: 15 },
+    { x0: -17.4, z0: 7.6, x1: -15, z1: 15 },
+  ];
+  for (const r of roofs) arch.roofDeck(r, ROOF);
+  const hi = (x0: number, z0: number, x1: number, z1: number) => arch.parapet(x0, z0, x1, z1, ROOF, false);
+  const lo = (x0: number, z0: number, x1: number, z1: number) => arch.parapet(x0, z0, x1, z1, ROOF, true);
+  // Sky Garden: high over Neon Alley (gaps for the S6 landing and the bridge), low over the S5 stair and S1.
+  hi(22.2, 2.14, 32, 2.14);
+  hi(34, 2.14, 40, 2.14);
+  hi(42.5, 2.14, 48, 2.14);
+  lo(15, 4.74, 22.2, 4.74);
+  lo(15.14, 4.6, 15.14, 11);
+  hi(15.14, 11, 15.14, 15);
+  // Tech Roof.
+  hi(31.2, -3.14, 40, -3.14);
+  hi(42.5, -3.14, 48, -3.14);
+  lo(23, -5.54, 31.2, -5.54);
+  hi(23.14, -9, 23.14, -5.4);
+  // Lantern Roof.
+  hi(5, 15.14, 15, 15.14);
+  hi(5.14, 15, 5.14, 19);
+  hi(5.14, 21, 5.14, 24);
+  // West Terrace.
+  hi(-5.14, 15, -5.14, 19);
+  hi(-5.14, 21, -5.14, 24);
+  hi(-15, 15.14, -5, 15.14);
+  hi(-21, 23.86, -5, 23.86);
+  hi(-20.86, -2, -20.86, 24);
+  hi(-21, -1.86, -17.4, -1.86);
+  lo(-17.54, -2, -17.54, 7.6);
+  lo(-15.14, 7.6, -15.14, 11);
+  hi(-15.14, 11, -15.14, 15);
+  // Bridges over Neon Alley and Lantern Street, the S6 landing.
+  arch.walkway({ x0: 40, z0: -3, x1: 42.5, z1: 2 }, [{ edge: 'w', vault: false }, { edge: 'e', vault: false }], [], ROOF);
+  arch.walkway({ x0: -5, z0: 19, x1: 5, z1: 21 }, [{ edge: 'n', vault: false }, { edge: 's', vault: false }], [], ROOF);
+  arch.walkway({ x0: 32, z0: 0.2, x1: 34, z1: 2 }, [{ edge: 'n', vault: false }, { edge: 'e', vault: false }], [[33.6, 0.45]], ROOF);
+  // Stairs up to the roofs.
+  arch.stair({ x0: 15, z0: 2, x1: 22.2, z1: 4.6, axis: 'x', rise: 1, rails: ['n'], bottom: DECK, top: ROOF, vault: false }); // S5 from W2
+  arch.stair({ x0: 17, z0: 0.2, x1: 32, z1: 2, axis: 'x', rise: 1, rails: ['n'], bottom: 0, top: ROOF, vault: false }); // S6 from Neon Alley
+  arch.stair({ x0: 24, z0: -5.4, x1: 31.2, z1: -3, axis: 'x', rise: 1, rails: ['s'], bottom: DECK, top: ROOF }); // S7 from the tech deck
+  arch.stair({ x0: -17.4, z0: 0.4, x1: -15, z1: 7.6, axis: 'z', rise: 1, rails: ['e'], bottom: DECK, top: ROOF }); // S8 from W3
+
+  // ----------------------------------------------------------------- Rooftop life and cover
+  const R = ROOF;
+  // Sky Garden: a rooftop bar under string lights, tables, planters, condensers, the security relay.
+  kit.boxCover(36, R, 14.2, 7, 1.1, 0.9, kit.wood, 'wood');
+  b.add(worldBox(7, 2.2, 0.2, 1), m.darkMetal, 36, R + 1.1, 14.9);
+  const bottleMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 0.9, 0.4) });
+  for (let i = 0; i < 18; i++) b.add(worldBox(0.08, 0.28, 0.08, 1), bottleMat, 33 + i * 0.34, R + 1.75, 14.75);
+  for (const [x, z] of [[27.5, 8], [31, 11], [39.5, 8.2], [43, 11]] as const) kit.table(x, R, z);
+  kit.planter(25.5, 13.4, rnd, R);
+  kit.planter(46.5, 10.5, rnd, R);
+  kit.boxCover(19.6, R, 8.2, 1.6, 1.3, 1.1, m.paintedMetal);
+  kit.boxCover(19.6, R, 11.3, 1.6, 1.3, 1.1, m.paintedMetal);
+  b.add(new THREE.CylinderGeometry(1.15, 1.15, 2.4, 14), m.paintedMetal, 46, R + 2.6, 13.2);
+  for (const [dx, dz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.add(worldBox(0.12, 1.4, 0.12, 1), m.darkMetal, 46 + dx, R + 0.7, 13.2 + dz);
+  col.addCylinder(46, 13.2, 1.15, R, R + 3.8, 'metal');
+  // String lights across the garden: cables + warm bulbs, one real light.
+  const bulbMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 2.1, 1.1) });
+  const bulbGeo = new THREE.SphereGeometry(0.06, 6, 5);
+  for (const [z0, z1] of [[5.5, 14.5], [7.5, 14.5]] as const) {
+    for (let x = 21; x < 47; x += 6.5) {
+      const a = new THREE.Vector3(x, R + 3.2, z0);
+      const c = new THREE.Vector3(x + 4, R + 3.2, z1);
+      kit.cableLine(a, c, 0.6, 0.01);
+      for (let k = 1; k < 8; k++) {
+        const t = k / 8;
+        b.add(bulbGeo, bulbMat, a.x + (c.x - a.x) * t, a.y - 0.6 * 4 * t * (1 - t) - 0.08, a.z + (c.z - a.z) * t);
+      }
+    }
+  }
+  for (let x = 21; x < 48; x += 6.5) b.add(worldBox(0.08, 3.4, 0.08, 1), m.darkMetal, x, R + 1.7, 5.4);
+  const gardenLight = new THREE.PointLight(0xffb070, 22, 20, 2);
+  gardenLight.position.set(33, R + 3.6, 10);
+  scene.add(gardenLight);
+  const gg = glows.add({ pos: new THREE.Vector3(33, R + 3, 10), color: new THREE.Color(1, 0.7, 0.4), radius: 12, base: 1, light: gardenLight, lightBase: 22, haloSize: 0.01, haloStrength: 0, mode: 'steady', reflect: { width: 8, anchor: new THREE.Vector3(33, R, 9), length: 6, map: null } });
+  gg.materials.push({ mat: bulbMat, base: bulbMat.color.clone() });
+  // Security relay mast (the Act 3 objective): cabinet, antenna, red status lamps.
+  const relay = new THREE.Vector3(45.6, R, 3.6);
+  kit.boxCover(relay.x, R, relay.z, 1.4, 2.2, 0.9, m.paintedMetal);
+  b.add(new THREE.CylinderGeometry(0.06, 0.09, 6, 6), m.darkMetal, relay.x + 0.4, R + 5.2, relay.z);
+  for (const y of [3.5, 5, 6.5]) b.add(worldBox(1.2, 0.05, 0.05, 1), m.darkMetal, relay.x + 0.4, R + y, relay.z);
+  const relayMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 0.3, 0.2) });
+  const relayLamp = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 0.04), relayMat);
+  relayLamp.position.set(relay.x, R + 1.8, relay.z - 0.47);
+  scene.add(relayLamp);
+  const relayGlow = glows.add({ pos: new THREE.Vector3(relay.x, R + 1.8, relay.z - 0.8), color: new THREE.Color(1, 0.1, 0.06), radius: 4, base: 1.2, haloSize: 1.4, haloStrength: 0.4, mode: 'blink' });
+  relayGlow.materials.push({ mat: relayMat, base: relayMat.color.clone() });
+
+  // Tech Roof: dishes, antenna mast with a blinking aircraft light, generators.
+  kit.boxCover(36, R, -8.3, 2.4, 1.5, 1.4, m.paintedMetal);
+  kit.boxCover(44.5, R, -6.6, 1.8, 1.2, 1.6, m.darkMetal);
+  kit.crates(25, -8.9, R);
+  for (const [x, z, a] of [[39, -7.6, 0.6], [46.5, -4.2, -0.4]] as const) {
+    b.add(new THREE.CylinderGeometry(0.05, 0.05, 1.4, 6), m.darkMetal, x, R + 0.7, z);
+    const dish = new THREE.SphereGeometry(0.8, 14, 6, 0, Math.PI * 2, 0, 0.9);
+    b.add(dish, m.paintedMetal, x, R + 1.5, z, -0.9, a, 0);
+  }
+  b.add(new THREE.CylinderGeometry(0.08, 0.14, 9, 6), m.darkMetal, 33, R + 4.5, -8.4);
+  const aviMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 0.2, 0.1) });
+  const avi = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), aviMat);
+  avi.position.set(33, R + 9.1, -8.4);
+  scene.add(avi);
+  const aviGlow = glows.add({ pos: avi.position.clone(), color: new THREE.Color(1, 0.08, 0.05), radius: 3, base: 1, haloSize: 3, haloStrength: 0.5, mode: 'blink', seed: 2.2 });
+  aviGlow.materials.push({ mat: aviMat, base: aviMat.color.clone() });
+
+  // Lantern Roof: a tiny rooftop shrine and laundry on a line.
+  kit.torii(12, 21.5, 1.6, R, 2.4, true);
+  kit.boxCover(14.8, R, 21.5, 1.2, 1.4, 1.2, kit.wood, 'wood');
+  b.add(worldBox(1.5, 0.12, 1.5, 1), kit.red, 14.8, R + 1.46, 21.5, 0, 0, 0.12);
+  const shrineLamp = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.2, 0.5) });
+  const sl = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), shrineLamp);
+  sl.position.set(13.9, R + 1.2, 21.5);
+  scene.add(sl);
+  glows.add({ pos: sl.position.clone(), color: new THREE.Color(1, 0.45, 0.2), radius: 4, base: 1, haloSize: 1.4, haloStrength: 0.35, mode: 'buzz' }).materials.push({ mat: shrineLamp, base: shrineLamp.color.clone() });
+  kit.cableLine(new THREE.Vector3(7, R + 2.1, 16.5), new THREE.Vector3(18, R + 2.1, 16.5), 0.25, 0.01);
+  for (const x of [7, 18]) b.add(worldBox(0.07, 2.1, 0.07, 1), m.darkMetal, x, R + 1.05, 16.5);
+  const sheet = new THREE.PlaneGeometry(0.9, 1.1);
+  const sheetMats = [0xd8d4c8, 0x6a8ab0, 0xc06a6a].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, side: THREE.DoubleSide }));
+  const sheets: THREE.Mesh[] = [];
+  for (let i = 0; i < 6; i++) {
+    const mesh = new THREE.Mesh(sheet, sheetMats[i % 3]);
+    mesh.position.set(8.2 + i * 1.7, R + 1.5, 16.5);
+    mesh.geometry.translate(0, 0, 0);
+    scene.add(mesh);
+    sheets.push(mesh);
+  }
+  kit.updaters.push((t) => sheets.forEach((sh, i) => (sh.rotation.x = Math.sin(t * 1.7 + i) * 0.18 + wind() * 0.25)));
+  kit.boxCover(18.2, R, 22.6, 1.4, 1.2, 1.4, m.paintedMetal);
+
+  // West Terrace: a greenhouse glowing magenta, planters, benches.
+  const glass = new THREE.MeshStandardMaterial({ color: 0x9fd8d0, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.28, envMapIntensity: 1.6, depthWrite: false });
+  b.add(worldBox(4.2, 2.6, 3, 1), glass, -12, R + 1.3, 21.6);
+  col.add(-14.1, R, 20.1, -9.9, R + 2.6, 23.1, 'glass');
+  const grow = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 0.4, 2.8) });
+  b.add(worldBox(3.6, 0.05, 0.1, 1), grow, -12, R + 2.4, 21.6);
+  glows.add({ pos: new THREE.Vector3(-12, R + 1.8, 21.6), color: new THREE.Color(0.9, 0.2, 1), radius: 6, base: 1, haloSize: 3.5, haloStrength: 0.18, mode: 'steady' }).materials.push({ mat: grow, base: grow.color.clone() });
+  kit.planter(-7.5, 22.4, rnd, R);
+  kit.planter(-20.1, 3, rnd, R);
+  kit.bench(-17, 16.8, true, R);
+  kit.bench(-8, 16.6, true, R);
+  kit.boxCover(-20.2, R, 8, 1.3, 1.2, 1.8, m.paintedMetal);
+
+  // Sniper perches: the E1 rooftop and a maintenance catwalk on the overpass.
   col.add(15, 10, -21, 15.3, 10.6, -3, 'concrete');
   const CW = { x0: -8, z0: -21, x1: 8, z1: -19.8 };
   b.add(worldBox(16, 0.15, 1.2, 1), arch.deckMat, 0, RAIL.deckTop - 0.075, -20.4);
@@ -201,11 +369,11 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   for (const x of [-7, 0, 7]) b.add(worldBox(0.08, 1.4, 0.08, 1), m.darkMetal, x, RAIL.deckTop - 0.7, -19.9);
   arch.shelters.push({ ...CW, y: RAIL.deckTop - 0.2 });
   // Roof access hatches the snipers emerge from.
-  b.add(worldBox(1.2, 1.1, 1.0, 1), m.darkMetal, -18.8, 9.55, 10.2);
+  b.add(worldBox(1.2, 1.1, 1.0, 1), m.darkMetal, -19.6, ROOF + 0.55, 12.6);
   b.add(worldBox(1.2, 1.1, 1.0, 1), m.darkMetal, 17.8, 10.55, -12.5);
-  col.addCentered(-18.8, 9.55, 10.2, 1.2, 1.1, 1.0, 'metal');
+  col.addCentered(-19.6, ROOF + 0.55, 12.6, 1.2, 1.1, 1.0, 'metal');
   col.addCentered(17.8, 10.55, -12.5, 1.2, 1.1, 1.0, 'metal');
-  const perches = [new THREE.Vector3(-16.2, 9, 8), new THREE.Vector3(16.2, 10, -9), new THREE.Vector3(0, RAIL.deckTop, -20.4)];
+  const perches = [new THREE.Vector3(-16.2, ROOF, 12.5), new THREE.Vector3(16.2, 10, -9), new THREE.Vector3(0, RAIL.deckTop, -20.4)];
 
   // ======================================================================= Signs
   const specs: SignSpec[] = [
@@ -225,11 +393,11 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
     { text: '新宿三丁目', color: '#5fd0ff', style: 'box', bg: '#0f3a8a', textColor: '#ffffff', vertical: false, mount: 'wall', face: 'w', wall: 5, x: 4.95, y: 10.5, z: 30, size: 4.5, reflect: false, brightness: 1.0 },
     // Neon Alley: dense magenta, violet and cold white.
     { text: 'ホテル', color: '#ff2fd0', style: 'neon', vertical: true, mount: 'perp', face: 's', wall: -3, x: 30, y: 9.2, z: -2.4, size: 4.6, light: 30, lightDist: 18, hum: true, mode: 'steady' },
-    { text: 'BAR夜', color: '#a855ff', style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: 2, x: 24, y: 4.8, z: 1.95, size: 3.2, mode: 'flicker' },
+    { text: 'BAR夜', color: '#a855ff', style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: 2, x: 39, y: 4.8, z: 1.95, size: 3.2, mode: 'flicker' },
     { text: 'パチンコ', color: '#f4f8ff', style: 'box', bg: '#e8eef8', textColor: '#d0105a', vertical: true, mount: 'perp', face: 'n', wall: 2, x: 36, y: 7.4, z: 1.6, size: 3.8, brightness: 1.5 },
     { text: 'マッサージ', color: '#ff4fa0', style: 'neon', vertical: true, mount: 'perp', face: 's', wall: -3, x: 41, y: 7.5, z: -2.6, size: 4.2, mode: 'broken' },
-    { text: '電脳', color: '#9b7bff', style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: 2, x: 43, y: 9.5, z: 1.95, size: 3.0 },
-    { text: 'ネットカフェ', color: '#7fd8ff', style: 'box', bg: '#103a7a', textColor: '#ffffff', vertical: false, mount: 'wall', face: 's', wall: -3, x: 21, y: 8.2, z: -2.95, size: 4.6, brightness: 1.1, floorY: DECK },
+    { text: '電脳', color: '#9b7bff', style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: 2, x: 45, y: 6.6, z: 1.95, size: 2.6 },
+    { text: 'ネットカフェ', color: '#7fd8ff', style: 'box', bg: '#103a7a', textColor: '#ffffff', vertical: false, mount: 'wall', face: 's', wall: -3, x: 36.5, y: 6.9, z: -2.95, size: 4.2, brightness: 1.1, floorY: DECK },
     // Service Passage: sodium yellow and toxic green.
     { text: '非常口', color: '#3dff6a', style: 'box', bg: '#108a3a', textColor: '#ffffff', vertical: false, mount: 'wall', face: 'e', wall: -45, x: -44.95, y: 3.0, z: -4, size: 1.8, brightness: 1.6 },
     { text: '危険', color: '#ffd23a', style: 'box', bg: '#f2c018', textColor: '#1a1206', vertical: true, mount: 'perp', face: 'n', wall: -2, x: -20, y: 3.2, z: -2.4, size: 1.4, reflect: false },
@@ -407,7 +575,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   kit.dumpster(22.4, -12, true);
   kit.bags(20, -6, 4, rnd);
   // Neon Alley.
-  kit.dumpster(22, 1.35, false);
+  kit.dumpster(35, 1.35, false);
   kit.crates(46.2, -2.6);
   kit.bags(33, 1.4, 4, rnd);
   // Service Passage.
@@ -424,7 +592,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
     { x: -24, y: 3.2, z: 6, face: 'e' },
     { x: -24, y: 2.8, z: 18, face: 'e' },
     { x: -21, y: 6.2, z: 2, face: 'w' },
-    { x: -34, y: 2.4, z: -2, face: 'n' },
+    { x: -27, y: 2.6, z: -2, face: 'n' },
     { x: -41, y: 2.6, z: -2, face: 'n' },
     { x: -22, y: 6.4, z: -6, face: 's' },
     { x: 19, y: 6.2, z: -12, face: 'e' },
@@ -432,16 +600,16 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   ]);
 
   // AC units and gutter pipes on every street-facing facade.
-  const ac: [Parameters<PropKit['acUnits']>[0], number, number, number][] = [
-    ['e', -5, 27, 48], ['w', 5, 15, 48], ['e', -5, 15, 24],
+  const ac: [Parameters<PropKit['acUnits']>[0], number, number, number, number?][] = [
+    ['e', -5, 29, 48], ['w', 5, 24, 48], ['e', -5, 15, 24, ROOF - 0.6],
     ['e', -6, -58, -26], ['w', 6, -58, -26],
-    ['n', 2, 15, 48], ['s', -3, 23, 48],
-    ['s', -6, -45, -15], ['n', -2, -45, -24],
-    ['s', -15, -15, 15], ['n', 15, -15, 15], ['e', -15, -15, 15], ['w', 15, -15, 15],
-    ['e', -24, -2, 27], ['w', -21, -2, 15],
-    ['w', 23, -21, -3], ['e', 19, -21, -3],
+    ['n', 2, 22.2, 48, ROOF - 0.6], ['s', -3, 31.2, 48, ROOF - 0.6],
+    ['s', -6, -45, -15], ['n', -2, -45, -36], ['n', -2, -33, -24],
+    ['s', -15, -15, 15], ['n', 15, -15, 15, ROOF - 0.6], ['e', -15, -15, -6], ['w', 15, -15, -3],
+    ['e', -24, -2, 27], ['w', -21, -2, 15, ROOF - 0.6],
+    ['w', 23, -21, -9], ['e', 19, -21, -3],
   ];
-  for (const [f, w, a0, a1] of ac) kit.acUnits(f, w, a0, a1, rnd);
+  for (const [f, w, a0, a1, max] of ac) kit.acUnits(f, w, a0, a1, rnd, 7.6, max);
 
   // Utility poles and the cable mess overhead.
   const poles = [kit.pole(-4.6, 19), kit.pole(4.6, 27), kit.pole(-4.6, 35), kit.pole(4.6, 43), kit.pole(-5.3, -29), kit.pole(5.3, -38), kit.pole(-5.3, -49)];
@@ -527,7 +695,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   // Trackside.
   for (const [x, z] of [[3, -21.9], [8.5, -21.9], [15, -21.9], [20.6, -21.9], [21, -17], [21, -9], [21, -4]]) N(x, 0, z);
   // Neon Alley.
-  for (const x of [17, 26, 33, 40, 45]) N(x, 0, 0.5);
+  for (const x of [17, 26, 33, 40, 45]) N(x, 0, -0.6);
   // Upper level.
   const up = (x: number, z: number) => N(x, DECK, z);
   for (const x of [-13.5, -7, 0, 7, 13.5]) up(x, -13.5);
@@ -553,6 +721,22 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   stairChain([-13.7, 14.2], [-13.7, 9], s2top);
   stairChain([-41.6, -5.1], [-36, -5.1], s3top);
   stairChain([41.6, -2.1], [36, -2.1], s4top);
+  // Rooftops.
+  const rf = (x: number, z: number) => N(x, ROOF, z);
+  const s5top = rf(23.4, 3.3);
+  for (const [x, z] of [[26, 7.5], [31, 9], [37, 10.5], [44, 8.5], [41.2, 3.6], [17.5, 12], [17.5, 18], [11, 19.5], [7, 20], [0, 20], [-7, 20], [-12, 19.5], [-18.5, 19.5], [-18.5, 12], [-16.2, 12.5], [-18.5, 5], [-18.5, -0.5], [41.2, -4.5], [36, -6], [27, -7.2]]) rf(x, z);
+  const s6top = rf(33, 1.1);
+  const s7top = rf(32.4, -4.2);
+  const s8top = rf(-16.2, 8.7);
+  const chain3 = (bottom: [number, number, number], mid: [number, number, number], top: number) => {
+    const a = N(...bottom);
+    const c = N(...mid);
+    links.push([a, c], [c, top]);
+  };
+  chain3([14.2, DECK, 3.3], [18.6, (DECK + ROOF) / 2, 3.3], s5top);
+  chain3([15.8, 0, 1.1], [24.5, ROOF / 2, 1.1], s6top);
+  chain3([23.5, DECK, -4.2], [27.6, (DECK + ROOF) / 2, -4.2], s7top);
+  chain3([-16.2, DECK, -0.8], [-16.2, (DECK + ROOF) / 2, 4], s8top);
 
   // ======================================================================= Combat layout
   const coverPoints = [
@@ -561,7 +745,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
     // Upper level: snipers on the balconies keep the fight vertical.
     [0, DECK, -13.5], [-8, DECK, -13.5], [8, DECK, -13.5], [-13.5, DECK, -8], [13.5, DECK, -8], [-13.5, DECK, 1], [13.5, DECK, 1], [24, DECK, -2.1], [-24, DECK, -5.1],
     // Streets.
-    [3, 0, -19], [-3, 0, -31], [3, 0, -42], [25, 0, 1], [36, 0, 1], [-25, 0, -3.2], [-35, 0, -3.2], [3, 0, 30], [-3, 0, 38], [15, 0, -22.5], [21, 0, -12], [-22.5, 0, 10],
+    [3, 0, -19], [-3, 0, -31], [3, 0, -42], [25, 0, -0.6], [36, 0, -0.6], [-25, 0, -3.2], [-35, 0, -3.2], [3, 0, 30], [-3, 0, 38], [15, 0, -22.5], [21, 0, -12], [-22.5, 0, 10],
   ].map(([x, y, z]) => new THREE.Vector3(x, y, z));
   const spawns = [
     new THREE.Vector3(45.5, 0, -0.4), // Neon Alley end
@@ -601,7 +785,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
       // Railway Street beat.
       { route: [v(0, 0, -19), v(1.5, 0, -38), v(-1.5, 0, -50), v(0, 0, -30)] },
       // Neon Alley.
-      { route: [v(17, 0, 0.5), v(40, 0, 0.5)] },
+      { route: [v(17, 0, -0.6), v(40, 0, -0.6)] },
       // A post by the torii, watching Lantern Street.
       { route: [v(2.2, 0, 42.5)], post: true },
     ],
@@ -614,13 +798,14 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
       new THREE.Vector3(21, 0, -17),
     ],
     storyStart: { x: -11, z: 25.5, yaw: Math.PI / 2 },
+    relay,
     pois: [
       // Lantern Street shopfronts (west faces -x, east faces +x).
       ...[29, 33, 37.5, 41].map((z) => ({ pos: v(-3.0, 0, z), yaw: -Math.PI / 2, kind: 'shop' as const })),
       ...[18, 26.5, 31, 39].map((z) => ({ pos: v(3.0, 0, z), yaw: Math.PI / 2, kind: 'shop' as const })),
       // Neon Alley: under the tech deck, and the south shops.
       ...[21, 27, 35].map((x) => ({ pos: v(x, 0, -2.2), yaw: Math.PI, kind: 'shelter' as const })),
-      ...[26, 30, 41].map((x) => ({ pos: v(x, 0, 1.2), yaw: 0, kind: 'shop' as const })),
+      ...[35.5, 41, 46].map((x) => ({ pos: v(x, 0, 0.9), yaw: 0, kind: 'shop' as const })),
       // Plaza: under the walkways out of the rain, the ramen stall, the vending machines.
       ...[-6, 0, 6].map((x) => ({ pos: v(x, 0, -13.6), yaw: Math.PI, kind: 'shelter' as const })),
       { pos: v(-13.4, 0, -6), yaw: -Math.PI / 2, kind: 'shelter' as const },
@@ -636,7 +821,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
       // Chatting groups.
       { pos: v(5, 0, -5.5), yaw: 0.3, kind: 'chat' as const },
       { pos: v(0.5, 0, 35), yaw: 1.2, kind: 'chat' as const },
-      { pos: v(31, 0, 0.6), yaw: 0, kind: 'chat' as const },
+      { pos: v(38, 0, -0.9), yaw: 0, kind: 'chat' as const },
       { pos: v(-1, 0, -42), yaw: 2, kind: 'chat' as const },
     ],
   };

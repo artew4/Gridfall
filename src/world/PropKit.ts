@@ -88,7 +88,7 @@ export class PropKit {
   }
 
   /** Air-conditioner units scattered up a facade segment (upper floors only). */
-  acUnits(face: Face, wall: number, a0: number, a1: number, rnd: () => number, minY = 7.6) {
+  acUnits(face: Face, wall: number, a0: number, a1: number, rnd: () => number, minY = 7.6, maxY = Infinity) {
     const b = this.ctx.builder;
     const [nx, nz] = NORMAL[face];
     const alongX = nz !== 0;
@@ -97,6 +97,7 @@ export class PropKit {
       if (rnd() < 0.35) continue;
       const a = a0 + (i + 0.5) * ((a1 - a0) / count) + (rnd() - 0.5);
       const y = minY + Math.floor(rnd() * 3) * 3.2 + 0.4;
+      if (y > maxY) continue;
       const px = alongX ? a : wall + nx * 0.16;
       const pz = alongX ? wall + nz * 0.16 : a;
       b.add(this.acGeo, this.acBody, px, y, pz, 0, ROT[face], 0);
@@ -163,25 +164,25 @@ export class PropKit {
   }
 
   /** Low bench (not cover, below step height so it never snags movement). */
-  bench(x: number, z: number, alongX: boolean) {
+  bench(x: number, z: number, alongX: boolean, y = 0) {
     const { builder: b, mats: m } = this.ctx;
-    b.add(alongX ? worldBox(1.8, 0.08, 0.5, 1) : worldBox(0.5, 0.08, 1.8, 1), this.wood, x, 0.45, z);
-    for (const s of [-0.75, 0.75]) b.add(worldBox(0.08, 0.42, 0.42, 1), m.darkMetal, alongX ? x + s : x, 0.21, alongX ? z : z + s);
-    this.ctx.col.add(alongX ? x - 0.9 : x - 0.25, 0, alongX ? z - 0.25 : z - 0.9, alongX ? x + 0.9 : x + 0.25, 0.49, alongX ? z + 0.25 : z + 0.9, 'wood');
+    b.add(alongX ? worldBox(1.8, 0.08, 0.5, 1) : worldBox(0.5, 0.08, 1.8, 1), this.wood, x, y + 0.45, z);
+    for (const s of [-0.75, 0.75]) b.add(worldBox(0.08, 0.42, 0.42, 1), m.darkMetal, alongX ? x + s : x, y + 0.21, alongX ? z : z + s);
+    this.ctx.col.add(alongX ? x - 0.9 : x - 0.25, y, alongX ? z - 0.25 : z - 0.9, alongX ? x + 0.9 : x + 0.25, y + 0.49, alongX ? z + 0.25 : z + 0.9, 'wood');
   }
 
   /** Square concrete planter with bamboo: chest-high cover. */
-  planter(x: number, z: number, rnd: () => number) {
+  planter(x: number, z: number, rnd: () => number, y = 0) {
     const { builder: b, col, mats: m } = this.ctx;
-    b.add(worldBox(1.6, 0.8, 1.6, 1), m.darkConcrete, x, 0.4, z);
-    b.add(worldBox(1.4, 0.05, 1.4, 1), this.wood, x, 0.78, z);
-    col.addCentered(x, 0.4, z, 1.6, 0.8, 1.6, 'concrete');
+    b.add(worldBox(1.6, 0.8, 1.6, 1), m.darkConcrete, x, y + 0.4, z);
+    b.add(worldBox(1.4, 0.05, 1.4, 1), this.wood, x, y + 0.78, z);
+    col.addCentered(x, y + 0.4, z, 1.6, 0.8, 1.6, 'concrete');
     for (let i = 0; i < 9; i++) {
       const h = 2.6 + rnd() * 2.2;
       const px = x + (rnd() - 0.5) * 1.1;
       const pz = z + (rnd() - 0.5) * 1.1;
-      b.add(new THREE.CylinderGeometry(0.035, 0.045, h, 5), this.bamboo, px, 0.8 + h / 2, pz, (rnd() - 0.5) * 0.12, 0, (rnd() - 0.5) * 0.12);
-      b.add(new THREE.ConeGeometry(0.35, 0.9, 5), this.leaf, px, 0.8 + h - 0.1, pz, Math.PI, rnd() * 3, 0);
+      b.add(new THREE.CylinderGeometry(0.035, 0.045, h, 5), this.bamboo, px, y + 0.8 + h / 2, pz, (rnd() - 0.5) * 0.12, 0, (rnd() - 0.5) * 0.12);
+      b.add(new THREE.ConeGeometry(0.35, 0.9, 5), this.leaf, px, y + 0.8 + h - 0.1, pz, Math.PI, rnd() * 3, 0);
     }
   }
 
@@ -196,18 +197,37 @@ export class PropKit {
   }
 
   /** Red torii gate spanning a street (pillars are solid). */
-  torii(cx: number, z: number, span: number) {
+  torii(cx: number, z: number, span: number, y = 0, h = 5.6, alongZ = false) {
     const { builder: b, col, mats: m } = this.ctx;
-    const h = 5.6;
+    const k = h / 5.6;
+    const at = (a: number, yy: number): [number, number, number] => (alongZ ? [cx, yy, z + a] : [cx + a, yy, z]);
+    const beam = (len: number, hh: number, d: number) => (alongZ ? worldBox(d, hh, len, 1) : worldBox(len, hh, d, 1));
     for (const s of [-1, 1]) {
-      b.add(new THREE.CylinderGeometry(0.22, 0.26, h, 12), this.red, cx + (s * span) / 2, h / 2, z);
-      b.add(new THREE.CylinderGeometry(0.3, 0.3, 0.4, 12), m.black, cx + (s * span) / 2, 0.2, z);
-      col.addCentered(cx + (s * span) / 2, h / 2, z, 0.5, h, 0.5, 'wood');
+      b.add(new THREE.CylinderGeometry(0.22 * k, 0.26 * k, h, 12), this.red, ...at((s * span) / 2, y + h / 2));
+      b.add(new THREE.CylinderGeometry(0.3 * k, 0.3 * k, 0.4 * k, 12), m.black, ...at((s * span) / 2, y + 0.2 * k));
+      const p = at((s * span) / 2, y + h / 2);
+      col.addCentered(p[0], p[1], p[2], 0.5 * k, h, 0.5 * k, 'wood');
     }
-    b.add(worldBox(span + 2.4, 0.32, 0.45, 1), m.black, cx, h + 0.35, z);
-    b.add(worldBox(span + 2.0, 0.34, 0.4, 1), this.red, cx, h - 0.05, z);
-    b.add(worldBox(span + 0.6, 0.22, 0.3, 1), this.red, cx, h - 1.1, z);
-    b.add(worldBox(0.25, 0.9, 0.2, 1), this.red, cx, h - 0.6, z);
+    b.add(beam(span + 2.4 * k, 0.32 * k, 0.45 * k), m.black, ...at(0, y + h + 0.35 * k));
+    b.add(beam(span + 2.0 * k, 0.34 * k, 0.4 * k), this.red, ...at(0, y + h - 0.05 * k));
+    b.add(beam(span + 0.6 * k, 0.22 * k, 0.3 * k), this.red, ...at(0, y + h - 1.1 * k));
+    b.add(alongZ ? worldBox(0.2 * k, 0.9 * k, 0.25 * k, 1) : worldBox(0.25 * k, 0.9 * k, 0.2 * k, 1), this.red, ...at(0, y + h - 0.6 * k));
+  }
+
+  /** Cover-sized box (condenser, generator, crate stack) with a collider. */
+  boxCover(x: number, y: number, z: number, w: number, h: number, d: number, mat: THREE.Material, surface: 'metal' | 'wood' | 'concrete' = 'metal') {
+    this.ctx.builder.add(worldBox(w, h, d, 1), mat, x, y + h / 2, z);
+    this.ctx.col.add(x - w / 2, y, z - d / 2, x + w / 2, y + h, z + d / 2, surface);
+  }
+
+  /** Round café table with a stool or two (table is low cover-ish, stools are decoration). */
+  table(x: number, y: number, z: number) {
+    const { builder: b, col, mats: m } = this.ctx;
+    b.add(new THREE.CylinderGeometry(0.45, 0.45, 0.04, 14), this.wood, x, y + 0.75, z);
+    b.add(new THREE.CylinderGeometry(0.04, 0.06, 0.74, 6), m.darkMetal, x, y + 0.37, z);
+    b.add(new THREE.CylinderGeometry(0.25, 0.25, 0.03, 10), m.darkMetal, x, y + 0.015, z);
+    col.addCylinder(x, z, 0.45, y, y + 0.77, 'wood');
+    for (const a of [0.7, 3.6]) b.add(new THREE.CylinderGeometry(0.18, 0.15, 0.45, 8), m.darkMetal, x + Math.cos(a) * 0.75, y + 0.225, z + Math.sin(a) * 0.75);
   }
 
   /** Horizontal pipe run along a wall, with brackets and a valve wheel now and then. */
