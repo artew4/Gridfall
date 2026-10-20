@@ -242,14 +242,16 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
     await walk(route, () => game.tokyo.mission.step === 'train' && P.pos.distanceTo(new THREE.Vector3(0, -6, 31)) < 6, 150);
     note(`on the platform: step ${game.tokyo.mission.step} · ${P.pos.toArray().map((v) => v.toFixed(1)).join(',')}`);
     const deadline = performance.now() + 240000;
-    while (game.state === 'play' && performance.now() < deadline) {
+    while ((game.state === 'play' || game.state === 'paused') && performance.now() < deadline) {
+      if (game.state === 'paused') (window as unknown as { __dev: { lock(): void } }).__dev.lock();
       const a = game.tokyo.rail.tt.active();
       if (a && a.s.escape && game.tokyo.rail.train.doorK > 0.9) {
         const cabin = game.tokyo.rail.train.cabinPoint(1, new THREE.Vector3()).setY(-6);
         note('the express is open: walking in');
         await walk(() => [cabin], () => game.tokyo.rail.train.inside(P.pos) || game.state !== 'play', 20);
         note(`inside: ${game.tokyo.rail.train.inside(P.pos)}`);
-        while (game.state === 'play' && performance.now() < deadline) await wait(200);
+        // Until the doors close and the ending starts (a pause from focus loss must not end the wait).
+        await waitWhile(() => (game.state === 'play' || game.state === 'paused') && performance.now() < deadline);
         break;
       }
       await wait(200);

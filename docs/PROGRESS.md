@@ -69,8 +69,19 @@ Branch `feature/multi-setting-3.4`, based on 3.3 (`5db9d7f`). Architecture: `doc
 | Phases 2–3 | 3dd4cf0 | Desert Outpost: dunes, six enterable buildings, mesas, sun with hard shadows, sandstorm, survival integration |
 | Phase 4 | (this) | validation (world, stress, level AI, soak, leak check, prod build), benchmark A/B, docs, tab title per level |
 
+## 3.5: desert polish, setting entities, quit to menu
+Branch `feature/desert-polish-3.5`, based on 3.4 (`90ce917`).
+
+| Step | Commit | Notes |
+|---|---|---|
+| Phases 1–2 | bcfd019 | quit to main menu (full teardown and rebuild); arsenal per setting (Jackal AR, desert mercenaries); rig leak fixes |
+| Phase 3 | 17a5c12 | clutter and cover, organic dunes, transition, detail map, brush |
+| Phase 4 | (this commit) | validation, docs |
+
 ## Next
 Human playtest:
+- 3.5 items: the rifle's feel (recoil, rate, sound), whether the mercenaries read well at a distance and in the storm, the clutter as cover, quitting to the menu and starting again.
+Earlier items:
 - 3.4 items: the setting menu, the desert in calm and in the storm (can you hear them coming?), the buildings' doors and stairs, whether the storm feels fair, and the performance on your machine.
 Earlier items:
 - 3.2 items: does the machine run cooler, is the story clear, do the objectives and markers help, is X comfortable, does the ending land;
