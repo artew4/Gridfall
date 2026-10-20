@@ -22,7 +22,9 @@ interface Blocker {
 const HEAR_OPEN = 42;
 const HEAR_WALLED = 24;
 /** Guards sent by dispatch to a fresh sighting (the first response). */
-const RESPONDERS = 3;
+const RESPONDERS = 2;
+/** Seconds of continuous pursuit before the next reinforcement is sent. */
+const SECOND_WAVE = 12;
 /** Officers only hear dispatch about incidents within this distance. */
 const RADIO_RANGE = 60;
 /** While someone has eyes on him, dispatch repeats the position this often. */
@@ -344,9 +346,9 @@ export class Security {
       this.budget = this.budgetPerEpisode;
       const k = this.alert.lastKnown!;
       const at = new THREE.Vector3(k.x, k.y, k.z);
-      const n = Math.min(2, this.budget);
-      for (let i = 0; i < n; i++) this.reinforce(at);
-      this.secondWaveT = t + 22;
+      // One unit straight away; the rest only if the pursuit drags on.
+      if (this.budget > 0) this.reinforce(at);
+      this.secondWaveT = t + SECOND_WAVE;
     }
     if (l === 'search') {
       this.onRadio('CONTACT LOST — SEARCH THE AREA', 'info');
@@ -383,13 +385,13 @@ export class Security {
     }
     for (const g of this.guards) g.update(dt, ctx);
 
-    // A second, smaller response if the pursuit drags on.
+    // Further units, one at a time, while the pursuit drags on (until the budget runs out).
     if (this.secondWaveT > 0 && t > this.secondWaveT) {
-      this.secondWaveT = -1;
+      this.secondWaveT = this.budget > 1 ? t + SECOND_WAVE : -1;
       if (this.alert.level === 'pursuit' && this.alert.lastKnown) {
         const k = this.alert.lastKnown;
         this.reinforce(new THREE.Vector3(k.x, k.y, k.z));
-      }
+      } else this.secondWaveT = -1;
     }
     this.alert.update(t, this.guards.some((g) => g.alive && g.suspicion >= SUSPICIOUS * 0.6 && !g.hostile));
 
