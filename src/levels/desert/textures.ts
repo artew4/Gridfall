@@ -288,3 +288,146 @@ export function stencilTexture(text: string, sub: string, bg = '#d9c9a3', fg = '
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
+
+/**
+ * One large non-tiling map multiplied over the sand (world-mapped across the whole terrain):
+ * compacted grey gravel in the compound with a ragged edge, tyre ruts from each gate out into the
+ * dunes, oil stains by the motor pool, faint wind streaks. `size` metres span the canvas.
+ */
+export function detailTexture(size: number, ruts: [number, number][][]) {
+  const S = 2048;
+  const { c, g } = canvas(S);
+  const rnd = mulberry32(97);
+  const px = (m: number) => ((m / size) + 0.5) * S;
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, S, S);
+  // Wind streaks (west to east), very faint.
+  for (let i = 0; i < 700; i++) {
+    const x = rnd() * S, y = rnd() * S, l = 40 + rnd() * 160;
+    g.strokeStyle = rnd() < 0.5 ? 'rgba(255,248,230,0.10)' : 'rgba(120,90,60,0.06)';
+    g.lineWidth = 1 + rnd() * 2;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + l, y + (rnd() - 0.5) * 6);
+    g.stroke();
+  }
+  // Compacted ground inside the barrier, its edge broken up.
+  g.fillStyle = 'rgb(214,206,192)';
+  g.fillRect(px(-30.5), px(-27.5), px(30.5) - px(-30.5), px(27.5) - px(-27.5));
+  for (let i = 0; i < 260; i++) {
+    const side = Math.floor(rnd() * 4);
+    const t = rnd();
+    const x = side < 2 ? -30.5 + t * 61 : side === 2 ? -30.5 : 30.5;
+    const z = side < 2 ? (side === 0 ? -27.5 : 27.5) : -27.5 + t * 55;
+    const r = (0.6 + rnd() * 1.8) * (S / size);
+    g.fillStyle = rnd() < 0.5 ? 'rgba(214,206,192,0.8)' : 'rgba(255,255,255,0.7)';
+    g.beginPath();
+    g.ellipse(px(x), px(z), r * 1.6, r, rnd() * 3, 0, Math.PI * 2);
+    g.fill();
+  }
+  // Gravel speckle on the compound.
+  for (let i = 0; i < 40000; i++) {
+    const x = px(-30 + rnd() * 60), y = px(-27 + rnd() * 54);
+    g.fillStyle = rnd() < 0.5 ? 'rgba(140,128,110,0.5)' : 'rgba(250,245,235,0.5)';
+    g.fillRect(x, y, 1.5, 1.5);
+  }
+  // Oil stains on the motor pool apron.
+  for (const [x, z, r] of [[14, -5.5, 1.2], [19, -4.2, 0.8], [22.5, -6, 1.0], [-6, -6, 0.9]] as const) {
+    const grd = g.createRadialGradient(px(x), px(z), 0, px(x), px(z), r * (S / size));
+    grd.addColorStop(0, 'rgba(70,58,46,0.55)');
+    grd.addColorStop(1, 'rgba(70,58,46,0)');
+    g.fillStyle = grd;
+    g.fillRect(px(x) - 40, px(z) - 40, 80, 80);
+  }
+  // Tyre ruts: two parallel darker tracks wobbling along each path.
+  g.lineCap = 'round';
+  for (const path of ruts) {
+    for (const off of [-0.9, 0.9]) {
+      g.strokeStyle = 'rgba(120,98,72,0.35)';
+      g.lineWidth = 0.32 * (S / size);
+      g.beginPath();
+      for (let i = 0; i < path.length - 1; i++) {
+        const [ax, az] = path[i], [bx, bz] = path[i + 1];
+        const len = Math.hypot(bx - ax, bz - az);
+        const nx = -(bz - az) / len, nz = (bx - ax) / len;
+        const steps = Math.ceil(len / 2);
+        for (let k = 0; k <= steps; k++) {
+          const t = k / steps;
+          const wob = Math.sin((i * 7 + k) * 0.7) * 0.25;
+          const x = ax + (bx - ax) * t + nx * (off + wob), z = az + (bz - az) * t + nz * (off + wob);
+          if (i === 0 && k === 0) g.moveTo(px(x), px(z));
+          else g.lineTo(px(x), px(z));
+        }
+      }
+      g.stroke();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+/** Olive plank crate with stencilled markings (each box face shows it once). */
+export function crateTexture(label: string, sub: string, base = '#56603a', ink = '#d9d3a8') {
+  const S = 256;
+  const { c, g } = canvas(S);
+  const rnd = mulberry32(label.length * 31 + 7);
+  g.fillStyle = base;
+  g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 4; i++) {
+    g.fillStyle = 'rgba(0,0,0,0.28)';
+    g.fillRect(0, (i * S) / 4 - 1, S, 3);
+  }
+  g.strokeStyle = 'rgba(0,0,0,0.35)';
+  g.lineWidth = 10;
+  g.strokeRect(5, 5, S - 10, S - 10);
+  grain(g, S, 5000, rnd, 'rgba(255,255,220,0.12)', 'rgba(0,0,0,0.18)');
+  g.fillStyle = ink;
+  g.font = 'bold 38px monospace';
+  g.textAlign = 'center';
+  g.fillText(label, S / 2, S / 2 - 6);
+  g.font = '22px monospace';
+  g.fillText(sub, S / 2, S / 2 + 30);
+  // Scuffs through the paint.
+  for (let i = 0; i < 30; i++) {
+    g.fillStyle = 'rgba(150,120,80,0.35)';
+    g.fillRect(rnd() * S, rnd() * S, 4 + rnd() * 18, 2);
+  }
+  return finish(c);
+}
+
+/** Black rubber with a worn tread band. */
+export function rubberTexture() {
+  const S = 128;
+  const { c, g } = canvas(S);
+  g.fillStyle = '#1c1b1a';
+  g.fillRect(0, 0, S, S);
+  for (let i = 0; i < S; i += 8) {
+    g.fillStyle = 'rgba(80,72,60,0.4)';
+    g.fillRect(i, 0, 3, S);
+  }
+  return finish(c);
+}
+
+/** Dry desert brush: thin forking twigs on a transparent background (alpha-tested cards). */
+export function brushTexture() {
+  const S = 256;
+  const { c, g } = canvas(S);
+  const rnd = mulberry32(113);
+  g.clearRect(0, 0, S, S);
+  const twig = (x: number, y: number, a: number, len: number, w: number, depth: number) => {
+    const x2 = x + Math.cos(a) * len, y2 = y - Math.sin(a) * len;
+    g.strokeStyle = `rgba(${110 + rnd() * 40},${92 + rnd() * 30},${66 + rnd() * 20},1)`;
+    g.lineWidth = w;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x2, y2);
+    g.stroke();
+    if (depth > 0) for (let i = 0; i < 2; i++) twig(x2, y2, a + (rnd() - 0.5) * 1.3, len * (0.55 + rnd() * 0.2), w * 0.65, depth - 1);
+  };
+  for (let i = 0; i < 9; i++) twig(S / 2 + (rnd() - 0.5) * 30, S - 4, Math.PI / 2 + (rnd() - 0.5) * 1.6, 50 + rnd() * 40, 4, 4);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}

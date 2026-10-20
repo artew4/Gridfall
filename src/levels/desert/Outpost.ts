@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { StaticBuilder, worldBox } from '../../world/Builder';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Collider, CollisionWorld } from '../../world/Collision';
 import type { Glows } from '../../world/Glows';
 import type { Breakable, CabinetSpot } from '../../gameplay/Interactives';
@@ -89,7 +90,6 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     rock: std(T.rockTexture(), 0xffffff, 0.95, 0, 0.15),
     rust: std(T.corrugatedTexture(), 0x9a6a48, 0.7, 0.4, 0.4),
     bulb: new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 2.4, 1.4) }),
-    shrub: new THREE.MeshStandardMaterial({ color: 0x6b5a3a, roughness: 1, side: THREE.DoubleSide }),
     palm: new THREE.MeshStandardMaterial({ color: 0x5b6a2e, roughness: 0.9, side: THREE.DoubleSide }),
     trunk: std(T.woodTexture(), 0x9c8466, 0.95),
   };
@@ -388,7 +388,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   crateStack(-14.5, -6.5, 1);
   crateStack(24.0, -1.0, 1);
   crateStack(-24.0, -3.0, 2);
-  for (const [x, z] of [[8.8, -2.0], [17.5, 4.1]]) cylinder(x, z, 0.32, 0.95, m.rust);
+  cylinder(8.8, -2.0, 0.32, 0.95, m.rust);
   const jersey = (x0: number, z0: number, x1: number, z1: number) => {
     const c = solid(x0, 0, z0, x1, 0.9, z1, m.concrete);
     c.vault = true;
@@ -405,6 +405,105 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   tent(2.0, -16.5, 6.4, -13.2);
   tent(-8.6, -16.5, -4.2, -13.2);
   for (const z of [-22.6, -19.4]) cylinder(-8.6, z, 0.9, 2.4, m.whitewash);
+
+  // ======================================================================= Clutter (3.5)
+  // Every piece collides as exactly what you see, and sits either flush against a wall or a
+  // neighbour or at least 1 m clear of everything (no body-width slots).
+  const crateMats = {
+    ammo: new THREE.MeshStandardMaterial({ map: T.crateTexture('5.56 × 900', '弾薬 · AMMO'), roughness: 0.85 }),
+    gear: new THREE.MeshStandardMaterial({ map: T.crateTexture('KESTREL', '補給 · SUPPLY', '#6a5a3c', '#efe2b8'), roughness: 0.85 }),
+    med: new THREE.MeshStandardMaterial({ map: T.crateTexture('MEDICAL', '医療 · ＋', '#d8d2c4', '#a8231f'), roughness: 0.8 }),
+    case: new THREE.MeshStandardMaterial({ map: T.crateTexture('', 'CASE · 器材', '#3d3f34', '#bdb79a'), roughness: 0.6, metalness: 0.2 }),
+  };
+  const rubber = std(T.rubberTexture(), 0xffffff, 0.95);
+  /** A box that shows its texture once per face (crates), seen and solid alike. */
+  const crate = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material) => {
+    b.add(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), mat, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    return col.add(x0, y0, z0, x1, y1, z1, 'wood');
+  };
+  /** Barrels standing in a touching row along x (or z), rims and a painted band. */
+  const barrels = (x: number, z: number, n: number, alongX = true, y = 0) => {
+    for (let i = 0; i < n; i++) {
+      const cx = alongX ? x + i * 0.62 : x, cz = alongX ? z : z + i * 0.62;
+      b.add(new THREE.CylinderGeometry(0.3, 0.3, 0.92, 14), m.rust, cx, y + 0.46, cz);
+      b.add(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 14), i % 2 ? m.darkMetal : crateMats.ammo, cx, y + 0.62, cz);
+      col.addCylinder(cx, cz, 0.3, y, y + 0.92, 'metal');
+    }
+  };
+  /** A cable spool: an upright drum with flanges (the flange radius is the collider). */
+  const spool = (x: number, z: number) => {
+    b.add(new THREE.CylinderGeometry(0.42, 0.42, 0.8, 12), m.wood, x, 0.45, z);
+    for (const y of [0.05, 0.9]) b.add(new THREE.CylinderGeometry(0.7, 0.7, 0.1, 16), m.wood, x, y, z);
+    col.addCylinder(x, z, 0.7, 0, 0.95, 'wood');
+  };
+  /** Stack of tyres. */
+  const tyres = (x: number, z: number, n: number) => {
+    for (let i = 0; i < n; i++) b.add(new THREE.CylinderGeometry(0.42, 0.42, 0.26, 14), rubber, x, 0.13 + i * 0.27, z);
+    col.addCylinder(x, z, 0.42, 0, n * 0.27, 'wood');
+  };
+  /** Scrap pile: rusted plates, an engine block, a sheet of roofing on top (axis-aligned, stacked). */
+  const scrap = (x: number, z: number, y = 0) => {
+    solid(x - 0.8, y, z - 0.6, x + 0.8, y + 0.3, z + 0.6, m.rust, 'metal');
+    solid(x - 0.55, y + 0.3, z - 0.45, x + 0.45, y + 0.82, z + 0.35, m.darkMetal, 'metal');
+    solid(x - 0.75, y + 0.82, z - 0.55, x + 0.7, y + 0.86, z + 0.5, m.metal, 'metal');
+  };
+
+  // Motor pool apron: barrels along the hangar wall, cable spools.
+  barrels(22.5, -7.7, 3);
+  spool(11.6, -4.0);
+  spool(19.6, -4.4);
+  // Barracks: ammo crates against the south wall, weapon cases by the east door.
+  crate(-17.5, 0, -11.0, -16.5, 0.6, -10.4, crateMats.ammo);
+  crate(-17.4, 0.6, -10.95, -16.6, 1.2, -10.45, crateMats.ammo);
+  crate(-16.5, 0, -11.0, -15.5, 0.6, -10.4, crateMats.gear);
+  crate(-10.0, 0, -17.6, -9.5, 0.45, -16.0, crateMats.case);
+  crate(-10.0, 0.45, -17.5, -9.55, 0.9, -16.1, crateMats.case);
+  // Generator: scrap pile, a stack of tyres against the barrier, ground cables to the buildings.
+  scrap(1.6, -20.0);
+  tyres(-6.8, -26.03, 3);
+  // Trading post: sacks and crates by the east door; barrels in the back of the south wing.
+  crate(-10.0, 0, 13.0, -9.4, 0.5, 14.4, m.tent);
+  crate(-10.0, 0.5, 13.1, -9.45, 0.9, 14.0, m.tent);
+  barrels(-17.6, 23.4, 2, false);
+  // Clinic: medical crates under the sign.
+  crate(11.0, 0, 9.4, 12.0, 0.6, 10.0, crateMats.med);
+  crate(12.0, 0, 9.5, 12.8, 0.5, 10.0, crateMats.med);
+  // Watchtower: supply crates at its base.
+  crate(22.2, 0, 15.0, 23.2, 0.6, 15.6, crateMats.gear);
+  crate(22.3, 0.6, 15.05, 23.1, 1.2, 15.55, crateMats.ammo);
+  // A parked pickup ("technical") in the yard: cab and bed, wheels inside its footprint.
+  {
+    const x0 = 14.5, x1 = 16.5, z0 = 4.5, z1 = 9.1;
+    solid(x0, 0, z0, x1, 1.65, z0 + 1.8, m.rust, 'metal');
+    // Windshield: drawn on the cab's front face; the cab box is its collider (no thin wall of its own).
+    b.add(worldBox(x1 - x0 - 0.2, 0.45, 0.02, 1), crateMats.case, (x0 + x1) / 2, 1.28, z0);
+    solid(x0, 0, z0 + 1.8, x1, 0.9, z1, m.rust, 'metal');
+    for (const sx of [x0 + 0.02, x1 - 0.24]) for (const zz of [z0 + 0.9, z1 - 0.9]) {
+      const w = new THREE.CylinderGeometry(0.38, 0.38, 0.22, 14);
+      w.rotateZ(Math.PI / 2);
+      b.add(w, rubber, sx + 0.11, 0.38, zz);
+    }
+  }
+  // Power poles with wires sagging between them (wires far overhead), cables along the ground.
+  const poles: [number, number][] = [[-6.5, -9.5], [4.5, -9.5], [26.8, 3.2]];
+  for (const [x, z] of poles) {
+    cylinder(x, z, 0.13, 7.2, m.trunk);
+    b.add(worldBox(1.4, 0.1, 0.1, 1), m.trunk, x, 6.8, z);
+  }
+  const wireMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.7 });
+  const wire = (pts: THREE.Vector3[], r: number) => {
+    const mesh = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, r, 5), wireMat);
+    mesh.userData.soft = true;
+    scene.add(mesh);
+  };
+  const [p0, p1, p2] = poles;
+  for (const off of [-0.6, 0.6]) {
+    wire([new THREE.Vector3(p0[0] + off, 6.8, p0[1]), new THREE.Vector3((p0[0] + p1[0]) / 2 + off, 6.1, (p0[1] + p1[1]) / 2), new THREE.Vector3(p1[0] + off, 6.8, p1[1])], 0.012);
+    wire([new THREE.Vector3(p1[0] + off, 6.8, p1[1]), new THREE.Vector3((p1[0] + p2[0]) / 2 + off, 6.0, (p1[1] + p2[1]) / 2), new THREE.Vector3(p2[0] + off, 6.8, p2[1])], 0.012);
+  }
+  wire([new THREE.Vector3(-6.5, 6.6, -9.5), new THREE.Vector3(-8, 4.5, -10.6), new THREE.Vector3(-10.2, 3.4, -11.2)], 0.014);
+  wire([new THREE.Vector3(-1.0, 0.25, -21.2), new THREE.Vector3(-0.2, 0.03, -18), new THREE.Vector3(1.5, 0.03, -12), new THREE.Vector3(9.0, 0.03, -8.4)], 0.03);
+  wire([new THREE.Vector3(-3.4, 0.03, -19.8), new THREE.Vector3(-7, 0.03, -14), new THREE.Vector3(-9.4, 0.03, -12.2)], 0.03);
 
   // Interior lights: bare bulbs (shoot them out); halos in the dark rooms.
   const breakables: Breakable[] = [];
@@ -481,18 +580,41 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     solid(x - 1.25, y, z - 3.2, x + 1.25, y + 1.6, z + 3.2, m.rust, 'metal');
     solid(x - 1.25, y + 1.6, z - 3.2, x + 1.25, y + 2.6, z - 1.2, m.rust, 'metal');
   }
-  // Dry shrubs (cloth-soft: you brush through them).
-  const shrubGeo = new THREE.ConeGeometry(0.5, 0.6, 6, 1, true);
-  for (let i = 0; i < 70; i++) {
-    const x = (rnd() - 0.5) * 170, z = (rnd() - 0.5) * 170;
-    if (Math.abs(x) < 32 && Math.abs(z) < 29) continue;
-    const s = new THREE.Mesh(shrubGeo, m.shrub);
-    s.position.set(x, desertHeight(x, z) + 0.25, z);
-    s.rotation.set(Math.PI, rnd() * 3, 0);
-    s.scale.setScalar(0.6 + rnd() * 0.9);
-    s.userData.soft = true;
-    s.castShadow = true;
-    scene.add(s);
+  // Salvage dumps out in the dunes: cover on the way in (clear of every rock by 3 m).
+  const dumps: THREE.Vector3[] = [];
+  for (const [x, z] of [[40, -30], [-45, 30], [36, 42], [-40, -36], [58, 8], [-60, -14]]) {
+    if (rocks.some(([rx, rz, rr]) => Math.hypot(rx - x, rz - z) < rr + 4)) continue;
+    const y = Math.min(desertHeight(x - 1.5, z - 1.5), desertHeight(x + 1.5, z + 1.5), desertHeight(x + 1.5, z - 1.5), desertHeight(x - 1.5, z + 1.5)) - 0.15;
+    scrap(x, z, y);
+    barrels(x + 1.4, z - 0.6, 2, false, y);
+    crate(x - 2.6, y, z - 0.5, x - 1.6, y + 0.6, z + 0.1, crateMats.ammo);
+    dumps.push(new THREE.Vector3(x, desertHeight(x, z + 2.2), z + 2.2), new THREE.Vector3(x - 2.1, desertHeight(x - 2.1, z - 1.6), z - 1.6));
+  }
+
+  // Dry brush: crossed alpha-cut cards of twigs (cloth-soft: you brush through them). One merged
+  // mesh for all of them; outside the collision world and the static registry.
+  {
+    const card = new THREE.PlaneGeometry(1.1, 0.75);
+    card.translate(0, 0.36, 0);
+    const parts: THREE.BufferGeometry[] = [];
+    const mtx = new THREE.Matrix4();
+    for (let i = 0; i < 90; i++) {
+      const x = (rnd() - 0.5) * 172, z = (rnd() - 0.5) * 172;
+      if (Math.abs(x) < 32 && Math.abs(z) < 29) continue;
+      const sc = 0.6 + rnd() * 0.9;
+      const yaw = rnd() * Math.PI;
+      for (let k = 0; k < 3; k++) {
+        mtx.compose(new THREE.Vector3(x, desertHeight(x, z) - 0.05, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw + (k * Math.PI) / 3, 0)), new THREE.Vector3(sc, sc, sc));
+        parts.push(card.clone().applyMatrix4(mtx));
+      }
+    }
+    const brushMat = new THREE.MeshStandardMaterial({ map: T.brushTexture(), alphaTest: 0.4, side: THREE.DoubleSide, roughness: 1, color: 0xd8c8a8 });
+    const brush = new THREE.Mesh(mergeGeometries(parts)!, brushMat);
+    for (const p of parts) p.dispose();
+    card.dispose();
+    brush.userData.soft = true;
+    brush.castShadow = true;
+    scene.add(brush);
   }
   // Palms by the clinic and the trading post (trunks collide; fronds far above).
   for (const [x, z] of [[16.4, 18.6], [4.2, 16.5], [-8.6, 18.0]]) {
@@ -508,6 +630,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // ======================================================================= Boundary: sandstone mesas
   // Continuous walls of stacked strata, far taller than any sand bank against them.
   const talus: [number, number, number][] = [];
+  // Rocks and salvage dumps keep the talus clear of them as well.
+  for (const [x, z, r] of rocks) talus.push([x, z, r]);
   const mesaSide = (axis: 'x' | 'z', sign: 1 | -1) => {
     let a = -CLIFF - 14;
     while (a < CLIFF + 14) {
@@ -564,10 +688,13 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     [16, 0.5], [16, 4.5], [24, 1], [-14.5, -4.5], [-26, -1], [-26, -5], [8.2, -4], [-28.4, -3], [28.4, -1],
     [6, -25.6], [-7, 25.6], [-31.6, -3], [31.6, -1], [6, -28.6], [-7, 28.6],
     [20.5, -10], [12.5, -10], [-17, 4.5], [-12, 4.5], [4.8, 13], [15.5, 12], [21, 17.5], [-15, 26],
+    // 3.5 clutter.
+    [24.2, -6.6], [12.9, -3.9], [-17, -9.6], [-8.8, -16.8], [1.6, -18.6], [-8.6, 13.7], [17.6, 7], [13.4, 7], [22.7, 16.6],
   ]) {
-    const p = v(x, 0, z);
+    const p = v(x, desertHeight(x, z), z);
     if (!col.blocked(p, 0.45)) coverPoints.push(p);
   }
+  for (const p of dumps) if (!col.blocked(p, 0.45)) coverPoints.push(p);
 
   // Survival spawns: out in the dune field, all round, beyond the barrier.
   const spawns: THREE.Vector3[] = [];

@@ -25,6 +25,9 @@ export function disposeScene(root: THREE.Object3D, scene?: THREE.Scene) {
     for (const v of Object.values(mat)) addTex(v);
     const u = (mat as THREE.ShaderMaterial).uniforms;
     if (u) for (const k in u) addTex(u[k]?.value);
+    // Textures injected through onBeforeCompile live only in the compiled uniforms: by convention the
+    // material keeps a reference in userData so they can be freed here.
+    for (const v of Object.values(mat.userData ?? {})) addTex(v);
   }
   if (scene) {
     addTex(scene.background);
