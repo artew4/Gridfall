@@ -1,0 +1,39 @@
+{
+  "version": "3.7 (feature/jungle-base-3.7) — Deep Jungle (Firebase Viper) on Balanced, with Desert Outpost and Tokyo regression in the same session",
+  "machine": "Apple M5, Chrome, ANGLE Metal, 120 Hz display, DPR 2, same window and session",
+  "method": "__dev.bench(3) with the Balanced preset applied in memory (pixel ratio 1.25, 60 FPS cap, 3 bloom levels; the saved settings were not changed). The jungle was rebuilt after the switch (via the desert) so foliage is at Balanced density.",
+  "columns": ["fps", "frameMsP95", "cpuMsPerFrame", "gpuMsPerFrame", "drawCalls", "triangles"],
+  "jungle_balanced": {
+    "foliage": {"bushes": 1311, "ferns": 1500, "grass": 2600, "bigleaf": 380, "crowns": 80, "canopy": 129, "vines": 260},
+    "roadApproach": [60, 17.7, 2.22, 6.12, 106, 373711],
+    "undergrowth": [60, 17.7, 2.25, 6.35, 104, 373609],
+    "yard": [60, 17.9, 2.16, 6.07, 92, 372925],
+    "barracks": [60.2, 17.7, 1.91, 6.1, 65, 370741],
+    "watchtower": [60, 17.4, 2.07, 6.2, 88, 372877],
+    "fight": [60, 17.7, 2.31, 6.2, 129, 373151]
+  },
+  "desert_balanced": {
+    "yardCalm": [60.3, 17.2, 1.84, 5.64, 89],
+    "towerView": [60, 17.7, 1.86, 5.97, 93],
+    "yardStorm": [60, 17.7, 1.91, 5.87, 91],
+    "interiorStorm": [60, 17.8, 1.81, 5.97, 74],
+    "dunesStorm": [60, 17.8, 1.91, 5.8, 100],
+    "fightStorm": [60, 17.8, 2.3, 6.01, 118]
+  },
+  "tokyo_balanced": {
+    "plaza": [60, 17.9, 2.65, 6.7, 194],
+    "rooftop": [60, 17.1, 2.61, 6.63, 331],
+    "metroConcourse": [60, 17.2, 2.69, 6.56, 150],
+    "platform": [60, 17.3, 2.5, 6.55, 169],
+    "platformTrain": [60, 17.1, 2.75, 6.55, 332],
+    "overpassTrain": [60, 17.1, 2.77, 6.48, 222],
+    "pursuit": [60, 17.0, 2.56, 6.73, 335],
+    "firefight": [60, 17.1, 2.71, 6.59, 423]
+  },
+  "notes": [
+    "The compound added ~50k triangles over 3.6 (324k → 374k at Balanced density) and no measurable GPU time: 3.6's jungle measured 5.7–6.4 ms.",
+    "Draw calls 65–129 (3.6: 53–92, 176 in the High-density fight). Static geometry merges per material; the concertina is one InstancedMesh.",
+    "P95 is ~17.7 ms in every setting this session (3.6 and 3.4 measured ~23 ms); the cap and display were the same, so it's session pacing, not a level change. Desert GPU is higher than in 3.6's session (4.4–5.3 → 5.6–6.0 ms) with no desert code changed: compare settings within one session, not across sessions.",
+    "Collision cost: 0.012–0.028 ms per frame."
+  ]
+}
