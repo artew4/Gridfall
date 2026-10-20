@@ -1,0 +1,20 @@
+{
+  "version": "3.3 (feature/world-integrity-3.3 at 8cf990e) vs v3.2 (tag, run from a temporary worktree with the same Bench.ts/PerfProbe.ts)",
+  "machine": "Apple M5, Chrome, ANGLE Metal, 120 Hz display, DPR 2, same window and session",
+  "method": "Balanced preset, 60 FPS cap, __dev.bench(3); builds alternated in the same tab: v3.2, 3.3, v3.2, 3.3. Fresh page load before each run.",
+  "columns": ["gpuMsPerFrame", "cpuMsPerFrame", "frameMsP95", "frameMsP99", "drawCalls", "triangles", "collisionMsPerFrame"],
+  "v32_run1": {"plaza":[6.23,2.29,22.8,25,192,113265,null],"rooftop":[6.37,2.59,23.8,24.1,329,117731,null],"metroConcourse":[6.39,2.61,23.6,24.7,148,105479,null],"platform":[6.71,2.73,23.8,24.4,157,108409,null],"platformTrain":[6.46,2.64,22.8,24.2,266,109889,null],"overpassTrain":[6.24,2.62,22.5,24.3,220,106557,null],"pursuit":[6.59,2.71,23.9,25,332,115833,null],"firefight":[6.22,2.64,23.7,24,423,118127,null]},
+  "v33_run1": {"plaza":[6.45,4.96,20.7,25.1,194,114813,0.226],"rooftop":[6.12,5.73,23.8,24.3,331,119279,0.233],"metroConcourse":[6.16,4.7,23.6,24.5,150,107027,0.274],"platform":[5.95,4.62,23.7,23.9,192,110377,0.236],"platformTrain":[6.19,5.73,21.8,24.2,354,112533,0.244],"overpassTrain":[6.08,5.2,24,25.8,222,108105,0.274],"pursuit":[6.51,2.71,24,24.3,330,117253,0.148],"firefight":[6.85,2.58,23.8,25.5,424,119673,0.145]},
+  "v32_run2": {"plaza":[6.17,4.54,23.5,23.7,193,113281,0.188],"rooftop":[6.26,5.2,23.1,25,329,117731,0.171],"metroConcourse":[6.55,4.42,22.4,24.8,148,105479,0.179],"platform":[6.29,4.47,20.7,22,190,108829,0.17],"platformTrain":[6.17,5.09,17.9,22.8,346,110973,0.141],"overpassTrain":[6.03,4.67,22.5,24.4,220,106557,0.166],"pursuit":[6.61,2.71,24.3,24.5,342,115989,0.101],"firefight":[6.7,2.58,23.7,24.2,423,118127,0.093]},
+  "v33_run2": {"plaza":[6.65,2.57,23.3,23.9,194,114813,0.104],"rooftop":[6.67,2.85,23.8,24.1,236,118075,0.107],"metroConcourse":[6.35,2.82,23.8,25.6,150,107027,0.137],"platform":[6.37,2.8,21.7,24.2,159,109957,0.139],"platformTrain":[6.56,2.73,21.5,24.1,268,111437,0.113],"overpassTrain":[6.42,2.83,23.9,25.3,222,108105,0.122],"pursuit":[6.7,2.63,21.4,23.9,331,117273,0.115],"firefight":[6.48,2.69,23.8,24.1,426,119687,0.201]},
+  "power30_v33_vs_BENCH-3.2_power30": "GPU 5.76–6.38 ms/frame vs 5.79–6.97 (other session), FPS 30 in all scenes, GPU busy 17–20% vs 17.5–21%",
+  "summary": {
+    "gpuMsMean8": {"v32": [6.40, 6.35], "v33": [6.29, 6.53], "change": "+0.5% (within ±10% run-to-run noise per scene)"},
+    "frameTime": "60 FPS cap held in every scene; P95/P99 within noise",
+    "drawCalls": "+1 to +2 per scene (rooftop/platform/train scenes vary with what is in view on both builds)",
+    "triangles": "+1.3% (stair trims, door guides, fascia, fence)",
+    "collisionMsPerFrame": "v3.2 0.09–0.19, v3.3 0.10–0.27 (sub-stepping; noisy, CPU clock state); at most ~0.1 ms of a 16.7 ms frame",
+    "heap": "NOT VERIFIED: usedJSHeapSize depends on GC timing (the same v3.2 build read 140–152 and 235–259 MB on two loads)",
+    "hiddenTab": "0 frames drawn, 0 simulation and rail time while hidden (simulated visibilitychange); auto-pause; resumes on lock. Handler unchanged from 3.2."
+  }
+}
