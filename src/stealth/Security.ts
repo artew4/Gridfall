@@ -294,6 +294,7 @@ export class Security {
       .sort((a, b) => a.d - b.d)
       .slice(0, RESPONDERS);
     const t = this.ctx.time;
+    if (free.length) this.onRadio(`${free.length} UNIT${free.length > 1 ? 'S' : ''} CONVERGING ON LAST KNOWN POSITION`, 'warn');
     free.forEach(({ g }, i) => {
       const a = (i / Math.max(1, free.length)) * Math.PI * 2 + rand(-0.4, 0.4);
       g.pursue(at.clone().add(new THREE.Vector3(Math.sin(a) * 3, 0, Math.cos(a) * 3)), t);

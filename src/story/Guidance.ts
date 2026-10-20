@@ -61,7 +61,10 @@ export class Guidance {
     const tgt = this.target;
     const from = new THREE.Vector3(player.x, player.y + BODY, player.z);
     const ids = this.nav.route(from, new THREE.Vector3(tgt.x, tgt.y + BODY, tgt.z));
-    const pts = [player.clone(), ...ids.map((i) => this.nav.nodes[i].clone().setY(this.nav.nodes[i].y - BODY)), tgt.clone()];
+    const nodes = ids.map((i) => this.nav.nodes[i].clone().setY(this.nav.nodes[i].y - BODY));
+    // Nodes he is already standing at (e.g. the foot of the stair he's on) are behind him, not ahead.
+    while (nodes.length > 1 && Math.hypot(nodes[0].x - player.x, nodes[0].z - player.z) < 2 && Math.abs(nodes[0].y - player.y) < 1.5) nodes.shift();
+    const pts = [player.clone(), ...nodes, tgt.clone()];
     if (!ids.length) {
       // No route (e.g. a shuttered station): point at the objective itself.
       this.path = [];
@@ -93,7 +96,8 @@ export class Guidance {
           const metro = !up && pts.slice(i - 1, j + 1).some((q) => this.col.inHole(q.x, q.z));
           const via = metro ? 'METRO ENTRANCE' : `STAIRS ${up ? 'UP' : 'DOWN'}`;
           guide = {
-            pos: at.clone(),
+            // Already on the stair: point at where it arrives instead of at his feet.
+            pos: (i === 1 ? pts[j] : at).clone(),
             label: metro ? via : `${via} · ${FLOOR_NAME[arrives]}`,
             via,
             final: false,

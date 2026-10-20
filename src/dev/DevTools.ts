@@ -56,6 +56,13 @@ export function installDevTools(game: Game) {
       w.__aiDebug ??= new AIDebug(game);
       w.__aiDebug.set(on);
     },
+    /** Plays Story Escape end to end like a player reading the screen (logs into window.__run). */
+    async story(opts: { watchIntro?: boolean; timeScale?: number } = {}) {
+      const w = window as unknown as { __run: unknown };
+      w.__run = 'running';
+      w.__run = await (await import('./StoryRun')).runStory(game, opts);
+      return w.__run;
+    },
     /** Frame rate, CPU and GPU milliseconds per frame, busy share (power proxy). */
     async perf(seconds = 4) {
       return (await import('./PerfProbe')).probe(game, seconds);
