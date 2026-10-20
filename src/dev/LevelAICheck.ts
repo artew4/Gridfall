@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Game } from '../core/Game';
+import { Squad } from '../enemies/tactics/Squad';
 import { Player } from '../player/Player';
 import { Gunner, Runner, type Enemy, type EnemyCtx } from '../enemies/Enemy';
 
@@ -32,11 +33,14 @@ export function checkLevelAI(game: Game, opts: { spawns?: number; seconds?: numb
     const target = new Player(game.col, game.audio);
     target.reset(goal.x, goal.z, 0, goal.y);
     const enemies: Enemy[] = [e];
-    const ctx: EnemyCtx = { ...game.ctx, scene, player: target, enemies, occupied: new Set(), damagePlayer: () => {}, sightRange: opts.sight ?? game.ctx.sightRange };
+    const ctx: EnemyCtx = { ...game.ctx, scene, player: target, enemies, occupied: new Set(), squad: new Squad(), damagePlayer: () => {}, sightRange: opts.sight ?? game.ctx.sightRange };
     const dt = 1 / 30;
     let best = Infinity, lastGain = 0, worstStall = 0, stallAt: number[] = [];
     for (let t = 0; t < seconds; t += dt) {
       ctx.time = t;
+      // A nav check, not a hunt: the squad is told where the target is (exact dispatch).
+      if (t === 0) ctx.squad.report(goal, 0);
+      ctx.squad.update(ctx, enemies);
       e.update(dt, ctx);
       if (done(e)) return { ok: true, t: +t.toFixed(1), worstStall: +worstStall.toFixed(1), stallAt };
       const d = Math.hypot(e.pos.x - goal.x, e.pos.z - goal.z) + Math.abs(e.pos.y - goal.y);

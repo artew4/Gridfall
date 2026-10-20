@@ -27,6 +27,11 @@ export class ArcadeRules implements ModeRules {
     g.waves.update(dt, g.ctx);
   }
 
+  /** His gunshots are heard by the squad (a noisy position, only if someone is in earshot). */
+  onGunshot() {
+    this.game.waves.squad.hearShot(this.game.player.pos);
+  }
+
   onKill() {
     this.game.waves.kills++;
   }

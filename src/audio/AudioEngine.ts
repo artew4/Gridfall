@@ -1357,6 +1357,22 @@ export class AudioEngine {
     r.wg.gain.setTargetAtTime(level * Math.min(1, speed / 6) * 0.03, t, 0.2);
   }
 
+  /**
+   * A survival enemy's callout (5.0 barks): a shouted voice cadence from where it stands, a squelch
+   * after it for radio-carrying humans; synths a clipped, ring-modulated chirp of the same cadence.
+   */
+  callout(pos: V3, voice: 'synth' | 'human', words: number, urgent: boolean) {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(pos, 0.25);
+    const band = this.filter('bandpass', voice === 'synth' ? 1900 : 1300, voice === 'synth' ? 2.5 : 0.9);
+    band.connect(o);
+    const syl = Math.min(6, 1 + words * 1.4);
+    const d = this.voice(band, t, Math.round(syl), voice === 'synth' ? rand(210, 240) : rand(140, 175), voice === 'synth' ? 9 : 6.5, urgent ? 0.36 : 0.26, true);
+    if (voice === 'human') this.squelch(o, t + d + 0.02);
+    else this.tone(o, 'square', 1500, 900, 0.04, 0.002, 0.05, t + d);
+  }
+
   /** Radio squelch click + hiss tail. */
   private squelch(dest: AudioNode, t: number) {
     this.burst(dest, this.white, 'bandpass', 2400, 1, 0.08, 0.002, 0.06, t);

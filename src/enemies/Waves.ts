@@ -3,6 +3,7 @@ import { Enemy, Gunner, Runner, type EnemyCtx } from './Enemy';
 import { pick, rand } from '../core/math';
 import type { EnemyLook } from '../entities/types';
 import { NEON_SYNTHS } from '../entities/enemies/neon';
+import { Squad } from './tactics/Squad';
 
 /** Snipers start appearing on rooftops from this wave on (drawn from the same gunner count). */
 const SNIPER_WAVE = 4;
@@ -45,6 +46,8 @@ export class Waves {
   wave = 0;
   state: WaveState = 'idle';
   enemies: Enemy[] = [];
+  /** The combat director for this run's enemies (shared through EnemyCtx.squad). */
+  squad = new Squad();
   private queue: ('runner' | 'gunner')[] = [];
   private spawnT = 0;
   private breakT = 0;
@@ -68,6 +71,7 @@ export class Waves {
     this.wave = 0;
     this.kills = 0;
     this.state = 'idle';
+    this.squad.reset();
   }
 
   startNext() {
@@ -111,6 +115,9 @@ export class Waves {
         this.onWaveClear(this.wave);
       }
     }
+    // The director first (knowledge, roles, the rush signal, the time-sliced decides), then every
+    // enemy's cheap per-frame act.
+    if (dt > 0) this.squad.update(ctx, this.enemies);
     for (const e of this.enemies) e.update(dt, ctx);
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       if (this.enemies[i].dead) {
@@ -128,6 +135,8 @@ export class Waves {
 
   private spawn(kind: 'runner' | 'gunner', ctx: EnemyCtx) {
     const p = ctx.player.pos;
+    // The wave is sent at a reported contact (±8 m), unless the squad already knows something newer.
+    this.squad.report(p, 8);
     // From wave 4 some gunners take a rooftop perch instead of walking in.
     if (kind === 'gunner' && this.wave >= SNIPER_WAVE && (this.snipersThisWave === 0 || Math.random() < 0.3)) {
       const perch = this.freePerch();

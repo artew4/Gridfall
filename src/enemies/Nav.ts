@@ -129,27 +129,84 @@ export class Nav {
     return out[0] === from ? out : [];
   }
 
-  /** Shortest distances from every node to `goal`, plus the next hop towards it. */
+  /**
+   * Shortest distances from every node to `goal`, plus the next hop towards it. Dijkstra with a
+   * binary heap (5.0; was an O(n²) scan), memoised per goal node: a squad hunting one spot asks
+   * for the same field over and over. The memo is dropped whenever links change.
+   */
+  private fields = new Map<number, { dist: Float64Array; next: Int32Array }>();
+  /** Fields computed vs served from the memo (DEV counters). */
+  stats = { computed: 0, cached: 0 };
   private toward(goal: number) {
+    const hit = this.fields.get(goal);
+    if (hit) {
+      // Refresh its place in the (insertion-ordered) memo.
+      this.fields.delete(goal);
+      this.fields.set(goal, hit);
+      this.stats.cached++;
+      return hit;
+    }
+    this.stats.computed++;
     const n = this.nodes.length;
     const dist = new Float64Array(n).fill(Infinity);
     const next = new Int32Array(n).fill(-1);
     const done = new Uint8Array(n);
     dist[goal] = 0;
-    for (let k = 0; k < n; k++) {
-      let u = -1;
-      for (let i = 0; i < n; i++) if (!done[i] && (u < 0 || dist[i] < dist[u])) u = i;
-      if (u < 0 || dist[u] === Infinity) break;
+    // Heap of (distance, node) with lazy deletion.
+    const hd: number[] = [0];
+    const hn: number[] = [goal];
+    const push = (d: number, v: number) => {
+      let i = hd.length;
+      hd.push(d);
+      hn.push(v);
+      while (i > 0) {
+        const p = (i - 1) >> 1;
+        if (hd[p] <= hd[i]) break;
+        [hd[p], hd[i]] = [hd[i], hd[p]];
+        [hn[p], hn[i]] = [hn[i], hn[p]];
+        i = p;
+      }
+    };
+    const pop = () => {
+      const v = hn[0];
+      const ld = hd.pop()!, ln = hn.pop()!;
+      if (hd.length) {
+        hd[0] = ld;
+        hn[0] = ln;
+        let i = 0;
+        for (;;) {
+          const l = 2 * i + 1, r = l + 1;
+          let m = i;
+          if (l < hd.length && hd[l] < hd[m]) m = l;
+          if (r < hd.length && hd[r] < hd[m]) m = r;
+          if (m === i) break;
+          [hd[m], hd[i]] = [hd[i], hd[m]];
+          [hn[m], hn[i]] = [hn[i], hn[m]];
+          i = m;
+        }
+      }
+      return v;
+    };
+    while (hd.length) {
+      const u = pop();
+      if (done[u]) continue;
       done[u] = 1;
+      const du = dist[u];
+      const nu = this.nodes[u];
       for (const v of this.edges[u]) {
-        const nd = dist[u] + this.nodes[u].distanceTo(this.nodes[v]);
+        if (done[v]) continue;
+        const nd = du + nu.distanceTo(this.nodes[v]);
         if (nd < dist[v]) {
           dist[v] = nd;
           next[v] = u;
+          push(nd, v);
         }
       }
     }
-    return { dist, next };
+    const f = { dist, next };
+    this.fields.set(goal, f);
+    if (this.fields.size > 32) this.fields.delete(this.fields.keys().next().value!);
+    return f;
   }
 
   /**
@@ -182,6 +239,7 @@ export class Nav {
 
   /** Opens or closes hand links (e.g. a shuttered stairwell). */
   setLinks(pairs: [number, number][], open: boolean) {
+    this.fields.clear();
     for (const [i, j] of pairs) {
       this.edges[i] = this.edges[i].filter((v) => v !== j);
       this.edges[j] = this.edges[j].filter((v) => v !== i);

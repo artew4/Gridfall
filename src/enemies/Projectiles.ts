@@ -25,6 +25,8 @@ export class Projectiles {
   private prev = new THREE.Vector3();
   private hitTmp: RayHit = { dist: 0, point: new THREE.Vector3(), normal: new THREE.Vector3(), surface: 'concrete' };
   onPlayerHit: (dmg: number, from: THREE.Vector3) => void = () => {};
+  /** A round passed close to him without hitting. */
+  onWhiz: () => void = () => {};
   light: THREE.PointLight;
   private mat: THREE.MeshBasicMaterial;
   private look: EnemyLook = NEON_SYNTHS;
@@ -100,6 +102,7 @@ export class Projectiles {
       if (!b.whizzed && closest.distanceTo(chest) < 2.2) {
         b.whizzed = true;
         this.audio.plasmaWhiz(closest, this.look.voice);
+        this.onWhiz();
       }
       const dir = seg.normalize();
       const hit = this.col.raycast(this.prev, dir, step, this.hitTmp);
