@@ -175,6 +175,22 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .mainmenu, .controlsPanel { margin-top: 46px; width: min(360px, 86vw); transition: opacity 0.4s; }
 .mainmenu.hidden, .controlsPanel.hidden { display: none; }
 .mainmenu .pm-btn { margin: 9px 0; }
+.mainmenu { width: min(560px, 92vw); }
+#title .mm-label { margin: 18px 0 2px; text-align: left; font-size: 10px; letter-spacing: 0.45em; color: var(--cyan-dim); }
+#title .mm-label .jp { display: inline; margin: 0 0 0 10px; font-size: 10px; letter-spacing: 0.3em; }
+.settings-row { display: flex; gap: 10px; margin-top: 8px; }
+.set-card { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 12px 14px; text-align: left; font-family: var(--mono); color: var(--cyan-dim); background: rgba(120, 235, 255, 0.03); border: 1px solid var(--cyan-faint); cursor: pointer; transition: border-color 0.15s, background 0.15s, box-shadow 0.15s; }
+.set-card:hover, .set-card:focus-visible { outline: none; border-color: var(--cyan-dim); background: rgba(120, 235, 255, 0.07); }
+.set-card.on { border-color: var(--cyan); background: rgba(120, 235, 255, 0.11); box-shadow: 0 0 16px rgba(34, 232, 255, 0.22); }
+.set-card b { font-weight: 400; font-size: 13px; letter-spacing: 0.35em; color: #f2fdff; }
+#title .set-card .jp { margin: 0; font-size: 10px; letter-spacing: 0.4em; }
+.set-card .blurb { font-size: 10px; line-height: 1.6; letter-spacing: 0.08em; color: rgba(190, 230, 240, 0.72); }
+.set-card .modes { font-size: 9px; letter-spacing: 0.35em; color: var(--cyan); }
+.pm-btn:disabled { cursor: default; opacity: 0.35; box-shadow: none; }
+.pm-btn:disabled:hover { color: var(--cyan); border-color: var(--cyan-faint); background: rgba(120, 235, 255, 0.03); }
+#title .mm-note { min-height: 14px; margin: 2px 0 6px; text-align: left; font-size: 10px; letter-spacing: 0.3em; color: rgba(255, 190, 120, 0.8); }
+#title .mm-note.busy { color: var(--cyan-dim); animation: pulse 1.6s ease-in-out infinite; }
+@media (max-width: 560px) { .settings-row { flex-direction: column; } }
 .controlsPanel { width: min(520px, 90vw); }
 .cp-grid { display: grid; grid-template-columns: auto 1fr; gap: 9px 22px; text-align: left; font-size: 11px; letter-spacing: 0.25em; }
 .cp-grid b { color: #f2fdff; font-weight: 400; }

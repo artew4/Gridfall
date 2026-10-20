@@ -1,12 +1,18 @@
 import * as THREE from 'three';
 import type { Game } from '../core/Game';
+import type { SettingId } from '../levels/Level';
 
 /** DEV-only console helpers for automated browser checks (never bundled in production). */
 export function installDevTools(game: Game) {
   const g = game as unknown as { beginPlay(): void; resume(): void; shoot(): void };
   const dev = {
-    /** Skip title and intro and play immediately (pointer lock is faked: automation can't hold it). */
-    start(mode: 'story' | 'arcade' = 'story') {
+    /**
+     * Skip title and intro and play immediately (pointer lock is faked: automation can't hold it).
+     * `setting` loads another level first (synchronously).
+     */
+    start(mode: 'story' | 'arcade' = 'story', setting?: SettingId) {
+      if (setting && setting !== game.setting) game.loadLevel(setting);
+      if (!game.level.info.modes.includes(mode)) throw new Error(`${game.setting} has no ${mode} mode`);
       game.mode = mode;
       game.hud.show(game.hud.title, false);
       g.beginPlay();
@@ -44,8 +50,8 @@ export function installDevTools(game: Game) {
       }
     },
     noGuards() {
-      for (const x of game.security.guards) x.dispose(game.scene);
-      game.security.guards.length = 0;
+      for (const x of game.tokyo.security.guards) x.dispose(game.scene);
+      game.tokyo.security.guards.length = 0;
     },
     shoot() {
       g.shoot();
@@ -79,6 +85,10 @@ export function installDevTools(game: Game) {
     /** Real-controller stress runs from sampled reachable cells (walls, falls, voids). */
     async stress(opts: { samples?: number; seconds?: number; fps?: (number | 'spiky')[] } = {}) {
       return (await import('./WorldCheck')).stressController(game, opts);
+    },
+    /** Any level: nav graph from every spawn, runners to every test goal, gunners get a shot off. */
+    async levelAI(opts: { spawns?: number; seconds?: number; sight?: number } = {}) {
+      return (await import('./LevelAICheck')).checkLevelAI(game, opts);
     },
     /** Train and platform doors: boarding, closed doors, riding, doorway obstruction (real Rail). */
     async train() {

@@ -8,7 +8,6 @@ export const ROOF = 8.5;
 import { PropKit } from './PropKit';
 import { addSign, type SignGlow, type SignSpec } from './Signs';
 import type { Glow } from './Glows';
-import type { Collider } from './Collision';
 import type { NavLayout } from '../enemies/Nav';
 import { billboardTexture } from './Textures';
 import { worldBox } from './Builder';
@@ -32,20 +31,8 @@ import { buildMetro, METRO_HOLES, type MetroResult } from './Metro';
    BACK ALLEY x -24..-21 runs south from the passage, turns east at z 24..27 into Lantern Street.
 */
 
-export interface Breakable {
-  glow: Glow;
-  collider: Collider;
-  pos: THREE.Vector3;
-  /** Real light to kill as well, if any. */
-  light?: THREE.PointLight;
-  extra?: THREE.MeshBasicMaterial[];
-}
-
-export interface CabinetSpot {
-  pos: THREE.Vector3;
-  face: 'n' | 's' | 'e' | 'w';
-  collider: Collider;
-}
+import type { Breakable, CabinetSpot } from '../gameplay/Interactives';
+export type { Breakable, CabinetSpot };
 
 export interface DistrictResult {
   signs: SignGlow[];

@@ -40,10 +40,10 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
   mo.observe(document.body, { childList: true, subtree: true });
   let lastObj = '';
   const objWatch = window.setInterval(() => {
-    const o = game.story.def?.title ?? '';
+    const o = game.tokyo.story.def?.title ?? '';
     if (o !== lastObj) {
       lastObj = o;
-      note(`OBJECTIVE ${o || '(none)'} · act ${game.mission.act} · step ${game.mission.step}`);
+      note(`OBJECTIVE ${o || '(none)'} · act ${game.tokyo.mission.act} · step ${game.tokyo.mission.step}`);
     }
   }, 100);
 
@@ -85,7 +85,25 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
     up('ShiftLeft');
     return ok;
   };
-  const route = () => game.story.guidance.path;
+  const route = () => game.tokyo.story.guidance.path;
+  /** Waits while `cond` holds, resuming the game if focus loss paused it (a paused game never advances). */
+  const waitWhile = async (cond: () => boolean, maxS = 600) => {
+    const end = performance.now() + maxS * 1000;
+    while (cond() && performance.now() < end) {
+      if (game.state === 'paused') (window as unknown as { __dev: { lock(): void } }).__dev.lock();
+      await wait(200);
+    }
+  };
+  /** Walks to an interaction and presses E until the step changes (a press during a pause is lost). */
+  const useAt = async (label: string, step: string, maxS: number) => {
+    let reached = false;
+    for (let attempt = 0; attempt < 4 && game.tokyo.mission.step === step; attempt++) {
+      reached = (await walk(route, () => prompt().includes(label), maxS / 4, false)) || reached;
+      await tap('KeyE');
+      await waitWhile(() => game.tokyo.mission.step === step, 4);
+    }
+    return reached;
+  };
   const prompt = () => document.querySelector('#story .prompt.on')?.textContent ?? '';
 
   try {
@@ -94,7 +112,7 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
       (document.querySelector('[data-mode=story]') as HTMLElement).click();
       note('clicked STORY ESCAPE');
       await wait(7000);
-      note(`intro shot 1: ${game.crowd.civs.filter((c) => !c.hidden).length} civilians in detail, ${game.security.guards.length} officers on duty`);
+      note(`intro shot 1: ${game.tokyo.crowd.civs.filter((c) => !c.hidden).length} civilians in detail, ${game.tokyo.security.guards.length} officers on duty`);
       // A pause (focus loss) stops the intro too: resume it and keep waiting until play really starts.
       for (const end = performance.now() + 180000; game.state !== 'play' && performance.now() < end; ) {
         if (game.state === 'paused') (window as unknown as { __dev: { lock(): void } }).__dev.lock();
@@ -121,11 +139,11 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
     note(`reached Kenji: ${met} · prompt "${prompt()}"`);
     await tap('KeyE');
     await wait(400);
-    note(`E → step ${game.mission.step}`);
+    note(`E → step ${game.tokyo.mission.step}`);
 
     // ---- 3. Ambush: when hunted, run for the Sky Garden roof and stay out of sight.
-    while (game.mission.step === 'talk') await wait(200);
-    note(`ambush · alert ${game.security.alert.level}, ${game.security.guards.filter((x) => x.hostile).length} hunting`);
+    await waitWhile(() => game.tokyo.mission.step === 'talk');
+    note(`ambush · alert ${game.tokyo.security.alert.level}, ${game.tokyo.security.guards.filter((x) => x.hostile).length} hunting`);
     // Like a player: run for whichever hideout is furthest from the hunters; re-pick when blocked.
     const hideouts = [
       new THREE.Vector3(30, 8.5, 9), // Sky Garden
@@ -135,7 +153,7 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
       new THREE.Vector3(0, 0, -48), // Railway Street, far end
     ];
     const pick = () => {
-      const hunters = game.security.guards.filter((x) => x.alive && x.hostile);
+      const hunters = game.tokyo.security.guards.filter((x) => x.alive && x.hostile);
       const score = (h: THREE.Vector3) => Math.min(...hunters.map((x) => x.pos.distanceTo(h)), 999) - 0.25 * P.pos.distanceTo(h);
       return hideouts.slice().sort((a, b) => score(b) - score(a))[0];
     };
@@ -165,13 +183,13 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
         if (roof === before) roof = hideouts[(hideouts.indexOf(before) + 1) % hideouts.length];
       }
     }
-    note(`hiding (${P.pos.toArray().map((v) => v.toFixed(0)).join(',')}) · alert ${game.security.alert.level}`);
+    note(`hiding (${P.pos.toArray().map((v) => v.toFixed(0)).join(',')}) · alert ${game.tokyo.security.alert.level}`);
     // Wait it out; fight anyone who has eyes on us, move on if they close in, holster when clear.
     const lostBy = performance.now() + 240000;
     let kills = 0;
-    while (game.mission.step === 'ambush' && performance.now() < lostBy) {
+    while (game.tokyo.mission.step === 'ambush' && performance.now() < lostBy) {
       const eye = P.pos.clone().setY(P.pos.y + 1.6);
-      const threats = game.security.guards
+      const threats = game.tokyo.security.guards
         .filter((x) => x.alive && x.hostile && x.pos.distanceTo(P.pos) < 22 && game.col.lineOfSight(eye, x.chest.clone()))
         .sort((a, b) => a.pos.distanceTo(P.pos) - b.pos.distanceTo(P.pos));
       if (threats.length) {
@@ -192,25 +210,24 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
         await wait(120);
         continue;
       }
-      if (game.weapon.visible && game.security.hostiles(30) === 0) await tap('KeyX');
-      const near = game.security.guards.some((x) => x.alive && x.hostile && x.pos.distanceTo(P.pos) < 10);
+      if (game.weapon.visible && game.tokyo.security.hostiles(30) === 0) await tap('KeyX');
+      const near = game.tokyo.security.guards.some((x) => x.alive && x.hostile && x.pos.distanceTo(P.pos) < 10);
       if (near) {
         roof = pick();
         cached = roofRoute();
         cachedT = performance.now();
-        await walk(() => cached, () => P.pos.distanceTo(roof) < 2 || game.mission.step !== 'ambush', 15);
+        await walk(() => cached, () => P.pos.distanceTo(roof) < 2 || game.tokyo.mission.step !== 'ambush', 15);
       }
       await wait(300);
     }
     note(`fought: ${kills} officers down`);
-    note(`after hiding: step ${game.mission.step} · alert ${game.security.alert.level} · escapes ${game.security.alert.escapes}`);
+    note(`after hiding: step ${game.tokyo.mission.step} · alert ${game.tokyo.security.alert.level} · escapes ${game.tokyo.security.alert.escapes}`);
 
     // ---- 4. Departure board.
-    const atBoard = await walk(route, () => prompt().includes('DEPARTURES'), 90, false);
+    const atBoard = await useAt('DEPARTURES', 'board', 120);
     note(`board reached: ${atBoard}`);
-    await tap('KeyE');
-    while (game.mission.step === 'board') await wait(200);
-    note(`board read → step ${game.mission.step}`);
+    await waitWhile(() => game.tokyo.mission.step === 'board');
+    note(`board read → step ${game.tokyo.mission.step}`);
 
     // ---- 5. Relay: follow the route up to the roof, hold E.
     const atRelay = await walk(route, () => prompt().includes('RELAY'), 120, false);
@@ -219,19 +236,19 @@ export async function runStory(game: Game, opts: { watchIntro?: boolean; timeSca
     await wait(2400);
     up('KeyE');
     await wait(300);
-    note(`relay held → step ${game.mission.step} · alert ${game.security.alert.level}`);
+    note(`relay held → step ${game.tokyo.mission.step} · alert ${game.tokyo.security.alert.level}`);
 
     // ---- 6. Station and the last express.
-    await walk(route, () => game.mission.step === 'train' && P.pos.distanceTo(new THREE.Vector3(0, -6, 31)) < 6, 150);
-    note(`on the platform: step ${game.mission.step} · ${P.pos.toArray().map((v) => v.toFixed(1)).join(',')}`);
+    await walk(route, () => game.tokyo.mission.step === 'train' && P.pos.distanceTo(new THREE.Vector3(0, -6, 31)) < 6, 150);
+    note(`on the platform: step ${game.tokyo.mission.step} · ${P.pos.toArray().map((v) => v.toFixed(1)).join(',')}`);
     const deadline = performance.now() + 240000;
     while (game.state === 'play' && performance.now() < deadline) {
-      const a = game.rail.tt.active();
-      if (a && a.s.escape && game.rail.train.doorK > 0.9) {
-        const cabin = game.rail.train.cabinPoint(1, new THREE.Vector3()).setY(-6);
+      const a = game.tokyo.rail.tt.active();
+      if (a && a.s.escape && game.tokyo.rail.train.doorK > 0.9) {
+        const cabin = game.tokyo.rail.train.cabinPoint(1, new THREE.Vector3()).setY(-6);
         note('the express is open: walking in');
-        await walk(() => [cabin], () => game.rail.train.inside(P.pos) || game.state !== 'play', 20);
-        note(`inside: ${game.rail.train.inside(P.pos)}`);
+        await walk(() => [cabin], () => game.tokyo.rail.train.inside(P.pos) || game.state !== 'play', 20);
+        note(`inside: ${game.tokyo.rail.train.inside(P.pos)}`);
         while (game.state === 'play' && performance.now() < deadline) await wait(200);
         break;
       }

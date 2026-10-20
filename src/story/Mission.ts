@@ -79,10 +79,10 @@ export class Mission {
   checkpoint: { act: Act; pos: THREE.Vector3; yaw: number; health: number } = { act: 1, pos: v(0, 0, 0), yaw: 0, health: 100 };
 
   constructor(private g: Game) {
-    this.relayInteract.pos.copy(g.district.relay).setZ(g.district.relay.z - 0.9);
+    this.relayInteract.pos.copy(g.tokyo.district.relay).setZ(g.tokyo.district.relay.z - 0.9);
     g.interactables.push(this.kenjiInteract, this.relayInteract);
     // The relay can also be shot to pieces.
-    const r = g.district.relay;
+    const r = g.tokyo.district.relay;
     this.relayCollider = g.col.colliders.find((c) => c.kind === 'box' && r.x > c.min.x && r.x < c.max.x && r.z > c.min.z && r.z < c.max.z && c.min.y >= ROOF - 0.01 && c.max.y > ROOF + 1.5) ?? null;
     if (this.relayCollider) {
       this.relayCollider.onHit = () => {
@@ -92,7 +92,7 @@ export class Mission {
         if (this.relayHits >= 3) this.sabotage();
       };
     }
-    g.onBoardRead = () => this.boardRead();
+    g.tokyo.onBoardRead = () => this.boardRead();
   }
 
   // ------------------------------------------------------------------ lifecycle
@@ -115,29 +115,29 @@ export class Mission {
     this.roofSquad = act >= 4;
     this.stationSquad = act >= 4;
     this.calmT = 0;
-    g.security.clear();
-    g.security.budgetPerEpisode = act === 3 ? 4 : 2;
-    g.security.budget = g.security.budgetPerEpisode;
-    for (const p of PATROLS[1]) g.security.spawnPatrol(p);
-    if (act === 2 || act === 4) for (const p of PATROLS[act]) g.security.spawnPatrol(p);
-    g.crowd.reset(fromCheckpoint ? this.checkpoint.pos : g.player.pos);
-    g.rail.reset();
+    g.tokyo.security.clear();
+    g.tokyo.security.budgetPerEpisode = act === 3 ? 4 : 2;
+    g.tokyo.security.budget = g.tokyo.security.budgetPerEpisode;
+    for (const p of PATROLS[1]) g.tokyo.security.spawnPatrol(p);
+    if (act === 2 || act === 4) for (const p of PATROLS[act]) g.tokyo.security.spawnPatrol(p);
+    g.tokyo.crowd.reset(fromCheckpoint ? this.checkpoint.pos : g.player.pos);
+    g.tokyo.rail.reset();
     // The last express is on the boards from the start, suspended by the lockdown.
-    this.escapeSvc = g.rail.tt.scheduleEscape(66);
+    this.escapeSvc = g.tokyo.rail.tt.scheduleEscape(66);
     this.escapeSvc.suspended = act < 4;
-    g.setStationOpen(act >= 4);
+    g.tokyo.setStationOpen(act >= 4);
     if (fromCheckpoint) {
       g.player.reset(this.checkpoint.pos.x, this.checkpoint.pos.z, this.checkpoint.yaw, this.checkpoint.pos.y);
       g.player.health = Math.max(60, this.checkpoint.health);
     }
     if (act >= 4) this.openStation(false);
-    this.kenji = act === 1 ? g.crowd.pin(KENJI, Math.PI, 0xc8a020) : -1;
+    this.kenji = act === 1 ? g.tokyo.crowd.pin(KENJI, Math.PI, 0xc8a020) : -1;
   }
 
   /** Control handed to the player: the act and its first objective. */
   begin(fromCheckpoint: boolean) {
     const act = this.act;
-    this.g.story.setAct(act);
+    this.g.tokyo.story.setAct(act);
     this.setStep(act === 1 ? 'meet' : act === 2 ? 'board' : act === 3 ? 'relay' : 'train');
     if (!fromCheckpoint) this.saveCheckpoint();
   }
@@ -149,15 +149,15 @@ export class Mission {
 
   private setAct(a: Act) {
     this.act = a;
-    this.g.story.setAct(a);
-    this.g.security.budgetPerEpisode = a >= 3 ? 3 : 2;
+    this.g.tokyo.story.setAct(a);
+    this.g.tokyo.security.budgetPerEpisode = a >= 3 ? 3 : 2;
     if (a === 2) this.spawnAct(a);
     this.saveCheckpoint();
   }
 
   /** Puts an act's guards on duty, sending unaware patrols far away off duty to stay under the cap. */
   private spawnAct(a: Act) {
-    const sec = this.g.security;
+    const sec = this.g.tokyo.security;
     const extra = PATROLS[a].length;
     const cap = 10;
     if (sec.active + extra > cap) sec.retireFar(sec.active + extra - cap, this.g.player.pos);
@@ -169,9 +169,9 @@ export class Mission {
     if (e.type !== 'depart' || !e.s.escape || this.step !== 'train' && this.step !== 'manhunt') return;
     if (this.g.state === 'ending') return;
     const g = this.g;
-    this.escapeSvc = g.rail.tt.scheduleEscape(12, true);
-    g.story.say('STATION PA', `An extra express for Kagerō Bay will depart from Platform 1 at ${fmt(this.escapeSvc.time)}.`);
-    g.story.say('KENJI (TEXT)', 'You missed it?! There’s one more. Stay alive until then.');
+    this.escapeSvc = g.tokyo.rail.tt.scheduleEscape(12, true);
+    g.tokyo.story.say('STATION PA', `An extra express for Kagerō Bay will depart from Platform 1 at ${fmt(this.escapeSvc.time)}.`);
+    g.tokyo.story.say('KENJI (TEXT)', 'You missed it?! There’s one more. Stay alive until then.');
     this.setStep('train');
   }
 
@@ -182,13 +182,13 @@ export class Mission {
 
   /** The current objective, from the mission state (the only source of truth). */
   get objective() {
-    return objectiveFor(this.step, { escapeTime: this.escapeSvc ? fmt(this.escapeSvc.time) : '--:--', relay: this.g.district.relay });
+    return objectiveFor(this.step, { escapeTime: this.escapeSvc ? fmt(this.escapeSvc.time) : '--:--', relay: this.g.tokyo.district.relay });
   }
 
   private setStep(s: Step, announce = true) {
     this.step = s;
     this.stepT = 0;
-    this.g.story.setObjective(this.objective, announce);
+    this.g.tokyo.story.setObjective(this.objective, announce);
   }
 
   // ------------------------------------------------------------------ beats
@@ -200,7 +200,7 @@ export class Mission {
   private boardRead() {
     if (this.step !== 'board') return;
     const g = this.g;
-    g.story.say('BOARD', `LAST EXPRESS · KAGERŌ BAY · ${fmt(this.escapeSvc!.time)} · PLATFORM 1 — SUSPENDED: SECURITY LOCKDOWN`, 5);
+    g.tokyo.story.say('BOARD', `LAST EXPRESS · KAGERŌ BAY · ${fmt(this.escapeSvc!.time)} · PLATFORM 1 — SUSPENDED: SECURITY LOCKDOWN`, 5);
     this.boardReadT = 0;
   }
 
@@ -208,14 +208,14 @@ export class Mission {
     if (this.relayDown || this.step !== 'relay') return;
     this.relayDown = true;
     const g = this.g;
-    const at = g.district.relay.clone();
+    const at = g.tokyo.district.relay.clone();
     g.fx.glass(at.clone().setY(ROOF + 1.8));
     g.fx.sparks(at.clone().setY(ROOF + 1.8), v(0, 1, 0), 40, new THREE.Color(0.6, 0.85, 1), 7);
     g.audio.discharge(at);
     g.audio.siren();
-    g.envUses++;
-    g.story.say('DISPATCH', 'All units — relay sabotage on the Sky Garden roof. Fugitive on the roof. Converge.', 3.5);
-    g.security.alarm(at);
+    g.tokyo.envUses++;
+    g.tokyo.story.say('DISPATCH', 'All units — relay sabotage on the Sky Garden roof. Fugitive on the roof. Converge.', 3.5);
+    g.tokyo.security.alarm(at);
     this.openStation(true);
     this.setAct(4);
     this.setStep('manhunt');
@@ -224,14 +224,14 @@ export class Mission {
   /** Lockdown lifted: shutters up, the escape train back on the timetable. */
   private openStation(announce: boolean) {
     const g = this.g;
-    g.setStationOpen(true);
+    g.tokyo.setStationOpen(true);
     if (this.escapeSvc) {
-      g.rail.tt.services = g.rail.tt.services.filter((s) => s !== this.escapeSvc);
+      g.tokyo.rail.tt.services = g.tokyo.rail.tt.services.filter((s) => s !== this.escapeSvc);
     }
-    this.escapeSvc = g.rail.tt.scheduleEscape(announce ? 9 : 8);
+    this.escapeSvc = g.tokyo.rail.tt.scheduleEscape(announce ? 9 : 8);
     if (announce) {
-      g.story.say('STATION PA', `Service on the Sakura Line resumes. The last express to Kagerō Bay departs from Platform 1 at ${fmt(this.escapeSvc.time)}.`);
-      g.story.say('KENJI (TEXT)', 'Shutters are up. Get down to Platform 1 — every unit on the roof is coming for you.');
+      g.tokyo.story.say('STATION PA', `Service on the Sakura Line resumes. The last express to Kagerō Bay departs from Platform 1 at ${fmt(this.escapeSvc.time)}.`);
+      g.tokyo.story.say('KENJI (TEXT)', 'Shutters are up. Get down to Platform 1 — every unit on the roof is coming for you.');
     }
   }
 
@@ -239,16 +239,16 @@ export class Mission {
   update(dt: number) {
     const g = this.g;
     this.stepT += dt;
-    const a = g.security.alert;
+    const a = g.tokyo.security.alert;
 
     // Kenji's conversation, then the ambush.
     const talk = this.talk.update(dt);
-    for (const line of talk.lines) g.story.say('KENJI', line, 5.4);
+    for (const line of talk.lines) g.tokyo.story.say('KENJI', line, 5.4);
     if (talk.done) {
-      if (this.kenji >= 0) g.crowd.release(this.kenji, g.player.pos);
-      g.security.ambush(KENJI, 3);
+      if (this.kenji >= 0) g.tokyo.crowd.release(this.kenji, g.player.pos);
+      g.tokyo.security.ambush(KENJI, 3);
       g.audio.radio(null, 'dispatch');
-      g.story.say('DISPATCH', 'Suspect located at the Fountain Plaza ramen stall. Move in.', 3.2);
+      g.tokyo.story.say('DISPATCH', 'Suspect located at the Fountain Plaza ramen stall. Move in.', 3.2);
       this.setStep('ambush');
     }
 
@@ -256,7 +256,7 @@ export class Mission {
       this.boardReadT += dt;
       if (this.boardReadT > 2.2) {
         this.boardReadT = -1;
-        g.story.say('KENJI (TEXT)', 'That’s your train — but the lockdown is holding it. The shutters run off a security relay on the Sky Garden roof. Kill the relay and the line opens.', 7);
+        g.tokyo.story.say('KENJI (TEXT)', 'That’s your train — but the lockdown is holding it. The shutters run off a security relay on the Sky Garden roof. Kill the relay and the line opens.', 7);
         this.setAct(3);
         this.setStep('relay');
       }
@@ -266,7 +266,7 @@ export class Mission {
       case 'ambush':
         // Done once security has lost him and given up the search (or the squad is down).
         if (this.stepT > 8 && a.level === 'unnoticed') {
-          g.story.say('KENJI (TEXT)', 'Still breathing? Good. The departure board is at the metro entrance, east side of the plaza.', 6);
+          g.tokyo.story.say('KENJI (TEXT)', 'Still breathing? Good. The departure board is at the metro entrance, east side of the plaza.', 6);
           this.setAct(2);
           this.setStep('board');
         }
@@ -285,7 +285,7 @@ export class Mission {
     switch (this.step) {
       case 'relay':
         // The rooftop detail goes on duty when you come near the Sky Garden (not across the map).
-        if (!this.roofSquad && g.player.pos.distanceTo(g.district.relay) < 30) {
+        if (!this.roofSquad && g.player.pos.distanceTo(g.tokyo.district.relay) < 30) {
           this.roofSquad = true;
           this.spawnAct(3);
         }
@@ -293,14 +293,14 @@ export class Mission {
     }
 
     // A suspended train never "arrives"; keep it ahead of the clock until the lockdown lifts.
-    if (this.escapeSvc?.suspended && g.rail.tt.now > this.escapeSvc.time - 3) this.escapeSvc.time += 10;
+    if (this.escapeSvc?.suspended && g.tokyo.rail.tt.now > this.escapeSvc.time - 3) this.escapeSvc.time += 10;
     this.tutorial(a.level, dt);
     this.direct(dt, a.level);
   }
 
   /** One-off hints at the moment they're useful. */
   private tutorial(level: AlertLevel, dt: number) {
-    const tip = (k: string, text: string) => this.g.story.momentTip(k, text);
+    const tip = (k: string, text: string) => this.g.tokyo.story.momentTip(k, text);
     if (level === 'suspicious') tip('susp', 'Someone is looking at you (arc around the crosshair). Break line of sight, holster with [X], walk — don’t run.');
     if (level === 'pursuit') tip('pursuit', 'You’re made. Break line of sight and keep moving — rooftops, alleys and the metro lose them.');
     if (level === 'search') tip('search', 'They’re searching where they last saw you. Stay out of sight until they give up.');
@@ -308,7 +308,7 @@ export class Mission {
     this.refreshT -= dt;
     if (this.refreshT <= 0) {
       this.refreshT = 1;
-      this.g.story.refresh(this.objective);
+      this.g.tokyo.story.refresh(this.objective);
     }
   }
 
@@ -332,16 +332,16 @@ export class Mission {
       return;
     }
     this.calmT += dt;
-    if (this.calmT > 140 && g.security.active < 9) {
+    if (this.calmT > 140 && g.tokyo.security.active < 9) {
       this.calmT = 0;
       const p = g.player.pos;
       // A nav node roughly in the player's area, offset so it isn't a bead on him.
       const near = g.nav.nodes.filter((n) => Math.abs(n.y - 1 - p.y) < 2 && n.distanceTo(p) > 10 && n.distanceTo(p) < 28);
       const pick = near[Math.floor(Math.random() * near.length)];
       if (pick) {
-        const door = g.security.doors.filter((d) => d.distanceTo(p) > 30).sort(() => Math.random() - 0.5)[0];
+        const door = g.tokyo.security.doors.filter((d) => d.distanceTo(p) > 30).sort(() => Math.random() - 0.5)[0];
         if (door) {
-          const guard = g.security.spawnPatrol({ route: [door.clone(), pick.clone().setY(pick.y - 1)] });
+          const guard = g.tokyo.security.spawnPatrol({ route: [door.clone(), pick.clone().setY(pick.y - 1)] });
           guard.reinforcement = true;
           guard.exit = door.clone();
           this.sweepers.push({ guard, until: g.elapsed + 70 });

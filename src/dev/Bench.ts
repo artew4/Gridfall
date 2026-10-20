@@ -17,17 +17,18 @@ export async function bench(game: Game, seconds = 3) {
     await wait(700);
     out[name] = await probe(game, seconds);
   };
+  if (game.setting === 'desert') return benchDesert(game, dev, m, out);
   dev.start('story');
   dev.god();
   dev.noGuards();
-  game.security.alert.reset();
+  game.tokyo.security.alert.reset();
   dev.tp(0, 0, 14, 0, 0);
   dev.look(0, 1, 0);
   await m('plaza');
   dev.tp(30, 8.5, 9, 0, 0);
   dev.look(10, 6, -4);
   await m('rooftop');
-  game.setStationOpen(true);
+  game.tokyo.setStationOpen(true);
   dev.tp(0, -6, 21, 0, 0);
   dev.look(0, -5, 28);
   await m('metroConcourse');
@@ -35,25 +36,69 @@ export async function bench(game: Game, seconds = 3) {
   dev.look(6, -5, 33.5);
   await m('platform');
   // A train through the station (the real timetable, forced to run now).
-  game.rail.tt.now = (game.rail.tt.upcoming(1)[0]?.time ?? game.rail.tt.now) - 0.2;
+  game.tokyo.rail.tt.now = (game.tokyo.rail.tt.upcoming(1)[0]?.time ?? game.tokyo.rail.tt.now) - 0.2;
   await m('platformTrain');
   dev.tp(0, 0, -19, 0, 0);
   dev.look(-20, 9, -24);
-  (game as unknown as { train: { startNow(d: number, x: number, s: number): void } }).train.startNow(1, -160, 14);
+  game.tokyo.train.startNow(1, -160, 14);
   await m('overpassTrain');
   dev.tp(0, 0, 14, 0, 0);
   dev.look(0, 1, 0);
   game.weapon.setHolstered(false, true);
-  game.security.ambush(new THREE.Vector3(0, 0, 4), 4);
+  game.tokyo.security.ambush(new THREE.Vector3(0, 0, 4), 4);
   await wait(1500);
   await m('pursuit');
   for (let i = 0; i < 8; i++) {
     dev.shoot();
     await wait(120);
   }
-  game.security.ambush(new THREE.Vector3(4, 0, 4), 6);
+  game.tokyo.security.ambush(new THREE.Vector3(4, 0, 4), 6);
   await m('firefight');
   dev.noGuards();
-  game.security.alert.reset();
+  game.tokyo.security.alert.reset();
+  return out;
+}
+
+type Dev = { start(m: string, s?: string): void; god(): void; tp(x: number, y: number, z: number, yaw?: number, pitch?: number): void; look(x: number, y: number, z: number): void; shoot(): void };
+
+/** Desert Outpost: calm and storm, outside, inside, the long view, a fight in the dust. */
+async function benchDesert(game: Game, dev: Dev, m: (name: string) => Promise<void>, out: Record<string, unknown>) {
+  const desert = game.level as unknown as { storm: { clock: { set(p: string, i?: number): void } } };
+  dev.start('arcade', 'desert');
+  dev.god();
+  game.waves.reset(game.scene);
+  game.waves.state = 'idle';
+  desert.storm.clock.set('calm', 0.06);
+  dev.tp(-3, 0, 14, 0, 0);
+  dev.look(10, 2, -12);
+  await m('yardCalm');
+  dev.tp(24.5, 3.25, 12.5, 0, 0);
+  dev.look(-30, 0, -40);
+  await m('towerView');
+  desert.storm.clock.set('peak', 1);
+  dev.tp(-3, 0, 14, 0, 0);
+  dev.look(10, 2, -12);
+  await m('yardStorm');
+  dev.tp(-21, 0.12, -14.8, 0, 0);
+  dev.look(-22.8, 1.2, -6);
+  await m('interiorStorm');
+  dev.tp(50, 2, 40, 0, 0);
+  dev.look(0, 2, 0);
+  await m('dunesStorm');
+  // A wave in the dust: enemies spawned around and closing in.
+  dev.tp(0, 0, 8, 0, 0);
+  dev.look(0, 1.5, -10);
+  game.waves.startNext();
+  game.waves.startNext();
+  game.waves.startNext();
+  await new Promise((r) => setTimeout(r, 4000));
+  for (let i = 0; i < 6; i++) {
+    dev.shoot();
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  await m('fightStorm');
+  game.waves.reset(game.scene);
+  game.waves.state = 'idle';
+  desert.storm.clock.set('calm', 0.06);
   return out;
 }

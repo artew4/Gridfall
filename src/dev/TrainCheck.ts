@@ -21,9 +21,9 @@ const input = (keys: Keys) => {
  */
 export function checkTrain(game: Game) {
   const t0 = performance.now();
-  const g = game as unknown as { rail: Game['rail']; district: Game['district']; col: Game['col']; player: Game['player'] };
-  const T = g.rail.train;
-  const M = g.district.metro;
+  const g = game;
+  const T = g.tokyo.rail.train;
+  const M = g.tokyo.district.metro;
   const P = g.player;
   const saved = { pos: P.pos.clone(), yaw: P.yaw };
   const fails: Record<string, unknown>[] = [];
@@ -84,7 +84,7 @@ export function checkTrain(game: Game) {
   }
 
   // ---------------------------------------------------------------- doorway obstruction (real Rail)
-  const R = g.rail;
+  const R = g.tokyo.rail;
   const doorFails: Record<string, unknown>[] = [];
   const doorRuns: Record<string, unknown>[] = [];
   const onEvent = R.onEvent;

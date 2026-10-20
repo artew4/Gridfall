@@ -34,6 +34,11 @@ export class Minimap {
   private label = document.createElement('div');
   private dpr = Math.min(2, window.devicePixelRatio || 1);
 
+  /** Level unloaded: remove the map from the HUD. */
+  dispose() {
+    this.root.remove();
+  }
+
   constructor(parent: HTMLElement, data: MapData) {
     this.root.className = 'minimap';
     this.canvas.width = this.canvas.height = SIZE * this.dpr;

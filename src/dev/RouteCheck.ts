@@ -148,8 +148,8 @@ function chase(game: Game, from: THREE.Vector3, goal: THREE.Vector3, seconds = 6
 export function runRouteCheck(game: Game) {
   const t0 = performance.now();
   // The station is normally locked: open it for the check, then put it back.
-  const wasOpen = game.district.metro.shutters[0].open;
-  game.setStationOpen(true);
+  const wasOpen = game.tokyo.district.metro.shutters[0].open;
+  game.tokyo.setStationOpen(true);
   const routes = ROUTES.map((r) => ({ name: r.name, ...walk(game, r.pts) }));
   // Vaults and drops: walkway railing to the plaza, Sky Garden low parapet onto S1, high parapets hold.
   const jumps = [
@@ -197,7 +197,7 @@ export function runRouteCheck(game: Game) {
     chaseCount: chases.length,
     ms: Math.round(performance.now() - t0),
   };
-  game.setStationOpen(wasOpen);
+  game.tokyo.setStationOpen(wasOpen);
   console.log('[route-check]', result);
   return result;
 }

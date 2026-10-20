@@ -2,8 +2,6 @@ import * as THREE from 'three';
 import type { Game } from '../core/Game';
 import type { Collider } from '../world/Collision';
 import { StaticBuilder, type VisualPiece } from '../world/Builder';
-import { zoneAt } from '../world/Zones';
-import { UG } from '../world/Metro';
 
 /** Player body used for every standability test (same as Player.ts / resolveCircle defaults). */
 const R = 0.35;
@@ -54,14 +52,17 @@ export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: bool
   const t0 = performance.now();
   const col = game.col;
   const cell = opts.cell ?? 0.5;
-  const b = game.district.bounds;
+  const data = game.level.data;
+  const zoneAt = data.zoneAt;
+  const b = data.bounds;
+  const tokyo = game.setting === 'tokyo';
   const x0 = b.min.x - MARGIN, x1 = b.max.x + MARGIN;
   const z0 = b.min.y - MARGIN, z1 = b.max.y + MARGIN;
   const nx = Math.ceil((x1 - x0) / cell), nz = Math.ceil((z1 - z0) / cell);
-  if (opts.stationOpen !== false) {
-    game.setStationOpen(true);
+  if (tokyo && opts.stationOpen !== false) {
+    game.tokyo.setStationOpen(true);
     // Let the shutters finish rolling up (they're animated) so they don't read as open-air walls.
-    for (const sh of game.district.metro.shutters) sh.update(10);
+    for (const sh of game.tokyo.district.metro.shutters) sh.update(10);
   }
 
   // ------------------------------------------------------------------ visuals (static pieces + loose meshes)
@@ -117,7 +118,8 @@ export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: bool
   // ------------------------------------------------------------------ floors and standability
   const floorsAt = (x: number, z: number): number[] => {
     const out: number[] = [];
-    if (!col.inHole(x, z)) out.push(0);
+    if (col.terrain) out.push(col.terrain.height(x, z));
+    else if (!col.inHole(x, z)) out.push(0);
     for (const c of col.near(x - 0.01, z - 0.01, x + 0.01, z + 0.01)) {
       if (!c.floor || (!c.solid && c.kind !== 'ramp')) continue;
       if (x < c.min.x || x > c.max.x || z < c.min.z || z > c.max.z) continue;
@@ -200,7 +202,7 @@ export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: bool
       }
     }
   }
-  const start = opts.from ?? v(game.district.storyStart.x, 0, game.district.storyStart.z);
+  const start = opts.from ?? (tokyo ? v(game.tokyo.district.storyStart.x, 0, game.tokyo.district.storyStart.z) : v(data.start.x, data.start.y ?? 0, data.start.z));
   let s0 = -1;
   let best = Infinity;
   for (const n of nodes) {
@@ -232,8 +234,8 @@ export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: bool
   for (const n of nodes) {
     if (!reach[n.i]) continue;
     if (!inside(n)) findings.push({ kind: 'escape: reachable outside the playable extent', n });
-    else if (n.h < UG - 0.5) findings.push({ kind: 'track pit reachable', n });
-    else if (!zoneAt(n.x, n.h, n.z) && !(game.rail.train.inside(new THREE.Vector3(n.x, n.h, n.z)))) findings.push({ kind: 'outside designed zones: reachable but not part of the level', n });
+    else if (n.h < data.floorMin - 0.5) findings.push({ kind: 'below the lowest floor (track pit) reachable', n });
+    else if (!zoneAt(n.x, n.h, n.z) && !game.level.aboard(new THREE.Vector3(n.x, n.h, n.z))) findings.push({ kind: 'outside designed zones: reachable but not part of the level', n });
     else if (!back[n.i]) findings.push({ kind: 'trap: no way back to the start', n });
   }
   for (const n of longFalls) if (reach[n.i]) findings.push({ kind: 'drop > 10 m (fall damage)', n });
@@ -469,7 +471,9 @@ export function stressController(game: Game, opts: { samples?: number; seconds?:
   const n = Math.min(opts.samples ?? 500, cells.length);
   const stride = cells.length / n;
   const P = game.player;
-  const b = game.district.bounds;
+  const data = game.level.data;
+  const zoneAt = data.zoneAt;
+  const b = data.bounds;
   const keys = new Set<string>();
   const inp = { keys, pressed: new Set<string>(), mouseDX: 0, mouseDY: 0, key: (c: string) => keys.has(c) } as unknown as Parameters<typeof P.update>[1];
   const fails: Record<string, unknown>[] = [];
@@ -501,7 +505,7 @@ export function stressController(game: Game, opts: { samples?: number; seconds?:
             P.update(dt, inp, true, t);
             const c = crossesSolid(game, prev, P.pos, Math.min(prev.y, P.pos.y));
             if (c) fail = { why: 'crossed a solid wall', collider: `[${c.min.toArray().map((q) => q.toFixed(2))}]→[${c.max.toArray().map((q) => q.toFixed(2))}]` };
-            else if (P.pos.y < UG - 0.6) fail = { why: 'fell into the track pit / below the station' };
+            else if (P.pos.y < data.floorMin - 0.6) fail = { why: 'fell below the lowest floor (track pit / under the world)' };
             else if (P.pos.x < b.min.x || P.pos.x > b.max.x || P.pos.z < b.min.y || P.pos.z > b.max.y) fail = { why: 'left the playable extent' };
             if (fail) {
               Object.assign(fail, { start: [x, h, z], dir, fps: profile, dt: +dt.toFixed(4), mode, t: +t.toFixed(2), pos: P.pos.toArray().map((q) => +q.toFixed(2)), vel: P.vel.toArray().map((q) => +q.toFixed(2)), onGround: P.onGround, zone: zoneAt(P.pos.x, P.pos.y, P.pos.z)?.name ?? '' });

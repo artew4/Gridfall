@@ -42,7 +42,7 @@ export interface PursuitResult {
  * whether any guard ever headed for the hiding spot without information.
  */
 export function checkPursuit(game: Game) {
-  const sec = game.security;
+  const sec = game.tokyo.security;
   const ctx = sec.ctx;
   const nav = ctx.nav;
   const player = game.player;
@@ -82,7 +82,7 @@ export function checkPursuit(game: Game) {
   const scenario = (o: Opts): PursuitResult => {
     for (const g of sec.guards) g.dispose(game.scene);
     sec.clear();
-    game.setStationOpen(!!o.stationOpen);
+    game.tokyo.setStationOpen(!!o.stationOpen);
     sec.budgetPerEpisode = sec.budget = 2;
     for (const r of PATROLS) sec.spawnPatrol({ route: r.map((p) => p.clone()), post: r.length === 1 });
     let armed = true;

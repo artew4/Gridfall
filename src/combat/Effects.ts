@@ -243,15 +243,16 @@ export class Effects {
       return;
     } else {
       this.sparks(pos, normal, 5, undefined, 4);
-      // Dust / water puff.
-      for (let i = 0; i < 4; i++) {
+      // Dust / water puff (a bigger, sand-coloured plume in sand).
+      const sand = surface === 'sand';
+      for (let i = 0; i < (sand ? 7 : 4); i++) {
         this.smoke.spawn({
           x: pos.x, y: pos.y, z: pos.z,
           vx: normal.x * rand(0.5, 1.5) + rand(-0.3, 0.3), vy: normal.y * rand(0.5, 1.5) + rand(0, 0.4), vz: normal.z * rand(0.5, 1.5) + rand(-0.3, 0.3),
-          r: 0.32, g: 0.32, b: 0.38, a: 0.35, size: 0.12, grow: 0.9, life: rand(0.5, 0.9), drag: 3,
+          r: sand ? 0.75 : 0.32, g: sand ? 0.6 : 0.32, b: sand ? 0.42 : 0.38, a: sand ? 0.5 : 0.35, size: sand ? 0.18 : 0.12, grow: sand ? 1.4 : 0.9, life: rand(0.5, 0.9), drag: 3,
         });
       }
-      if (normal.y > 0.5) {
+      if (normal.y > 0.5 && !sand) {
         // Hit the wet street: water spray.
         for (let i = 0; i < 10; i++) {
           this.add.spawn({
