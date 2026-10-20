@@ -543,53 +543,86 @@ export class Game {
     const r = Math.sqrt(Math.random()) * spread;
     dir.addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
     this.stats.shots++;
-
-    const wh = this.col.raycast(origin, dir, 200, this.tmpHit);
-    let maxDist = wh ? wh.dist : 200;
-    let target: Enemy | null = null;
-    let eh: EnemyHit | null = null;
     this.rules.onGunshot?.(origin);
-    for (const e of this.ctx.enemies) {
-      const h = e.raycast(origin, dir);
-      if (h && h.dist < maxDist) {
-        maxDist = h.dist;
-        target = e;
-        eh = h;
-      }
-    }
-    // Whatever else the mode puts in the line of fire (bystanders).
-    const ch = this.rules.bystander?.(origin, dir, maxDist) ?? null;
-    if (ch && ch.dist < maxDist) {
-      maxDist = ch.dist;
-      target = null;
-      eh = null;
-    }
+
     const muzzle = cam.localToWorld(new THREE.Vector3(...w.muzzle));
-    const end = origin.clone().addScaledVector(dir, maxDist);
-    this.fx.tracer(muzzle, end, new THREE.Color(...w.tracer));
+    const tracer = new THREE.Color(...w.tracer);
     this.fx.muzzleSmoke(muzzle, dir);
+    if (w.pellets) this.fx.muzzleSmoke(muzzle, dir);
     this.fx.ejectShell(cam.localToWorld(new THREE.Vector3(...w.shell)), right, up);
     this.muzzleLight.color.set(w.flash.light);
     this.muzzleLight.position.copy(muzzle);
     this.muzzleT = 0.06;
 
-    if (target && eh) {
-      this.stats.hits++;
-      const dmg = w.damage * eh.mult * rand(0.95, 1.05);
-      const killed = target.takeHit(dmg, dir, eh.point, this.ctx);
-      this.hud.hitmarker(killed);
-      this.audio.hitmarker(killed);
-      if (killed) {
-        this.rules.onKill?.();
-        this.player.trauma = Math.min(1, this.player.trauma + 0.12);
+    // One ray per pellet (one for ordinary guns, exactly the aimed ray). Pellets on the same enemy add
+    // up into a single hit (one stagger, one hitmarker, one kill); a blast counts once per prop.
+    const count = w.pellets?.count ?? 1;
+    const fall = w.pellets?.falloff;
+    const onEnemy = new Map<Enemy, { dmg: number; point: THREE.Vector3; dir: THREE.Vector3 }>();
+    const props = new Set<unknown>();
+    let surfaceSounds = 0;
+    const pd = new THREE.Vector3();
+    for (let i = 0; i < count; i++) {
+      pd.copy(dir);
+      if (w.pellets) {
+        const pa = Math.random() * Math.PI * 2;
+        const pr = Math.sqrt(Math.random()) * w.pellets.spread;
+        pd.addScaledVector(right, Math.cos(pa) * pr).addScaledVector(up, Math.sin(pa) * pr).normalize();
       }
-    } else if (ch && ch.dist <= maxDist) {
-      ch.hit(dir);
-    } else if (wh) {
-      this.fx.impact(wh.point, wh.normal, wh.surface);
-      this.audio.hitSurface(wh.point, wh.surface);
-      // Cabinets, lamps and other shootable props.
-      wh.collider?.onHit?.(wh);
+      const wh = this.col.raycast(origin, pd, 200, this.tmpHit);
+      let maxDist = wh ? wh.dist : 200;
+      let target: Enemy | null = null;
+      let eh: EnemyHit | null = null;
+      for (const e of this.ctx.enemies) {
+        const h = e.raycast(origin, pd);
+        if (h && h.dist < maxDist) {
+          maxDist = h.dist;
+          target = e;
+          eh = h;
+        }
+      }
+      // Whatever else the mode puts in the line of fire (bystanders).
+      const ch = this.rules.bystander?.(origin, pd, maxDist) ?? null;
+      if (ch && ch.dist < maxDist) {
+        maxDist = ch.dist;
+        target = null;
+        eh = null;
+      }
+      this.fx.tracer(muzzle, origin.clone().addScaledVector(pd, maxDist), tracer);
+      if (target && eh) {
+        const k = fall ? (eh.dist <= fall.near ? 1 : eh.dist >= fall.far ? fall.min : 1 - ((eh.dist - fall.near) / (fall.far - fall.near)) * (1 - fall.min)) : 1;
+        const dmg = w.damage * eh.mult * k * rand(0.95, 1.05);
+        const acc = onEnemy.get(target);
+        if (acc) {
+          acc.dmg += dmg;
+          // Every pellet shows where it struck; the hit itself is applied once below.
+          this.fx.enemyHit(eh.point, pd, target.accent, target.look.organic);
+        } else onEnemy.set(target, { dmg, point: eh.point.clone(), dir: pd.clone() });
+      } else if (ch && ch.dist <= maxDist) {
+        ch.hit(pd);
+      } else if (wh) {
+        this.fx.impact(wh.point, wh.normal, wh.surface);
+        if (surfaceSounds++ < 2) this.audio.hitSurface(wh.point, wh.surface);
+        // Cabinets, lamps and other shootable props: once per trigger pull, however many pellets.
+        if (wh.collider?.onHit && !props.has(wh.collider)) {
+          props.add(wh.collider);
+          wh.collider.onHit(wh);
+        }
+      }
+    }
+    if (onEnemy.size) {
+      this.stats.hits++;
+      let anyKill = false;
+      for (const [e, h] of onEnemy) {
+        const killed = e.takeHit(h.dmg, h.dir, h.point, this.ctx);
+        if (killed) {
+          anyKill = true;
+          this.rules.onKill?.();
+        }
+      }
+      this.hud.hitmarker(anyKill);
+      this.audio.hitmarker(anyKill);
+      if (anyKill) this.player.trauma = Math.min(1, this.player.trauma + 0.12);
     }
 
     // Camera kick: a bit of permanent climb plus a springy punch (per weapon).

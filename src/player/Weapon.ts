@@ -29,6 +29,12 @@ export class Weapon {
   private autoReloadT = 0;
   private reloadStage = 0;
   private cooldown = 0;
+  /** Time since the last shot (drives the pump cycle); Infinity when idle. */
+  private cycleT = Infinity;
+  private cycleSound = false;
+  /** Rounds loaded so far in a one-at-a-time reload. */
+  private loaded = 0;
+  private loadTilt = 0;
   private flashT = 0;
   private flashes: THREE.Mesh[] = [];
   private flashLight: THREE.PointLight;
@@ -157,7 +163,9 @@ export class Weapon {
   }
 
   get canFire() {
-    return !this.holstered && !this.reloading && this.cooldown <= 0 && this.raise > 0.9;
+    // A tube magazine can fire between shells: the trigger interrupts the reload.
+    const loading = this.reloading && !(this.spec.perRound && this.ammo > 0);
+    return !this.holstered && !loading && this.cooldown <= 0 && this.raise > 0.9;
   }
 
   /** The gun can be seen by others (drawn, or still coming up). */
@@ -200,8 +208,10 @@ export class Weapon {
       this.startReload();
       return false;
     }
+    if (this.reloading) this.reloading = false;
     this.ammo--;
     const k = this.spec.kick;
+    this.cycleT = 0;
     this.cooldown = this.spec.fireInterval;
     this.kickZ.impulse(k.z);
     this.kickRot.impulse(k.rot + rand(-k.rotJitter, k.rotJitter));
@@ -226,6 +236,7 @@ export class Weapon {
     this.reloading = true;
     this.reloadT = 0;
     this.reloadStage = 0;
+    this.loaded = 0;
     this.ammoDisplay.draw(0, this.spec.mag, true);
   }
 
@@ -233,6 +244,8 @@ export class Weapon {
     this.ammo = this.spec.mag;
     this.reloading = false;
     this.autoReloadT = 0;
+    this.cycleT = Infinity;
+    this.loadTilt = 0;
     this.ammoDisplay.draw(this.ammo, this.spec.mag, false);
   }
 
@@ -261,7 +274,37 @@ export class Weapon {
     let rTilt = 0;
     let magY = 0;
     let magVis = true;
-    if (this.reloading) {
+    const pr = this.spec.perRound;
+    if (this.reloading && pr) {
+      // Tube magazine: tilt in, then a shell pushed in every `each` seconds until full.
+      this.reloadT += dt;
+      const t = this.reloadT;
+      const into = t - pr.open;
+      magVis = into > 0;
+      if (into > 0) {
+        const phase = (into % pr.each) / pr.each;
+        // The shell rises from the hand into the loading port, then the hand drops for the next.
+        magY = phase < 0.6 ? -0.12 * (1 - easeOut(phase / 0.6)) : -0.12 * easeOut((phase - 0.6) / 0.4);
+        // A shell is in when the hand reaches the port (60% through each cycle).
+        const should = Math.floor(into / pr.each + 0.4);
+        if (should > this.loaded && this.ammo < this.spec.mag) {
+          this.loaded = should;
+          this.ammo++;
+          this.audio.reload('in');
+          this.kickZ.impulse(-0.5);
+          this.ammoDisplay.draw(this.ammo, this.spec.mag, false);
+        }
+      } else magY = -0.12;
+      if (this.ammo >= this.spec.mag) {
+        this.reloading = false;
+        this.onReloadDone();
+      }
+    } else if (pr) magVis = false;
+    if (pr) {
+      // Tilted for loading while reloading; eases back when full or when the trigger interrupts.
+      this.loadTilt = damp(this.loadTilt, this.reloading ? 1 : 0, 9, dt);
+      rTilt = this.loadTilt;
+    } else if (this.reloading) {
       this.reloadT += dt;
       // Authored for BASE_RELOAD; a slower weapon plays the same beats stretched.
       const t = (this.reloadT * BASE_RELOAD) / this.spec.reloadTime;
@@ -294,6 +337,21 @@ export class Weapon {
     this.mag.position.y = this.magRest.y + magY;
     this.mag.visible = magVis;
     this.slide.position.z = Math.max(0, this.slideS.value);
+    // Pump action: the fore-end comes back and goes forward again after each shot.
+    const cy = this.spec.cycle;
+    if (cy) {
+      this.cycleT += dt;
+      const t = this.cycleT - cy.start;
+      let z = 0;
+      if (t > 0 && t < cy.back) z = cy.travel * easeOut(t / cy.back);
+      else if (t >= cy.back && t < cy.back + cy.forward) z = cy.travel * (1 - easeInOut((t - cy.back) / cy.forward));
+      if (t > 0 && !this.cycleSound) {
+        this.cycleSound = true;
+        this.audio.pump();
+      }
+      if (this.cycleT < cy.start) this.cycleSound = false;
+      this.slide.position.z = z;
+    }
 
     // Sway lags behind mouse movement; bob follows footsteps.
     this.swayX = damp(this.swayX, clamp(-mouseDX * 0.0004, -0.03, 0.03), 10, dt);
