@@ -198,13 +198,13 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 :root { --amber: #ffd27a; --amber-dim: rgba(255, 210, 122, 0.45); }
 .objhud { z-index: 6; }
 /* Persistent objective panel, top-left. */
-.obj-panel { position: absolute; top: clamp(14px, 2.4vh, 26px); left: clamp(14px, 1.8vw, 28px); width: clamp(260px, 27vw, 430px); padding: 10px 14px 10px 14px; border-left: 2px solid var(--amber-dim); background: linear-gradient(90deg, rgba(4, 8, 18, 0.72), rgba(4, 8, 18, 0)); transition: opacity 0.4s; }
+.obj-panel { position: absolute; top: clamp(14px, 2.4vh, 26px); left: clamp(14px, 1.8vw, 28px); width: clamp(260px, 27vw, 520px); padding: 10px 14px 10px 14px; border-left: 2px solid var(--amber-dim); background: linear-gradient(90deg, rgba(4, 8, 18, 0.72), rgba(4, 8, 18, 0)); transition: opacity 0.4s; }
 .obj-panel.empty { opacity: 0; }
 .obj-tag { display: flex; justify-content: space-between; gap: 12px; font-size: 9px; letter-spacing: 0.45em; color: var(--amber-dim); }
 .obj-tag span { letter-spacing: 0.3em; color: var(--cyan-dim); white-space: nowrap; }
-.obj-title { margin-top: 4px; font-size: clamp(14px, 1.25vw, 19px); letter-spacing: 0.22em; color: #fff4dc; text-shadow: 0 0 10px rgba(255, 190, 90, 0.25); }
+.obj-title { margin-top: 4px; font-size: clamp(14px, 1.25vw, 23px); letter-spacing: 0.22em; color: #fff4dc; text-shadow: 0 0 10px rgba(255, 190, 90, 0.25); }
 .obj-title .jp { font-family: var(--jp); font-size: 0.6em; letter-spacing: 0.25em; color: var(--amber-dim); margin-left: 12px; }
-.obj-text { margin-top: 5px; font-size: clamp(11px, 0.85vw, 13px); letter-spacing: 0.06em; line-height: 1.45; color: rgba(232, 250, 255, 0.92); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.obj-text { margin-top: 5px; font-size: clamp(11px, 0.85vw, 16px); letter-spacing: 0.06em; line-height: 1.45; color: rgba(232, 250, 255, 0.92); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
 .obj-dist { margin-top: 6px; font-size: 11px; letter-spacing: 0.3em; color: var(--amber); min-height: 0; }
 .obj-dist:empty { display: none; }
 .obj-hint { margin-top: 8px; font-size: 12px; line-height: 1.45; letter-spacing: 0.03em; color: #cfe9ff; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; max-height: 0; opacity: 0; overflow: hidden; transition: opacity 0.5s, max-height 0.5s; }
@@ -236,8 +236,8 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin: 0 4px; t
 .obj-tip { position: absolute; left: 50%; bottom: 25vh; transform: translateX(-50%); max-width: 80vw; padding: 8px 16px; font-size: 12px; letter-spacing: 0.12em; color: #e8fbff; background: rgba(4, 8, 18, 0.7); border: 1px solid var(--cyan-faint); opacity: 0; transition: opacity 0.4s; text-align: center; }
 .obj-tip.on { opacity: 1; }
 /* Subtitles. */
-.subtitles { position: fixed; left: 50%; bottom: clamp(70px, 12vh, 130px); transform: translateX(-50%); width: min(860px, 88vw); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 7; }
-.sub { padding: 7px 16px 8px; max-width: 100%; text-align: center; background: rgba(2, 4, 10, 0.68); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: clamp(14px, 1.15vw, 18px); line-height: 1.4; color: #f4f8ff; opacity: 0; transform: translateY(6px); transition: opacity 0.25s, transform 0.25s; }
+.subtitles { position: fixed; left: 50%; bottom: clamp(118px, 14vh, 150px); transform: translateX(-50%); width: min(900px, 66vw); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 7; }
+.sub { padding: 7px 16px 8px; max-width: 100%; text-align: center; background: rgba(2, 4, 10, 0.68); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: clamp(14px, 1.1vw, 22px); line-height: 1.4; color: #f4f8ff; opacity: 0; transform: translateY(6px); transition: opacity 0.25s, transform 0.25s; }
 .sub.on { opacity: 1; transform: none; }
 .sub b { font-family: var(--mono); font-weight: 400; font-size: 0.68em; letter-spacing: 0.35em; margin-right: 12px; color: var(--amber); }
 .sub.sp-stationpa b { color: #8fd8ff; }
@@ -260,5 +260,6 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin: 0 4px; t
 .prompt { top: 58%; padding: 7px 14px; font-size: 13px; letter-spacing: 0.22em; border-color: var(--amber-dim); }
 .prompt b { display: inline-block; min-width: 22px; padding: 0 6px; text-align: center; color: #fff; border: 1px solid var(--cyan-dim); border-bottom-width: 2px; border-radius: 3px; background: rgba(120, 235, 255, 0.1); }
 /* Police radio: a compact feed under the objective panel. */
-.radio { top: clamp(130px, 17vh, 180px); bottom: auto; left: clamp(14px, 1.8vw, 28px); max-width: 32vw; }
+.radio { top: clamp(190px, 30vh, 300px); bottom: auto; left: clamp(14px, 1.8vw, 28px); max-width: 32vw; }
 @media (max-width: 900px) { .obj-panel { width: 60vw; } .radio { display: none; } }
+.ammo { transition: opacity 0.3s; } .ammo.stowed { opacity: 0; }

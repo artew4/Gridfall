@@ -149,6 +149,11 @@ export class Hud {
     this.reloadEl.textContent = reloading ? 'RELOADING' : a === 0 ? 'PRESS R' : '';
   }
 
+  /** The ammo panel only while the weapon is out. */
+  setArmed(on: boolean) {
+    this.ammo.classList.toggle('stowed', !on);
+  }
+
   setWave(n: number, remaining: number, breakTime = false) {
     this.waveNum.textContent = String(n).padStart(2, '0');
     this.waveJp.textContent = `第${jpNumber(n)}波`;
