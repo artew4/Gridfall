@@ -50,7 +50,16 @@
       { "simSeconds": 198.5, "killsPerMin": 14.2, "kills": { "gunner": 47 }, "breakPct": 15.7, "stuck": 0 }
     ],
     "versus_7.0": "7.0 (with blades): 135-153 s, 18.3-20 kills/min",
-    "attribution": "not completed: the in-code A/B (blades back, lane discipline off) was cut off when the browser extension disconnected; an earlier console attempt modified a second module copy and is void"
+    "attribution_ab": {
+      "method": "__dev.tdmSim on the desert, 3 runs per configuration, interleaved: 8.0; roster 'any' (blades back); laneLeave Infinity (lane discipline off)",
+      "v8": [[181.4, 15.2], [206.5, 13.9], [196.4, 15.0]],
+      "bladesBack": [[153.1, 17.6], [168.1, 16.8], [135.2, 17.3]],
+      "laneDisciplineOff": [[197.8, 14.9], [198.4, 14.2], [180.3, 15.3]],
+      "columns": ["simSeconds", "killsPerMin"],
+      "bladeKills": "0-2 per match with blades back",
+      "conclusion": "the longer desert matches come from removing the blades (they died fast and made 0-2 kills: the tickets they fed shortened matches); lane discipline is neutral on the desert",
+      "note": "an earlier console attempt modified a second module copy and is void (L-080)"
+    }
   },
   "tests": { "unit": "141 passed (8 new: roster 4, docks layout 4)", "build": "ok; tdmSim/bench/docks dev code not in the bundle" }
 }

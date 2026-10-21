@@ -395,7 +395,11 @@ Branch `feature/neon-docks-arena-8.0`, based on 7.0 (`08e55d1`). Plan: `docs/PLA
 - **Tests and build:** 141 unit tests (8 new); `npm run build` ok; DEV tools not in the bundle.
 
 **Open:**
-- **Desert TDM is slower:** with the 8.0 code, desert matches run 168–198 s at ~14.3 kills/min (7.0: 135–153 s, ~18.4). The in-code A/B that separates the roster change from lane discipline (`tdmSim({ roster: 'any' })`, `tdmSim({ laneLeave: Infinity })`) was cut off when the browser extension disconnected. An earlier console attempt changed a second copy of the module and is void.
+- **Desert TDM is slower, and it's the roster:** with the 8.0 code, desert matches run 181–207 s (median 196) at 13.9–15.2 kills/min (7.0: 135–153 s, ~18.4). The in-code A/B, 3 runs each:
+  - blades back: 135–168 s (median 153), 16.8–17.6 kills/min, the blades making 0–2 kills a match;
+  - lane discipline off: 180–198 s (median 198).
+
+  So the blades shortened matches by dying, which is the "feeding tickets" of the playtest, and lane discipline is neutral there. Whether rifle-only TDM is now too long is a playtest question; tickets or respawn time are the knobs.
 - **Not human-tested:** the docks, the lanes' balance with a human, whether the colour callouts read in a fight, and the lighting on other displays.
 
 ## Next
