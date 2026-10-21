@@ -86,6 +86,10 @@ export function installDevTools(game: Game) {
     async stress(opts: { samples?: number; seconds?: number; fps?: (number | 'spiky')[] } = {}) {
       return (await import('./WorldCheck')).stressController(game, opts);
     },
+    /** 9.1: stair-to-wall gaps: their widths, and that a body pressed into one keeps its floor. */
+    async stairGaps() {
+      return (await import('./WorldCheck')).stairGapProbe(game);
+    },
     /** Any level: nav graph from every spawn, runners to every test goal, gunners get a shot off. */
     async levelAI(opts: { spawns?: number; seconds?: number; sight?: number } = {}) {
       return (await import('./LevelAICheck')).checkLevelAI(game, opts);

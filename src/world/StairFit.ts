@@ -13,8 +13,15 @@ import type { Collider } from './Collision';
      intruder's face (`fitStairWidth`), so the steps, the ramp, the fill and the rails stay out of it;
    - anything else (into the run, or most of the width) is a layout error: reported, not hidden.
 
+  9.1: a stair never ends flush with a wall either. A side within STAIR_GAP of a wall face (touching
+  it, or narrowed to it) is moved STAIR_GAP clear of it, so no face of the stair shares a plane with
+  the wall's (coplanar faces z-fight). 3 cm is far below any body's radius: nothing falls into it.
+
   Pure: colliders in, rectangles and findings out.
 */
+
+/** Clearance kept between a stair's side and a wall beside it (m). */
+export const STAIR_GAP = 0.03;
 
 export interface Rect {
   x0: number;
@@ -62,7 +69,11 @@ export function fitStairWidth(colliders: readonly Collider[], r: Rect, axis: 'x'
   const hi = axis === 'x' ? 'z1' : 'x1';
   const runLo = axis === 'x' ? 'x0' : 'z0';
   const runHi = axis === 'x' ? 'x1' : 'z1';
-  for (const c of intruders(colliders, rect, yLo, yHi)) {
+  // Look a little past the sides too: a wall touching a side (or within the gap) is a neighbour.
+  const reach = { ...rect };
+  reach[lo] -= STAIR_GAP + 0.03;
+  reach[hi] += STAIR_GAP + 0.03;
+  for (const c of intruders(colliders, reach, yLo, yHi)) {
     const cLo = axis === 'x' ? c.min.z : c.min.x;
     const cHi = axis === 'x' ? c.max.z : c.max.x;
     const rLo = axis === 'x' ? c.min.x : c.min.z;
@@ -71,13 +82,19 @@ export function fitStairWidth(colliders: readonly Collider[], r: Rect, axis: 'x'
     // An intruder that covers the whole run end-to-end along a side, or part of it: still a side wall.
     const alongRun = Math.min(rect[runHi], rHi) - Math.max(rect[runLo], rLo) > 0;
     if (!alongRun) continue;
-    if (cLo <= rect[lo] + 1e-6 && cHi - rect[lo] < width / 2) {
-      clipped.push({ side: 'lo', by: +(cHi - rect[lo]).toFixed(3) });
-      rect[lo] = cHi;
-    } else if (cHi >= rect[hi] - 1e-6 && rect[hi] - cLo < width / 2) {
-      clipped.push({ side: 'hi', by: +(rect[hi] - cLo).toFixed(3) });
-      rect[hi] = cLo;
-    } else blocked.push(c);
+    if (cLo <= rect[lo] + 1e-6 && cHi + STAIR_GAP - rect[lo] < width / 2) {
+      const to = cHi + STAIR_GAP;
+      if (to > rect[lo]) {
+        clipped.push({ side: 'lo', by: +(to - rect[lo]).toFixed(3) });
+        rect[lo] = to;
+      }
+    } else if (cHi >= rect[hi] - 1e-6 && rect[hi] - (cLo - STAIR_GAP) < width / 2) {
+      const to = cLo - STAIR_GAP;
+      if (to < rect[hi]) {
+        clipped.push({ side: 'hi', by: +(rect[hi] - to).toFixed(3) });
+        rect[hi] = to;
+      }
+    } else if (Math.min(rect[hi], cHi) - Math.max(rect[lo], cLo) > 0) blocked.push(c);
   }
   return { rect, clipped, blocked };
 }
@@ -93,3 +110,25 @@ export function stairWallOverlaps(colliders: readonly Collider[]) {
   for (const s of stairsOf(colliders)) for (const w of intruders(colliders, s.rect, s.yLo, s.yHi)) out.push({ stair: s.rect, yLo: s.yLo, yHi: s.yHi, wall: w });
   return out;
 }
+
+/**
+ * World check (9.1): stairs whose side is flush with a wall (closer than half the gap, at its own
+ * heights, along its run). Coplanar faces z-fight; `fitStairWidth` keeps STAIR_GAP.
+ */
+export function stairWallFlush(colliders: readonly Collider[]) {
+  const out: { stair: Rect; wall: Collider; gap: number }[] = [];
+  const e = STAIR_GAP / 2;
+  for (const s of stairsOf(colliders)) {
+    const r = s.rect;
+    const alongX = s.ramp.axis === 'x';
+    for (const c of intruders(colliders, alongX ? { ...r, z0: r.z0 - e - 0.03, z1: r.z1 + e + 0.03 } : { ...r, x0: r.x0 - e - 0.03, x1: r.x1 + e + 0.03 }, s.yLo, s.yHi)) {
+      if (intruders([c], r, s.yLo, s.yHi).length) continue; // inside: stairWallOverlaps reports it
+      const along = alongX ? Math.min(r.x1, c.max.x) - Math.max(r.x0, c.min.x) : Math.min(r.z1, c.max.z) - Math.max(r.z0, c.min.z);
+      if (along <= 0.02) continue;
+      const gap = alongX ? Math.max(c.min.z - r.z1, r.z0 - c.max.z) : Math.max(c.min.x - r.x1, r.x0 - c.max.x);
+      if (gap < e) out.push({ stair: r, wall: c, gap: +gap.toFixed(3) });
+    }
+  }
+  return out;
+}
+
