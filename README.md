@@ -279,6 +279,14 @@ Side doors, gaps in the stacks, an outside stair to a catwalk door, and the fore
 
 TDM is all rifles now: since 8.0 the two blades on each roster fight with rifles. Survival still has its melee rushers.
 
+### Combat polish (8.1)
+- **Kinetic and energy weapons look different.**
+  - Rifles and shotguns, yours and the enemy's, fire thin, fast, glowing yellow-orange tracers and throw brass that bounces and settles on the floor, then disappears after a few seconds.
+  - The Kitsune and the neon synths keep their plasma bolts.
+- **Silent TDM.** Nobody calls out in Team Deathmatch, so an enemy's callout can't give his position away. Survival squads still talk.
+- **Fair fog.** In a sandstorm the TDM bots see no further than you can, and their aim gets worse with the dust between you.
+- **A brighter Neon Docks.** Warm floodlights over every lane, with the sky and the water still dark.
+
 ### Survival tactics (5.0)
 The survival enemies fight as a squad, in every setting:
 - **They take real cover.** A rifleman hunkers where the obstacle actually hides him from where you are, then pops up or leans out, fires a burst after a short laser warning, and ducks again. Walk round his cover and he notices within a fraction of a second ("He's flanking!") and moves.

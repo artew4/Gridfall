@@ -1,0 +1,40 @@
+{
+  "version": "8.1 (feature/combat-polish-8.1)",
+  "machine": "Apple M5, Chrome, ANGLE Metal, DPR 2",
+  "preset": "Balanced",
+  "docks_lighting": {
+    "method": "illuminance at chest height (1.2 m) on every floor nav node per zone, from all point lights with three.js' own falloff I/d^2 * (1-(d/range)^4)^2 (no shadows in the docks, so this is what the shader computes); mean and darkest 10% (p10)",
+    "columns": ["mean", "p10"],
+    "before_8.0": { "lights": 17, "BLUE STACKS": [2.1, 0.2], "YELLOW STACKS": [1.86, 0.3], "RED STACKS": [2.15, 0.21], "WAREHOUSE 7": [0.82, 0.34], "THE CRANE": [1.69, 0.64], "SOUTH QUAY": [2.27, 0.83], "NORTH QUAY": [2.27, 0.65], "ALPHA FORECOURT": [0.26, 0], "OMEGA FORECOURT": [0.26, 0], "ALPHA SPAWN": [0.26, 0.03], "OMEGA SPAWN": [0.28, 0.03] },
+    "after_8.1": { "lights": 28, "BLUE STACKS": [3.84, 1.25], "YELLOW STACKS": [4.1, 1.75], "RED STACKS": [3.75, 1.27], "WAREHOUSE 7": [3.2, 1.72], "THE CRANE": [4.09, 2.23], "SOUTH QUAY": [3.81, 2.41], "NORTH QUAY": [3.98, 2.33], "ALPHA FORECOURT": [3.2, 1.59], "OMEGA FORECOURT": [3.2, 1.65], "ALPHA SPAWN": [0.92, 0.37], "OMEGA SPAWN": [0.92, 0.38], "note": "spawn yards measured before their team lights were raised 70 -> 220 cd" },
+    "exposure": "1.0 -> 1.12"
+  },
+  "casings": {
+    "microbench": { "method": "Casings.update on the live page, 600 frames, 120-256 alive, 30 spawned per second, 3 runs", "usPerFrame": [16.5, 13.2, 11.0], "worstFrameMs": 0.1, "jsHeapGrowthKB": [0, 0, 0] },
+    "in_tdmBench_withPlayer_docks": { "spawned": 465, "maxAlive": 55, "recycled": 0 },
+    "drawCalls": 1,
+    "floor": "landing floor predicted at ejection + snapped at rest (2 lookups per casing); verified 6 mm above dune terrain where 8 casings came to rest"
+  },
+  "projectiles": { "pool": 128, "tdmBench_docks": { "fired": 1404, "dropped": 0, "maxInFlight": 38 }, "drawCalls": "2 instanced (energy, kinetic) instead of one mesh per round" },
+  "docks_bench": {
+    "columns": ["fps", "cpuMs", "gpuMs", "frameMsP99", "drawCalls"],
+    "alphaYard": [60, 2.48, 6.61, 24.3, 286], "stacks": [60, 3.01, 7.32, 24.1, 211], "stacksTop": [60.2, 2.79, 6.63, 25.4, 132], "warehouseFloor": [60, 2.58, 9.93, 24, 226], "catwalk": [59.9, 2.47, 10.16, 23, 207], "quay": [60, 2.74, 8.1, 24.4, 250], "crane": [60, 2.52, 6.51, 24.9, 111], "firefight": [60, 2.54, 7.85, 26.4, 226],
+    "vs_8.0": "CPU unchanged (2.42-2.96 -> 2.47-3.01); GPU 5.8-6.5 -> 6.5-10.2 ms (11 more lights, every one shaded per pixel; the warehouse views the most)"
+  },
+  "docks_tdmBench_withPlayer": { "fps": 60.1, "cpuMs": 2.58, "gpuMs": 7.77, "frameP99": 24.2, "aiMs": { "avg": 0.386, "p99": 1.4, "worst": 1.9 }, "drawCalls": 270 },
+  "other_levels_bench": {
+    "columns": ["fps", "cpuMs", "gpuMs", "drawCalls"],
+    "desert": { "yardCalm": [60, 1.93, 5.28, 90], "towerView": [60, 2.62, 6.24, 94], "yardStorm": [60, 2.45, 5.66, 92], "interiorStorm": [60, 2.3, 5.65, 76], "dunesStorm": [60, 2.65, 5.87, 101], "fightStorm": [60, 2.2, 5.51, 92] },
+    "jungle": { "roadApproach": [60, 2.41, 6.09, 111], "undergrowth": [60.2, 2.69, 6.55, 109], "yard": [59.6, 2.49, 6.45, 96], "barracks": [60, 2.13, 6.13, 66], "watchtower": [60, 2.39, 5.92, 92], "fight": [60.3, 2.72, 6.11, 106] },
+    "tokyo": { "plaza": [60.3, 2.79, 6.43, 194], "rooftop": [60, 2.88, 6.67, 331], "metroConcourse": [60, 2.8, 6.57, 150], "platform": [60, 2.88, 6.25, 201], "platformTrain": [60, 2.78, 5.91, 268], "overpassTrain": [60, 2.95, 6.35, 222], "pursuit": [60, 2.92, 6.28, 341], "firefight": [59.9, 2.82, 6.35, 425] }
+  },
+  "fog_and_sight": {
+    "method": "__dev.tdmSim on the desert, 15 tickets, storm held calm or at peak",
+    "calm": { "sightRange": 262.1, "arenaSight": 226.9, "killRange": { "median": 20.6, "p90": 37.9 }, "shots": 2423, "fogShots": 0, "barks": 0 },
+    "stormPeak": { "sightRange": 24.7, "arenaSight": 21.3, "killRange": { "median": 9.4, "p90": 15.6 }, "shots": 953, "fogShots": 0, "barks": 0 }
+  },
+  "tdm_pace_at_70ms": { "docks": [[191.1, 14.8], [172.1, 15.3]], "desert": [[172.6, 14.3], [176.5, 15.0]], "columns": ["simSeconds", "killsPerMin"], "docksCatwalkTimePct": [2.2, 4.2], "vs_8.0": "docks 182-194 s, desert median 196 s; catwalk time 6.5-7.6% in 8.0" },
+  "integrity": { "world": { "docks": 0, "desert": 0, "jungle": 0, "tokyo": 0 }, "stress": { "tokyo": "0/64000", "docks": "0/64000" }, "stairWallOverlaps_before": { "tokyo": 1, "others": 0 }, "stairWallOverlaps_after": 0 },
+  "survival": { "barks": "on (6 logged in a 30 s desert run)", "gunners": "kinetic tracers and brass" },
+  "tests": "149 passed (7 new for 8.1 + 1 bark test); build ok"
+}
