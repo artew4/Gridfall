@@ -1,0 +1,64 @@
+{
+  "version": "11.0 (feature/ads-crouch-11.0)",
+  "machine": "Apple M5, Chrome, ANGLE Metal, DPR 2",
+  "preset": "Balanced",
+  "ads_transition": {
+    "method": "FOV sampled every animation frame after RMB down (docks, Jackal AR): ads = smoothstep of a linear clock over HANDLING.adsIn (0.2 s)",
+    "fovDeg": [74, 73.6, 72.49, 70.76, 68.65, 66.23, 63.69, 61.11, 58.7, 56.54, 54.84],
+    "redDotOnScreenPx": [0, 1],
+    "framePacing": { "method": "__dev.perf(5) with RMB toggled every 0.35 s vs not", "base": { "fps": 60, "p95": 23.7, "p99": 25.1, "cpuMs": 2.53 }, "togglingADS": { "fps": 60, "p95": 23.4, "p99": 24.8, "cpuMs": 2.01 } }
+  },
+  "crouch": {
+    "toggle": "tap C: height 1.80 → 1.24 m in 0.5 s (exponential, rate 12), eye 1.62 → 1.16 m; tap again: back to 1.80",
+    "world_standing_vs_crouched": {
+      "docks": { "standing": [0, 46512], "crouched": [0, 46512] },
+      "jungle": { "standing": [0, 62087], "crouched": [0, 62087] },
+      "desert": { "standing": [0, 120392], "crouched": [0, 120392] },
+      "tokyo": { "standing": [0, 14464], "crouched": [0, 14466], "note": "2 crouch-only cells on a metro stair under the street railing (Fountain Plaza): same stair, 0.25 m closer to its wall" },
+      "columns": ["findings", "reachableCells"]
+    },
+    "stress": {
+      "runs": 64000,
+      "standing": { "tokyo": 0, "desert": 0, "jungle": 0, "docks": 0 },
+      "crouched": { "tokyo": 1, "desert": 0, "jungle": 0, "docks": 0 },
+      "note": "Tokyo crouched: one run (20 FPS, crouch then sprint-jump) ended overlapping a vaultable roof parapet while standing again (crouch 0 for the last 0.7 s): the standing controller's landing-frame overlap on vault colliders, met with a different timing; resolves the next frames. Two harness fixes found first: the solid-crossing detector assumed a standing body (11 false reports in the culvert), and a landing on the single idle frame (1)."
+    }
+  },
+  "arena_aim_ab": {
+    "method": "__dev.tdmSim bot vs bot, 25 tickets, 4 ALPHA vs 5 OMEGA (player spectating), 11.0 (aiming) alternated with { ads: false } (the 10.0 hip-only shooter) in one session; 3 + 3 matches per level",
+    "columns": ["seconds", "killsPerMin", "killRangeMedian", "killRangeP90", "movingPct", "aimedSharePct", "sightToShotMsMedian", "pushes"],
+    "docks": { "aim": [[169.7, 15.6, 18, 34.8, 82.5, 62.1, 320, 52], [178.1, 14.8, 16.6, 34.1, 84.6, 59.2, 300, 53], [187.3, 14.4, 26.2, 37.3, 81.6, 63.9, 370, 45]], "hip": [[207.5, 13.9, 12.5, 29.4, 95.5, 0, 0, 87], [219.9, 13.4, 13.3, 26, 96, 0, 20, 86], [199.8, 14.4, 12.9, 29.6, 95.3, 0, 20, 78]] },
+    "jungle": { "aim": [[190.4, 14.8, 13.1, 31.2, 82.1, 63.2, 300, 61], [219.9, 13.1, 8.9, 34.5, 86.2, 58.1, 250, 69], [213.7, 13.5, 13.2, 33.3, 84.1, 62.3, 280, 71]], "hip": [[206.6, 13.9, 12.2, 24.7, 96.3, 0, 0, 92], [204.1, 14.1, 13.5, 28.5, 95.6, 0, 20, 86], [203.8, 13.8, 10.5, 26.9, 96.5, 0, 20, 75]] },
+    "desert": { "aim": [[155.5, 18.5, 36.5, 39.2, 78, 78, 430, 12], [155.7, 18.1, 35, 39.1, 76.8, 80.2, 450, 7], [161, 17.5, 36.3, 38.6, 77, 79.9, 430, 0]], "hip": [[193.9, 13.9, 26, 44.3, 96.4, 0, 20, 52], [190.2, 13.9, 26, 38, 96.1, 0, 20, 44], [217.3, 13.3, 25.9, 51.6, 96.3, 0, 20, 41]] },
+    "hitPctByRange": {
+      "method": "every round carries its mode and firing range; hits / rounds, summed over the 3 matches; [pct, rounds]",
+      "docks": { "aim": { "0-12": { "hip": [48.5, 487] }, "12-25": { "aimed": [51, 261], "hip": [21.1, 681] }, "25-40": { "aimed": [21, 2439], "hip": [5.7, 494] } }, "hipOnly": { "0-12": [52, 758], "12-25": [21.6, 2028], "25-40": [6.7, 3359], "40+": [1.8, 3973] } },
+      "jungle": { "aim": { "0-12": { "hip": [67.2, 616] }, "12-25": { "aimed": [51.5, 328], "hip": [20.9, 911] }, "25-40": { "aimed": [10.9, 2820], "hip": [5.6, 462] } }, "hipOnly": { "0-12": [70.1, 592], "12-25": [21.8, 2390], "25-40": [5, 3216], "40+": [2.1, 570] } },
+      "desert": { "aim": { "12-25": { "aimed": [57.1, 21], "hip": [14.6, 137] }, "25-40": { "aimed": [31.7, 3334], "hip": [6.8, 735] } }, "hipOnly": { "0-12": [64.5, 76], "12-25": [22.5, 1230], "25-40": [8.7, 4506], "40+": [3.4, 9762] } }
+    },
+    "friendlyDamage": 0,
+    "stuck": 0
+  },
+  "tuning_history": [
+    "first build (aim over 13 m, no range cap, pushes at any range): hip rounds still had a 26-30 m median range (pushes and the frames before a decide); docks matches 195-207 s",
+    "+ gunners push only within 25 m, aiming also in hunt/advance on sight: 70% of rounds aimed, but docks 197-235 s and the desert a 50 m standoff (kill range median 46-51 m)",
+    "+ effective range 40 m (beyond it they sprint up, no fire): final numbers above"
+  ],
+  "perf": {
+    "bench3_fps": { "docks": [59.9, 60.3], "jungle": [60, 60.3], "desert": [59.6, 60.3], "tokyo": [59.9, 60] },
+    "bench3_cpuMs": { "docks": [2.15, 2.9], "jungle": [2.08, 2.69], "desert": [2.08, 2.36], "tokyo": [2.49, 2.88] },
+    "tdmBench_docks_withPlayer": { "fps": 60, "cpuMs": 2.49, "gpuMs": 7.56, "aiMsAvg": 0.403, "aiMsP99": 1.4, "raysPerFrame": 13.6 },
+    "aiBench_survival": {
+      "method": "same session, alternated with main (10.0) served from a worktree on :5174",
+      "11.0": { "tokyo": [60, 2.79, 0.246], "desert": [60, 2.34, 0.398], "jungle": [60.1, 2.89, 0.412] },
+      "10.0": { "tokyo": [60, 2.82, 0.248], "desert": [60, 2.49, 0.415], "jungle": [60, 2.56, 0.349] },
+      "columns": ["fps", "cpuMs", "aiMsAvg"],
+      "note": "one earlier 11.0 Tokyo run read CPU 6.4 ms / AI 0.49 ms; every subsystem was 2x slower in it (the player update too), and the alternated rerun matched main: machine state, not the change"
+    }
+  },
+  "survival_regression": {
+    "tactical_tokyo": { "flank": true, "suppress": true, "ghost": true, "soak": true, "shotsIntoOwnCover": 0 },
+    "tactical_jungle": { "flank": false, "suppress": false, "ghost": true, "soak": true, "note": "the same three failures on main (10.0): pre-existing, not 11.0 ('never took cover' in that scenario)" }
+  },
+  "tests": 165
+}
