@@ -68,8 +68,9 @@ export class Projectiles {
     const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 3, 0.6) });
     this.mat = mat;
     this.allyMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(...DESERT_GARRISON.bolt.core) });
-    // Nine bots firing at once in TDM need more rounds in flight than a survival squad.
-    for (let i = 0; i < 64; i++) {
+    // Nine bots firing at once in TDM need more rounds in flight than a survival squad (7.0: arena
+    // bots fire continuously).
+    for (let i = 0; i < 96; i++) {
       const mesh = new THREE.Mesh(geo, mat);
       mesh.visible = false;
       scene.add(mesh);
