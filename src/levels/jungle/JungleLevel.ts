@@ -20,7 +20,7 @@ export const JUNGLE_INFO: LevelInfo = {
   blurb: 'A walled firebase under the rainforest canopy. Survival: fight up the road and breach the gate. 5v5 TDM: LZ Alpha against LZ North, round and through the compound.',
   modes: ['arcade', 'tdm'],
   loading: 'GROWING THE JUNGLE…',
-  windowTitle: 'NEON RAIN — Deep Jungle',
+  windowTitle: 'Gridfall — Deep Jungle',
   arsenal: { weapon: BOAR_SHOTGUN, enemies: JUNGLE_GUARDS },
   music: 'jungle_theme',
   tagline: 'BREACH THE GATE · CLEAR THE COMPOUND',
@@ -28,8 +28,8 @@ export const JUNGLE_INFO: LevelInfo = {
   place: 'FIREBASE VIPER',
   clock: '07:40',
   cine: {
-    arcade: { t1: 'NEON RAIN', t2: '密林基地 · DEEP JUNGLE', t3: 'ARCADE SURVIVAL · FIREBASE VIPER<br/>PUSH UP THE ROAD · BREACH THE GATE · CLEAR THE COMPOUND' },
-    tdm: { t1: 'NEON RAIN', t2: '密林基地 · DEEP JUNGLE', t3: 'TEAM DEATHMATCH 5v5 · LZ ALPHA vs LZ NORTH<br/>THE GATE · THE BREACHES · THE CULVERT · THE JUNGLE' },
+    arcade: { t1: 'GRIDFALL', t2: '密林基地 · DEEP JUNGLE', t3: 'ARCADE SURVIVAL · FIREBASE VIPER<br/>PUSH UP THE ROAD · BREACH THE GATE · CLEAR THE COMPOUND' },
+    tdm: { t1: 'GRIDFALL', t2: '密林基地 · DEEP JUNGLE', t3: 'TEAM DEATHMATCH 5v5 · LZ ALPHA vs LZ NORTH<br/>THE GATE · THE BREACHES · THE CULVERT · THE JUNGLE' },
   },
 };
 

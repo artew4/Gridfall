@@ -13,7 +13,9 @@ export interface Settings {
   tips: boolean;
 }
 
-const KEY = 'neonrain.settings';
+const KEY = 'gridfall.settings';
+/** Before 10.0 (NEON RAIN): still read, so a returning player keeps their settings. */
+const OLD_KEY = 'neonrain.settings';
 export const DEFAULTS: Settings = { master: 80, music: 60, sfx: 85, muted: false, quality: 'balanced', fps: 60, tips: true };
 
 const pct = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : d);
@@ -21,7 +23,7 @@ const pct = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite
 /** Volume and graphics settings persisted in localStorage (silently in-memory if storage is unavailable). */
 export function loadSettings(): Settings {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY) ?? localStorage.getItem(OLD_KEY);
     if (!raw) return { ...DEFAULTS };
     const o = JSON.parse(raw) as Partial<Settings>;
     return {

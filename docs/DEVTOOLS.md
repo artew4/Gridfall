@@ -1,0 +1,101 @@
+# Gridfall dev tools
+
+Console helpers for the dev server (`npm run dev`). None of them ship in a production build. Moved from the README in 10.0.
+
+- `await __game.checkRoutes()` runs:
+  - player routes on all three layers;
+  - vaults and drops;
+  - nav-graph connectivity;
+  - guard chases from every door.
+- `__game.debug()`: FPS, draw calls, lights, alert level, civilian states, music layers.
+- `await __dev.vision()`: 24 perception scenarios on the real map, including:
+  - behind or beside a guard, out of range;
+  - walls, a roof right above a guard, the station under the street, walkways in clear view;
+  - the guard turning, holstered vs drawn.
+- `await __dev.pursuit()`: headless pursuit scenarios with the real AI at 30 Hz.
+  - Covers escapes by roof, alley and metro, hiding close by, a shot during the search, and re-detection.
+  - Reports the response size, the time to calm, whether you were found, and whether any guard ever went for your hiding spot without information.
+- `await __dev.ai(true)`: world overlay with view cones, lines of sight, guard states and suspicion, nav goals, search points and the last known position.
+- `await __dev.perf(seconds)`: frame rate, CPU and GPU milliseconds per frame (GPU timer queries), busy share of each second.
+- `await __dev.story({ watchIntro: true })`: plays Story Escape like a player who only reads the screen.
+  - It steers the real controller with real keys along the route the game shows.
+  - It presses E and holds E at the prompts, and fights or hides when hunted.
+  - It boards the express and logs every objective and subtitle.
+- Settings (3.4):
+  - `__dev.start('arcade', 'desert')` loads a setting and plays immediately. `__game.loadLevel('tokyo')` switches settings.
+  - `await __dev.levelAI({ spawns: 24, sight: 25 })` works on any level: the nav graph from every spawn, runners to every test goal (inside every building, every roof), and gunners must get a shot off within the given sight range.
+  - `__game.debug().memory` lists GPU geometries and textures. After switching back and forth, they must return to the same numbers.
+  - `__game.level.storm.clock.set('peak', 1)` (desert) forces the storm.
+  - Checkpoints in Tokyo-only tools are `game.tokyo.*`; they throw if Tokyo isn't loaded.
+- World integrity (3.3), which in 3.4 works on any level. The reasoning and results are in `docs/WORLD-VALIDATION-3.3.md`:
+  - `await __dev.world()`: scans the whole map on a 0.5 m grid with the real collision and finds escapes, track-pit access, traps, areas outside the designed zones, invisible walls, visuals you can walk through and gaps you can't fit through.
+  - `await __dev.stress({ samples, fps })`: the real controller from sampled reachable cells in 8 directions, walking and sprint-jumping. `fps` takes rates and `'spiky'`, for example `[20, 30, 60, 120, 'spiky']`.
+  - `await __dev.train()`: boarding at every door, closed doors, riding a departing car, and someone standing in a doorway as the doors close (with the real rail).
+  - `await __dev.colliders(true)`: the collision overlay around the camera.
+  - `await __dev.bench(3)`: fixed benchmark scenarios for the loaded setting (Tokyo, the desert or the jungle). Compare the results with `docs/BENCH-3.2.json` … `docs/BENCH-4.2.json`. A measurement only counts if the window stayed focused, visible and in play (`valid`); an unfocused window or Chrome's Energy Saver caps the frame rate.
+  - `await __dev.bench(3, { pipelines: ['v4', 'raw', 'v37'] })` (4.0): every scenario in each render pipeline, interleaved.
+  - `await __dev.sheet(['yard', 'tower'], ['v37', 'v4'])` (4.2, jungle views): a contact sheet of frozen frames in an overlay (click to close). `await __dev.hdr(names, hide?)`: linear HDR luminance percentiles per view, or, with `hide`, of the pixels those objects add.
+  - **F8** (dev server only) cycles the render pipeline: 4.0 → RAW (no composer, the same materials) → 3.7 (the old look and materials) → 4.0. In the desert it switches the 4.1 additions (sun, grade, glare, glints, metals, haze) the same way. `__dev.pipeline('v37')` does the same from the console.
+  - `__game.safety.recoveries`: how often the out-of-bounds safety net fired. It should stay 0, and each recovery is logged as `[safety]`.
+- Survival tactics (5.0):
+  - `await __dev.tactical()`: headless scenarios on the loaded setting: roles (suppressors, flank sides, shot tokens, rushes), the same with a moving player, flanking a gunner's cover (time until it relocates), suppression (pinned, silent, resumes), losing the squad (hunt, search, never his live position), the desert storm, and a 120 s soak (bounds, inside geometry, stalls, cost).
+  - `await __dev.tactics(true)`: overlay with roles, actions, cover lines (green while the cover hides the hunkered body from you, red once blown), peek spots, rush slots, the LKP and the search points.
+  - `await __dev.survival({ setting, seconds, startWave })`: a bot plays Arcade Survival (moves, aims, fires); reports kills, damage events, enemy shots, action shares, callouts and integrity.
+  - `await __dev.aiBench()`: 10 enemies per setting; AI milliseconds per frame (average, P95, P99, worst) and rays per frame. Compare with `docs/BENCH-5.0.json`.
+- Team Deathmatch (6.0), on the desert:
+  - `await __dev.tdmSoak({ seconds: 300, timeScale: 2 })`: the bots play alone (you spectate in god mode, tickets 999): kills per minute, ranges, flank kills, what victims were doing, stuck bots, friendly-fire counters, scheduler pressure, AI cost.
+  - `await __dev.tdmBench({ withPlayer: true })`: frame cost at 1x with all nine bots fighting (AI ms, rays, decides per frame, FPS, CPU, GPU).
+  - `await __dev.friendlyFire()`: rounds through teammates (each team), your shots through allies, a teammate's blade, check-fire, rounds at you; `ok: true` when nothing hurts a teammate. Compare with `docs/BENCH-6.0.json`.
+- Stairs (9.1): `__dev.world()` also reports a stair flush with a wall (`stair flush with wall`); `await __dev.stairGaps()` lists every stair-to-wall gap (3 cm) and presses a body into each one to check it keeps its floor (`drops: 0`).
+- Music (9.0): `__game.debug().music` (current track, file or procedural, live sources, files found); `await __dev.musicSoak({ cycles: 3 })` cycles every level and the title and checks that every music source is disposed (`unaccounted: 0`).
+- Arena bots (7.0), on the desert. Every TDM check takes `ai: 'arena'` (the default) or `ai: 'tactical'` (the 6.0 squads):
+  - `await __dev.tdmSim({ ai: 'arena', tickets: 25 })` plays a whole match headless, bot vs bot. It steps a fixed 1/60 s with no rendering, as fast as the CPU allows, so the result doesn't depend on the window's frame rate. It reports:
+    - match length, kills per minute, kill ranges;
+    - how much the bots move, crouch and stand still;
+    - jumps, vaults, pushes and push kills, BREAK share, target switches (and why);
+    - sight-to-first-shot times, stuck bots, friendly fire;
+    - AI ms per step and the sensing counters.
+  - `await __dev.tdmAB({ runs: 3 })`: `tdmSim` for both AIs, alternating, with the medians side by side. Compare with `docs/BENCH-7.0.json`.
+  - `TDM.ai = 'tactical'` (in `src/levels/Tdm.ts`) brings back the 6.0 bots in play.
+- Neon Docks (8.0): every TDM check runs on the loaded level if it has an arena (`?setting=docks`). `tdmSim` also reports time and kills per zone and the share of time off the floor, and takes `roster: 'any'` (blades back) and `laneLeave: Infinity` (lane discipline off) for A/Bs. `bench(3)` has a docks set: seven views and a firefight, with the match running.
+- `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
+
+## Source layout
+
+- `src/core`: game loop and states (title, intro, play, paused, dead, ending), renderer and post chain, input
+- `src/stealth`:
+  - `Perception`: the shared `VISION` config and maths;
+  - alert state machine;
+  - Guard AI;
+  - Security: dispatch, reinforcements, search roles, hearing;
+  - `PlayerIntel`: what the player knows, for the minimap.
+- `src/core/Interaction`: the single E handler (tap and hold)
+- `src/city`: instanced civilian crowd (witnesses, reports, panic)
+- `src/story`:
+  - `Mission`: the authoritative state (acts, steps, checkpoints, set pieces);
+  - `Objectives`: what each step means, where, and hints;
+  - `StoryPresenter`: banner, panel, marker, TAB overview, hints, tips, subtitles;
+  - `Guidance`: routes on the nav graph;
+  - the ending.
+- `src/cinematic`: the story opening (`StoryIntro`) and the arcade intro
+- `src/core/Performance`, `Bindings`: frame pacing, presets, key bindings
+- `src/world/Manhunt`: wanted billboard and posters
+- `src/rail`: timetable (unit-tested), rail controller, metro train with walk-in interior
+- `src/world`:
+  - `District`: layout and nav
+  - `Architecture`: walkways, stairs, railings, rooftops
+  - `Metro`: the station
+  - `City`, `PropKit`, `Fountain`, `Train`, `Events`, `Zones`
+  - collision: boxes, ramps, cylinders, holes and vault flags, with a grid broadphase
+- `src/gameplay`: cabinets, medkits, breakable lights
+- `src/audio`: Web Audio SFX and ambience with volume groups; `music/` holds the MusicManager (named tracks, crossfades, drop-in files), the Tokyo score and the pattern themes
+- `src/levels`: the level contract and registry, arcade rules, and one folder per setting (`tokyo`, `desert`, `jungle`, `docks`)
+- `src/entities`: weapon specs and enemy looks per setting (`weapons/`, `enemies/`)
+- `src/player`: FPS controller and the viewmodel weapon (holster, recoil, reload, pump and tube-loading mechanics)
+- `src/enemies`: models (merged per joint), Runner, Gunner (two-rate tactical brains), nav and arcade waves
+- `src/enemies/tactics`: the squad director, time-slicing scheduler, utility selection, dynamic cover and generated cover spots, callouts
+- `src/levels/docks` (8.0): Neon Docks, the TDM arena (plan, lanes and zones in `DocksLayout`)
+- `src/enemies/Roster.ts` (8.0): roster filtering (a mode requests unit classes)
+- `src/enemies/arena` (7.0, Team Deathmatch only): the deathmatch brain, the arena director (fronts, momentum, contact board, push claims), attention-driven sensing, jump and vault movement, the arena bodies
+- `src/ui`: HUD, story HUD, minimap, marker, pause and settings menu, end screen
+- `src/dev`: route check and console helpers (DEV only)

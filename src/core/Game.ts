@@ -46,7 +46,8 @@ type State = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending';
 /** Something the player can use with E when close and facing it. */
 export type { Interactable };
 
-const SETTING_KEY = 'neonrain.setting';
+const SETTING_KEY = 'gridfall.setting';
+const OLD_SETTING_KEY = 'neonrain.setting'; // before 10.0
 
 /** The menu's last chosen setting (per browser; separate from the audio/graphics settings). */
 function savedSetting(): SettingId {
@@ -54,7 +55,7 @@ function savedSetting(): SettingId {
   let id: string | null = url;
   if (!id) {
     try {
-      id = localStorage.getItem(SETTING_KEY);
+      id = localStorage.getItem(SETTING_KEY) ?? localStorage.getItem(OLD_SETTING_KEY);
     } catch {
       /* storage blocked */
     }

@@ -175,17 +175,24 @@ export class MusicManager {
 
   /** Which tracks have a file: the manifest first, then <id>.<ext> by convention. */
   private async probe() {
+    // A production build knows what was in the folder (vite.config.ts): probe only those, so a
+    // deploy with no music makes no requests at all. The dev server probes, so a dropped-in file
+    // plays after a reload.
+    const known = typeof __MUSIC_FILES__ === 'undefined' ? null : __MUSIC_FILES__;
+    const has = (name: string) => !known || known.includes(name);
     let manifest: MusicManifest = {};
-    try {
-      const r = await fetch(`${DIR}manifest.json`, { cache: 'no-cache' });
-      // The dev server answers unknown paths with index.html: only real JSON counts.
-      if (r.ok && (r.headers.get('content-type') ?? '').includes('json')) manifest = (await r.json()) as MusicManifest;
-    } catch {
-      /* no manifest */
+    if (has('manifest.json')) {
+      try {
+        const r = await fetch(`${DIR}manifest.json`, { cache: 'no-cache' });
+        // The dev server answers unknown paths with index.html: only real JSON counts.
+        if (r.ok && (r.headers.get('content-type') ?? '').includes('json')) manifest = (await r.json()) as MusicManifest;
+      } catch {
+        /* no manifest */
+      }
     }
     await Promise.all(
       TRACKS.map(async (id) => {
-        const names = manifest[id]?.file ? [manifest[id].file] : EXTENSIONS.map((e) => `${id}.${e}`);
+        const names = (manifest[id]?.file ? [manifest[id].file] : EXTENSIONS.map((e) => `${id}.${e}`)).filter(has);
         for (const name of names) {
           try {
             // A 2-byte range GET, not HEAD: Vite's dev server answers HEAD for a public file with its

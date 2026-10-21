@@ -20,7 +20,7 @@ export const DOCKS_INFO: LevelInfo = {
   blurb: 'A rain-soaked container harbour at night, built for 5v5: the stacks, the warehouse, the quay.',
   modes: ['tdm'],
   loading: 'LIGHTING THE DOCKS…',
-  windowTitle: 'NEON RAIN — Neon Docks',
+  windowTitle: 'Gridfall — Neon Docks',
   // OMEGA are synths (neon visors, plasma bolts) on the docks; ALPHA keeps the garrison look.
   arsenal: { weapon: JACKAL_AR, enemies: NEON_SYNTHS },
   music: 'docks_theme',
@@ -29,7 +29,7 @@ export const DOCKS_INFO: LevelInfo = {
   place: 'DOCK 7, KAWASAKI',
   clock: '03:12',
   cine: {
-    tdm: { t1: 'NEON RAIN', t2: 'ネオン埠頭 · NEON DOCKS', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>THE STACKS · THE WAREHOUSE · THE QUAY' },
+    tdm: { t1: 'GRIDFALL', t2: 'ネオン埠頭 · NEON DOCKS', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>THE STACKS · THE WAREHOUSE · THE QUAY' },
   },
 };
 

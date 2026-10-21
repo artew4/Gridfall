@@ -1,6 +1,6 @@
 # Levels (settings) and modes — 3.4 architecture
 
-NEON RAIN runs one engine across several **settings** (levels). The engine owns:
+Gridfall runs one engine across several **settings** (levels). The engine owns:
 - the frame loop, state machine, pause and pointer lock;
 - the player, the weapon and shooting;
 - survival waves and the enemy context;
