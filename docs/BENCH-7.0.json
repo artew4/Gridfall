@@ -1,0 +1,57 @@
+{
+  "version": "7.0 (feature/deathmatch-ai-core-7.0)",
+  "machine": "Apple M5, Chrome, ANGLE Metal, DPR 2",
+  "preset": "Balanced (saved settings unchanged)",
+  "matchSim": {
+    "method": "Whole Team Deathmatch matches on Desert Outpost, 25 tickets a team, bot vs bot (the player spectates in god mode: 4 ALPHA bots against 5 OMEGA bots, as in 6.0's soaks). Stepped headless at a fixed 1/60 s with no rendering (__dev.tdmSim; the real loop is frozen at time scale 0). Movement percentages are per bot per step: moving = horizontal speed > 1.5 m/s, crouched = crouch > 0.5, still = speed < 0.5 m/s. aiMs = wall time inside TdmRules.update per step (all AI); rays = raycast + lineOfSight calls inside it. AI ms in this harness depend on how the browser schedules an occluded window: compare only within one session (tdmAB alternates the two AIs).",
+    "baseline6_untouched_checkout": {
+      "how": "6.0 @ e5d2989 in a separate worktree, the same stepper run from the console (no 7.0 code)",
+      "columns": ["simSeconds", "winner", "ticketsLeftWinner", "kills", "killsPerMin", "firstContactS", "movingPct", "crouchedPct", "stillPct", "avgSpeed", "aiMsAvg", "aiMsP99", "aiMsWorst", "raysPerStep"],
+      "runs": [
+        [314.3, "omega", 5, 45, 8.6, 10.8, 67.7, 15.7, 24.2, 2.73, 0.247, 2.0, 24.0, 13.7],
+        [275.1, "omega", 4, 46, 10.0, 11.7, 70.7, 12.4, 21.6, 2.83, 0.249, 2.4, 27.7, 13.0],
+        [261.1, "omega", 7, 43, 9.9, 13.1, 68.7, 13.4, 23.0, 2.76, 0.206, 2.1, 8.1, 14.7]
+      ],
+      "median": { "simSeconds": 275.1, "killsPerMin": 9.9, "movingPct": 68.7, "crouchedPct": 13.4, "stillPct": 23.0 }
+    },
+    "tdmAB_same_session": {
+      "how": "__dev.tdmAB({ runs: 3 }) on the final 7.0 build: tactical (the exact 6.0 path, TDM.ai = 'tactical') and arena, alternating",
+      "tactical_runs": [
+        { "simSeconds": 325.5, "winner": "omega", "killsPerMin": 8.7, "movingPct": 68.8, "crouchedPct": 13.9, "stillPct": 23.2, "avgSpeed": 2.77, "firstContactS": 11.5, "rangeMedian": 7.7, "aiMs": { "avg": 0.236, "p99": 2.1, "worst": 28.2 }, "raysPerStep": 14.5, "stuck": 3 },
+        { "simSeconds": 225.0, "winner": "omega", "killsPerMin": 9.9, "movingPct": 67.5, "crouchedPct": 12.6, "stillPct": 24.6, "avgSpeed": 2.71, "firstContactS": 10.3, "rangeMedian": 8.5, "aiMs": { "avg": 0.225, "p99": 1.9, "worst": 18.5 }, "raysPerStep": 12.1, "stuck": 1 },
+        { "simSeconds": 329.8, "winner": "omega", "killsPerMin": 8.4, "movingPct": 73.2, "crouchedPct": 10.0, "stillPct": 20.5, "avgSpeed": 3.02, "firstContactS": 10.6, "rangeMedian": 7.1, "aiMs": { "avg": 0.242, "p99": 2.0, "worst": 20.4 }, "raysPerStep": 12.0, "stuck": 1 }
+      ],
+      "arena_runs": [
+        { "simSeconds": 153.4, "winner": "omega", "killsPerMin": 18.4, "breakPct": 11.0, "jumps": 152, "vaults": 140, "minJumpsPerBot": 6, "minVaultsPerBot": 11, "pushes": 130, "pushKills": 28, "switchesPerMin": 352.4, "switchWhy": { "lost": 483, "shotAt": 298, "threat": 120 }, "sightToShotMs": { "median": 20, "p90": 120, "n": 476 }, "rangeMedian": 11.9, "firstContactS": 6.0, "aiMs": { "avg": 0.30, "p99": 2.6, "worst": 27.9 }, "raysPerStep": 19.9, "stuck": 0 },
+        { "simSeconds": 137.6, "winner": "omega", "killsPerMin": 18.3, "breakPct": 12.1, "jumps": 142, "vaults": 120, "minJumpsPerBot": 10, "minVaultsPerBot": 6, "pushes": 111, "pushKills": 25, "switchesPerMin": 332.2, "switchWhy": { "lost": 392, "shotAt": 237, "threat": 133 }, "sightToShotMs": { "median": 20, "p90": 120, "n": 386 }, "rangeMedian": 16.6, "firstContactS": 6.4, "aiMs": { "avg": 0.252, "p99": 2.3, "worst": 20.7 }, "raysPerStep": 18.2, "stuck": 0 },
+        { "simSeconds": 134.8, "winner": "omega", "killsPerMin": 20.0, "breakPct": 11.7, "jumps": 121, "vaults": 118, "minJumpsPerBot": 5, "minVaultsPerBot": 6, "pushes": 122, "pushKills": 29, "switchesPerMin": 369.4, "switchWhy": { "lost": 430, "shotAt": 261, "threat": 155 }, "sightToShotMs": { "median": 20, "p90": 120, "n": 427 }, "stuck": 0 }
+      ],
+      "medians": {
+        "tactical": { "matchSeconds": 325.5, "killsPerMin": 8.7, "movingPct": 68.8, "crouchedPct": 12.6, "stillPct": 23.2, "avgSpeed": 2.77, "firstContactS": 10.6, "aiMsAvg": 0.24, "aiMsP99": 2.0, "raysPerStep": 12.1, "stuckTotal": 5, "friendlyDamage": 0 },
+        "arena": { "matchSeconds": 137.6, "killsPerMin": 18.4, "movingPct": 95.3, "crouchedPct": 2.7, "stillPct": 3.2, "avgSpeed": 4.68, "firstContactS": 6.4, "aiMsAvg": 0.25, "aiMsP99": 2.3, "raysPerStep": 19.2, "stuckTotal": 0, "friendlyDamage": 0 }
+      }
+    }
+  },
+  "tdmBench": {
+    "method": "__dev.tdmBench({ ai }) on the real loop at 1x, nine bots, tickets 999, god mode; 30 s settle, 8 s measured with the frame probe; the window focused and visible (focused: true). Same columns as BENCH-6.0.json.",
+    "columns": ["fps", "cpuMsPerFrame", "gpuMsPerFrame", "frameMsP99", "aiMsAvg", "aiMsP95", "aiMsP99", "aiMsWorst", "raysPerFrame", "decidesPerFrame", "maxDecidesInAFrame", "maxSchedRaysInAFrame", "coverSearchesDeferred", "rePlansDeferred", "maxDecideLateS", "drawCalls"],
+    "arena_spectate": [59.4, 2.5, 5.57, 26.5, 0.438, 1.2, 1.6, 2.3, 12.3, 1.25, 5, 6, 0, 0, 0.032, 313],
+    "arena_withPlayer": [60, 2.63, 2.12, 24.4, 0.418, 0.9, 1.8, 11.7, 19.5, 1.45, 5, 7, 0, 0, 0.024, 284],
+    "tactical_spectate_same_session": [60, 2.63, 1.99, 24.4, 0.346, 0.7, 1.3, 1.8, 10.4, 0.5, 3, 28, 0, 0, 0.021, 334],
+    "arena_sensing": { "spectate": { "frames": 2272, "checks": 1071, "cacheHits": 580, "rays": 722, "deferred": 0, "maxRaysInAFrame": 6 }, "withPlayer": { "frames": 2277, "checks": 4875, "cacheHits": 2053, "rays": 4135, "deferred": 1, "maxRaysInAFrame": 18 } },
+    "note": "A first arena_withPlayer run lost window focus (focused: false, 42.9 FPS) and was discarded and re-run."
+  },
+  "dev_bench": {
+    "method": "__dev.bench(3) on each level (survival scenarios), Balanced. All measurements valid (focused, visible, in play).",
+    "desert": { "yardCalm": [60.3, 2.31, 91], "towerView": [60, 2.31, 94], "yardStorm": [60, 2.4, 92], "interiorStorm": [60, 2.12, 76], "dunesStorm": [60, 2.32, 101], "fightStorm": [60, 2.72, 92], "columns": ["fps", "cpuMs", "drawCalls"] },
+    "tokyo": { "plaza": [59.9, 2.77, 194], "rooftop": [60, 2.84, 332], "metroConcourse": [60, 2.65, 150], "platform": [60, 2.88, 169], "platformTrain": [60, 2.78, 333], "overpassTrain": [60, 2.95, 222], "pursuit": [60, 2.58, 341], "firefight": [60, 2.79, 425], "columns": ["fps", "cpuMs", "drawCalls"] },
+    "jungle": { "roadApproach": [59.7, 2.58, 111], "undergrowth": [60, 2.57, 109], "yard": [60, 2.65, 96], "barracks": [60.3, 2.19, 66], "watchtower": [60, 2.58, 92], "fight": [60, 2.38, 133], "columns": ["fps", "cpuMs", "drawCalls"] }
+  },
+  "survival_regression": {
+    "tokyo": { "tactical": { "roles": { "maxSuppressors": 2, "flankSides": [1, -1], "tokenLimit": 3 }, "flank": true, "suppress": true, "ghost": true, "soak": true }, "survivalSpawns": ["Gunner", "Runner"], "arenaBrain": false, "ctxArena": "absent", "schedDefaults": [3, 30] },
+    "jungle": { "tactical": { "roles": { "maxSuppressors": 2, "flankSides": [1, -1], "tokenLimit": 3 }, "flank": true, "suppress": true, "ghost": true, "soak": true }, "survivalSpawns": ["Gunner"], "arenaBrain": false, "ctxArena": "absent" },
+    "desert_after_tdm": { "tdmBots": ["ArenaGunner", "ArenaRunner"], "survivalSpawns": ["Gunner", "Runner"], "arenaBrain": false, "tdmBotsLeft": 0, "projectileTargets": null, "schedDefaults": [3, 30] }
+  },
+  "friendlyFire": { "ai": "arena", "ok": true, "friendlyDamage": 0 },
+  "tests": { "unit": "133 passed (15 new)", "build": "tsc --noEmit + vite build: ok; tdmSim/tdmAB not in the bundle" }
+}

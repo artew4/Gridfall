@@ -308,8 +308,61 @@ Branch `feature/tdm-factions-6.0`, based on 5.0 (`cb5f78f`). Plan: `docs/PLAN-6.
 
 **Not verified (needs a human):** whether the allies feel helpful; whether the inferred roles match what the player thinks he is doing; balance of a full 25-ticket match with a human (the soaks are bot-only, OMEGA one bot up); whether either base feels favoured; name-tag readability; audio (AudioContext can't start in automation).
 
+## 7.0: the deathmatch arena AI
+Branch `feature/deathmatch-ai-core-7.0`, based on 6.0 (`e5d2989`). Plan: `docs/PLAN-7.0.md`. Numbers: `docs/BENCH-7.0.json`.
+
+| Step | Commit | Notes |
+|---|---|---|
+| Phases 1–3 | `076462f` | arena AI for TDM: a deathmatch brain per bot, an arena director per team, attention-driven sensing, jump/vault movement with nav vault links, the `TDM.ai` switch; survival untouched |
+| Phases 4–5 | (second 7.0 commit) | headless match stepper (`tdmSim`, `tdmAB`), benchmark, docs |
+
+**Fixes found in validation:**
+- **Sight-to-shot stat:** recorded every shot instead of one per acquisition (a sentinel reset by the next decide). It is now one per pick, timed from when the target was both visible and picked, and picks made mid-reload aren't timed.
+- **Target flicker, 353 switches/min:** a target leaving view lost its +1.5 and the visible one won.
+  - First fix (kept the current target "visible" for 1 s): bots chased ghosts past visible enemies and the kill rate halved.
+  - Final rule: a visible threat replaces one out of view at once; between two in view, a 15% margin and at most one switch every 0.4 s, unless the new one is shooting at it.
+- **BREAK on every reload, 14% of alive time:** it now reloads on the move unless someone is shooting at it.
+- **Route entry search capped at 10:** good routes became failures, bots ran at walls, and matches went from ~135 s to ~265 s. Measured instead: successful routes need ≤ 116 corridor tests, failed ones tested all ~530 nodes (5–11 ms). The cap is now 128, and both route ends are put on the floor first (a contact plotted mid-vault is in the air).
+- **Tactical after arena froze every bot:** after an arena match the arena directors stayed set, so the 6.0 path ran the arena frame with no brains. `begin()` now clears them.
+
+**Validation** (Chrome, Apple M5, Balanced; saved settings unchanged):
+- **Match pace (headless whole matches, 25 tickets, bot vs bot):**
+  - 6.0 untouched checkout: 261 / 275 / 314 s, 8.6–10 kills/min.
+  - Same-session A/B, 6.0 brain: 325.5 s, 8.7 kills/min (medians).
+  - Same-session A/B, 7.0 arena: 153 / 138 / 135 s, median 137.6 s (50% of the untouched 6.0, 42% of the same-session 6.0); 18.4 kills/min (1.9–2.1×).
+- **Feel, measured:**
+  - Bots move > 1.5 m/s 95% of the time (6.0: 69%), crouch 2.7% (13%), stand still 3.2% (23%); average speed 4.7 m/s (2.8).
+  - First contact after 6 s (11).
+  - Per match: 120–150 jumps, 118–140 vaults (every bot ≥ 5 jumps and ≥ 6 vaults), 110–130 pushes with 25–29 push kills.
+  - BREAK 11–12.1% of alive time.
+  - Sight-to-first-shot median 20 ms, p90 120 ms.
+  - Stuck 0 (6.0: 5); friendly damage 0.
+- **CPU, `tdmBench` at 1× with nine bots:**
+  - Arena spectating: 59.4 FPS, CPU 2.5 ms, GPU 5.6 ms; AI 0.44 ms average (P95 1.2, P99 1.6, worst 2.3); 12.3 rays and 1.25 decides per frame.
+  - Arena with the player shooting: 60 FPS, CPU 2.63 ms; AI 0.42 ms (P99 1.8, one 11.7 ms worst); 19.5 rays per frame.
+  - 6.0 brain, same session: 60 FPS; AI 0.35 ms (P99 1.3); 0.5 decides per frame.
+  - So 2.5–3× the decisions for ~0.1 ms more per frame.
+  - Sensing: 0.3–1.8 rays per frame on average, 42–54% pair-cache hits, ≤ 18 in a frame, 0–1 checks deferred.
+- **`__dev.bench(3)`:** desert, Tokyo and the jungle at 59.7–60.3 FPS in every scenario, all valid.
+- **Friendly fire (arena AI):** `ok: true`, friendly damage 0.
+- **Survival regression:**
+  - Tokyo and the jungle: `__dev.tactical()` passes every scenario (roles: ≤ 2 suppressors, both flank sides, 3 tokens; flank, suppress, ghost and soak all ok).
+  - `__dev.survival()` on Tokyo, the jungle and the desert (after a TDM match) spawns plain `Gunner`/`Runner`, with no arena brain, no arena context and the 3/30 scheduler defaults.
+  - A unit test checks that nothing on the survival path imports `arena/`.
+- **Tests and build:** 133 unit tests pass (15 new); `npm run build` ok; `tdmSim`/`tdmAB` not in the bundle.
+
+**Missed or partial:**
+- Sight-to-shot p90 is 120 ms (7 frames, the yaw turn for targets well off its facing); only the median meets the "≤ 3 frames" aim.
+- BREAK reached 12.1% in one run (aim ≤ 12%).
+- Arena AI P99 was 2.6 ms in one headless run (aim ≤ 2.5).
+- Worst single AI steps of 12–28 ms remain in both brains (graph re-plans; 6.0 had the same).
+- Runners make only 1–2 kills a match.
+
+**Not verified (needs a human):** whether the bots feel ruthless but fair against a person (snap + spread was tuned on bot-vs-bot numbers only); whether BREAK and the Push read as intent; balance of a full match with a human.
+
 ## Next
 Human playtest:
+- 7.0 items: a full TDM match against the arena bots: do they feel fast and ruthless or unfair (the first rounds go wide for a third of a second; is that enough?); do the jumps and vaults look natural; does a wounded enemy getting rushed read; do your allies help or just run off; is the match length (about 2–3 minutes bot-only) right; `TDM.ai = 'tactical'` for a side-by-side.
 - 6.0 items: a full TDM match: do Maxim, Anatoly, Kostya and Ilya help, do they flank when you lay down fire and cover you when you push or fall back, is the respawn pace right, does either base feel favoured, are the name tags readable, are the blades too strong.
 - 5.0 items: do the enemies read as a squad (suppress, flank, rush together), is cover-flanking satisfying, do callouts help or nag, are staged rushers too passive, is the jungle undergrowth fair, does losing them and being searched for work.
 - 4.2 items: is the jungle oppressive or just dark? Are the shafts cinematic or too strong up close? Does the mud read as wet in motion? Is the fog too thick for spotting enemies?

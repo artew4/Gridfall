@@ -1,4 +1,4 @@
-# NEON RAIN 6.0: Three Settings, Tactical AI, 5v5 Team Deathmatch
+# NEON RAIN 7.0: Three Settings, Tactical AI, 5v5 Team Deathmatch with Arena Bots
 
 One night in Shinjuku. One gun you'd rather keep holstered. One last train. Or an outpost in the dunes, and a sandstorm coming. Or a walled firebase deep in the rainforest, and a road up to its gate.
 
@@ -260,6 +260,15 @@ The world renders through one post chain: scene → viewmodel → UnrealBloom �
 - **Friendly fire is off:** your rounds and theirs pass through teammates, and a rifleman won't fire with a teammate in his line.
 - **HUD:** tickets at the top, a kill feed on the right, a respawn countdown with your killer's name. Spawns are protected for 2 s.
 
+### Arena bots (7.0)
+Team Deathmatch bots no longer fight like survival enemies. They play like players:
+- **No hesitation.** A bot that sees you turns and fires on the spot. Its first rounds at a new target go wide and tighten within a third of a second.
+- **They keep moving.** They strafe while they shoot, sprint between fights, jump when they are hit, and vault sandbags, jersey barriers and the wadi berms without stopping.
+- **Cover is for reloading.** A bot ducks out of your line only to reload under fire, when it is losing a trade, or when two of you are on it, and never for more than about a second and a half.
+- **They finish the job.** Hurt one badly and its attacker (and at most one more) drops everything and rushes in for the kill. The blades rush anyone wounded or reloading.
+- **They know the map.** Each team keeps a board of everyone seen, heard firing or called out in the last few seconds, and runs at the freshest contact. The team pushes when it has the numbers, holds its ground when it's even, and regroups when it's down. Every lane stays covered.
+- **Survival is unchanged.** Tokyo, the jungle and the desert's survival mode still run the 5.0 tactical squads (cover, suppression, flanks, searches).
+
 ### Survival tactics (5.0)
 The survival enemies fight as a squad, in every setting:
 - **They take real cover.** A rifleman hunkers where the obstacle actually hides him from where you are, then pops up or leans out, fires a burst after a short laser warning, and ducks again. Walk round his cover and he notices within a fraction of a second ("He's flanking!") and moves.
@@ -316,6 +325,15 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - `await __dev.tdmSoak({ seconds: 300, timeScale: 2 })`: the bots play alone (you spectate in god mode, tickets 999): kills per minute, ranges, flank kills, what victims were doing, stuck bots, friendly-fire counters, scheduler pressure, AI cost.
   - `await __dev.tdmBench({ withPlayer: true })`: frame cost at 1x with all nine bots fighting (AI ms, rays, decides per frame, FPS, CPU, GPU).
   - `await __dev.friendlyFire()`: rounds through teammates (each team), your shots through allies, a teammate's blade, check-fire, rounds at you; `ok: true` when nothing hurts a teammate. Compare with `docs/BENCH-6.0.json`.
+- Arena bots (7.0), on the desert. Every TDM check takes `ai: 'arena'` (the default) or `ai: 'tactical'` (the 6.0 squads):
+  - `await __dev.tdmSim({ ai: 'arena', tickets: 25 })` plays a whole match headless, bot vs bot. It steps a fixed 1/60 s with no rendering, as fast as the CPU allows, so the result doesn't depend on the window's frame rate. It reports:
+    - match length, kills per minute, kill ranges;
+    - how much the bots move, crouch and stand still;
+    - jumps, vaults, pushes and push kills, BREAK share, target switches (and why);
+    - sight-to-first-shot times, stuck bots, friendly fire;
+    - AI ms per step and the sensing counters.
+  - `await __dev.tdmAB({ runs: 3 })`: `tdmSim` for both AIs, alternating, with the medians side by side. Compare with `docs/BENCH-7.0.json`.
+  - `TDM.ai = 'tactical'` (in `src/levels/Tdm.ts`) brings back the 6.0 bots in play.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
 
 ## Structure
@@ -352,6 +370,7 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
 - `src/player`: FPS controller and the viewmodel weapon (holster, recoil, reload, pump and tube-loading mechanics)
 - `src/enemies`: models (merged per joint), Runner, Gunner (two-rate tactical brains), nav and arcade waves
 - `src/enemies/tactics`: the squad director, time-slicing scheduler, utility selection, dynamic cover and generated cover spots, callouts
+- `src/enemies/arena` (7.0, Team Deathmatch only): the deathmatch brain, the arena director (fronts, momentum, contact board, push claims), attention-driven sensing, jump and vault movement, the arena bodies
 - `src/ui`: HUD, story HUD, minimap, marker, pause and settings menu, end screen
 - `src/dev`: route check and console helpers (DEV only)
 
