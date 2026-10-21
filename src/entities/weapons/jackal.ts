@@ -97,6 +97,7 @@ export const JACKAL_AR: WeaponSpec = {
 
     // Hands: right on the grip, left out on the handguard; khaki sleeves.
     const hand = new THREE.Group();
+    hand.userData.hands = true;
     gun.add(hand);
     box(0.042, 0.072, 0.06, glove, 0.006, -0.062, 0.04, hand, 0.3);
     box(0.016, 0.016, 0.05, glove, 0.022, -0.018, 0.0, hand);

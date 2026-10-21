@@ -15,6 +15,7 @@ import { NEON_SYNTHS } from '../../entities/enemies/neon';
 export const NEONBLOCK_INFO: LevelInfo = {
   id: 'neonblock',
   name: 'TOKYO: NEON BLOCK',
+  biome: 'tokyo',
   jp: '東京 · ネオン街区',
   blurb: 'A Shinjuku block in the rain, built for 5v5: alleys, fire escapes, a footbridge and the rooftops.',
   modes: ['tdm'],

@@ -98,22 +98,22 @@ export function stackColor(z: number): 'blue' | 'yellow' | 'red' {
 const Z = (id: string, name: string, jp: string, rects: [number, number, number, number][]): Zone => ({ id, name, jp, rects });
 /** Rects x0, z0, x1, z1; the first match wins (the catwalks are tested by height first). */
 export const ZONES = {
-  catwalks: Z('catwalks', 'CATWALKS', 'キャットウォーク', [[WH.x0, WH.z0, WH.x1, WH.z1]]),
+  catwalks: Z('catwalks', 'CATWALKS', 'МОСТКИ', [[WH.x0, WH.z0, WH.x1, WH.z1]]),
   // 15.0: the raised walks outside the warehouse.
-  nest: Z('nest', 'CRANE NEST', 'クレーン台', [[QG.x0 - 0.5, -QG.nest.z, QG.nest.x1 + 0.5, QG.nest.z]]),
-  quayGantry: Z('quayGantry', 'QUAY GANTRY', '岸壁ガントリー', [[QG.x0 - 0.5, -QG.z - 14, QG.x1 + 0.5, QG.z + 14]]),
-  containerGantry: Z('containerGantry', 'CONTAINER GANTRY', 'コンテナ通路', [[CG.x0 - 0.5, -CG.z - 9, CG.x1 + 0.5, CG.z + 9]]),
-  alphaSpawn: Z('alphaSpawn', 'ALPHA SPAWN', 'アルファ陣地', [[BASE.x0, BASE.z0, BASE.x1, BASE.z1]]),
-  omegaSpawn: Z('omegaSpawn', 'OMEGA SPAWN', 'オメガ陣地', [[BASE.x0, -BASE.z1, BASE.x1, -BASE.z0]]),
-  warehouse: Z('warehouse', 'WAREHOUSE 7', '第七倉庫', [[WH.x0, WH.z0, WH.x1, WH.z1]]),
-  crane: Z('crane', 'THE CRANE', 'ガントリークレーン', [[WH.x1, -10, QUAY_X + 2, 10]]),
-  southQuay: Z('southQuay', 'SOUTH QUAY', '南岸壁', [[WH.x1, 10, QUAY_X + 2, BASE.z0]]),
-  northQuay: Z('northQuay', 'NORTH QUAY', '北岸壁', [[WH.x1, -BASE.z0, QUAY_X + 2, -10]]),
-  alphaCourt: Z('alphaCourt', 'ALPHA FORECOURT', 'アルファ前庭', [[-17, WH.z1, WH.x1, BASE.z0]]),
-  omegaCourt: Z('omegaCourt', 'OMEGA FORECOURT', 'オメガ前庭', [[-17, -BASE.z0, WH.x1, WH.z0]]),
-  blue: Z('blue', 'BLUE STACKS', 'ブルー・スタック', [[WEST_X - 2, 12, -17, BASE.z0], [-17, 12, WH.x0, WH.z1]]),
-  yellow: Z('yellow', 'YELLOW STACKS', 'イエロー・スタック', [[WEST_X - 2, -12, WH.x0, 12]]),
-  red: Z('red', 'RED STACKS', 'レッド・スタック', [[WEST_X - 2, -BASE.z0, -17, -12], [-17, WH.z0, WH.x0, -12]]),
+  nest: Z('nest', 'CRANE NEST', 'КАБИНА КРАНА', [[QG.x0 - 0.5, -QG.nest.z, QG.nest.x1 + 0.5, QG.nest.z]]),
+  quayGantry: Z('quayGantry', 'QUAY GANTRY', 'ПРИЧАЛЬНАЯ ЭСТАКАДА', [[QG.x0 - 0.5, -QG.z - 14, QG.x1 + 0.5, QG.z + 14]]),
+  containerGantry: Z('containerGantry', 'CONTAINER GANTRY', 'КОНТЕЙНЕРНАЯ ЭСТАКАДА', [[CG.x0 - 0.5, -CG.z - 9, CG.x1 + 0.5, CG.z + 9]]),
+  alphaSpawn: Z('alphaSpawn', 'ALPHA SPAWN', 'ПОЗИЦИЯ «АЛЬФА»', [[BASE.x0, BASE.z0, BASE.x1, BASE.z1]]),
+  omegaSpawn: Z('omegaSpawn', 'OMEGA SPAWN', 'ПОЗИЦИЯ «ОМЕГА»', [[BASE.x0, -BASE.z1, BASE.x1, -BASE.z0]]),
+  warehouse: Z('warehouse', 'WAREHOUSE 7', 'СКЛАД №7', [[WH.x0, WH.z0, WH.x1, WH.z1]]),
+  crane: Z('crane', 'THE CRANE', 'ПОРТАЛЬНЫЙ КРАН', [[WH.x1, -10, QUAY_X + 2, 10]]),
+  southQuay: Z('southQuay', 'SOUTH QUAY', 'ЮЖНЫЙ ПРИЧАЛ', [[WH.x1, 10, QUAY_X + 2, BASE.z0]]),
+  northQuay: Z('northQuay', 'NORTH QUAY', 'СЕВЕРНЫЙ ПРИЧАЛ', [[WH.x1, -BASE.z0, QUAY_X + 2, -10]]),
+  alphaCourt: Z('alphaCourt', 'ALPHA FORECOURT', 'ПЛОЩАДКА «АЛЬФА»', [[-17, WH.z1, WH.x1, BASE.z0]]),
+  omegaCourt: Z('omegaCourt', 'OMEGA FORECOURT', 'ПЛОЩАДКА «ОМЕГА»', [[-17, -BASE.z0, WH.x1, WH.z0]]),
+  blue: Z('blue', 'BLUE STACKS', 'СИНИЙ ШТАБЕЛЬ', [[WEST_X - 2, 12, -17, BASE.z0], [-17, 12, WH.x0, WH.z1]]),
+  yellow: Z('yellow', 'YELLOW STACKS', 'ЖЁЛТЫЙ ШТАБЕЛЬ', [[WEST_X - 2, -12, WH.x0, 12]]),
+  red: Z('red', 'RED STACKS', 'КРАСНЫЙ ШТАБЕЛЬ', [[WEST_X - 2, -BASE.z0, -17, -12], [-17, WH.z0, WH.x0, -12]]),
 };
 
 export function zoneAt(x: number, y: number, z: number): Zone | null {

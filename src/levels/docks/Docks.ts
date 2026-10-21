@@ -65,8 +65,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     darkMetal: std(null, 0x2a2d31, 0.5, 0.7, 0.7),
     paint: std(null, 0xd0a21c, 0.45, 0.45, 0.7),
     deck: std(perforatedTexture(), 0x9aa0a6, 0.55, 0.6, 0.7),
-    crate: std(crateTexture('DOCK 7', '第七埠頭 · CARGO', '#3b4a5a', '#d6d2c4'), 0xffffff, 0.8, 0, 0.5),
-    pallet: std(crateTexture('PALLET', '輸出 · EXPORT', '#5a4a36', '#d9cfae'), 0xffffff, 0.85, 0, 0.4),
+    crate: std(crateTexture('DOCK 7', 'ДОК-7 · ГРУЗ', '#3b4a5a', '#d6d2c4'), 0xffffff, 0.8, 0, 0.5),
+    pallet: std(crateTexture('PALLET', 'ЭКСПОРТ · EXPORT', '#5a4a36', '#d9cfae'), 0xffffff, 0.85, 0, 0.4),
     fence: new THREE.MeshStandardMaterial({ map: chainLinkTexture(), color: 0xb8c0c8, roughness: 0.5, metalness: 0.6, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, envMapIntensity: 0.6 }),
     water: std(null, 0x05090f, 0.05, 0.25, 1.4),
     hull: std(steelTexture('#1d2430', 20), 0xffffff, 0.7, 0.4, 0.3),
@@ -525,9 +525,9 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   const ctx: BuildCtx = { scene, builder: b, col, glows, time, mats: { darkMetal: m.darkMetal } as unknown as Mats, fog };
   const signs: SignSpec[] = [
     { text: 'NEON DOCKS', color: '#ff2bd6', style: 'neon', vertical: false, mount: 'wall', face: 's', wall: WH.z1, x: -7.5, y: 5.6, z: WH.z1 + 0.12, size: 7, floorY: 0, light: 40, lightDist: 18 },
-    { text: '第七埠頭', color: '#19e6ff', style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: WH.z0, x: 7.5, y: 5.6, z: WH.z0 - 0.12, size: 6, floorY: 0, light: 40, lightDist: 18 },
-    { text: '港湾', color: '#ffb000', style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: 19, size: 3.4, floorY: 0, mode: 'flicker' },
-    { text: '倉庫', color: '#ffb000', style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: -19, size: 3.4, floorY: 0, mode: 'flicker' },
+    { text: 'ДОК-7', color: '#19e6ff', style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: WH.z0, x: 7.5, y: 5.6, z: WH.z0 - 0.12, size: 6, floorY: 0, light: 40, lightDist: 18 },
+    { text: 'ПОРТ', color: '#ffb000', style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: 19, size: 3.4, floorY: 0, mode: 'flicker' },
+    { text: 'СКЛАД', color: '#ffb000', style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: -19, size: 3.4, floorY: 0, mode: 'flicker' },
     { text: 'CARGO', color: '#39ff88', style: 'box', vertical: false, mount: 'wall', face: 'e', wall: WH.x1, x: WH.x1 + 0.12, y: 2.8, z: 0, size: 4, floorY: 0 },
     { text: 'ALPHA', color: '#3aa0ff', style: 'box', vertical: false, mount: 'wall', face: 'n', wall: BASE.z0, x: 0, y: 2.6, z: BASE.z0 - 0.12, size: 3.2, floorY: 0 },
     { text: 'OMEGA', color: '#ff3040', style: 'box', vertical: false, mount: 'wall', face: 's', wall: -BASE.z0, x: 0, y: 2.6, z: -BASE.z0 + 0.12, size: 3.2, floorY: 0 },

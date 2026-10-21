@@ -80,6 +80,10 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
     - `arena.laneMoves` counts bots moved off a hot lane.
   - `tdmSim({ pressure: false })`: lanes by head count alone (14.0), for an A/B.
   - `bench(3)` has a Crash Site set (eight views and a firefight) and three new Docks views (quay gantry, crane nest, container gantry).
+- UI flavor and the menu stage (16.0):
+  - `node scripts/stagecheck.mjs [cycles=6]` (Node 22+, Google Chrome; `URL=` for another server): drives the real menu (root → a mode's maps → BACK, with gun swaps) in headless Chrome. It tags each menu stage and every swapped gun, forces a full GC and checks a heap snapshot for survivors (exit 1 on any). It also asserts that the stage is gone on the maps screen and after DEPLOY. Shares `scripts/lib/cdp.mjs` and `scripts/lib/heap.mjs` with `leakcheck.mjs`.
+  - `__game.stage` (null except on the menu's root and controls screens), `__game.syncStage()`. The biome: `document.documentElement.dataset.biome`; `import('/src/ui/Flavor.ts')` for `setBiome`, `fl`, `FLAVOR`.
+  - Bench a map through the real path (open a mode's maps screen first): a match started straight from the stage with `__dev.start` reads ~1 ms high on the jungle for ~30 s (`docs/BENCH-16.0.json`).
 - Stairs (9.1): `__dev.world()` also reports a stair flush with a wall (`stair flush with wall`); `await __dev.stairGaps()` lists every stair-to-wall gap (3 cm) and presses a body into each one to check it keeps its floor (`drops: 0`).
 - Music (9.0): `__game.debug().music` (current track, file or procedural, live sources, files found); `await __dev.musicSoak({ cycles: 3 })` cycles every level and the title and checks that every music source is disposed (`unaccounted: 0`).
 - Arena bots (7.0), on the desert. Every TDM check takes `ai: 'arena'` (the default) or `ai: 'tactical'` (the 6.0 squads):

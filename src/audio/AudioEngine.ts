@@ -1464,6 +1464,41 @@ export class AudioEngine {
     this.tone(o, 'sine', 1200, 1200, 0.05, 0.002, 0.05);
   }
 
+  /*
+    16.0, the main menu's sounds. They sit in the menu theme's key (D minor, music/Themes.ts MENU_THEME):
+    a hover is a soft A (the fifth), a click a falling D to A over a short noise tick, a screen change
+    a filtered noise sweep (the glitch the stylesheet draws). Hovers are rate-limited so a mouse
+    sweeping a column of buttons ticks, it doesn't buzz.
+  */
+  private hoverAt = 0;
+
+  uiHover() {
+    if (!this.started) return;
+    const t = this.now();
+    if (t - this.hoverAt < 0.045) return;
+    this.hoverAt = t;
+    const o = this.out(null, 0, this.ui);
+    this.tone(o, 'triangle', 1760, 1740, 0.022, 0.002, 0.045);
+    this.burst(o, this.white, 'highpass', 7000, 0.7, 0.012, 0.001, 0.012);
+  }
+
+  uiClick() {
+    if (!this.started) return;
+    const o = this.out(null, 0, this.ui);
+    const t = this.now();
+    this.burst(o, this.white, 'bandpass', 3200, 1.2, 0.05, 0.001, 0.02, t);
+    this.tone(o, 'sine', 1174.7, 1174.7, 0.06, 0.002, 0.07, t);
+    this.tone(o, 'triangle', 880, 880, 0.045, 0.002, 0.16, t + 0.045);
+  }
+
+  uiGlitch() {
+    if (!this.started) return;
+    const o = this.out(null, 0, this.ui);
+    const t = this.now();
+    this.burst(o, this.white, 'bandpass', 1800, 2.5, 0.05, 0.004, 0.16, t, 6500);
+    this.tone(o, 'square', 146.8, 73.4, 0.018, 0.003, 0.12, t);
+  }
+
   sparkCrackle(pos: V3) {
     if (!this.started) return;
     const o = this.out(pos, 0.2);

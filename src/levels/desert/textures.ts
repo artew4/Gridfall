@@ -267,7 +267,7 @@ export function clinicSignTexture() {
   g.font = 'bold 34px monospace';
   g.fillText('CLINIC', 112, 60);
   g.font = '22px monospace';
-  g.fillText('診療所', 120, 96);
+  g.fillText('عيادة', 120, 96);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;

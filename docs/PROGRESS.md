@@ -929,8 +929,82 @@ Target ~30 / 40 / 30: the warehouse is on target, the waterfront a few points sh
 - The terrain noise wasn't mirrored.
 - A giant tree grew on a bridge's approach.
 
+## 16.0: thematic UI, biome flavor, the main menu's 3D stage
+
+Branch `feature/ui-presentation-16.0`. 15.0 was deployed first: `main` was fast-forwarded to `9904ef8` and pushed.
+
+### Biome flavor (`src/ui/Flavor.ts`)
+Every label's decorative sub-text was Japanese until 15.0, on every map. It now follows the place; the English stays the readable text everywhere.
+
+| Biome | Maps | Script | Example |
+|---|---|---|---|
+| tokyo | Tokyo After Midnight, Neon Block | Japanese | PAUSED 一時停止 · 第三波 |
+| desert | Desert Outpost | Arabic (Arabic-Indic numerals) | PAUSED متوقف · الموجة ٣ |
+| docks | Neon Docks | Russian, industrial | PAUSED ПАУЗА · ВОЛНА 03 · СКЛАД №7 |
+| jungle | Deep Jungle, Crash Site | Thai (Thai numerals), grid references | PAUSED หยุดชั่วคราว · 47P QS 441 882 |
+
+- **One dictionary** (`FLAVOR`, 44 lines × 4 biomes). `LevelInfo.biome` names a level's biome; `Game.loadLevel` calls `setBiome`, which sets `html[data-biome]` and rewrites every element marked `data-fl` in one pass. No per-frame cost: the wave counter asks for its line only when its number changes.
+- **Converted:**
+  - the HUD (VITAL, the wave counter and banners, the death screen);
+  - the main menu (labels, modes, BACK / DEPLOY);
+  - the pause menu, the TDM HUD and result screen (ALLY / ENEMY, VICTORY / DEFEAT, DEPLOYING, CHOOSE NEXT MAP);
+  - the loadout picker and the weapon label (each gun has a name per biome: 狐 / ثعلب / ЛИСА / จิ้งจอก).
+- **Levels:** the names, title lines, opening cards and every zone name are in their biome's script. Jungle places carry MGRS grid references (FIREBASE VIPER · 47P QR 118 640). In-world text follows too: crate stencils, the clinic sign, the firebase signs, and the docks' neon (ДОК-7, ПОРТ, СКЛАД).
+- **Unchanged:** the story's own UI (StoryHud, the end card, the minimap's labels) stays Japanese: it is Tokyo's story.
+- **Typography:** `--jp` is swapped per biome (Hiragino, Geeza Pro, a monospace for the Cyrillic stencil look, Thonburi). Japanese and Cyrillic keep their wide tracking; Arabic and Thai are set solid, because tracking breaks Arabic's joins. A map card for another place carries its own `lang` and script.
+- **No hitches:** every line in every script is laid out once at boot, off screen, with the menu's typefaces in each weight. `setBiome` costs 0.7–3.3 ms at a level load.
+
+### The main menu's 3D stage (`src/ui/MenuStage.ts`, option B)
+- **Root and controls screens:** the loadout's gun turns on a crate under a spotlight. It sits on a wet floor with a faint grid, with cyan and magenta rims, a cool fill, a soft halo behind the gun, a volumetric light cone with dust drifting on the GPU, and far neon through the haze.
+- **Armory row:** a new row on the root picks the gun (it is the loadout) and swaps the model on the crate.
+- **Maps screen:** the picked map's own title camera (option A), so both options are in.
+- **Its own scene and look:** the level isn't drawn or updated behind it, and the viewmodel pass is off.
+- **Lifecycle:** `Game.syncStage` runs at every state or screen change. It builds the stage on root and controls and destroys it for the maps screen, an intro, play or a load: `dispose` frees every geometry, material, texture and the environment target, then the only reference is dropped.
+
+### Cyberpunk CSS and sound
+- **Fonts:** Rajdhani for the UI, Orbitron for titles. Self-hosted through @fontsource, Latin subsets only.
+- **Effects:**
+  - scanlines and a vignette over the title and the pause menu;
+  - clipped-corner buttons;
+  - chromatic aberration on hover (the text splits magenta and cyan, jittering);
+  - a glitch tear between menu screens;
+  - a rare glitch on the GRIDFALL title.
+
+  `prefers-reduced-motion` turns them off.
+- **Sounds** (Web Audio, in the menu theme's D minor): a soft A on hover (rate-limited), a falling D–A over a click tick on click, and a filtered noise sweep with each screen glitch. The menu theme itself is unchanged: slow, wide D minor.
+- **Fixed on the way:**
+  - The title's tagline had shared its class with the story subtitles (`.sub`, opacity 0) since 3.2 and never showed.
+  - The maps screen is wider (five cards a mode).
+
+### Results (`docs/BENCH-16.0.json`)
+- **Stage teardown** (`node scripts/stagecheck.mjs 6`, headless Chrome, forced GC):
+  - 6 stages and 12 swapped guns, all collected: 0 tagged objects alive;
+  - GPU objects on the maps screen identical every cycle (60 geometries, 44 textures, 46 programs);
+  - the stage is gone before the maps screen and before deploy.
+- **Map transitions** (`leakcheck.mjs 1 desert,docks,crashsite`): 0 alive.
+- **Menu cost:**
+  - root menu frames: p99 10.2 ms, max 10.4 ms at 120 Hz;
+  - stage build 15.6 ms, teardown 0.9 ms, gun swap < 1 ms;
+  - 63 draw calls, 1.7k triangles.
+- **`bench(3)`, every map through the real menu path:** 60 FPS on Balanced in every view of every map.
+
+  | Map | CPU (ms) | GPU (ms) |
+  |---|---|---|
+  | Tokyo | 1.9–2.2 | 6.1–6.8 |
+  | Desert | 1.7–2.2 | 5.1–5.7 |
+  | Docks | 0.8–1.8 (run before the CSS fix) | 6.8–8.4 (main today: 6.1–8.6) |
+  | Jungle | 1.8–2.3 | 5.8–6.2 (main: 5.7–6.9) |
+  | Neon Block | 1.3–2.0 | 7.0–12.5 |
+  | Crash Site | 1.7–1.9 | 5.9–6.2 |
+
+- **Regressions found and fixed:**
+  - `.hidden` is opacity only, so the title's blended scanlines and endless animations kept compositing over the game: docks +1.5–2 ms GPU against `main` in a same-session A/B. They now switch off when hidden.
+- **Known, not fixed:** on the jungle, a match started straight from the stage (only `__dev.start` can; DEPLOY is on the maps screen, which draws the level first) spends ~1 ms more in render submission for ~30 s. Through the menu, the bench equals `main`.
+- **Tests:** 215 (+4: every line in every biome in its script, none Japanese outside Tokyo; numerals; `setBiome`; the arenas' zone names).
+
 ## Next
 Human playtest:
+- 16.0 items: the menu stage (is the gun readable, does the camera drift too much), the glitch and hover sounds (charming or tiring), Rajdhani at small sizes, the flavor scripts (do Arabic and Thai read as flavor or as noise, is the Cyrillic stencil look right for the docks).
 - 15.0 items: Crash Site (does the ridge pay for its exposure, is the ravine too dark, do the trenches read, the wreck's interior); the docks rework (does the roofless warehouse feel like a risk, do the gantries and the crane nest matter, do side exits feel natural).
 - 14.0 items: Neon Block in a full match: do the three levels pay off (roofs, landings, the footbridge), are the drop-downs readable and fun, is any spot too dark or too bright, is the koban too big; the operator skins: can you find a bot in the alleys at 20–40 m, do cyan and orange read as teams at a glance, do the accents feel like a giveaway.
 - 13.0 items: the mode-first menu and the name field; picking a gun over the intro and on the respawn timer (is 3 s in the spawn yard enough?); do shotgun bots rushing and rifle bots hanging back read as different players; is the Kitsune too strong as an SMG (27 per bolt against bots); going straight to the next map after a match.

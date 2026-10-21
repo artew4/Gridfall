@@ -66,9 +66,9 @@ export function buildArena(k: ArenaKit): ArenaResult {
   const { b, col, mats: m } = k;
   // Fresh zone objects per build (the outpost appends their rects).
   const zone = (id: string, name: string, jp: string): Zone => ({ id, name, jp, rects: [] });
-  const ALPHA_BASE = zone('alpha-base', 'ALPHA BASE', '味方基地'), OMEGA_BASE = zone('omega-base', 'OMEGA BASE', '敵基地');
-  const HAMLET_S = zone('hamlet-s', 'SOUTH HAMLET', '南の廃村'), HAMLET_N = zone('hamlet-n', 'NORTH HAMLET', '北の廃村');
-  const WADI_S = zone('wadi-s', 'SOUTH WADI', '南の涸れ川'), WADI_N = zone('wadi-n', 'NORTH WADI', '北の涸れ川');
+  const ALPHA_BASE = zone('alpha-base', 'ALPHA BASE', 'قاعدة الحلفاء'), OMEGA_BASE = zone('omega-base', 'OMEGA BASE', 'قاعدة العدو');
+  const HAMLET_S = zone('hamlet-s', 'SOUTH HAMLET', 'القرية الجنوبية'), HAMLET_N = zone('hamlet-n', 'NORTH HAMLET', 'القرية الشمالية');
+  const WADI_S = zone('wadi-s', 'SOUTH WADI', 'الوادي الجنوبي'), WADI_N = zone('wadi-n', 'NORTH WADI', 'الوادي الشمالي');
   const out: ArenaResult = { spawns: { south: [], north: [] }, coverPoints: [], nodes: [], links: [], lanes: { south: [], north: [] }, zones: [], testGoals: [] };
 
   /** Lowest terrain under a rect (corners and middle). */

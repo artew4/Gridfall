@@ -338,7 +338,7 @@ export class Renderer {
       r.clear();
       r.render(this.scene, this.camera);
       r.clearDepth();
-      r.render(this.weaponScene, this.weaponCamera);
+      if (this.weaponPass.enabled) r.render(this.weaponScene, this.weaponCamera);
       r.autoClear = true;
       return;
     }

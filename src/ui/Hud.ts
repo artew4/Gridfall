@@ -1,16 +1,12 @@
 import type { LevelInfo, SettingId } from '../levels/Level';
 import { MODE_LABEL, MODE_ORDER, canDeploy, mapsFor, type MenuState } from './MenuFlow';
 import { NAME_MAX } from '../gameplay/PlayerName';
+import { ARMORY, ARMORY_ORDER, type WeaponId } from '../entities/weapons/armory';
 import { nextMapsHtml } from './TdmHud';
 
-const JP_NUM = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
-export function jpNumber(n: number): string {
-  if (n <= 10) return JP_NUM[n];
-  if (n < 20) return '十' + JP_NUM[n - 10];
-  const t = Math.floor(n / 10);
-  const o = n % 10;
-  return JP_NUM[t] + '十' + (o ? JP_NUM[o] : '');
-}
+import { LANG, fl, flSpan, flWave, prewarmFlavor } from './Flavor';
+
+export { jpNumber } from './jpNumber';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -78,12 +74,12 @@ export class Hud {
     }
     const bar = el('div', 'bar');
     this.segs.forEach((s) => bar.appendChild(s));
-    this.health.append(el('div', 'label', 'VITAL<span class="jp">生命</span>'), bar, this.healthVal);
+    this.health.append(el('div', 'label', `VITAL${flSpan('vital')}`), bar, this.healthVal);
 
     const val = el('div', 'val');
     val.append(this.ammoCur, el('span', 'max', '/ ∞'));
     this.ammo.append(val, this.pipWrap, this.reloadEl, this.weaponLabel);
-    this.setWeapon('KITSUNE-9', '狐', 12, 3);
+    this.setWeapon('KITSUNE-9', fl('smg'), 12, 3);
 
     const wave = el('div', 'panel wave');
     const wl = el('div', 'label', 'WAVE');
@@ -103,20 +99,22 @@ export class Hud {
       <div class="loading">BUILDING THE CITY…</div>
       <div class="mainmenu hidden">
         <div class="mm-screen" data-screen="root">
-          <div class="mm-label">CALLSIGN <span class="jp">名前</span></div>
+          <div class="mm-label">CALLSIGN ${flSpan('callsign')}</div>
           <input class="mm-name" type="text" maxlength="${NAME_MAX}" spellcheck="false" autocomplete="off" aria-label="Player name" />
-          <div class="mm-label">MODE <span class="jp">モード</span></div>
+          <div class="mm-label">MODE ${flSpan('mode')}</div>
           <div class="mm-modes"></div>
-          <button class="pm-btn" data-act="settings">SETTINGS<span class="jp">設定</span></button>
-          <button class="pm-btn" data-act="controls">CONTROLS<span class="jp">操作</span></button>
+          <div class="mm-label">ARMORY ${flSpan('armory')}</div>
+          <div class="mm-armory"></div>
+          <button class="pm-btn" data-act="settings">SETTINGS${flSpan('settings')}</button>
+          <button class="pm-btn" data-act="controls">CONTROLS${flSpan('controls')}</button>
         </div>
         <div class="mm-screen hidden" data-screen="maps">
           <div class="mm-label mm-mode-title"></div>
           <div class="settings-row"></div>
           <div class="mm-note"></div>
           <div class="mm-actions">
-            <button class="pm-btn" data-act="back">BACK<span class="jp">戻る</span></button>
-            <button class="pm-btn primary" data-act="deploy">DEPLOY<span class="jp">出撃</span></button>
+            <button class="pm-btn" data-act="back">BACK${flSpan('back')}</button>
+            <button class="pm-btn primary" data-act="deploy">DEPLOY${flSpan('deploy')}</button>
           </div>
         </div>
       </div>
@@ -130,7 +128,7 @@ export class Hud {
           <b>TAB</b><span>OBJECTIVE OVERVIEW (HOLD)</span><b>ESC</b><span>PAUSE · SETTINGS</span>
         </div>
         <div class="cp-notes">A drawn weapon gets you noticed by security and civilians. Break line of sight to lose a pursuit; they search the last place they saw you.</div>
-        <button class="pm-btn" data-act="back">BACK<span class="jp">戻る</span></button>
+        <button class="pm-btn" data-act="back">BACK${flSpan('back')}</button>
       </div>
       <div class="controls">HEADPHONES RECOMMENDED</div>`;
     this.pause.id = 'pause';
@@ -142,6 +140,7 @@ export class Hud {
     this.skip.id = 'skip';
     this.zone.id = 'zone';
     parent.append(this.root, this.banner, this.cine, this.skip, this.zone, this.title, this.pause, this.death);
+    prewarmFlavor(parent);
   }
 
   setReady() {
@@ -156,7 +155,7 @@ export class Hud {
     this.title.querySelector('.mm-modes')!.innerHTML = MODE_ORDER.filter((m) => mapsFor(m, levels).length)
       .map((m) => {
         const L = MODE_LABEL[m], n = mapsFor(m, levels).length;
-        return `<button class="pm-btn mm-mode${m === 'tdm' ? ' primary' : ''}" data-mode="${m}">${L.name}<span class="jp">${L.jp}</span><span class="mm-line">${L.line} · ${n} MAP${n === 1 ? '' : 'S'}</span></button>`;
+        return `<button class="pm-btn mm-mode${m === 'tdm' ? ' primary' : ''}" data-mode="${m}">${L.name}${flSpan(L.fl)}<span class="mm-line">${L.line} · ${n} MAP${n === 1 ? '' : 'S'}</span></button>`;
       })
       .join('');
   }
@@ -178,15 +177,17 @@ export class Hud {
    * the picked one lit; DEPLOY once it is built), or the controls page.
    */
   renderMenu(st: MenuState) {
+    if (st.screen !== this.menuState.screen) this.glitch();
     this.menuState = st;
     const t = this.title;
+    t.dataset.screen = st.screen;
     t.querySelector('.mainmenu [data-screen="root"]')!.classList.toggle('hidden', st.screen !== 'root');
     t.querySelector('.mainmenu [data-screen="maps"]')!.classList.toggle('hidden', st.screen !== 'maps');
     t.querySelector('.controlsPanel')!.classList.toggle('hidden', st.screen !== 'controls');
     t.querySelector('.mainmenu')!.classList.toggle('on-controls', st.screen === 'controls');
     if (st.screen !== 'maps' || !st.mode) return;
     const L = MODE_LABEL[st.mode];
-    t.querySelector('.mm-mode-title')!.innerHTML = `${L.name} · MAP <span class="jp">${L.jp}</span>`;
+    t.querySelector('.mm-mode-title')!.innerHTML = `${L.name} · MAP ${flSpan(L.fl)}`;
     const row = t.querySelector('.settings-row')!;
     const maps = mapsFor(st.mode, this.levels);
     const key = maps.map((m) => m.id).join(',');
@@ -194,7 +195,7 @@ export class Hud {
       row.setAttribute('data-for', key);
       row.innerHTML = maps
         .map(
-          (l) => `<button class="set-card" data-setting="${l.id}"><b>${l.name}</b><span class="jp">${l.jp}</span>
+          (l) => `<button class="set-card" data-setting="${l.id}"><b>${l.name}</b><span class="jp" lang="${LANG[l.biome]}">${l.jp}</span>
         <span class="blurb">${l.blurb}</span><span class="modes">${l.modes.map((m) => (m === 'story' ? 'STORY' : m === 'tdm' ? '5v5 TDM' : 'SURVIVAL')).join(' · ')}</span></button>`,
         )
         .join('');
@@ -208,6 +209,33 @@ export class Hud {
     const picked = this.levels.find((l) => l.id === st.map);
     note.textContent = busy ? (picked?.loading ?? '') : '';
     note.classList.toggle('busy', busy);
+  }
+
+  /** 16.0: the screen change's glitch (the stylesheet's `glitching` keyframes) and its sound. */
+  onGlitch: (() => void) | null = null;
+  private glitchTimer = 0;
+
+  private glitch() {
+    const m = this.title;
+    m.classList.remove('glitching');
+    void m.offsetWidth;
+    m.classList.add('glitching');
+    clearTimeout(this.glitchTimer);
+    this.glitchTimer = window.setTimeout(() => m.classList.remove('glitching'), 420);
+    this.onGlitch?.();
+  }
+
+  /** 16.0: the root menu's armory row (the gun on the stage's crate is the one lit). */
+  setArmory(current: WeaponId) {
+    const row = this.title.querySelector<HTMLElement>('.mm-armory')!;
+    if (!row.childElementCount) {
+      row.innerHTML = ARMORY_ORDER.map((id) => {
+        const a = ARMORY[id];
+        return `<button class="mm-gun" data-gun="${id}"><kbd>${a.key}</kbd><b>${a.spec.name}</b>${flSpan(id)}<em>${a.kind}</em></button>`;
+      }).join('') + '<div class="mm-gun-line"></div>';
+    }
+    for (const b of Array.from(row.querySelectorAll<HTMLElement>('[data-gun]'))) b.classList.toggle('on', b.dataset.gun === current);
+    row.querySelector('.mm-gun-line')!.textContent = ARMORY[current].blurb;
   }
 
   /** 13.0: the player's name on the HUD (with his team in Team Deathmatch). */
@@ -257,9 +285,13 @@ export class Hud {
   }
 
   setWave(n: number, remaining: number, breakTime = false) {
-    this.waveNum.textContent = String(n).padStart(2, '0');
-    this.waveJp.textContent = `第${jpNumber(n)}波`;
-    this.remain.textContent = breakTime ? 'CLEAR · 小休止' : `${remaining} HOSTILE${remaining === 1 ? '' : 'S'}`;
+    // Per frame from the modes: touch the DOM only when the text changes.
+    const num = String(n).padStart(2, '0');
+    const jp = flWave(n);
+    const rem = breakTime ? `CLEAR · ${fl('waveBreak')}` : `${remaining} HOSTILE${remaining === 1 ? '' : 'S'}`;
+    if (this.waveNum.textContent !== num) this.waveNum.textContent = num;
+    if (this.waveJp.textContent !== jp) this.waveJp.textContent = jp;
+    if (this.remain.textContent !== rem) this.remain.textContent = rem;
   }
 
   setSpread(px: number) {
@@ -304,8 +336,11 @@ export class Hud {
 
   /** HUD corner: where and when (the story replaces the time as the clock runs). */
   setPlace(place: string, clock: string) {
+    this.placeClock = clock;
     this.clockEl.innerHTML = `${place} · <b>${clock}</b>`;
   }
+
+  private placeClock = '02:47';
 
   setClock(t: string) {
     const b = this.clockEl.querySelector('b');
@@ -323,7 +358,7 @@ export class Hud {
     const mm = Math.floor(s.time / 60);
     const ss = Math.floor(s.time % 60);
     this.death.innerHTML = `<div class="big">${s.title ?? 'FLATLINED'}</div>
-      <div class="hint" style="animation:none;margin-top:10px;font-family:var(--jp)">02:47 · 雨は止まない</div>
+      <div class="hint" style="animation:none;margin-top:10px;font-family:var(--jp)">${this.placeClock} · ${fl('flatline')}</div>
       <div class="stats">
         <span>WAVE</span><span>${String(s.wave).padStart(2, '0')}</span>
         <span>NEUTRALIZED</span><span>${s.kills}</span>

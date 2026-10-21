@@ -15,7 +15,8 @@ import { NEON_SYNTHS } from '../../entities/enemies/neon';
 export const DOCKS_INFO: LevelInfo = {
   id: 'docks',
   name: 'NEON DOCKS',
-  jp: 'ネオン埠頭',
+  biome: 'docks',
+  jp: 'НЕОНОВЫЕ ДОКИ',
   blurb: 'A rain-soaked container harbour at night, built for 5v5: the stacks, the warehouse, the quay.',
   modes: ['tdm'],
   loading: 'LIGHTING THE DOCKS…',
@@ -24,11 +25,11 @@ export const DOCKS_INFO: LevelInfo = {
   enemies: NEON_SYNTHS,
   music: 'docks_theme',
   tagline: 'THREE LANES · ONE HARBOUR',
-  jpLine: '第七埠頭 · 午前三時',
+  jpLine: 'ДОК-7 · ЗОНА ПОГРУЗКИ · 03:12',
   place: 'DOCK 7, KAWASAKI',
   clock: '03:12',
   cine: {
-    tdm: { t1: 'GRIDFALL', t2: 'ネオン埠頭 · NEON DOCKS', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>THE STACKS · THE WAREHOUSE · THE QUAY' },
+    tdm: { t1: 'GRIDFALL', t2: 'ДОК-7 · NEON DOCKS', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>THE STACKS · THE WAREHOUSE · THE QUAY' },
   },
 };
 

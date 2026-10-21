@@ -1,4 +1,5 @@
 import type { Settings } from './Settings';
+import { flSpan } from './Flavor';
 import { FPS_CAPS, PRESETS, type QualityPreset } from '../core/Performance';
 
 type SliderKey = 'master' | 'music' | 'sfx';
@@ -26,12 +27,12 @@ export class PauseMenu {
     this.root.className = 'layer hidden';
     this.root.innerHTML = `
       <div class="pm-panel">
-        <div class="pm-title">PAUSED<span class="jp">一時停止</span></div>
-        <button class="pm-btn primary" data-act="resume">RESUME<span class="jp">再開</span></button>
+        <div class="pm-title">PAUSED${flSpan('paused')}</div>
+        <button class="pm-btn primary" data-act="resume">RESUME${flSpan('resume')}</button>
         <div class="pm-hint"></div>
-        <button class="pm-btn" data-act="restart">RESTART<span class="jp">最初から</span></button>
-        <button class="pm-btn" data-act="quit">QUIT TO MAIN MENU<span class="jp">メニューへ</span></button>
-        <div class="pm-sep"><span>AUDIO</span><span class="jp">音量</span></div>
+        <button class="pm-btn" data-act="restart">RESTART${flSpan('restart')}</button>
+        <button class="pm-btn" data-act="quit">QUIT TO MAIN MENU${flSpan('quitToMenu')}</button>
+        <div class="pm-sep"><span>AUDIO</span>${flSpan('audio')}</div>
         ${(['master', 'music', 'sfx'] as SliderKey[])
           .map(
             (k) => `<label class="pm-slider"><span class="name">${k.toUpperCase()}</span>
@@ -40,14 +41,14 @@ export class PauseMenu {
           )
           .join('')}
         <button class="pm-btn toggle" data-act="mute"></button>
-        <div class="pm-sep"><span>GRAPHICS</span><span class="jp">画質</span></div>
+        <div class="pm-sep"><span>GRAPHICS</span>${flSpan('graphics')}</div>
         <div class="pm-row">${(Object.keys(PRESETS) as QualityPreset[])
           .map((q) => `<button class="pm-btn pm-chip" data-quality="${q}">${PRESETS[q].label}</button>`)
           .join('')}</div>
         <button class="pm-btn toggle" data-act="fps"></button>
         <button class="pm-btn toggle" data-act="tips"></button>
         <div class="pm-note"></div>
-        <div class="pm-foot">SETTINGS ARE SAVED · 設定は保存されます</div>
+        <div class="pm-foot">SETTINGS ARE SAVED · ${flSpan('saved', 'span', '')}</div>
       </div>`;
     parent.appendChild(this.root);
     this.hint = this.root.querySelector('.pm-hint')!;
@@ -85,7 +86,7 @@ export class PauseMenu {
         // Two-step restart avoids losing a run to a stray click.
         if (!this.restartArmed) {
           this.restartArmed = true;
-          this.root.querySelector('[data-act="restart"]')!.innerHTML = 'CONFIRM RESTART<span class="jp">確認</span>';
+          this.root.querySelector('[data-act="restart"]')!.innerHTML = `CONFIRM RESTART${flSpan('confirm')}`;
           return;
         }
         this.onRestart();
@@ -93,7 +94,7 @@ export class PauseMenu {
         // Two-step as well: the run is lost.
         if (!this.quitArmed) {
           this.quitArmed = true;
-          this.root.querySelector('[data-act="quit"]')!.innerHTML = 'CONFIRM QUIT<span class="jp">確認</span>';
+          this.root.querySelector('[data-act="quit"]')!.innerHTML = `CONFIRM QUIT${flSpan('confirm')}`;
           return;
         }
         this.onQuit();
@@ -122,11 +123,11 @@ export class PauseMenu {
       s.val.textContent = String(this.settings[k]).padStart(3, '0');
       s.input.style.setProperty('--fill', `${this.settings[k]}%`);
     }
-    this.muteBtn.innerHTML = this.settings.muted ? 'SOUND: <b>MUTED</b><span class="jp">消音</span>' : 'SOUND: <b>ON</b><span class="jp">音あり</span>';
+    this.muteBtn.innerHTML = this.settings.muted ? `SOUND: <b>MUTED</b>${flSpan('muted')}` : `SOUND: <b>ON</b>${flSpan('soundOn')}`;
     this.muteBtn.classList.toggle('on', this.settings.muted);
     for (const b of Array.from(this.root.querySelectorAll<HTMLElement>('[data-quality]'))) b.classList.toggle('on', b.dataset.quality === this.settings.quality);
-    this.root.querySelector('[data-act="fps"]')!.innerHTML = `FRAME RATE: <b>${this.settings.fps} FPS</b><span class="jp">${this.settings.fps <= 30 ? '省電力' : this.settings.fps <= 60 ? '標準' : '高'}</span>`;
-    this.root.querySelector('[data-act="tips"]')!.innerHTML = `CONTROL TIPS: <b>${this.settings.tips ? 'ON' : 'OFF'}</b><span class="jp">ヒント</span>`;
+    this.root.querySelector('[data-act="fps"]')!.innerHTML = `FRAME RATE: <b>${this.settings.fps} FPS</b>${flSpan(this.settings.fps <= 30 ? 'powerSave' : this.settings.fps <= 60 ? 'standard' : 'smooth')}`;
+    this.root.querySelector('[data-act="tips"]')!.innerHTML = `CONTROL TIPS: <b>${this.settings.tips ? 'ON' : 'OFF'}</b>${flSpan('tips')}`;
     this.root.querySelector('.pm-note')!.textContent =
       this.settings.quality === 'power' ? '30 FPS, LOWER RESOLUTION — RUNS COOLEST' : this.settings.quality === 'high' ? 'FULL RESOLUTION AND RATE — MOST GPU WORK' : 'RECOMMENDED';
   }
@@ -144,14 +145,14 @@ export class PauseMenu {
     if (on) {
       this.mode = mode;
       const settings = mode === 'settings';
-      this.root.querySelector('.pm-title')!.innerHTML = settings ? 'SETTINGS<span class="jp">設定</span>' : 'PAUSED<span class="jp">一時停止</span>';
-      this.root.querySelector('[data-act="resume"]')!.innerHTML = settings ? 'BACK<span class="jp">戻る</span>' : 'RESUME<span class="jp">再開</span>';
+      this.root.querySelector('.pm-title')!.innerHTML = settings ? `SETTINGS${flSpan('settings')}` : `PAUSED${flSpan('paused')}`;
+      this.root.querySelector('[data-act="resume"]')!.innerHTML = settings ? `BACK${flSpan('back')}` : `RESUME${flSpan('resume')}`;
       (this.root.querySelector('[data-act="restart"]') as HTMLElement).style.display = settings ? 'none' : '';
       (this.root.querySelector('[data-act="quit"]') as HTMLElement).style.display = settings ? 'none' : '';
       this.restartArmed = false;
       this.quitArmed = false;
-      this.root.querySelector('[data-act="restart"]')!.innerHTML = 'RESTART<span class="jp">最初から</span>';
-      this.root.querySelector('[data-act="quit"]')!.innerHTML = 'QUIT TO MAIN MENU<span class="jp">メニューへ</span>';
+      this.root.querySelector('[data-act="restart"]')!.innerHTML = `RESTART${flSpan('restart')}`;
+      this.root.querySelector('[data-act="quit"]')!.innerHTML = `QUIT TO MAIN MENU${flSpan('quitToMenu')}`;
       this.setHint('');
       this.sync();
     }

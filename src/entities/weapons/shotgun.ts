@@ -132,6 +132,7 @@ export const BOAR_SHOTGUN: WeaponSpec = {
 
     // Right hand on the grip, sleeve.
     const hand = new THREE.Group();
+    hand.userData.hands = true;
     gun.add(hand);
     box(0.044, 0.074, 0.062, glove, 0.006, -0.064, 0.075, hand, 0.3);
     box(0.016, 0.016, 0.05, glove, 0.022, -0.02, 0.035, hand);

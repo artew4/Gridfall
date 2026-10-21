@@ -1,3 +1,4 @@
+import { LANG, flSpan } from './Flavor';
 import * as THREE from 'three';
 import type { Combatant, TeamId } from '../combat/Team';
 import type { LevelInfo } from '../levels/Level';
@@ -31,8 +32,8 @@ export class TdmHud {
   private max = 25;
 
   constructor(parent: HTMLElement) {
-    const aSide = el('div', 'side a', '<span>ALPHA<em>味方</em></span>');
-    const oSide = el('div', 'side o', '<span>OMEGA<em>敵</em></span>');
+    const aSide = el('div', 'side a', `<span>ALPHA${flSpan('ally', 'em', '')}</span>`);
+    const oSide = el('div', 'side o', `<span>OMEGA${flSpan('enemy', 'em', '')}</span>`);
     const ab = el('div', 'bar a');
     ab.appendChild(this.aBar);
     const ob = el('div', 'bar o');
@@ -168,7 +169,7 @@ export class TdmScreen {
         .map((l) => `<span class="${l.you ? 'you' : ''}">${l.name}${l.weapon ? `<em class="gun">${l.weapon}</em>` : ''}</span><span>${l.kills}</span><span>${l.deaths}</span>`)
         .join('');
     this.root.innerHTML = `
-      <div class="end-title ${won ? 'win' : 'lose'}">${won ? 'VICTORY' : 'DEFEAT'}<span class="jp">${won ? '勝利' : '敗北'}</span></div>
+      <div class="end-title ${won ? 'win' : 'lose'}">${won ? 'VICTORY' : 'DEFEAT'}${flSpan(won ? 'victory' : 'defeat')}</div>
       <div class="end-sub">ALPHA ${tickets.alpha} · ${tickets.omega} OMEGA — ${mm}:${ss}</div>
       <div class="tdm-board">
         <div class="col a"><div class="hd"><b>ALPHA</b><span>K</span><span>D</span></div>${team('alpha')}</div>
@@ -181,7 +182,7 @@ export class TdmScreen {
 
   /** 13.0: between the click and the new map: the board gives way to a deploy note while it builds. */
   deploying(info: LevelInfo) {
-    this.root.innerHTML = `<div class="end-title">DEPLOYING<span class="jp">展開</span></div><div class="end-sub">${info.name} · ${info.loading}</div>`;
+    this.root.innerHTML = `<div class="end-title">DEPLOYING${flSpan('deploying', 'span', 'jp', info.biome)}</div><div class="end-sub">${info.name} · ${info.loading}</div>`;
     // Survival comes here from the death screen, with this screen still hidden.
     this.root.classList.remove('hidden');
   }
@@ -197,13 +198,13 @@ export class TdmScreen {
  */
 export function nextMapsHtml(next: { info: LevelInfo; again: boolean }[]) {
   return `<div class="next-maps">
-    <div class="mm-label">CHOOSE NEXT MAP <span class="jp">次の舞台</span></div>
+    <div class="mm-label">CHOOSE NEXT MAP ${flSpan('nextMap')}</div>
     <div class="settings-row">${next
       .map(
-        ({ info, again }) => `<button class="set-card${again ? ' on' : ''}" data-map="${info.id}"><b>${again ? 'REMATCH · ' : ''}${info.name}</b><span class="jp">${info.jp}</span><span class="blurb">${info.blurb}</span></button>`,
+        ({ info, again }) => `<button class="set-card${again ? ' on' : ''}" data-map="${info.id}"><b>${again ? 'REMATCH · ' : ''}${info.name}</b><span class="jp" lang="${LANG[info.biome]}">${info.jp}</span><span class="blurb">${info.blurb}</span></button>`,
       )
       .join('')}</div>
-    <button class="pm-btn small" data-act="menu">MAIN MENU<span class="jp">メニュー</span></button>
+    <button class="pm-btn small" data-act="menu">MAIN MENU${flSpan('mainMenu')}</button>
   </div>`;
 }
 

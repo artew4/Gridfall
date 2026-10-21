@@ -14,7 +14,8 @@ import { inBase } from './ArenaLayout';
 export const DESERT_INFO: LevelInfo = {
   id: 'desert',
   name: 'DESERT OUTPOST',
-  jp: '砂漠の前哨基地',
+  biome: 'desert',
+  jp: 'الموقع الصحراوي',
   blurb: 'An outpost in open dunes, harsh sun, sandstorms that blind you. Survival or 5v5 Team Deathmatch.',
   modes: ['arcade', 'tdm'],
   loading: 'RAISING THE OUTPOST…',
@@ -22,12 +23,12 @@ export const DESERT_INFO: LevelInfo = {
   enemies: DESERT_MERCS,
   music: 'desert_theme',
   tagline: 'HOLD THE OUTPOST · WATCH THE STORM',
-  jpLine: '砂漠 · 午後二時十分',
+  jpLine: 'الصحراء · الساعة ١٤:١٠',
   place: 'OUTPOST KESTREL',
   clock: '14:10',
   cine: {
-    arcade: { t1: 'GRIDFALL', t2: '砂漠の前哨基地 · DESERT OUTPOST', t3: 'ARCADE SURVIVAL · HOLD THE OUTPOST<br/>SANDSTORM WARNING · VISIBILITY WILL DROP' },
-    tdm: { t1: 'GRIDFALL', t2: '砂漠の前哨基地 · DESERT OUTPOST', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>25 TICKETS EACH · LAST TEAM STANDING WINS' },
+    arcade: { t1: 'GRIDFALL', t2: 'الموقع الصحراوي · DESERT OUTPOST', t3: 'ARCADE SURVIVAL · HOLD THE OUTPOST<br/>SANDSTORM WARNING · VISIBILITY WILL DROP' },
+    tdm: { t1: 'GRIDFALL', t2: 'الموقع الصحراوي · DESERT OUTPOST', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>25 TICKETS EACH · LAST TEAM STANDING WINS' },
   },
 };
 

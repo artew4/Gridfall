@@ -542,7 +542,7 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     trees,
     keepClear,
     site,
-    interiors: [{ name: 'THE WRECK', jp: '墜落船', x0: W.x0, z0: -W.z, x1: W.x1, z1: W.z, y0: 0, h: W.roof - 0.3 }],
+    interiors: [{ name: 'THE WRECK', jp: 'ซากเครื่องบิน', x0: W.x0, z0: -W.z, x1: W.x1, z1: W.z, y0: 0, h: W.roof - 0.3 }],
     terrain,
     laneProblems,
     update() {},

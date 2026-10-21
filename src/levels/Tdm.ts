@@ -1,3 +1,4 @@
+import { fl } from '../ui/Flavor';
 import * as THREE from 'three';
 import type { Game } from '../core/Game';
 import type { ModeRules, TdmData } from './Level';
@@ -257,7 +258,7 @@ export class TdmRules implements ModeRules {
     const names = dealCallsigns(n, [g.playerUnit.name]);
     for (const team of TEAMS) for (const [, kind] of filterRoster(ROSTER[team], TDM.roster)) this.slots.push({ team, name: names.shift()!, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0, arm: null });
     for (const s of this.slots) this.spawn(s);
-    g.hud.bannerShow('TEAM DEATHMATCH', 'チームデスマッチ · 5v5', 2.6);
+    g.hud.bannerShow('TEAM DEATHMATCH', fl('tdmBanner'), 2.6);
   }
 
   /** 7.0: a director per team, the shared sensing pass, vault links on the graph (once per level). */
@@ -444,7 +445,7 @@ export class TdmRules implements ModeRules {
     this.winner = winner;
     this.endT = this.now;
     this.game.timeScale = 0.4;
-    this.game.hud.bannerShow(winner === 'alpha' ? 'VICTORY' : 'DEFEAT', winner === 'alpha' ? '勝利' : '敗北', 3);
+    this.game.hud.bannerShow(winner === 'alpha' ? 'VICTORY' : 'DEFEAT', fl(winner === 'alpha' ? 'victory' : 'defeat'), 3);
   }
 
   // ------------------------------------------------------------------ frame

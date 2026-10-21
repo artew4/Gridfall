@@ -139,10 +139,10 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     net: new THREE.MeshStandardMaterial({ map: T.tarpTexture('#3c4628'), roughness: 0.95, side: THREE.DoubleSide }),
   };
   const crates = {
-    ammo: std(crateTexture('7.62 × 440', '弾薬 · AMMO', '#3f4a2c', '#d0caa0'), 0xffffff, 0.85),
-    rifle: std(crateTexture('RIFLES', '小銃 · ×6', '#33392a', '#c9c39b'), 0xffffff, 0.8),
-    explosive: std(crateTexture('DANGER', '爆薬 · HE', '#4a4630', '#e0c060'), 0xffffff, 0.85),
-    med: std(crateTexture('MEDICAL', '医療 · ＋', '#c8c2b4', '#8a1f17'), 0xffffff, 0.8),
+    ammo: std(crateTexture('7.62 × 440', 'กระสุน · AMMO', '#3f4a2c', '#d0caa0'), 0xffffff, 0.85),
+    rifle: std(crateTexture('RIFLES', 'ปืนเล็กยาว · ×6', '#33392a', '#c9c39b'), 0xffffff, 0.8),
+    explosive: std(crateTexture('DANGER', 'วัตถุระเบิด · HE', '#4a4630', '#e0c060'), 0xffffff, 0.85),
+    med: std(crateTexture('MEDICAL', 'แพทย์ · ＋', '#c8c2b4', '#8a1f17'), 0xffffff, 0.8),
   };
   const keepClear: [number, number, number, number][] = [];
   const clear = (x0: number, z0: number, x1: number, z1: number, pad = 0.8) => keepClear.push([x0 - pad, z0 - pad, x1 + pad, z1 + pad]);
@@ -382,7 +382,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   }
   solid(-GATE, 4.2, 9.4, GATE, 4.9, 10.6, m.black, 'metal', 1);
   {
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 0.62), new THREE.MeshStandardMaterial({ map: stencilTexture('FIREBASE VIPER', '第七警備大隊 · 立入禁止', '#2f3426', '#d6cfa8'), roughness: 0.8 }));
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 0.62), new THREE.MeshStandardMaterial({ map: stencilTexture('FIREBASE VIPER', 'กองพันที่ ๗ · เขตหวงห้าม', '#2f3426', '#d6cfa8'), roughness: 0.8 }));
     sign.position.set(0, 4.55, 10.61);
     scene.add(sign);
   }
@@ -403,7 +403,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   // Warning sign at the edge of the strip.
   solid(-7.6, 0, 22.4, -7.45, 1.9, 22.55, m.darkMetal, 'metal', 1);
   {
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.55), new THREE.MeshStandardMaterial({ map: stencilTexture('RESTRICTED', '立入禁止 · 発砲許可', '#c9b45a', '#1d1c16'), roughness: 0.8, side: THREE.DoubleSide }));
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.55), new THREE.MeshStandardMaterial({ map: stencilTexture('RESTRICTED', 'เขตหวงห้าม · ยิงได้ทันที', '#c9b45a', '#1d1c16'), roughness: 0.8, side: THREE.DoubleSide }));
     sign.position.set(-7.52, 2.2, 22.48);
     sign.rotation.y = 0.25;
     sign.userData.soft = true;
@@ -473,7 +473,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
 
   // ======================================================================= Barracks (the defenders turn out of here)
   building({
-    name: 'BARRACKS', jp: '兵舎', x0: -24, z0: -35, x1: -8, z1: -27, h: 3.3,
+    name: 'BARRACKS', jp: 'โรงนอนทหาร', x0: -24, z0: -35, x1: -8, z1: -27, h: 3.3,
     openings: [
       { side: 's', at: -19.5, w: 1.6 }, { side: 's', at: -12.5, w: 1.6 }, { side: 'e', at: -31, w: 1.6 },
       { side: 'n', at: -21.2, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'n', at: -17.4, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'n', at: -13.6, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 },
@@ -497,7 +497,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
 
   // ======================================================================= Comms center (roof walk)
   building({
-    name: 'COMMS CENTER', jp: '通信所', x0: 8, z0: -35, x1: 22, z1: -25, h: 3.4,
+    name: 'COMMS CENTER', jp: 'ศูนย์สื่อสาร', x0: 8, z0: -35, x1: 22, z1: -25, h: 3.4,
     openings: [
       { side: 's', at: 12, w: 1.6 }, { side: 'w', at: -30, w: 1.6 },
       { side: 's', at: 16.2, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 's', at: 19.6, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'w', at: -33.2, w: 1.0, y0: WIN_Y0, y1: WIN_Y1 },
@@ -560,7 +560,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     solid(x0 - 0.3, y + 2.5, z0 - 0.3, x1 + 0.3, y + 2.65, z1 + 0.3, m.roof, 'metal', 2);
     stair(7.8, 2.3, x0, 3.7, 'x', 1, 0, y, m.plank, ['n', 's']);
     perches.push(new THREE.Vector3(17.2, y, 3.2));
-    shade.push({ name: 'WATCHTOWER', jp: '監視塔', x0, z0, x1, z1, y0: y - 0.5, h: y + 2.5 });
+    shade.push({ name: 'WATCHTOWER', jp: 'หอสังเกตการณ์', x0, z0, x1, z1, y0: y - 0.5, h: y + 2.5 });
     clear(x0, z0, x1, z1, 1.0);
   }
 
@@ -569,7 +569,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     for (const [x, z] of [[-25, -21], [-17.9, -21], [-10.75, -21], [-25, -11.25], [-17.9, -11.25], [-10.75, -11.25]]) solid(x, 0, z, x + 0.25, 4.0, z + 0.25, m.darkMetal, 'metal', 1);
     b.add(worldBox(14.8, 0.08, 10.3, 3), m.roof, -17.87, 4.04, -16.0);
     col.add(-25.2, 4.0, -21.2, -10.3, 4.08, -10.8, 'metal', false).ray = true;
-    shade.push({ name: 'MOTOR POOL', jp: '車両整備場', x0: -25.2, z0: -21.2, x1: -10.3, z1: -10.8, y0: -1, h: 4 });
+    shade.push({ name: 'MOTOR POOL', jp: 'โรงซ่อมยานยนต์', x0: -25.2, z0: -21.2, x1: -10.3, z1: -10.8, y0: -1, h: 4 });
     const wheels = (x0: number, x1: number, zs: number[], r = 0.5) => {
       for (const sx of [x0 + 0.13, x1 - 0.13]) for (const z of zs) {
         const w = new THREE.CylinderGeometry(r, r, 0.26, 14);
@@ -610,7 +610,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     for (const [x, z] of [[8.5, -22], [23.35, -22], [8.5, -12.15], [23.35, -12.15]]) solid(x, 0, z, x + 0.15, 5.45, z + 0.15, m.darkMetal, 'metal', 1);
     b.add(worldBox(15.0, 0.04, 10.0, 4), m.net, 15.93, 5.47, -17.07);
     col.add(8.5, 5.45, -22, 23.5, 5.5, -12, 'wood', false).ray = true;
-    shade.push({ name: 'SUPPLY DEPOT', jp: '補給所', x0: 8.5, z0: -22, x1: 23.5, z1: -12, y0: -1, h: 5.4 });
+    shade.push({ name: 'SUPPLY DEPOT', jp: 'คลังเสบียง', x0: 8.5, z0: -22, x1: 23.5, z1: -12, y0: -1, h: 5.4 });
     // Crates: ammo on pallets, rifle crates, explosives (each stack flush or ≥ 1.4 m from the rest).
     crate(9.4, 0, -14.7, 10.6, 0.6, -13.5, crates.ammo);
     crate(9.5, 0.6, -14.6, 10.5, 1.2, -13.6, crates.ammo);
@@ -631,7 +631,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   col.add(-0.1, 1.05, -7.3, 0.1, 1.32, -6.0, 'metal');
   cylinder(0, -22, 0.09, 0, 9.5, m.darkMetal);
   solid(-0.7, 0, -22.7, 0.7, 0.3, -21.3, m.concrete, 'concrete', 1);
-  const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.15, 10, 1), new THREE.MeshStandardMaterial({ map: stencilTexture('◆', '第七警備大隊', '#2e3a26', '#c8b45a'), side: THREE.DoubleSide, roughness: 0.9 }));
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.15, 10, 1), new THREE.MeshStandardMaterial({ map: stencilTexture('◆', 'กองพันที่ ๗', '#2e3a26', '#c8b45a'), side: THREE.DoubleSide, roughness: 0.9 }));
   flag.geometry.translate(0.95, 0, 0);
   flag.position.set(0.09, 8.8, -22);
   flag.castShadow = true;
@@ -1096,22 +1096,22 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
 
   // ======================================================================= Zones
   const zone = (id: string, name: string, jp: string, rects: [number, number, number, number][] = []): Zone => ({ id, name, jp, rects });
-  const zBarracks = zone('barracks', 'BARRACKS', '兵舎', [[-23.7, -34.7, -8.3, -27.3]]);
-  const zComms = zone('comms', 'COMMS CENTER', '通信所', [[8.3, -34.7, 21.7, -25.3]]);
-  const zRoof = zone('comms-roof', 'COMMS ROOF', '通信所 屋上', [[8, -35, 23.4, -25]]);
-  const zTower = zone('watchtower', 'WATCHTOWER', '監視塔', [[15, 1, 19, 5]]);
-  const zGate = zone('gate', 'MAIN GATE', '正門', [[-TOWER, 6, TOWER, 16]]);
-  const zMotor = zone('motor-pool', 'MOTOR POOL', '車両整備場', [[BX0, -22, -10, -10]]);
-  const zDepot = zone('depot', 'SUPPLY DEPOT', '補給所', [[8, -22.5, BX1, -11.5]]);
-  const zPad = zone('helipad', 'HELIPAD', 'ヘリポート', [[BX0, -8, -12, 8]]);
-  const zYard = zone('compound', 'FIREBASE VIPER', '基地構内', [[BX0, BZ0, BX1, BZ1]]);
-  const zLzA = zone('lz-alpha', 'LZ ALPHA', 'アルファ降着地', [[TDM_YARD.alpha.x0, TDM_YARD.alpha.z0, TDM_YARD.alpha.x1, TDM_YARD.alpha.z1]]);
-  const zLzN = zone('lz-north', 'LZ NORTH', '北ヘリポート', [[TDM_YARD.omega.x0, TDM_YARD.omega.z0, TDM_YARD.omega.x1, TDM_YARD.omega.z1]]);
-  const zCulvert = zone('culvert', 'DRAIN CULVERT', '排水暗渠', [[CULVERT.x0, BZ1 - 1, CULVERT.x1, BZ1 + CULVERT.len]]);
-  const zEastBreach = zone('east-breach', 'EAST BREACH', '東の破口', [[BX1 - 3, EAST_BREACH.z0 - 2, BX1 + 4, EAST_BREACH.z1 + 2]]);
-  const zStrip = zone('perimeter', 'PERIMETER', '外周', []);
-  const zRoad = zone('road', 'APPROACH ROAD', '進入路', []);
-  const zForest = zone('forest', 'DEEP JUNGLE', '密林', [[-JUNGLE_EXTENT, -JUNGLE_EXTENT, JUNGLE_EXTENT, JUNGLE_EXTENT]]);
+  const zBarracks = zone('barracks', 'BARRACKS', 'โรงนอนทหาร', [[-23.7, -34.7, -8.3, -27.3]]);
+  const zComms = zone('comms', 'COMMS CENTER', 'ศูนย์สื่อสาร', [[8.3, -34.7, 21.7, -25.3]]);
+  const zRoof = zone('comms-roof', 'COMMS ROOF', 'ดาดฟ้าศูนย์สื่อสาร', [[8, -35, 23.4, -25]]);
+  const zTower = zone('watchtower', 'WATCHTOWER', 'หอสังเกตการณ์', [[15, 1, 19, 5]]);
+  const zGate = zone('gate', 'MAIN GATE', 'ประตูหลัก', [[-TOWER, 6, TOWER, 16]]);
+  const zMotor = zone('motor-pool', 'MOTOR POOL', 'โรงซ่อมยานยนต์', [[BX0, -22, -10, -10]]);
+  const zDepot = zone('depot', 'SUPPLY DEPOT', 'คลังเสบียง', [[8, -22.5, BX1, -11.5]]);
+  const zPad = zone('helipad', 'HELIPAD', 'ลานจอดเฮลิคอปเตอร์', [[BX0, -8, -12, 8]]);
+  const zYard = zone('compound', 'FIREBASE VIPER', 'ภายในฐาน', [[BX0, BZ0, BX1, BZ1]]);
+  const zLzA = zone('lz-alpha', 'LZ ALPHA', 'จุดลงจอดอัลฟา', [[TDM_YARD.alpha.x0, TDM_YARD.alpha.z0, TDM_YARD.alpha.x1, TDM_YARD.alpha.z1]]);
+  const zLzN = zone('lz-north', 'LZ NORTH', 'ลานจอดเหนือ', [[TDM_YARD.omega.x0, TDM_YARD.omega.z0, TDM_YARD.omega.x1, TDM_YARD.omega.z1]]);
+  const zCulvert = zone('culvert', 'DRAIN CULVERT', 'ท่อระบายน้ำ', [[CULVERT.x0, BZ1 - 1, CULVERT.x1, BZ1 + CULVERT.len]]);
+  const zEastBreach = zone('east-breach', 'EAST BREACH', 'ช่องทะลวงตะวันออก', [[BX1 - 3, EAST_BREACH.z0 - 2, BX1 + 4, EAST_BREACH.z1 + 2]]);
+  const zStrip = zone('perimeter', 'PERIMETER', 'แนวรอบนอก', []);
+  const zRoad = zone('road', 'APPROACH ROAD', 'ถนนทางเข้า', []);
+  const zForest = zone('forest', 'DEEP JUNGLE', 'ป่าลึก', [[-JUNGLE_EXTENT, -JUNGLE_EXTENT, JUNGLE_EXTENT, JUNGLE_EXTENT]]);
   const inRect = (r: [number, number, number, number], x: number, z: number) => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
   const zoneAt = (x: number, y: number, z: number): Zone | null => {
     if (inRect(zBarracks.rects[0], x, z) && y < 3.3) return zBarracks;

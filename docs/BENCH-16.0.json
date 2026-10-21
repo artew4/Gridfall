@@ -1,0 +1,33 @@
+{
+  "version": "16.0",
+  "machine": "Apple M5 laptop, Chrome, Balanced preset, on mains power (rAF 120 Hz; the game caps at 60), 1820x1186",
+  "method": "bench(3) per map after opening a mode's maps screen (the real menu path: the level is drawn before deploy); main served from a worktree for same-session A/Bs",
+  "bench3": {
+    "tokyo": { "views": 8, "valid": true, "fps": [59.7, 60], "cpuMs": [1.94, 2.18], "gpuMs": [6.05, 6.76], "p99FrameMs": [23.8, 27.1] },
+    "desert": { "views": 6, "valid": true, "fps": [59.7, 60.3], "cpuMs": [1.73, 2.16], "gpuMs": [5.11, 5.7] },
+    "docks": { "views": 11, "valid": true, "fps": [60, 60.3], "gpuMs": [6.79, 8.36], "cpuMsBeforeCssFix": [0.83, 1.83], "mainSameSession": { "gpuMs": [6.14, 8.56] }, "beforeHiddenOverlayFix": { "gpuMs": [7.13, 11.03] } },
+    "jungle": { "views": 6, "valid": true, "fps": [60, 60.3], "cpuMs": [1.8, 2.31], "gpuMs": [5.79, 6.15], "mainSameSession": { "cpuMs": [1.74, 2.43], "gpuMs": [5.71, 6.91] }, "startedStraightFromStage": { "cpuMs": [2.66, 3.37], "gpuMs": [6.4, 8.35], "note": "render submission ~1 ms higher for ~30 s, then equal (series 3.5 -> 2.3 ms CPU); only __dev.start can skip the maps screen" } },
+    "neonblock": { "views": 10, "valid": true, "fps": [59.7, 60.3], "cpuMs": [1.25, 2.01], "gpuMs": [7.01, 12.48] },
+    "crashsite": { "views": 9, "valid": true, "fps": [60, 60.3], "cpuMs": [1.66, 1.88], "gpuMs": [5.88, 6.16] }
+  },
+  "menuStage": {
+    "rootMenuFrames5s": { "rafHz": 120.2, "p50Ms": 8.3, "p99Ms": 10.2, "maxMs": 10.4 },
+    "afterGunSwapsAndBiomeSwitches3s": { "p99Ms": 9.4, "maxMs": 9.9 },
+    "buildMs": 15.6,
+    "teardownMs": 0.9,
+    "gunSwapMs": [0.9, 0.9, 0.8],
+    "setBiomeMs": { "desert": 3.3, "docks": 1.9, "jungle": 2.7, "tokyo": 0.7 },
+    "drawCalls": 63,
+    "triangles": 1687
+  },
+  "stagecheck_forcedGC": {
+    "command": "node scripts/stagecheck.mjs 6",
+    "stagesTagged": 6,
+    "gunsSwapped": 12,
+    "aliveAfterGC": 0,
+    "mapsScreenEveryCycle": { "geometries": 60, "textures": 44, "programs": 46 },
+    "heapMB": { "first": 11.9, "last": 12.5, "inMatch": 13.9 }
+  },
+  "leakcheck_forcedGC": { "command": "node scripts/leakcheck.mjs 1 desert,docks,crashsite", "aliveAfterGC": 0 },
+  "tests": 215
+}

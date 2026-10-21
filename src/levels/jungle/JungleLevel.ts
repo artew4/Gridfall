@@ -15,7 +15,8 @@ import { JUNGLE_GUARDS } from '../../entities/enemies/paramilitary';
 export const JUNGLE_INFO: LevelInfo = {
   id: 'jungle',
   name: 'DEEP JUNGLE',
-  jp: '密林基地',
+  biome: 'jungle',
+  jp: 'ฐานยิงไวเปอร์',
   blurb: 'A walled firebase under the rainforest canopy. Survival: fight up the road and breach the gate. 5v5 TDM: LZ Alpha against LZ North, round and through the compound.',
   modes: ['arcade', 'tdm'],
   loading: 'GROWING THE JUNGLE…',
@@ -23,12 +24,12 @@ export const JUNGLE_INFO: LevelInfo = {
   enemies: JUNGLE_GUARDS,
   music: 'jungle_theme',
   tagline: 'BREACH THE GATE · CLEAR THE COMPOUND',
-  jpLine: '密林 · 午前七時四十分',
-  place: 'FIREBASE VIPER',
+  jpLine: 'ป่าลึก · 47P QR 118 640 · ๐๗:๔๐',
+  place: 'FIREBASE VIPER · 47P QR 118 640',
   clock: '07:40',
   cine: {
-    arcade: { t1: 'GRIDFALL', t2: '密林基地 · DEEP JUNGLE', t3: 'ARCADE SURVIVAL · FIREBASE VIPER<br/>PUSH UP THE ROAD · BREACH THE GATE · CLEAR THE COMPOUND' },
-    tdm: { t1: 'GRIDFALL', t2: '密林基地 · DEEP JUNGLE', t3: 'TEAM DEATHMATCH 5v5 · LZ ALPHA vs LZ NORTH<br/>THE GATE · THE BREACHES · THE CULVERT · THE JUNGLE' },
+    arcade: { t1: 'GRIDFALL', t2: 'ฐานยิงไวเปอร์ · DEEP JUNGLE', t3: 'ARCADE SURVIVAL · FIREBASE VIPER<br/>PUSH UP THE ROAD · BREACH THE GATE · CLEAR THE COMPOUND' },
+    tdm: { t1: 'GRIDFALL', t2: 'ฐานยิงไวเปอร์ · DEEP JUNGLE', t3: 'TEAM DEATHMATCH 5v5 · LZ ALPHA vs LZ NORTH<br/>THE GATE · THE BREACHES · THE CULVERT · THE JUNGLE' },
   },
 };
 

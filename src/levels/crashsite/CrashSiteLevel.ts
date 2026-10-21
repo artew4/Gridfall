@@ -14,7 +14,8 @@ import { JUNGLE_GUARDS } from '../../entities/enemies/paramilitary';
 export const CRASHSITE_INFO: LevelInfo = {
   id: 'crashsite',
   name: 'JUNGLE: CRASH SITE',
-  jp: '密林 · 墜落地点',
+  biome: 'jungle',
+  jp: 'จุดเครื่องตก',
   blurb: 'A dropship down in the rainforest, built for 5v5: the ridge, the wreck and its mud trenches, the ravine.',
   modes: ['tdm'],
   loading: 'CLEARING THE CRASH SITE…',
@@ -22,11 +23,11 @@ export const CRASHSITE_INFO: LevelInfo = {
   enemies: JUNGLE_GUARDS,
   music: 'jungle_theme',
   tagline: 'THE RIDGE · THE WRECK · THE RAVINE',
-  jpLine: '密林 · 墜落地点 · 午前六時',
-  place: 'CRASH SITE, SECTOR 9',
+  jpLine: 'ป่าลึก · 47P QS 441 882 · ๐๖:๑๒',
+  place: 'CRASH SITE · 47P QS 441 882',
   clock: '06:12',
   cine: {
-    tdm: { t1: 'GRIDFALL', t2: '密林 · 墜落地点 · CRASH SITE', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>THE RIDGE · THE WRECK · THE RAVINE' },
+    tdm: { t1: 'GRIDFALL', t2: 'จุดเครื่องตก · CRASH SITE', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>THE RIDGE · THE WRECK · THE RAVINE' },
   },
 };
 

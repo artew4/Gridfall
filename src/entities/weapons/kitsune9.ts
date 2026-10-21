@@ -86,6 +86,7 @@ export const KITSUNE_9: WeaponSpec = {
 
     // Gloved hands and sleeve so the gun feels held, not floating.
     const hand = new THREE.Group();
+    hand.userData.hands = true;
     gun.add(hand);
     box(0.04, 0.07, 0.06, glove, 0.006, -0.06, 0.06, hand, 0.22);
     box(0.016, 0.016, 0.05, glove, 0.02, -0.02, 0.03, hand); // thumb

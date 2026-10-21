@@ -1,3 +1,9 @@
+// 16.0: the menu's typefaces, self-hosted (Latin only: the flavor scripts use system fonts).
+import '@fontsource/rajdhani/latin-500.css';
+import '@fontsource/rajdhani/latin-600.css';
+import '@fontsource/rajdhani/latin-700.css';
+import '@fontsource/orbitron/latin-700.css';
+import '@fontsource/orbitron/latin-900.css';
 import './style.css';
 import { Game } from './core/Game';
 

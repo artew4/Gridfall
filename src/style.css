@@ -367,3 +367,128 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin: 0 4px; t
 .next-maps .set-card { min-width: 0; }
 .pm-btn.small { width: auto; display: inline-block; margin: 14px auto 0; padding: 7px 16px; font-size: 10px; text-align: center; }
 #death .next-maps { pointer-events: auto; }
+
+/* ---------- 16.0: thematic UI ---------- */
+:root {
+  --ui: 'Rajdhani', 'SF Mono', Menlo, sans-serif;
+  --display: 'Orbitron', 'Rajdhani', sans-serif;
+  --magenta: #ff2fd0;
+  --font-ja: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif;
+  --font-ar: 'Geeza Pro', 'Noto Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+  --font-ru: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --font-th: 'Thonburi', 'Noto Sans Thai', 'Leelawadee UI', Tahoma, sans-serif;
+}
+
+/*
+  Flavor scripts (ui/Flavor.ts). The document's data-biome (the loaded level) picks the font of every
+  flavor line through --jp; elements that carry their own lang (a map card for another place) follow
+  it. Japanese and Cyrillic keep their wide tracking; Arabic is cursive and Thai stacks its vowel
+  marks, so both are set solid (tracking breaks Arabic's joins).
+*/
+html[data-biome="desert"] { --jp: var(--font-ar); }
+html[data-biome="docks"] { --jp: var(--font-ru); }
+html[data-biome="jungle"] { --jp: var(--font-th); }
+html[data-biome="desert"] .jp, html[data-biome="desert"] #cine .t2, html[data-biome="desert"] .tdm-score .side em,
+html[data-biome="jungle"] .jp, html[data-biome="jungle"] #cine .t2, html[data-biome="jungle"] .tdm-score .side em { letter-spacing: 0.02em !important; padding-left: 0 !important; }
+html[data-biome="desert"] .jp, html[data-biome="desert"] #cine .t2 { letter-spacing: 0 !important; font-size: 1.12em; }
+html[data-biome="docks"] .jp, html[data-biome="docks"] #cine .t2 { letter-spacing: 0.18em !important; }
+html .jp[lang="ja"], html [lang="ja"] .jp { font-family: var(--font-ja) !important; }
+html .jp[lang="ar"] { font-family: var(--font-ar) !important; letter-spacing: 0 !important; }
+html .jp[lang="ru"] { font-family: var(--font-ru) !important; letter-spacing: 0.18em !important; }
+html .jp[lang="th"] { font-family: var(--font-th) !important; letter-spacing: 0.02em !important; }
+html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
+/* Prewarm: every flavor font laid out once at boot (Hud), off screen. */
+.fl-prewarm { position: fixed; left: -9999px; top: 0; opacity: 0; pointer-events: none; white-space: nowrap; }
+
+/* The menus' typefaces. */
+#title, #pausemenu, .pm-btn, .set-card, .mm-name, .lo-card, .loadout, .end-title, .end-sub, .next-maps, #banner .big, #pause .big, #death .big, #death .stats, #death .hint, .tdm-board { font-family: var(--ui); }
+.pm-btn, .set-card b, .lo-card b, .mm-gun b { font-weight: 600; }
+#title h1, #cine .t1, .pm-title, #banner .big, .end-title { font-family: var(--display); }
+#title h1 { font-weight: 900; font-size: clamp(38px, 6.4vw, 92px); letter-spacing: 0.22em; padding-left: 0.22em; text-shadow: -2px 0 rgba(255, 47, 208, 0.55), 2px 0 rgba(25, 230, 255, 0.55), 0 0 30px rgba(255, 47, 208, 0.35); animation: h1-glitch 7s steps(1) infinite; }
+#cine .t1, #banner .big, .pm-title { font-weight: 700; }
+.pm-btn { font-size: 15px; letter-spacing: 0.28em; }
+.pm-btn .jp { letter-spacing: 0.25em; }
+/* The tagline shares its class with the story's subtitles (.sub, opacity 0 until .on): undo that here. */
+#title .sub { font-family: var(--ui); font-weight: 600; font-size: 14px; letter-spacing: 0.5em; opacity: 1; transform: none; background: none; padding: 0; line-height: normal; }
+@keyframes h1-glitch {
+  0%, 93.9%, 100% { transform: none; clip-path: none; }
+  94% { transform: translate(3px, 0); clip-path: inset(10% 0 55% 0); }
+  94.6% { transform: translate(-4px, 0); clip-path: inset(60% 0 8% 0); }
+  95.2% { transform: translate(2px, 0) skewX(-6deg); clip-path: inset(30% 0 40% 0); }
+  95.8% { transform: none; clip-path: none; }
+}
+
+/* Clipped-corner buttons, and chromatic aberration on hover (the text splits magenta and cyan). */
+#title .pm-btn, #pausemenu .pm-btn, .mm-gun, #title .set-card, .next-maps .set-card, .end-buttons .pm-btn {
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+#title .pm-btn:hover:not(:disabled), #pausemenu .pm-btn:hover, .mm-gun:hover, #title .set-card:hover, .next-maps .set-card:hover, .end-buttons .pm-btn:hover {
+  animation: ca-jitter 0.32s steps(2) infinite;
+  text-shadow: -1.5px 0 rgba(255, 47, 208, 0.85), 1.5px 0 rgba(25, 230, 255, 0.85);
+  box-shadow: inset 3px 0 0 var(--magenta), 0 0 18px rgba(34, 232, 255, 0.25);
+}
+@keyframes ca-jitter {
+  0% { text-shadow: -1.5px 0 rgba(255, 47, 208, 0.85), 1.5px 0 rgba(25, 230, 255, 0.85); }
+  50% { text-shadow: 1px 0.5px rgba(255, 47, 208, 0.85), -2px -0.5px rgba(25, 230, 255, 0.85); }
+  100% { text-shadow: -2px 0 rgba(255, 47, 208, 0.85), 1px 0 rgba(25, 230, 255, 0.85); }
+}
+.pm-btn.primary:not(:disabled) { border-color: var(--magenta); background: linear-gradient(90deg, rgba(255, 47, 208, 0.16), rgba(120, 235, 255, 0.04)); }
+
+/* Scanlines and a vignette over the title (and the pause menu): CSS only, no per-frame work. */
+#title::before, #pausemenu::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay; animation: scan-drift 9s linear infinite;
+}
+#title::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(ellipse at 60% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%); }
+#title > *, #pausemenu > * { position: relative; z-index: 1; }
+#title > .controls { position: absolute; }
+@keyframes scan-drift { from { background-position: 0 0; } to { background-position: 0 90px; } }
+
+/* The stage screens (root, controls): the menu is a column on the left, the stage's gun on the right. */
+@media (min-width: 820px) {
+  #title[data-screen="root"], #title[data-screen="controls"] {
+    align-items: flex-start; padding-left: 7vw; text-align: left;
+    background: linear-gradient(90deg, rgba(2, 3, 8, 0.9) 0%, rgba(2, 3, 8, 0.62) 34%, rgba(2, 3, 8, 0) 60%);
+  }
+  #title[data-screen="root"] h1, #title[data-screen="controls"] h1 { padding-left: 0; font-size: clamp(38px, 5vw, 76px); }
+  #title[data-screen="root"] .mainmenu { width: min(470px, 40vw); margin-top: 30px; }
+  #title[data-screen="controls"] .controlsPanel { width: min(520px, 44vw); }
+}
+.mm-armory { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.mm-gun { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 10px 10px 10px 36px; text-align: left; font-family: var(--ui); color: var(--cyan-dim); background: rgba(120, 235, 255, 0.03); border: 1px solid var(--cyan-faint); cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.mm-gun kbd { position: absolute; left: 9px; top: 10px; width: 18px; height: 18px; line-height: 18px; text-align: center; font-family: var(--ui); font-size: 12px; color: #f2fdff; border: 1px solid var(--cyan-dim); }
+.mm-gun b { font-size: 13px; letter-spacing: 0.16em; color: #f2fdff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mm-gun .jp, #title .mm-gun .jp { margin: 0; font-family: var(--jp); font-size: 11px; letter-spacing: 0.2em; }
+.mm-gun em { font-style: normal; font-size: 10px; letter-spacing: 0.22em; color: rgba(255, 220, 160, 0.85); }
+.mm-gun.on { border-color: var(--cyan); background: rgba(16, 40, 56, 0.6); box-shadow: 0 0 16px rgba(34, 232, 255, 0.2); }
+.mm-gun.on kbd { background: var(--cyan); color: #04121a; }
+.mm-gun-line { flex-basis: 100%; min-height: 15px; font-size: 12px; letter-spacing: 0.06em; color: rgba(190, 230, 240, 0.72); text-align: left; }
+#title .mm-label { font-family: var(--ui); font-weight: 600; font-size: 11px; }
+.pm-btn.mm-mode .mm-line { font-weight: 500; font-size: 12px; letter-spacing: 0.05em; text-shadow: none; }
+.set-card .blurb, .lo-card .blurb { font-size: 12px; font-weight: 500; }
+
+/* Glitch transition between menu screens (Hud.glitch, 0.42 s): the new screen tears in. */
+#title.glitching .mm-screen:not(.hidden), #title.glitching .controlsPanel:not(.hidden), #title.glitching h1 { animation: glitch-in 0.42s steps(1) both; }
+#title.glitching::after { background: linear-gradient(0deg, transparent 0 38%, rgba(255, 47, 208, 0.16) 38% 41%, transparent 41% 63%, rgba(25, 230, 255, 0.14) 63% 65%, transparent 65%), radial-gradient(ellipse at 60% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%); animation: glitch-bars 0.42s steps(4) both; }
+@keyframes glitch-in {
+  0% { opacity: 0; transform: translateX(-14px); clip-path: inset(0 0 70% 0); filter: drop-shadow(-3px 0 var(--magenta)) drop-shadow(3px 0 #19e6ff); }
+  20% { opacity: 1; transform: translateX(9px) skewX(-8deg); clip-path: inset(40% 0 10% 0); }
+  40% { transform: translateX(-5px); clip-path: inset(10% 0 45% 0); filter: drop-shadow(2px 0 var(--magenta)) drop-shadow(-2px 0 #19e6ff); }
+  60% { transform: translateX(3px); clip-path: inset(0 0 0 0); }
+  80% { transform: none; filter: none; }
+  100% { opacity: 1; transform: none; clip-path: none; filter: none; }
+}
+@keyframes glitch-bars { 0% { background-position: 0 0; } 25% { background-position: 0 -40px; } 50% { background-position: 0 30px; } 75% { background-position: 0 -12px; } 100% { background-position: 0 0; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  #title h1, #title.glitching *, #title.glitching::after, #title::before, .pm-btn:hover, .mm-gun:hover, .set-card:hover { animation: none !important; }
+}
+/* Five maps to a mode: the maps screen is wider than the root column. */
+#title[data-screen="maps"] .mainmenu { width: min(1000px, 94vw); }
+#title[data-screen="maps"] .mm-actions { width: min(560px, 100%); margin-left: auto; margin-right: auto; }
+/*
+  Hidden layers are only transparent (.hidden is opacity 0, for the fades): their blended scanlines
+  and endless animations would still be composited over every game frame. Off when hidden.
+*/
+#title.hidden::before, #title.hidden::after, #pausemenu.hidden::before { display: none; }
+#title.hidden h1 { animation: none; }

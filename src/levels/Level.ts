@@ -1,3 +1,4 @@
+import type { Biome } from '../ui/Flavor';
 import type * as THREE from 'three';
 import type { NavLayout } from '../enemies/Nav';
 import type { Breakable, CabinetSpot } from '../gameplay/Interactives';
@@ -43,6 +44,9 @@ export interface Zone {
 export interface LevelInfo {
   id: SettingId;
   name: string;
+  /** 16.0: the UI's flavor script (Flavor.ts); several settings share a biome. */
+  biome: Biome;
+  /** The name in the biome's script (the menu card, the title screen). */
   jp: string;
   /** One line for the menu card. */
   blurb: string;

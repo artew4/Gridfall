@@ -94,6 +94,10 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Time-sliced:** every brain runs on a scheduler with per-frame budgets. Nine arena bots, plus your spotting and the minimap, cost about 0.5–0.6 ms of CPU per frame.
 - **Fog is fair:** in a sandstorm or the jungle mist, bots see only as far as a player could pick a figure out of the haze, contrast exp(−(ρd)²), and their aim degrades with distance.
 
+### A UI that belongs to the place
+- **Biome flavor:** the sub-text under every English label is written in the script of the map you're on. Japanese in Tokyo, Arabic in the desert (Arabic-Indic numerals), Russian industrial stencils on the docks, Thai with military grid references in the jungle. One dictionary drives the HUD, the menus, the zone names and the crates and neon in the world; a level load switches it in one pass.
+- **A live main menu:** your loadout's gun turns on a crate under a spotlight, its own small scene, built when the menu opens and destroyed (checked under a forced GC) before a map is shown. Rajdhani and Orbitron, scanlines, chromatic aberration on hover, glitch transitions, and UI sounds tuned to the menu theme's key.
+
 ### Ballistics without garbage
 - **Object-pooled rounds:** every bot round in flight comes from a free-list pool and is drawn by two InstancedMeshes. One draw call each for kinetic tracers and energy bolts; no allocation per shot.
 - **Zero-allocation shell casings:** a 256-slot ring buffer in typed arrays, drawn as one InstancedMesh. Each casing's landing point is predicted when it's ejected, then it bounces up to three times and settles. 11–17 µs per frame with 0 KB heap growth.
@@ -106,7 +110,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **186 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **215 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;
@@ -127,7 +131,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 | Tests | Vitest |
 | Hosting | GitHub Pages, deployed by GitHub Actions |
 
-One runtime dependency: `three`.
+Runtime dependencies: `three`, plus two self-hosted typefaces (`@fontsource/rajdhani`, `@fontsource/orbitron`).
 
 ## Controls
 

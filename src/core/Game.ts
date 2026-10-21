@@ -21,7 +21,9 @@ import { Projectiles } from '../enemies/Projectiles';
 import { Nav } from '../enemies/Nav';
 import { Waves } from '../enemies/Waves';
 import type { Enemy, EnemyCtx, EnemyHit } from '../enemies/Enemy';
-import { Hud, jpNumber } from '../ui/Hud';
+import { Hud } from '../ui/Hud';
+import { fl, flWave, setBiome } from '../ui/Flavor';
+import { MenuStage } from '../ui/MenuStage';
 import { PauseMenu } from '../ui/PauseMenu';
 import { loadSettings, saveSettings, type Settings } from '../ui/Settings';
 import { StoryHud } from '../ui/StoryHud';
@@ -155,6 +157,8 @@ export class Game {
   private ready = false;
   /** A level is being built (menu waits). */
   private loading = false;
+  /** 16.0: the main menu's 3D stage, alive only on the menu's root and controls screens (syncStage). */
+  private stage: MenuStage | null = null;
   /** The loaded level's ambience and loops are playing. */
   private levelAudio = false;
   ctx!: EnemyCtx;
@@ -218,6 +222,8 @@ export class Game {
     this.hud.setReady();
     this.hud.selectLevel(this.level.info, false);
     this.bindUi();
+    this.hud.setArmory(this.loadout.queued);
+    this.syncStage();
     this.startLoop();
     this.bindPower();
   }
@@ -280,11 +286,11 @@ export class Game {
   private buildEngine() {
     this.weapon = new Weapon(this.weaponScene, this.weaponCamera, this.audio);
     this.waves.onWaveStart = (n) => {
-      this.hud.bannerShow(`WAVE ${String(n).padStart(2, '0')}`, `第${jpNumber(n)}波`);
+      this.hud.bannerShow(`WAVE ${String(n).padStart(2, '0')}`, flWave(n));
       this.audio.waveStart();
     };
     this.waves.onWaveClear = (n) => {
-      this.hud.bannerShow('CLEAR', `第${jpNumber(n)}波 · 突破`, 2.4);
+      this.hud.bannerShow('CLEAR', `${flWave(n)} · ${fl('cleared')}`, 2.4);
       this.audio.waveClear();
       this.player.health = Math.min(this.player.maxHealth, this.player.health + 35);
     };
@@ -318,6 +324,8 @@ export class Game {
     const level = levelEntry(id).create(this);
     this.level = level;
     this.setting = id;
+    // 16.0: the UI's flavor script follows the place (before the HUD's weapon label is set).
+    setBiome(level.info.biome);
     const d = level.data;
 
     this.interactives = new Interactives(s, this.glows, this.fx, this.audio, d.cabinets, d.medkits, d.breakables);
@@ -396,6 +404,8 @@ export class Game {
     this.renderer.renderer.compile(s, this.camera);
     this.levelAudio = false;
     this.startLevelAudio();
+    // A level built while the menu's stage is up (the boot, back to a menu): the stage stays on screen.
+    if (this.stage) this.showStage();
   }
 
   /** Frees the loaded level: its enemies, sounds, DOM, GPU resources. */
@@ -451,6 +461,8 @@ export class Game {
   private menuEvent(e: MenuEvent) {
     this.menuState = menuStep(this.menuState, e, LEVEL_ORDER.map((id) => levelEntry(id).info), this.setting);
     this.hud.renderMenu(this.menuState);
+    // Leaving the root for the maps destroys the stage before the map (maybe a new one) is built.
+    this.syncStage();
     const want = this.menuState.map;
     if (this.menuState.screen === 'maps' && want && want !== this.setting) void this.selectSetting(want);
   }
@@ -460,9 +472,10 @@ export class Game {
   private armPlayer() {
     const story = this.mode === 'story' ? this.level.info.storyWeapon : undefined;
     if (!story) this.loadout.commit();
-    const spec = ARMORY[story ?? this.loadout.current].spec;
+    const id = story ?? this.loadout.current;
+    const spec = ARMORY[id].spec;
     this.weapon.setSpec(spec);
-    this.hud.setWeapon(spec.name, spec.jp, spec.mag, this.weapon.lowAmmo);
+    this.hud.setWeapon(spec.name, fl(id), spec.mag, this.weapon.lowAmmo);
   }
 
   /**
@@ -537,12 +550,13 @@ export class Game {
     // 13.0: mode first, then the map (ui/MenuFlow.ts), then DEPLOY.
     this.hud.title.addEventListener('click', (e) => {
       if (!this.ready || this.state !== 'title') return;
-      const el = (e.target as HTMLElement).closest<HTMLElement>('[data-mode],[data-act],[data-setting]');
+      const el = (e.target as HTMLElement).closest<HTMLElement>('[data-mode],[data-act],[data-setting],[data-gun]');
       if (!el || (el as HTMLButtonElement).disabled) return;
       this.audio.start();
       this.applySettings();
       this.startLevelAudio();
-      this.audio.uiBlip();
+      this.audio.uiClick();
+      if (el.dataset.gun) return this.menuWeapon(el.dataset.gun as WeaponId);
       if (el.dataset.mode) return this.menuEvent({ type: 'mode', mode: el.dataset.mode as Mode });
       if (el.dataset.setting) return this.menuEvent({ type: 'map', id: el.dataset.setting as SettingId });
       const act = el.dataset.act;
@@ -557,6 +571,16 @@ export class Game {
       this.input.requestLock();
       this.startIntro();
     });
+    // 16.0: a tick when the pointer enters a button or card (once per element), a glitch on a screen change.
+    let hovered: Element | null = null;
+    const hover = (e: PointerEvent) => {
+      const b = (e.target as HTMLElement).closest('button:not(:disabled)');
+      if (b === hovered) return;
+      hovered = b;
+      if (b) this.audio.uiHover();
+    };
+    for (const r of [this.hud.title, this.menu.root, this.tdmScreen.root, this.hud.death]) r.addEventListener('pointerover', hover);
+    this.hud.onGlitch = () => this.audio.uiGlitch();
     const name = this.hud.nameInput;
     name.addEventListener('input', () => {
       this.playerName = cleanName(name.value);
@@ -633,8 +657,63 @@ export class Game {
     this.music.setPaused(false);
   }
 
+  // ------------------------------------------------------------------ the menu's stage (16.0)
+  /**
+   * The menu's 3D stage exists only while the title shows its root or controls screen. Everything
+   * else destroys it first: the maps screen (it shows the map itself), a match, a load. Called at
+   * every place the state or the menu screen changes; it is idempotent.
+   */
+  private syncStage() {
+    const s = this.menuState.screen;
+    const want = this.ready && this.state === 'title' && (s === 'root' || s === 'controls');
+    if (want && !this.stage) {
+      this.stage = new MenuStage(this.renderer.renderer, this.loadout.queued);
+      this.showStage();
+    } else if (!want && this.stage) {
+      this.closeStage();
+    }
+  }
+
+  /** Draw the stage in place of the level (its scene and look; the level's haze and flashes off). */
+  private showStage() {
+    const st = this.stage!;
+    this.renderer.setScene(st.scene);
+    this.renderer.setLook(st.look);
+    this.renderer.haze.px = 0;
+    // The viewmodel's pass is off: the player's gun is not updated behind the menu.
+    this.renderer.weaponPass.enabled = false;
+    const g = this.renderer.grade.uniforms;
+    g.uFlash.value = 0;
+    g.uDamage.value = 0;
+    this.renderer.renderer.compile(st.scene, this.camera);
+  }
+
+  /**
+   * Free the stage completely and give the screen back to the level. After this nothing holds the
+   * stage: its GPU resources are freed here, its JS objects go with the last reference (checked by
+   * scripts/stagecheck.mjs under forced GC).
+   */
+  private closeStage() {
+    this.stage!.dispose();
+    this.stage = null;
+    this.renderer.setScene(this.scene);
+    this.renderer.setLook(this.level.look);
+    this.renderer.weaponPass.enabled = true;
+    this.renderer.renderer.renderLists.dispose();
+    // Levels with static shadows (the jungle) redraw them once: the stage frames rendered no shadows.
+    this.renderer.renderer.shadowMap.needsUpdate = true;
+  }
+
+  /** The root menu's armory row: the loadout's pick, shown on the stage's crate. */
+  private menuWeapon(id: WeaponId) {
+    this.loadout.queue(id);
+    this.stage?.setWeapon(id);
+    this.hud.setArmory(id);
+  }
+
   private startIntro() {
     this.state = 'intro';
+    this.syncStage();
     this.useRules(this.pickRules());
     const card = this.level.info.cine[this.mode] ?? this.level.info.cine.arcade!;
     this.hud.setCine(card);
@@ -654,6 +733,7 @@ export class Game {
 
   private beginPlay(fromCheckpoint = false) {
     this.state = 'play';
+    this.syncStage();
     this.useRules(this.pickRules());
     this.intro?.dispose();
     this.intro = null;
@@ -873,8 +953,9 @@ export class Game {
 
     // ---- State logic
     if (this.state === 'title') {
-      this.level.titleCamera(this.camera, this.elapsed);
-      this.renderer.grade.uniforms.uFade.value = damp(this.renderer.grade.uniforms.uFade.value, this.loading ? 1 : 0.25, 1.5, rawDt);
+      if (this.stage) this.stage.update(rawDt, this.camera);
+      else this.level.titleCamera(this.camera, this.elapsed);
+      this.renderer.grade.uniforms.uFade.value = damp(this.renderer.grade.uniforms.uFade.value, this.loading ? 1 : this.stage ? 0.04 : 0.25, 1.5, rawDt);
     } else if (this.state === 'intro' && this.intro) {
       const f = this.intro.update(dt, this.camera);
       this.rules.updateIntro?.(dt);
@@ -953,7 +1034,8 @@ export class Game {
     }
 
     if (this.ready) this.updateLoadout();
-    if (!paused) this.updateWorld(dt, rawDt);
+    // The level is not drawn behind the menu's stage: it doesn't run either.
+    if (!paused && !this.stage) this.updateWorld(dt, rawDt);
     this.updateMusic(dt);
     this.hud.update(rawDt);
     this.barkView.update(dt, this.camera, (this.state === 'play' || (this.state === 'dead' && this.respawning)) && this.mode !== 'story');
@@ -1128,6 +1210,7 @@ export class Game {
     }
     this.resetRun();
     this.menuState = { ...this.menuState, screen: this.menuState.mode ? 'maps' : 'root', map: this.setting };
+    this.syncStage();
     this.hud.selectLevel(this.level.info, false);
   }
 

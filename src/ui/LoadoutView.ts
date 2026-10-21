@@ -1,3 +1,4 @@
+import { flSpan } from './Flavor';
 import { ARMORY, ARMORY_ORDER, type WeaponId } from '../entities/weapons/armory';
 
 /**
@@ -24,7 +25,7 @@ export class LoadoutView {
       const c = document.createElement('button');
       c.className = 'lo-card';
       c.dataset.weapon = id;
-      c.innerHTML = `<kbd>${a.key}</kbd><b>${a.spec.name}</b><span class="jp">${a.spec.jp}</span><em>${a.kind}</em><span class="blurb">${a.blurb}</span>`;
+      c.innerHTML = `<kbd>${a.key}</kbd><b>${a.spec.name}</b>${flSpan(a.id)}<em>${a.kind}</em><span class="blurb">${a.blurb}</span>`;
       c.addEventListener('click', (e) => {
         e.stopPropagation();
         this.onPick(id);
@@ -41,7 +42,7 @@ export class LoadoutView {
   show(on: boolean, queued?: WeaponId, carried?: WeaponId, next = false) {
     this.root.classList.toggle('hidden', !on);
     if (!on || !queued) return;
-    this.head.innerHTML = next ? 'NEXT SPAWN <span class="jp">次の装備</span> · PRESS 1 · 2 · 3' : 'LOADOUT <span class="jp">装備</span> · PRESS 1 · 2 · 3';
+    this.head.innerHTML = next ? `NEXT SPAWN ${flSpan('nextSpawn')} · PRESS 1 · 2 · 3` : `LOADOUT ${flSpan('loadout')} · PRESS 1 · 2 · 3`;
     for (const [id, c] of this.cards) {
       c.classList.toggle('on', id === queued);
       c.classList.toggle('held', id === carried && id !== queued);

@@ -33,6 +33,7 @@ import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntim
 export const TOKYO_INFO: LevelInfo = {
   id: 'tokyo',
   name: 'TOKYO NIGHT',
+  biome: 'tokyo',
   jp: '東京 · 夜',
   blurb: 'Rain, neon and a vertical district over a metro station. Story and survival.',
   modes: ['story', 'arcade'],

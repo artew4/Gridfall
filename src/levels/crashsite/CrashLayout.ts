@@ -160,18 +160,18 @@ export function laneOf(x: number, _y: number, z: number): 0 | 1 | 2 | null {
 
 const Z = (id: string, name: string, jp: string, rects: [number, number, number, number][]): Zone => ({ id, name, jp, rects });
 export const ZONES = {
-  ridge: Z('ridge', 'THE RIDGE', '尾根', [[-X_OUT, -COURT - 2, -29, COURT + 2]]),
-  wreckRoof: Z('wreckRoof', 'WRECK ROOF', '墜落船の屋根', [[WRECK.x0 - 1, -WRECK.wing.z1, WRECK.x1 + 1, WRECK.wing.z1]]),
-  ravine: Z('ravine', 'THE RAVINE', '峡谷', [[RAVINE.x0, -RAVINE.end, RAVINE.x1, RAVINE.end]]),
-  alphaSpawn: Z('alphaSpawn', 'ALPHA LZ', 'アルファ着陸地', [[BASE.x0, BASE.z0, BASE.x1, Z_END]]),
-  omegaSpawn: Z('omegaSpawn', 'OMEGA LZ', 'オメガ着陸地', [[BASE.x0, -Z_END, BASE.x1, -BASE.z0]]),
-  alphaCourt: Z('alphaCourt', 'ALPHA APPROACH', 'アルファ進入路', [[-X_OUT, COURT, X_OUT, Z_END]]),
-  omegaCourt: Z('omegaCourt', 'OMEGA APPROACH', 'オメガ進入路', [[-X_OUT, -Z_END, X_OUT, -COURT]]),
-  wreck: Z('wreck', 'THE WRECK', '墜落船', [[-15, -11, 15, 11]]),
-  westTrench: Z('westTrench', 'WEST TRENCH', '西の塹壕', [[-24, -COURT, -2, COURT]]),
-  eastTrench: Z('eastTrench', 'EAST TRENCH', '東の塹壕', [[-2, -COURT, RAVINE.x0, COURT]]),
-  eastBank: Z('eastBank', 'EAST BANK', '東岸', [[RAVINE.x1, -COURT, X_OUT, COURT]]),
-  ridgeFoot: Z('ridgeFoot', 'RIDGE FOOT', '尾根の麓', [[-29, -COURT, -24, COURT]]),
+  ridge: Z('ridge', 'THE RIDGE', 'สันเขา', [[-X_OUT, -COURT - 2, -29, COURT + 2]]),
+  wreckRoof: Z('wreckRoof', 'WRECK ROOF', 'หลังคาซากเครื่อง', [[WRECK.x0 - 1, -WRECK.wing.z1, WRECK.x1 + 1, WRECK.wing.z1]]),
+  ravine: Z('ravine', 'THE RAVINE', 'หุบเหว', [[RAVINE.x0, -RAVINE.end, RAVINE.x1, RAVINE.end]]),
+  alphaSpawn: Z('alphaSpawn', 'ALPHA LZ', 'จุดลงจอดอัลฟา', [[BASE.x0, BASE.z0, BASE.x1, Z_END]]),
+  omegaSpawn: Z('omegaSpawn', 'OMEGA LZ', 'จุดลงจอดโอเมกา', [[BASE.x0, -Z_END, BASE.x1, -BASE.z0]]),
+  alphaCourt: Z('alphaCourt', 'ALPHA APPROACH', 'ทางเข้าอัลฟา', [[-X_OUT, COURT, X_OUT, Z_END]]),
+  omegaCourt: Z('omegaCourt', 'OMEGA APPROACH', 'ทางเข้าโอเมกา', [[-X_OUT, -Z_END, X_OUT, -COURT]]),
+  wreck: Z('wreck', 'THE WRECK', 'ซากเครื่องบิน', [[-15, -11, 15, 11]]),
+  westTrench: Z('westTrench', 'WEST TRENCH', 'สนามเพลาะตะวันตก', [[-24, -COURT, -2, COURT]]),
+  eastTrench: Z('eastTrench', 'EAST TRENCH', 'สนามเพลาะตะวันออก', [[-2, -COURT, RAVINE.x0, COURT]]),
+  eastBank: Z('eastBank', 'EAST BANK', 'ฝั่งตะวันออก', [[RAVINE.x1, -COURT, X_OUT, COURT]]),
+  ridgeFoot: Z('ridgeFoot', 'RIDGE FOOT', 'เชิงสันเขา', [[-29, -COURT, -24, COURT]]),
 };
 
 export function zoneAt(x: number, y: number, z: number): Zone | null {

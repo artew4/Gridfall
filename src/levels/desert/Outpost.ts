@@ -174,7 +174,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     const ph = o.parapet ?? 0.5;
     if (ph > 0) parapet(o.x0, o.z0, o.x1, o.z1, rt, ph, o.mat, o.parapetGaps);
     interiors.push({ name: o.name, jp: o.jp, x0: o.x0 + t, z0: o.z0 + t, x1: o.x1 - t, z1: o.z1 - t, h: o.h });
-    if (o.roofWalk) roofs.push({ name: o.name + ' ROOF', jp: o.jp + ' 屋上', x0: o.x0, z0: o.z0, x1: o.x1, z1: o.z1, h: rt });
+    if (o.roofWalk) roofs.push({ name: o.name + ' ROOF', jp: 'سطح ' + o.jp, x0: o.x0, z0: o.z0, x1: o.x1, z1: o.z1, h: rt });
   };
 
   /** Parapet ring on a roof, with gaps where stairs and (12.0) bridges arrive. */
@@ -296,7 +296,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // ======================================================================= Buildings
   // Barracks: two rooms (partition at x = -18 with a doorway), three outside doors, windows.
   building({
-    name: 'BARRACKS', jp: '兵舎', x0: -26, z0: -18, x1: -10, z1: -11, h: 3.3, mat: m.plaster,
+    name: 'BARRACKS', jp: 'الثكنة', x0: -26, z0: -18, x1: -10, z1: -11, h: 3.3, mat: m.plaster,
     openings: [
       { side: 's', at: -22.8, w: 1.4 }, { side: 's', at: -13.3, w: 1.4 }, { side: 'e', at: -14.5, w: 1.4 },
       { side: 'n', at: -23.4, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'n', at: -20.2, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 },
@@ -314,7 +314,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   // Motor pool: tall hangar, a 7 m door to the yard, a side door, high windows.
   building({
-    name: 'MOTOR POOL', jp: '車両整備場', x0: 10, z0: -20, x1: 26, z1: -8, h: 5, mat: m.metal, roofMat: m.metal,
+    name: 'MOTOR POOL', jp: 'ورشة المركبات', x0: 10, z0: -20, x1: 26, z1: -8, h: 5, mat: m.metal, roofMat: m.metal,
     openings: [
       { side: 's', at: 16.5, w: 7, y1: 4.2 }, { side: 'e', at: -13.3, w: 1.4 },
       { side: 'w', at: -16, w: 2.4, y0: 2.8, y1: 3.8 }, { side: 'w', at: -12, w: 2.4, y0: 2.8, y1: 3.8 },
@@ -357,10 +357,10 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     solid(-17 - pt, rt, 17.0, -17, rt + ph, 24, mat);
     solid(-24, rt, 24 - pt, -17 - pt, rt + ph, 24, mat);
     solid(-24, rt, 8 + pt, -24 + pt, rt + ph, 24 - pt, mat);
-    interiors.push({ name: 'TRADING POST', jp: '交易所', x0: -24 + t, z0: 8 + t, x1: -10 - t, z1: 15 - t, h });
-    interiors.push({ name: 'TRADING POST', jp: '交易所', x0: -24 + t, z0: 15 - t, x1: -17 - t, z1: 24 - t, h });
-    roofs.push({ name: 'TRADING POST ROOF', jp: '交易所 屋上', x0: -24, z0: 8, x1: -10, z1: 15, h: rt });
-    roofs.push({ name: 'TRADING POST ROOF', jp: '交易所 屋上', x0: -24, z0: 15, x1: -17, z1: 24, h: rt });
+    interiors.push({ name: 'TRADING POST', jp: 'السوق', x0: -24 + t, z0: 8 + t, x1: -10 - t, z1: 15 - t, h });
+    interiors.push({ name: 'TRADING POST', jp: 'السوق', x0: -24 + t, z0: 15 - t, x1: -17 - t, z1: 24 - t, h });
+    roofs.push({ name: 'TRADING POST ROOF', jp: 'سطح السوق', x0: -24, z0: 8, x1: -10, z1: 15, h: rt });
+    roofs.push({ name: 'TRADING POST ROOF', jp: 'سطح السوق', x0: -24, z0: 15, x1: -17, z1: 24, h: rt });
     // Landing (solid to the ground) and the stair down to the south.
     solid(-17, 0, 15, -15.6, rt, 17.4, m.concrete);
     stair(-17, 17.4, -15.6, 23.6, 'z', -1, rt, 'e');
@@ -376,7 +376,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   // Clinic: whitewashed, a sign, beds inside.
   building({
-    name: 'CLINIC', jp: '診療所', x0: 6, z0: 10, x1: 14, z1: 17, h: 3.1, mat: m.whitewash,
+    name: 'CLINIC', jp: 'العيادة', x0: 6, z0: 10, x1: 14, z1: 17, h: 3.1, mat: m.whitewash,
     openings: [
       { side: 'w', at: 13.5, w: 1.4 }, { side: 'n', at: 9.7, w: 1.4 },
       { side: 'e', at: 12.2, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'e', at: 15.0, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 's', at: 12.8, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 },
@@ -395,7 +395,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   // Watchtower: a ground room, an outside stair to its roof platform, posts and a shade canopy above.
   building({
-    name: 'WATCHTOWER', jp: '監視塔', x0: 22, z0: 10, x1: 27, z1: 15, h: 3.0, mat: m.concrete,
+    name: 'WATCHTOWER', jp: 'برج المراقبة', x0: 22, z0: 10, x1: 27, z1: 15, h: 3.0, mat: m.concrete,
     openings: [{ side: 'w', at: 12.5, w: 1.4 }, { side: 'n', at: 24.5, w: 1.0, y0: WIN_Y0, y1: WIN_Y1 }, { side: 's', at: 24.5, w: 1.0, y0: WIN_Y0, y1: WIN_Y1 }],
     // 12.0: a second gap on the west, where the bridge from the clinic roof lands.
     parapet: 1.1, parapetGaps: [{ side: 'e', a: 10.2, b: 11.6 }, { side: 'w', a: 11.5, b: 13 }], roofWalk: true,
@@ -407,7 +407,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   // Generator shed: open front to the south, a generator inside, a cabinet on its east wall.
   building({
-    name: 'GENERATOR SHED', jp: '発電小屋', x0: -5, z0: -24, x1: -1, z1: -20, h: 2.6, mat: m.concrete,
+    name: 'GENERATOR SHED', jp: 'غرفة المولّد', x0: -5, z0: -24, x1: -1, z1: -20, h: 2.6, mat: m.concrete,
     openings: [{ side: 's', at: -3, w: 2.0 }], parapet: 0,
   });
   solid(-4.7, SLAB, -23.7, -2.9, 1.2, -22.5, m.darkMetal, 'metal');
@@ -476,10 +476,10 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // Every piece collides as exactly what you see, and sits either flush against a wall or a
   // neighbour or at least 1 m clear of everything (no body-width slots).
   const crateMats = {
-    ammo: new THREE.MeshStandardMaterial({ map: T.crateTexture('5.56 × 900', '弾薬 · AMMO'), roughness: 0.85 }),
-    gear: new THREE.MeshStandardMaterial({ map: T.crateTexture('KESTREL', '補給 · SUPPLY', '#6a5a3c', '#efe2b8'), roughness: 0.85 }),
-    med: new THREE.MeshStandardMaterial({ map: T.crateTexture('MEDICAL', '医療 · ＋', '#d8d2c4', '#a8231f'), roughness: 0.8 }),
-    case: new THREE.MeshStandardMaterial({ map: T.crateTexture('', 'CASE · 器材', '#3d3f34', '#bdb79a'), roughness: 0.6, metalness: 0.2 }),
+    ammo: new THREE.MeshStandardMaterial({ map: T.crateTexture('5.56 × 900', 'ذخيرة · AMMO'), roughness: 0.85 }),
+    gear: new THREE.MeshStandardMaterial({ map: T.crateTexture('KESTREL', 'إمداد · SUPPLY', '#6a5a3c', '#efe2b8'), roughness: 0.85 }),
+    med: new THREE.MeshStandardMaterial({ map: T.crateTexture('MEDICAL', 'طبي · ＋', '#d8d2c4', '#a8231f'), roughness: 0.8 }),
+    case: new THREE.MeshStandardMaterial({ map: T.crateTexture('', 'CASE · معدات', '#3d3f34', '#bdb79a'), roughness: 0.6, metalness: 0.2 }),
   };
   const rubber = std(T.rubberTexture(), 0xffffff, 0.95);
   /** A box that shows its texture once per face (crates), seen and solid alike. */
@@ -640,9 +640,9 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   bridge(-10, 10, -16, -14.4, 3.55, 5.25, [-2, 8.5]); // the skybridge: barracks roof → motor pool roof
   bridge(-10, 6, 11, 12.6, 3.55, 3.35, [-2]); // trading post roof → clinic roof
   bridge(14, 22, 11.5, 13, 3.35, 3.25, []); // clinic roof → watchtower
-  roofs.push({ name: 'SKYBRIDGE', jp: '空中通路', x0: -10, z0: -16, x1: 10, z1: -14.4, h: 3.55 });
-  roofs.push({ name: 'ROOF BRIDGE', jp: '屋上の橋', x0: -10, z0: 11, x1: 6, z1: 12.6, h: 3.35 });
-  roofs.push({ name: 'ROOF BRIDGE', jp: '屋上の橋', x0: 14, z0: 11.5, x1: 22, z1: 13, h: 3.25 });
+  roofs.push({ name: 'SKYBRIDGE', jp: 'الجسر المعلّق', x0: -10, z0: -16, x1: 10, z1: -14.4, h: 3.55 });
+  roofs.push({ name: 'ROOF BRIDGE', jp: 'جسر السطح', x0: -10, z0: 11, x1: 6, z1: 12.6, h: 3.35 });
+  roofs.push({ name: 'ROOF BRIDGE', jp: 'جسر السطح', x0: 14, z0: 11.5, x1: 22, z1: 13, h: 3.25 });
 
   // Crates up the clinic's south wall, a jump each (0.6 m), to the roof's south gap: the player's way
   // up (the bots take the bridges).
@@ -691,7 +691,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     // (0.8 m: on top of one a body still fits under the roof; at 1.0 m its head went into the slab.)
     crate(-8, F, -inner, -6.8, F + 0.8, -inner + 1.1, crateMats.case);
     crate(6.8, F, inner - 1.1, 8, F + 0.8, inner, crateMats.case);
-    interiors.push({ name: 'CULVERT', jp: '暗渠', x0: -C.x, z0: -inner, x1: C.x, z1: inner, h: -0.3 });
+    interiors.push({ name: 'CULVERT', jp: 'العبّارة', x0: -C.x, z0: -inner, x1: C.x, z1: inner, h: -0.3 });
     for (const x of [-14, 0, 14]) bulb(x, -0.75, 0);
   }
 
@@ -976,8 +976,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   }
 
   // ======================================================================= Zones
-  const yard: Zone = { id: 'yard', name: 'OUTPOST YARD', jp: '基地構内', rects: [[-30, -27, 30, 27]] };
-  const dunes: Zone = { id: 'dunes', name: 'DUNE FIELD', jp: '砂丘', rects: [[-DESERT_EXTENT, -DESERT_EXTENT, DESERT_EXTENT, DESERT_EXTENT]] };
+  const yard: Zone = { id: 'yard', name: 'OUTPOST YARD', jp: 'ساحة الموقع', rects: [[-30, -27, 30, 27]] };
+  const dunes: Zone = { id: 'dunes', name: 'DUNE FIELD', jp: 'الكثبان', rects: [[-DESERT_EXTENT, -DESERT_EXTENT, DESERT_EXTENT, DESERT_EXTENT]] };
   const zoneOf = new Map<string, Zone>();
   const zoneFor = (r: Interior) => {
     let z = zoneOf.get(r.name);
