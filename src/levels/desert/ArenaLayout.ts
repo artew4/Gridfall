@@ -20,6 +20,9 @@ import * as THREE from 'three';
   half through a ruined hamlet (walls, doorways, a building to cut through), the other half along a
   dry wadi (sand berms, rocks, a wrecked APC). Each team's left flank starts in the hamlet and its
   right flank in the wadi.
+
+  12.0: two more lanes per team: the culvert under the compound (3, point-symmetric) and the rooftops
+  on the team's own side of the compound (4, one per team: the compound isn't symmetric).
 */
 
 /** Bases: centre z (±), the flat floor height, the walled yard. */
@@ -60,6 +63,32 @@ export const LANES_SOUTH: [number, number][][] = [
 
 /** The same lanes as seen from the north base (left is east for a team facing south). */
 export const LANES_NORTH: [number, number][][] = LANES_SOUTH.map((l) => l.map(([x, z]) => rot(x, z)));
+
+/** A lane waypoint off the ground: x, z and its floor height (12.0). */
+export type Way3 = [number, number, number];
+
+/**
+ * 12.0, the culvert lane (3; point-symmetric like lanes 0–2, so the north one is its rotation): out of
+ * the base's east exit, round the compound's east side, in at the east gate, down into the culvert,
+ * under the yard, up at the west gate and on up the west flank: a crossing nobody on a roof sees.
+ * Floor heights given (the culvert's stairs and floor; the dunes are filled in from the terrain).
+ */
+export const CULVERT_LANE_SOUTH: (Way3 | [number, number])[] = [
+  [17, 53], [27, 44], [35, 30], [35, 12], [33.5, -1], [28.6, 0, 0], [24, 0, -1.5], [18, 0, -3], [0, 0, -3], [-18, 0, -3], [-24, 0, -1.5], [-28.6, 0, 0],
+  [-33.5, -3], [-40, -20], [-48, -38], [-43, -47], [-30, -50],
+];
+
+/**
+ * 12.0, the rooftop lanes (4): the compound isn't point-symmetric, so each team has its own, over its
+ * own side's roofs, ending as overwatch on the yard. ALPHA (south): in at the south gate, up the
+ * trading post's stair, across its roof and the bridges to the clinic and the watchtower. OMEGA
+ * (north): in at the north gate, up the motor pool's stair to its high roof, over the skybridge to
+ * the barracks roof.
+ */
+export const ROOF_LANE: { south: (Way3 | [number, number])[]; north: (Way3 | [number, number])[] } = {
+  south: [[0, 48.5], [-6, 34], [-7, 29], [-12, 25.4], [-16.3, 24.6, 0], [-16.3, 16.2, 3.55], [-12, 11.5, 3.55], [-2, 11.8, 3.45], [10, 13.5, 3.35], [18, 12.25, 3.3], [24.5, 12.5, 3.25]],
+  north: [[0, -48.5], [6, -34], [7, -29], [7, -24.5], [10.2, -20.74, 0], [21.3, -20.74, 5.25], [18, -14, 5.25], [0, -15.2, 4.4], [-17, -14.5, 3.55], [-22, -14.5, 3.55]],
+};
 
 /**
  * Places the old random dune scatter (rocks, brush) must keep clear of: the arena's structures

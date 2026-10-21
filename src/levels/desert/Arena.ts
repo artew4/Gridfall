@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { worldBox, type StaticBuilder } from '../../world/Builder';
 import type { Collider, CollisionWorld } from '../../world/Collision';
 import { desertHeight } from './Terrain';
-import { BASE, LANES_NORTH, LANES_SOUTH, rot } from './ArenaLayout';
+import { BASE, CULVERT_LANE_SOUTH, LANES_NORTH, LANES_SOUTH, ROOF_LANE, rot } from './ArenaLayout';
 import type { Zone } from '../Level';
 
 /*
@@ -304,11 +304,12 @@ export function buildArena(k: ArenaKit): ArenaResult {
   }
 
   // Lanes, at floor height.
-  const lift = (l: [number, number][]) => l.map(([x, z]) => new THREE.Vector3(x, desertHeight(x, z), z));
-  out.lanes.south = LANES_SOUTH.map(lift);
-  out.lanes.north = LANES_NORTH.map(lift);
-  for (const l of out.lanes.south) for (const p of l) node(p.x, p.z);
-  for (const l of out.lanes.north) for (const p of l) node(p.x, p.z);
+  // 12.0: waypoints may carry their floor height (the culvert, the roofs); the rest are on the ground.
+  const lift = (l: (number[])[]) => l.map(([x, z, y]) => new THREE.Vector3(x, y ?? desertHeight(x, z), z));
+  const rotLane = (l: (number[])[]) => l.map(([x, z, y]) => [...rot(x, z), ...(y === undefined ? [] : [y])]);
+  out.lanes.south = [...LANES_SOUTH.map(lift), lift(CULVERT_LANE_SOUTH), lift(ROOF_LANE.south)];
+  out.lanes.north = [...LANES_NORTH.map(lift), lift(rotLane(CULVERT_LANE_SOUTH)), lift(ROOF_LANE.north)];
+  for (const l of [...out.lanes.south, ...out.lanes.north]) for (const p of l) out.nodes.push(p.clone());
   return out;
 }
 

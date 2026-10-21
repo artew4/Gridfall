@@ -151,6 +151,42 @@ export const ARENA = {
     /** Rays per frame for all sensing (inside the scheduler's budget). */
     rays: 18,
   },
+  /**
+   * 12.0, shared team spotting: a hostile anyone on the team (a bot, or the human) has in line of
+   * sight is on the team's minimap and board; the dot fades `fade` s after the last sighting. The
+   * human's eyes: a field of view (cos of its half-angle: a 16:9 screen at 74° vertical is ±53°)
+   * checked every `every` s through the shared sensing pass.
+   */
+  spot: { fade: 2.5, viewCos: Math.cos((58 * Math.PI) / 180), every: 0.12 },
+  /**
+   * 12.0, flanking a spotted hostile. A bot out of sight of a contact a teammate is fighting right
+   * now (seen within `fresh` s, the spotter at least `spotterGap` m from the bot) and between `min`
+   * and `max` m away goes round: to a point `dist` m from the contact, `angle` off the spotter's
+   * line, on the side nearer to it. At most `per` flankers on one hostile; a flank gives up after
+   * `maxT` s; `cooldown` before the same bot flanks again.
+   */
+  flank: { fresh: 1, spotterGap: 8, min: 14, max: 55, dist: 11, angle: (105 * Math.PI) / 180, per: 2, maxT: 9, cooldown: 6, arrive: 3 },
+  /**
+   * 12.0, retreat and regroup instead of fighting to the death: it took `unseenDmg` (health share)
+   * within `window` s from someone it can't see, or it sees at least `outSeen` hostiles, `outnumbered`
+   * more than it has friends within `friendR` m (and is under `outHp` health). It breaks line of sight and sprints to
+   * the nearest friend behind it (or back down its lane); done within `joinR` m of a friend, after
+   * `maxT` s, or cornered (a hostile in sight within `corner` m: it fights). `cooldown` between.
+   */
+  retreat: { on: true, unseenDmg: 0.3, window: 2, outnumbered: 2, outSeen: 3, friendR: 18, outHp: 0.6, joinR: 7, maxT: 6, corner: 8, cooldown: 10 },
+  /**
+   * 12.0, slides (the player's model, Slide.ts): rushing a wounded target `push` m out, diving into a
+   * spot `dive` m ahead, or crossing open ground with a fresh contact within `exposed` m. Needs `open`
+   * m clear ahead and a sprint; `cooldown` s between slides (×1/personality).
+   */
+  slide: { on: true, push: [6, 14] as [number, number], dive: [2.5, 7] as [number, number], exposed: 30, open: 4.5, cooldown: 3, spread: 0.02 },
+  /**
+   * 12.0, every bot is a little different and none reacts on the same frame as another: a reaction
+   * time drawn per bot (mean, sd, clamp), stretched or shortened a little per event; decide intervals
+   * jittered ±`jitter`; aggression (push thresholds, range band), patience (aimed focus) and a liking
+   * for flanks and slides drawn per bot.
+   */
+  persona: { react: [0.17, 0.045] as [number, number], reactClamp: [0.09, 0.32] as [number, number], jitter: 0.25, aggro: [0.8, 1.25] as [number, number], patience: [0.85, 1.2] as [number, number], flank: [0.35, 1] as [number, number], slide: [0.4, 1] as [number, number] },
   director: {
     every: 0.25,
     tradeWindow: 12,
@@ -195,10 +231,23 @@ export interface ArenaStats {
   speedSum: number;
   /** Per callsign: jumps and vaults. */
   perBot: Record<string, { jumps: number; vaults: number; team: TeamId }>;
+  /** 12.0: flanks started, that reached their point, that ended in an engage from it, kills on the flank. */
+  flanks: number;
+  flankArrive: number;
+  flankEngage: number;
+  flankKills: number;
+  /** 12.0: retreats (by why), those still alive `maxT` s on, deaths during one. */
+  retreats: number;
+  retreatWhy: { unseen: number; outnumbered: number };
+  retreatLived: number;
+  retreatDeaths: number;
+  /** 12.0: slides (by why). */
+  slides: number;
+  slideWhy: { push: number; dive: number; exposed: number };
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {} };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, flanks: 0, flankArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0 } };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

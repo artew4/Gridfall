@@ -3,10 +3,10 @@ import { Gunner, Runner, type EnemyCtx } from '../Enemy';
 import type { EnemyLook } from '../../entities/types';
 import type { Combatant } from '../../combat/Team';
 import type { BarkKind } from '../tactics/Barks';
-import { damp, rand } from '../../core/math';
+import { damp, lerp, rand } from '../../core/math';
 import { ARENA } from './ArenaCtx';
 import { DeathmatchBrain, type ArenaBody } from './DeathmatchAI';
-import { openAt, stepAir, vaultAhead, type Air } from './Locomotion';
+import { newSlip, openAt, startSlip, stepAir, stepSlip, vaultAhead, type Air } from './Locomotion';
 
 /*
   Arena bodies (7.0): the survival Gunner and Runner rigs, hitboxes, looks and death, driven by the
@@ -19,6 +19,17 @@ import { openAt, stepAir, vaultAhead, type Air } from './Locomotion';
 */
 
 const _d = new THREE.Vector3();
+
+/** 12.0: a slide ends at this share of the body's base speed (its crouch walk). */
+const SLIDE_END = 0.55;
+
+/** The slide's pose over the crouch: leant back, the lead leg kicked out (0..1). */
+function slidePose(rig: { body: THREE.Object3D; legL: THREE.Object3D; kneeL: THREE.Object3D }, k: number) {
+  if (k < 0.01) return;
+  rig.body.rotation.x -= 0.5 * k;
+  rig.legL.rotation.x = lerp(rig.legL.rotation.x, -1.5, k);
+  rig.kneeL.rotation.x = lerp(rig.kneeL.rotation.x, 0.25, k);
+}
 /**
  * Entry nodes a re-plan may test. Measured on Desert Outpost (7.0): a route that succeeds needs at
  * most ~116 corridor tests (p90 61); one that fails tried all ~530 nodes, 5–11 ms in one frame.
@@ -50,6 +61,10 @@ function directClear(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {
 export class ArenaGunner extends Gunner implements ArenaBody {
   brain: DeathmatchBrain;
   air: Air = { up: false, vy: 0, t: 0 };
+  /** 12.0: the slide and how far into its pose the rig is. */
+  slip = newSlip();
+  private slipK = 0;
+  private made = Infinity;
 
   constructor(spawn: THREE.Vector3, difficulty: number, scene: THREE.Scene, look: EnemyLook) {
     super(spawn, difficulty, scene, null, look);
@@ -71,14 +86,33 @@ export class ArenaGunner extends Gunner implements ArenaBody {
   /** Never called: the arena scheduler drives the brain. */
   decide() {}
 
+  get sliding() {
+    return this.slip.on;
+  }
+
+  slide() {
+    if (this.air.up || this.state === 'emerge') return false;
+    return startSlip(this.slip, this.vel, this.speed * ARENA.sprint, this.speed * SLIDE_END);
+  }
+
   protected think(dt: number, ctx: EnemyCtx) {
     this.laser.visible = false;
     const desired = _d.set(0, 0, 0);
     const crouch = this.brain.act(dt, ctx, desired);
-    this.crouch = damp(this.crouch, this.air.up ? 0.35 : crouch, 12, dt);
+    // Sliding, the body carries itself (the brain still aims and fires).
+    stepSlip(this.slip, dt, desired, this.made);
+    this.crouch = damp(this.crouch, this.air.up ? 0.35 : this.slip.on ? 1 : crouch, 12, dt);
+    this.slipK = damp(this.slipK, this.slip.on ? 1 : 0, 14, dt);
     this.state = this.brain.state === 'emerge' ? 'emerge' : this.brain.state;
     this.aimAt.copy(this.brain.aimPoint);
+    const x0 = this.pos.x, z0 = this.pos.z;
     this.move(desired, ctx, dt);
+    this.made = Math.hypot(this.pos.x - x0, this.pos.z - z0) / Math.max(dt, 1e-4);
+  }
+
+  protected animate(dt: number, ctx: EnemyCtx, speed: number) {
+    super.animate(dt, ctx, speed);
+    slidePose(this.rig, this.slipK);
   }
 
   protected onHit(ctx: EnemyCtx) {
@@ -155,6 +189,9 @@ export class ArenaGunner extends Gunner implements ArenaBody {
 export class ArenaRunner extends Runner implements ArenaBody {
   brain: DeathmatchBrain;
   air: Air = { up: false, vy: 0, t: 0 };
+  slip = newSlip();
+  private slipK = 0;
+  private made = Infinity;
   /** A blade never aims. */
   isAiming = false;
 
@@ -170,13 +207,32 @@ export class ArenaRunner extends Runner implements ArenaBody {
 
   decide() {}
 
+  get sliding() {
+    return this.slip.on;
+  }
+
+  slide() {
+    if (this.air.up || this.state === 'emerge') return false;
+    return startSlip(this.slip, this.vel, this.speed * 1.05, this.speed * SLIDE_END);
+  }
+
   protected think(dt: number, ctx: EnemyCtx) {
     const desired = _d.set(0, 0, 0);
     this.brain.act(dt, ctx, desired);
+    stepSlip(this.slip, dt, desired, this.made);
     if (this.stagger > 0) desired.multiplyScalar(0.3);
+    this.crouch = damp(this.crouch, this.slip.on ? 1 : 0, 12, dt);
+    this.slipK = damp(this.slipK, this.slip.on ? 1 : 0, 14, dt);
     const a = this.tac.action;
     this.state = this.brain.state === 'emerge' ? 'emerge' : a === 'push' || a === 'engage' ? 'chase' : a;
+    const x0 = this.pos.x, z0 = this.pos.z;
     this.move(desired, ctx, dt);
+    this.made = Math.hypot(this.pos.x - x0, this.pos.z - z0) / Math.max(dt, 1e-4);
+  }
+
+  protected animate(dt: number, ctx: EnemyCtx, speed: number) {
+    super.animate(dt, ctx, speed);
+    slidePose(this.rig, this.slipK);
   }
 
   protected onHit(ctx: EnemyCtx) {

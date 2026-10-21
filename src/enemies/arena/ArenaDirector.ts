@@ -16,6 +16,10 @@ import { ARENA } from './ArenaCtx';
    - Lanes: left, centre, right kept occupied (the human counts on the lane he is in; he is read,
      never commanded: ADR-0028).
    - Push claims: at most two bots rush one wounded hostile.
+   - 12.0, shared spotting: whatever anyone on the team (bots and the human alike) has in line of
+     sight right now is "spotted": on everyone's minimap, fading out over ARENA.spot.fade s after the
+     last sighting, with who saw it from where (a bot out of sight uses that to flank).
+   - 12.0, flank claims: at most ARENA.flank.per bots go round one spotted hostile, on alternate sides.
 
   Pure (no scene, no clock): the arena tests drive it.
 */
@@ -31,6 +35,16 @@ export interface ArenaContact {
   seenT: number;
   firedT: number;
   src: 'sight' | 'gunfire' | 'callout';
+  /** 12.0: the last sighting's spotter (uid, and where it stood), for flanks. -1: nobody (heard). */
+  by: number;
+  from: THREE.Vector3;
+}
+
+/** 12.0: a spotted hostile on the team's minimap: where it was last seen and how long ago (s). */
+export interface Spot {
+  who: Combatant;
+  pos: THREE.Vector3;
+  age: number;
 }
 
 /** What the director reads of a member (a bot, or the human). */
@@ -57,6 +71,7 @@ export class ArenaDirector {
   laneOf = new Map<number, number>();
   private trades: [number, number][] = [];
   private pushes = new Map<number, { bots: number[]; until: number }>();
+  private flanks = new Map<number, { bots: number[]; sides: number[]; until: number }>();
   private nextT = 0;
   private axis = new THREE.Vector2(0, -1);
   private mid = new THREE.Vector2();
@@ -93,6 +108,7 @@ export class ArenaDirector {
     this.laneOf.clear();
     this.trades.length = 0;
     this.pushes.clear();
+    this.flanks.clear();
     this.nextT = 0;
     this.log.length = 0;
     this.laneTarget = this.lanes.map(() => 0);
@@ -112,20 +128,37 @@ export class ArenaDirector {
   private contactFor(h: Combatant, now: number): ArenaContact {
     let c = this.contacts.get(h.uid);
     if (!c) {
-      c = { who: h, pos: h.pos.clone(), vel: new THREE.Vector3(), t: now, seenT: -Infinity, firedT: -Infinity, src: 'callout' };
+      c = { who: h, pos: h.pos.clone(), vel: new THREE.Vector3(), t: now, seenT: -Infinity, firedT: -Infinity, src: 'callout', by: -1, from: new THREE.Vector3() };
       this.contacts.set(h.uid, c);
     }
     return c;
   }
 
-  /** A member (or the human) saw `h`; a callout is the human's sighting relayed to the bots. */
-  sighting(h: Combatant, now: number, src: 'sight' | 'callout' = 'sight') {
+  /** A member (or the human) saw `h` (from where `by` stands); a callout is the human's sighting relayed to the bots. */
+  sighting(h: Combatant, now: number, src: 'sight' | 'callout' = 'sight', by?: { uid: number; pos: THREE.Vector3 }) {
     if (!h.alive) return;
     const c = this.contactFor(h, now);
     c.pos.copy(h.pos);
     c.vel.copy(h.vel);
     c.t = c.seenT = now;
     c.src = src;
+    if (by) {
+      c.by = by.uid;
+      c.from.copy(by.pos);
+    }
+  }
+
+  /**
+   * 12.0: the team's spotted hostiles (the minimap): seen by anyone within ARENA.spot.fade s, alive.
+   * Heard gunfire is on the board but not here: a dot means someone has eyes on it (or just had).
+   */
+  spotted(now: number, out: Spot[] = []) {
+    out.length = 0;
+    for (const c of this.contacts.values()) {
+      const age = now - c.seenT;
+      if (age <= ARENA.spot.fade && c.who.alive) out.push({ who: c.who, pos: c.pos, age: Math.max(0, age) });
+    }
+    return out;
   }
 
   /**
@@ -179,12 +212,14 @@ export class ArenaDirector {
   hostileDied(v: Combatant, now: number) {
     this.contacts.delete(v.uid);
     this.pushes.delete(v.uid);
+    this.flanks.delete(v.uid);
     this.trades.push([now, +1]);
   }
 
   friendDied(v: Combatant, now: number) {
     this.laneOf.delete(v.uid);
     this.releasePush(v.uid);
+    this.releaseFlank(v.uid);
     this.trades.push([now, -1]);
   }
 
@@ -214,6 +249,44 @@ export class ArenaDirector {
 
   pushersOn(victim: number) {
     return this.pushes.get(victim)?.bots.length ?? 0;
+  }
+
+  // ------------------------------------------------------------------ flank claims (12.0)
+  /**
+   * May `bot` go round spotted `victim`? Returns the side to take (+1 / -1: the second flanker takes
+   * the other side of the first, a pincer), or 0 if it already has its flankers.
+   */
+  claimFlank(bot: number, victim: number, now: number, prefer: number) {
+    for (const [k, f] of this.flanks) if (f.until < now) this.flanks.delete(k);
+    let f = this.flanks.get(victim);
+    const i = f ? f.bots.indexOf(bot) : -1;
+    if (f && i >= 0) return f.sides[i];
+    if (!f) {
+      f = { bots: [], sides: [], until: 0 };
+      this.flanks.set(victim, f);
+    }
+    if (f.bots.length >= ARENA.flank.per) return 0;
+    const side = f.sides.length ? -f.sides[0] : prefer >= 0 ? 1 : -1;
+    f.bots.push(bot);
+    f.sides.push(side);
+    f.until = now + ARENA.flank.maxT;
+    this.note(now, 'flank', `${bot}>${victim} ${side > 0 ? 'L' : 'R'}`);
+    return side;
+  }
+
+  releaseFlank(bot: number) {
+    for (const [k, f] of this.flanks) {
+      const i = f.bots.indexOf(bot);
+      if (i >= 0) {
+        f.bots.splice(i, 1);
+        f.sides.splice(i, 1);
+      }
+      if (!f.bots.length) this.flanks.delete(k);
+    }
+  }
+
+  flankersOn(victim: number) {
+    return this.flanks.get(victim)?.bots.length ?? 0;
   }
 
   // ------------------------------------------------------------------ the front
@@ -275,8 +348,11 @@ export class ArenaDirector {
     }
     for (const b of bots) {
       if (this.laneOf.has(b.uid)) continue;
-      let best = 0;
-      for (let l = 1; l < n; l++) if (count[l] < count[best] || (count[l] === count[best] && l === 1)) best = l;
+      // The emptiest lane; among equals the centre, else (12.0: five lanes on the desert, more than a
+      // team has bots) any of them at random, so over a match every lane is walked.
+      const least = Math.min(...count);
+      const open = count.map((c, l) => (c === least ? l : -1)).filter((l) => l >= 0);
+      const best = open.includes(1) ? 1 : open[Math.floor(Math.random() * open.length)];
       this.laneOf.set(b.uid, best);
       count[best]++;
     }

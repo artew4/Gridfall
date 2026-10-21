@@ -16,6 +16,11 @@ import { ARENA } from './ArenaCtx';
   ray answers a pair for both bots while neither has moved half a metre. A pair that misses the
   budget stays due and is first in line next frame.
 
+  12.0: the human is a viewer too (his team's shared spotting: the minimap and the bots' board). A
+  viewer may bring its own `view`: a field of view it never sees outside (a screen, not 220° of
+  awareness) and its own re-check interval. His pairs share the budget and the pair cache, so a
+  hostile bot that already checked its line to him answers his check for free.
+
   Pure apart from the `los` callback (no three.js scene, no clocks): the arena tests drive it.
 */
 
@@ -37,6 +42,11 @@ export interface SenseAgent {
   readonly seen: Map<number, Seen>;
   /** Told the moment a hostile comes into view (it decides on the same frame). */
   onSight(h: Combatant, now: number): void;
+  /**
+   * 12.0: a viewer with a field of view (cos of its half-angle; nothing outside it is seen, alerted
+   * or not) and one re-check interval for everything inside it (the human).
+   */
+  readonly view?: { cos: number; every: number };
 }
 
 interface Pair {
@@ -55,6 +65,7 @@ interface Due {
   s: Seen;
   pri: number;
   late: number;
+  every: number;
 }
 
 export interface SensingStats {
@@ -133,7 +144,8 @@ export class Sensing {
         const alerted = now - alertT < S.alertFor;
         const cos = d > 1e-3 ? (dx * fx + dz * fz) / d : 1;
         const isTarget = h === a.target;
-        if (cos < S.behind && !alerted && !isTarget) {
+        const view = a.view;
+        if (view ? cos < view.cos : cos < S.behind && !alerted && !isTarget) {
           s.vis = false;
           continue;
         }
@@ -146,6 +158,7 @@ export class Sensing {
         e.s = s;
         e.pri = pri;
         e.late = now - s.next;
+        e.every = view ? view.every : EVERY[pri];
         due.push(e);
       }
     }
@@ -159,7 +172,7 @@ export class Sensing {
       }
       rays += r;
       e.s.at = now;
-      e.s.next = now + EVERY[e.pri];
+      e.s.next = now + e.every;
     }
     if (rays > this.stats.maxRays) this.stats.maxRays = rays;
   }

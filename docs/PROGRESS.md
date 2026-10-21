@@ -666,8 +666,95 @@ Branch `feature/ads-crouch-11.0`, based on `main` (10.0, `7cb947a`). Numbers: `d
 - **The desert fights at 35–40 m now.** The kill range clusters just under the 40 m cap.
 - **Not felt by a human yet:** the ADS feel, the crouch, and whether a raised rifle reads at 30 m.
 
+## 12.0: the slide, shared team spotting, Desert 2.0, bots that feel alive
+Branch `feature/mobility-desert-12.0`, based on `main` (11.0, `8e697f7`, which is now deployed). Numbers: `docs/BENCH-12.0.json`.
+
+**The slide (C while sprinting):**
+- **Physics** (`src/player/Slide.ts`, shared by the player and the bots): the slide starts at the sprint speed × 1.12 and slows by `dv/dt = −(k·v + μ)`, drag k = 0.6 /s plus friction μ = 1.9 m/s². Integrated exactly per frame: `v ← (v + μ/k)·e^(−k·dt) − μ/k`.
+  - From a sprint it lasts 1.17 s and covers 6.3 m. It hands off to the crouch walk with no jump in speed.
+  - The same slide at 30 and 144 FPS lands within 3% (unit test).
+- **Feel:** the hitbox and camera drop to the crouch (the crouch blend, rate 12). A slight camera roll and a 4° FOV kick fade with the speed, and there are no footsteps. A scrape plays as it starts.
+- **Control:** you can fire and aim down sights; aiming doesn't brake the slide. A little steering (1.6 rad/s), never a turn round.
+  - A wall eats the momentum.
+  - Space jumps out of it with the speed kept, standing up in the air.
+  - It ends crouched (tap) or as the key says (hold).
+- **Bots slide too:** rushing a wounded target 6–14 m out, diving into a spot 2.5–7 m ahead, or crossing open ground with a contact within 30 m. Same model, ending at their crouch walk, with a slide pose.
+
+**Shared team spotting and the minimap:**
+- **The player is a viewer in the arena's sensing pass**, like a bot. His field of view is ±58°, never behind him, re-checked every 0.12 s.
+  - His pairs share the ray budget and the symmetric pair cache. A hostile bot that already traced its line to him answers his check for free.
+  - It replaces 7.0's callout rays (3 rays every 0.4 s).
+- **The board:** whatever anyone on ALPHA sees goes on ALPHA's board, with who saw it and from where.
+  - `ArenaDirector.spotted()` lists what was seen within 2.5 s. Heard gunfire is on the board but never a dot.
+- **The minimap** (`src/ui/TdmMinimap.ts`, top left in TDM): heading-up, centred on you.
+  - Its floor plan is drawn once per level from the collision world, so every arena has one and it's exactly what blocks you.
+  - Allies are blue. Spotted hostiles are red, full while seen, fading over 2.5 s. A hollow dot with an arrow means another level (roofs, the culvert).
+- **The bots use it:**
+  - **FLANK:** a hostile a teammate is fighting right now (seen within 1 s, by a spotter at least 8 m away) that this bot can't see, 14–55 m off, is taken from the side.
+    - The goal is 11 m from the contact, 105° off the spotter's line, snapped to the nav graph.
+    - At most two flankers per hostile, the second on the other side (a pincer).
+    - Most flanks turn into a fight before they arrive: the hostile comes into view on the way round.
+
+**Bots that feel alive:**
+- **Temperament per bot:**
+  - its own reaction time (~0.17 s, sd 0.045, clamped 0.09–0.32 s), stretched 0.8–1.25× per event and shortened for a hit;
+  - aggression 0.8–1.25 (push thresholds, range band);
+  - patience 0.85–1.2 (aimed focus);
+  - a liking for flanks and slides.
+  - Decide intervals are jittered ±25%. A squad no longer turns on one frame: 7.0's "decide on the frame you see" is now "decide after your own reaction time".
+- **RETREAT:** two triggers.
+  - It took 30% of its health in 2 s from someone it can't see.
+  - Or it sees at least 3 hostiles, 2 more than its friends within 18 m, while under 60% health.
+  - It then dives to the nearest spot that breaks the threat's line of sight, and sprints to the nearest friend behind it (else back down its lane).
+  - It stops when it reaches the friend, after 6 s, or when cornered (a hostile within 8 m). 10 s cooldown.
+  - A nearly dead target close by is finished, not run from.
+
+**Desert 2.0, the compound in three levels:**
+- **OMEGA's side (north):**
+  - a stair to the barracks roof;
+  - a 10 m stair up the motor pool's north wall to its high roof (5.25 m, its parapet raised to 1 m);
+  - a 20 m skybridge rising from the barracks roof to the motor pool roof over the north yard.
+- **ALPHA's side (south):** the trading post roof (its own stair), a bridge to the clinic roof (now walkable; five crate steps, a jump each, climb its south wall), and a bridge on to the watchtower.
+- **The culvert:** a concrete drain 3 m under the yard, from inside the west gate to inside the east gate.
+  - Stairs down at each end, roofed for 42 m, three bulbs, two crate stacks.
+  - The terrain is carved to its floor. The terrain mesh has a hole there that the culvert's roof and paving cover (1.45 m past the cut; the mesh's hole edge is at most 1.3 m out).
+- **The HESCO opened up:** every side has a breach and a collapsed, vaultable stretch, placed point-symmetrically.
+- **New lanes:** two more lanes per team, a point-symmetric culvert lane and a rooftop lane over each team's own roofs. Lane ties are now broken at random (five lanes, four or five bots).
+- **Sandstorm:** the storm is the map's normal state.
+  - Phases: calm 8–14 s (was 40–65), fronts 10–14 s (16–24), peak 70–100 s (35–55).
+  - In a 4-hour run, intensity > 0.5 for over 75% of the time (unit test). In a peak-storm match the median kill range is 10 m.
+
+**Results** (desert, bot vs bot, 25 tickets):
+
+| | Match (s) | Kills/min | Kills from the side or behind | Sight to shot (median) |
+|---|---|---|---|---|
+| 12.0, clear | 204–217 | 13.3–14.4 | 6–7 | 380 ms |
+| 11.0, clear | 180–182 | 15.5–15.6 | 0–1 | 430–470 ms |
+| 12.0, peak storm | 259 | 10.7 | | |
+| 11.0, peak storm | 332 | 8.5 | | |
+
+- **Per desert match:** 80–99 flanks (most become fights on the way), 34–35 retreats (23–26 survive), 26–38 slides.
+- **Docks** (A/B): kills from the side or behind 11 vs 1.
+- **Jungle:** 6 per match.
+- **Every match:** 0 stuck, 0 friendly fire.
+
+**Validation:**
+- **`world()` on the new desert:** 0 findings, standing and crouched. Reachable cells 122,236 (CULVERT 511, MOTOR POOL ROOF 712, SKYBRIDGE 67, …). `stairGaps()`: 7 stairs, 0 drops.
+- **`stress()` on the desert:** 0 failures in 64,000 runs standing and 64,000 crouched, after four geometry fixes (see L-095…L-097 in the knowledge base and the bench notes).
+- **Minimap and spotting cost** (tdmBench with the player, on vs off): AI 0.53–0.61 vs 0.46–0.50 ms, minimap draw 0.08 ms, FPS 60 either way.
+- **`bench(3)`:** 59.3–60.3 FPS on every view of all four levels.
+- **Survival on the desert:** 0 out of bounds, 0 inside geometry.
+- **Tests and build:** 186 unit tests; build ok.
+
+**Watch:**
+- Sight-to-shot P90 on the desert is 2–3 s: aimed focus, plus bots moving up past the 40 m cap.
+- The bots still spend about half their time in the dunes. The roofs (up to 7%) and the culvert (0–3%) are used, but fights mostly start outside the compound.
+- Retreating bots still die in about 30% of retreats.
+- **Not felt by a human yet:** the slide, the minimap, the new desert and the storm's pace.
+
 ## Next
 Human playtest:
+- 12.0 items: the slide's length and speed (1.2 s, 6 m), sliding into a firefight with ADS, the minimap (does a fading red dot feel fair or like a wallhack), do the bots' flanks and retreats read as players, is the storm-heavy desert fun or exhausting, the rooftop and culvert routes.
 - 11.0 items: ADS feel (the 0.2 s raise, the zoom per weapon, the red dot, recoil with the sights up), crouch (toggle vs hold, speed), can you read a bot raising its rifle at 20–40 m and does that warning feel fair, is the desert's 35–40 m fighting fun, are the jungle fights too slow.
 - 9.1: the warehouse stairs (and every stair beside a wall) from all angles: any flicker left?
 - 9.0 items: the five themes (does the menu theme set the tone, is the docks bass too heavy, does the jungle groove fit), the crossfades between menu and levels, dropping in a real .mp3; jungle TDM: are LZ North and LZ Alpha fair, are the culvert and the east breach worth taking, is the fog too thick to fight in.

@@ -4,6 +4,7 @@ import type { CollisionWorld } from '../world/Collision';
 import type { AudioEngine } from '../audio/AudioEngine';
 import { clamp, damp, lerp, Spring } from '../core/math';
 import { KEYS } from '../core/Bindings';
+import { SLIDE, slideStep } from './Slide';
 
 const WALK = 5.0;
 const SPRINT = 7.8;
@@ -57,6 +58,16 @@ export class Player {
   aimWant = false;
   adsT = 0;
   ads = 0;
+  /**
+   * 12.0, the sprint slide (Slide.ts): crouch pressed while sprinting. `slideV` is the speed left,
+   * `slideDir` the direction (x, z), `slideK` 0..1 its smoothed strength for the camera.
+   */
+  sliding = false;
+  slideT = 0;
+  slideV = 0;
+  slideDir = new THREE.Vector2();
+  slideK = 0;
+  private slideCd = 0;
   lastDamage = -100;
   /** Camera kick from weapon recoil and hits. */
   kickPitch = new Spring(120, 16);
@@ -90,6 +101,8 @@ export class Player {
     this.crouchHeld = 0;
     this.aimWant = false;
     this.adsT = this.ads = 0;
+    this.sliding = false;
+    this.slideT = this.slideV = this.slideK = this.slideCd = 0;
     this.trauma = 0;
     this.kickPitch.reset();
     this.kickYaw.reset();
@@ -121,6 +134,13 @@ export class Player {
       this.yaw -= input.mouseDX * sens;
       this.pitch = clamp(this.pitch - input.mouseDY * sens, -1.45, 1.45);
     }
+    // 12.0: crouch pressed mid-sprint is a slide (read before the crouch key toggles below; `sprinting`
+    // is still last frame's). The press also sets the crouch, so the slide ends in a crouch.
+    this.slideCd = Math.max(0, this.slideCd - dt);
+    const hs0 = Math.hypot(this.vel.x, this.vel.z);
+    if (controls && this.alive && !this.sliding && this.sprinting && this.onGround && this.slideCd <= 0 && input.pressed.has(KEYS.crouch) && hs0 >= SPRINT * SLIDE.minEntry) {
+      this.startSlide(hs0);
+    }
     this.updateCrouch(dt, input, controls);
     const fx = -Math.sin(this.yaw);
     const fz = -Math.cos(this.yaw);
@@ -135,19 +155,30 @@ export class Player {
     const wl = Math.hypot(wx, wz);
     if (wl > 0) { wx /= wl; wz /= wl; }
     this.sprinting = controls && (input.key('ShiftLeft') || input.key('ShiftRight'));
-    this.sprinting = this.sprinting && wl > 0 && input.key('KeyW') && !aim;
+    this.sprinting = this.sprinting && wl > 0 && input.key('KeyW') && !aim && !this.sliding;
     // Sprinting stands you up (if there's room); crouched or aiming you can't sprint.
     if (this.sprinting && this.crouch > 0.05) {
       this.crouchToggle = false;
       if (this.crouchWanted(input) || this.roomAbove() < BODY_H) this.sprinting = false;
     }
-    const speed = (this.sprinting ? SPRINT : WALK) * lerp(1, HANDLING.crouchSpeed, this.crouch) * lerp(1, HANDLING.adsSpeed, this.ads);
-    const accel = this.onGround ? 16 : 3;
-    this.vel.x = damp(this.vel.x, wx * speed, accel, dt);
-    this.vel.z = damp(this.vel.z, wz * speed, accel, dt);
+    if (this.sliding) this.steerSlide(dt, wx, wz, wl);
+    else {
+      const speed = (this.sprinting ? SPRINT : WALK) * lerp(1, HANDLING.crouchSpeed, this.crouch) * lerp(1, HANDLING.adsSpeed, this.ads);
+      const accel = this.onGround ? 16 : 3;
+      this.vel.x = damp(this.vel.x, wx * speed, accel, dt);
+      this.vel.z = damp(this.vel.z, wz * speed, accel, dt);
+    }
+    const x0 = this.pos.x, z0 = this.pos.z;
 
-    // Space while crouched stands up instead of jumping (as long as there's room).
-    if (controls && this.alive && this.onGround && input.pressed.has('Space') && this.crouch > 0.3) {
+    // A jump out of a slide keeps its momentum and stands up in the air.
+    if (controls && this.alive && this.onGround && input.pressed.has('Space') && this.sliding) {
+      this.endSlide();
+      this.crouchToggle = false;
+      this.vel.y = JUMP_V;
+      this.onGround = false;
+      this.audio.footstep(0.6);
+    } else if (controls && this.alive && this.onGround && input.pressed.has('Space') && this.crouch > 0.3) {
+      // Space while crouched stands up instead of jumping (as long as there's room).
       this.crouchToggle = false;
     } else if (controls && this.alive && this.onGround && input.pressed.has('Space')) {
       this.vel.y = JUMP_V;
@@ -224,9 +255,18 @@ export class Player {
     this.fallSpeed = -this.vel.y;
     this.wasOnGround = this.onGround;
 
+    if (this.sliding) {
+      // A wall eats the momentum: the slide keeps only the speed it actually made.
+      const made = Math.hypot(this.pos.x - x0, this.pos.z - z0) / dt;
+      if (made < this.slideV * 0.6) this.slideV = made;
+      if (this.slideV <= WALK * HANDLING.crouchSpeed || this.slideT >= SLIDE.maxT || !this.onGround || !this.alive || !controls) this.endSlide();
+    }
+    this.slideK = damp(this.slideK, this.sliding ? Math.min(1, this.slideV / SPRINT) : 0, 10, dt);
+
     const hs = Math.hypot(this.vel.x, this.vel.z);
-    this.moveAmount = clamp(hs / WALK, 0, 1.6);
-    if (this.onGround && hs > 0.5) {
+    // Sliding: no steps, and the gun reads it as moving (but not as a run).
+    this.moveAmount = this.sliding ? Math.min(1, hs / WALK) * 0.6 : clamp(hs / WALK, 0, 1.6);
+    if (this.onGround && hs > 0.5 && !this.sliding) {
       this.bobPhase += hs * dt * 1.75;
       const idx = Math.floor(this.bobPhase / Math.PI);
       if (idx !== this.lastStepIdx) {
@@ -248,6 +288,36 @@ export class Player {
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     this.fovPunch = damp(this.fovPunch, 0, 10, dt);
     this.eyeY = damp(this.eyeY, this.pos.y + this.eyeHeight, 18, dt);
+  }
+
+  private startSlide(speed: number) {
+    this.sliding = true;
+    this.slideT = 0;
+    this.slideV = speed * SLIDE.boost;
+    this.slideDir.set(this.vel.x, this.vel.z).normalize();
+    this.audio.slide(1);
+  }
+
+  private endSlide() {
+    this.sliding = false;
+    this.slideCd = SLIDE.cooldown;
+  }
+
+  /** Friction slows the slide (exactly, Slide.ts); the movement keys turn it a little. */
+  private steerSlide(dt: number, wx: number, wz: number, wl: number) {
+    this.slideT += dt;
+    if (wl > 0) {
+      const cur = Math.atan2(this.slideDir.x, this.slideDir.y);
+      const d = Math.atan2(Math.sin(Math.atan2(wx, wz) - cur), Math.cos(Math.atan2(wx, wz) - cur));
+      // Only towards a direction ahead of it (S doesn't spin the slide round).
+      if (Math.abs(d) < Math.PI * 0.6) {
+        const a = cur + clamp(d, -SLIDE.steer * dt, SLIDE.steer * dt);
+        this.slideDir.set(Math.sin(a), Math.cos(a));
+      }
+    }
+    this.slideV = slideStep(this.slideV, dt);
+    this.vel.x = this.slideDir.x * this.slideV;
+    this.vel.z = this.slideDir.y * this.slideV;
   }
 
   /** The crouch key: a tap toggles, a hold crouches until it's let go (see CROUCH_TAP). */
@@ -272,7 +342,7 @@ export class Player {
         this.crouchHeld = 0;
       }
     } else if (!this.alive) this.crouchToggle = false;
-    const want = controls && this.alive && this.crouchWanted(input) ? 1 : 0;
+    const want = this.sliding || (controls && this.alive && this.crouchWanted(input)) ? 1 : 0;
     // Standing up needs the room: under a low ceiling it rises only as far as that allows.
     const room = this.roomAbove();
     const most = clamp((BODY_H - room) / (BODY_H - CROUCH_H), 0, 1);
@@ -303,7 +373,7 @@ export class Player {
   applyCamera(cam: THREE.PerspectiveCamera, time: number, dt = 1 / 60, adsZoom = 1) {
     // Aiming steadies the head: bob and shake fade with the sights up.
     const steady = 1 - 0.8 * this.ads;
-    const bobAmt = (this.onGround ? Math.min(this.moveAmount, 1.4) : 0) * steady;
+    const bobAmt = (this.onGround ? Math.min(this.moveAmount, 1.4) : 0) * steady * (1 - this.slideK);
     const bobY = Math.abs(Math.sin(this.bobPhase)) * 0.045 * bobAmt;
     const bobX = Math.cos(this.bobPhase) * 0.025 * bobAmt;
     const t2 = this.trauma * this.trauma;
@@ -317,12 +387,12 @@ export class Player {
     cam.rotation.set(
       this.pitch + this.kickPitch.value * 0.05 + sh(29, 3) * 0.03 * t2,
       this.yaw + this.kickYaw.value * 0.05 + sh(31, 4) * 0.03 * t2,
-      this.kickRoll.value * 0.05 + Math.cos(this.bobPhase) * 0.006 * bobAmt + sh(23, 5) * 0.04 * t2,
+      this.kickRoll.value * 0.05 + Math.cos(this.bobPhase) * 0.006 * bobAmt + sh(23, 5) * 0.04 * t2 + this.slideK * SLIDE.roll,
     );
     // ADS: the FOV follows the eased blend directly (no second smoothing on top, so no lag behind the
     // gun); sprint and punch are added and damped with the real frame time (3.x used a fixed 1/60 s).
     const zoomed = Player.FOV * lerp(1, adsZoom, this.ads);
-    this.sprintFov = damp(this.sprintFov, (this.sprinting ? 6 : 0) + this.fovPunch, 8, dt);
+    this.sprintFov = damp(this.sprintFov, (this.sprinting ? 6 : 0) + this.slideK * SLIDE.fov + this.fovPunch, 8, dt);
     cam.fov = zoomed + this.sprintFov;
     cam.updateProjectionMatrix();
   }

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
-import { buildTerrainMesh, DESERT_EXTENT, DESERT_TERRAIN } from './Terrain';
+import { buildTerrainMesh, CULVERT, DESERT_EXTENT, DESERT_TERRAIN } from './Terrain';
 import { buildOutpost, type OutpostResult } from './Outpost';
 import { Sandstorm } from './Sandstorm';
 import { DesertIntro } from './DesertIntro';
@@ -122,7 +122,8 @@ export class DesertLevel implements LevelRuntime {
     this.data = {
       start: { ...o.start, y: 0 },
       bounds: new THREE.Box2(new THREE.Vector2(-DESERT_EXTENT, -DESERT_EXTENT), new THREE.Vector2(DESERT_EXTENT, DESERT_EXTENT)),
-      floorMin: -1,
+      // 12.0: the culvert's floor is the lowest (the safety net recovers anything below it).
+      floorMin: CULVERT.floor - 0.5,
       nav: o.nav,
       spawns: o.spawns,
       perches: o.perches,
@@ -132,7 +133,13 @@ export class DesertLevel implements LevelRuntime {
       breakables: o.breakables,
       zoneAt: o.zoneAt,
       testGoals: [
-        ...o.interiors.map((r) => new THREE.Vector3((r.x0 + r.x1) / 2, 0.12, (r.z0 + r.z1) / 2)),
+        // (12.0: the culvert's centre is on its floor.)
+        ...o.interiors.map((r) => new THREE.Vector3((r.x0 + r.x1) / 2, r.h < 0 ? CULVERT.floor : 0.12, (r.z0 + r.z1) / 2)),
+        // 12.0: the new roofs and the skybridge.
+        new THREE.Vector3(-20, 3.55, -14.5),
+        new THREE.Vector3(18, 5.25, -14),
+        new THREE.Vector3(10, 3.35, 13.5),
+        new THREE.Vector3(0, 4.4, -15.2),
         new THREE.Vector3(24.5, 3.25, 12.5),
         new THREE.Vector3(-20.5, 3.55, 20.5),
         new THREE.Vector3(-12, 3.55, 11.5),
@@ -231,7 +238,7 @@ export class DesertLevel implements LevelRuntime {
   }
 
   createIntro(mode?: string): IntroLike {
-    // Clear air for the opening; the first storm rolls in during the first wave.
+    // Clear air for the opening (12.0: a brief calm); the first storm front is on its way.
     this.storm.clock.set('calm', 0.06);
     const st = mode === 'tdm' && this.data.tdm ? this.data.tdm.start : this.data.start;
     const ey = (st.y ?? 0) + 1.65;

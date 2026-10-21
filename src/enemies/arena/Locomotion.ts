@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { CollisionWorld } from '../../world/Collision';
 import { VAULT_MAX } from '../Nav';
 import { ARENA } from './ArenaCtx';
+import { SLIDE, slideStep } from '../../player/Slide';
 
 /*
   Arena movement primitives (7.0): a jump arc, the low-wall probe that turns running into a vault,
@@ -30,6 +31,49 @@ export function stepAir(air: Air, pos: THREE.Vector3, col: CollisionWorld, radiu
     return true;
   }
   return false;
+}
+
+/** 12.0: a body's slide: the player's model (player/Slide.ts), the speed left, the direction. */
+export interface Slip {
+  on: boolean;
+  t: number;
+  v: number;
+  dx: number;
+  dz: number;
+  /** It ends at this speed (its crouch walk). */
+  end: number;
+}
+
+export const newSlip = (): Slip => ({ on: false, t: 0, v: 0, dx: 0, dz: 0, end: 0 });
+
+/** Start a slide along `vel` (XZ) from at least `entry` m/s; it ends at `end` m/s. */
+export function startSlip(s: Slip, vel: THREE.Vector3, entry: number, end: number) {
+  const hs = Math.hypot(vel.x, vel.z);
+  if (s.on || hs < 0.5) return false;
+  s.on = true;
+  s.t = 0;
+  s.v = Math.max(hs, entry) * SLIDE.boost;
+  s.dx = vel.x / hs;
+  s.dz = vel.z / hs;
+  s.end = end;
+  return true;
+}
+
+/**
+ * One frame of a slide: friction (exact, as the player's), the velocity it wants in `desired`.
+ * `made`: the speed the body actually made last frame (a wall eats the momentum). False once over.
+ */
+export function stepSlip(s: Slip, dt: number, desired: THREE.Vector3, made = Infinity) {
+  if (!s.on) return false;
+  if (made < s.v * 0.5) s.v = made;
+  s.t += dt;
+  s.v = slideStep(s.v, dt);
+  if (s.v <= s.end || s.t >= SLIDE.maxT) {
+    s.on = false;
+    return false;
+  }
+  desired.set(s.dx * s.v, 0, s.dz * s.v);
+  return true;
 }
 
 /** Take-off speed that clears a wall `h` above the feet with a little room. */

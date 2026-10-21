@@ -8,7 +8,12 @@ import { ArenaDirector } from './ArenaDirector';
 import { Sensing, type Seen, type SenseAgent } from './Sensing';
 import { stepAir, vaultAhead, vaultSpeed } from './Locomotion';
 import { ARENA } from './ArenaCtx';
-import { focusFor, wantsAim } from './DeathmatchAI';
+import { DeathmatchBrain, drawPersona, flankPoint, focusFor, wantsAim, type ArenaBody, type Persona } from './DeathmatchAI';
+import { newArenaStats } from './ArenaCtx';
+import { ThinkScheduler } from '../tactics/Scheduler';
+import { createTac } from '../tactics/Squad';
+import { mulberry32 } from '../../core/math';
+import type { EnemyCtx } from '../Enemy';
 import { CollisionWorld } from '../../world/Collision';
 import { Nav } from '../Nav';
 import type { Combatant, TeamId } from '../../combat/Team';
@@ -273,3 +278,194 @@ describe('11.0: hip fire or an aimed shot, by range', () => {
   });
 });
 
+
+describe('12.0: shared team spotting', () => {
+  it('a sighting is spotted for the whole team, fades out after ARENA.spot.fade s; gunfire heard is not a dot', () => {
+    const d = director();
+    const me = unit(v(0, 0, 0), 'alpha');
+    const h = unit(v(10, 0, -20), 'omega'), g = unit(v(-10, 0, -20), 'omega');
+    d.sighting(h, 5, 'sight', me);
+    d.heard(g.pos, g, 5, [me]);
+    expect(d.spotted(5).map((s) => s.who)).toEqual([h]);
+    expect(d.contacts.get(h.uid)!.by).toBe(me.uid);
+    expect(d.spotted(5 + ARENA.spot.fade - 0.1).length).toBe(1);
+    expect(d.spotted(5 + ARENA.spot.fade + 0.1).length).toBe(0);
+  });
+
+  it("the human's field of view: nothing outside it, alerted or not; inside it, seen", () => {
+    const col = new CollisionWorld();
+    let rays = 0;
+    const s = new Sensing((a, b) => (rays++, col.lineOfSight(a, b)));
+    const me = unit(v(0, 0, 0), 'alpha', { yaw: 0, isPlayer: true });
+    const side = unit(v(20, 0, 2), 'omega'), ahead = unit(v(3, 0, 25), 'omega');
+    const a = { ...agent(me), view: { cos: ARENA.spot.viewCos, every: ARENA.spot.every } };
+    a.alert.set(side.uid, 0);
+    s.update(0, [a], () => [side, ahead], () => false);
+    expect(a.seen.get(side.uid)!.vis).toBe(false);
+    expect(a.seen.get(ahead.uid)!.vis).toBe(true);
+    expect(rays).toBe(1);
+    expect(a.seen.get(ahead.uid)!.next).toBeCloseTo(ARENA.spot.every);
+  });
+
+  it("a hostile bot's check of its line to him answers his own check (one ray for the pair)", () => {
+    const col = new CollisionWorld();
+    let rays = 0;
+    const s = new Sensing((a, b) => (rays++, col.lineOfSight(a, b)));
+    const me = unit(v(0, 0, 0), 'alpha', { yaw: 0, isPlayer: true });
+    const bot = unit(v(0, 0, 30), 'omega', { yaw: Math.PI });
+    const pa = { ...agent(me), view: { cos: ARENA.spot.viewCos, every: ARENA.spot.every } };
+    const ba = agent(bot, me);
+    s.update(0, [ba, pa], (x) => (x.self.team === 'alpha' ? [bot] : [me]), () => false);
+    expect(rays).toBe(1);
+    expect(pa.seen.get(bot.uid)!.vis).toBe(true);
+    expect(s.stats.cacheHits).toBe(1);
+  });
+});
+
+describe('12.0: flanks', () => {
+  it('the flank point is dist m from the contact, angle off the line to the spotter, either side', () => {
+    const c = v(0, 0, 0), from = v(0, 0, 20);
+    const l = flankPoint(c, from, 1, v(0, 0, 0)), r = flankPoint(c, from, -1, v(0, 0, 0));
+    expect(Math.hypot(l.x, l.z)).toBeCloseTo(ARENA.flank.dist);
+    const ang = (p: THREE.Vector3) => Math.acos((p.x * from.x + p.z * from.z) / (Math.hypot(p.x, p.z) * 20));
+    expect(ang(l)).toBeCloseTo(ARENA.flank.angle);
+    expect(ang(r)).toBeCloseTo(ARENA.flank.angle);
+    expect(Math.sign(l.x)).toBe(-Math.sign(r.x));
+  });
+
+  it('flank claims: two per hostile, the second takes the other side (a pincer), released on death', () => {
+    const d = director();
+    const a = d.claimFlank(1, 50, 0, 1), b = d.claimFlank(2, 50, 0, 1);
+    expect(a).toBe(1);
+    expect(b).toBe(-1);
+    expect(d.claimFlank(3, 50, 0, 1)).toBe(0);
+    expect(d.claimFlank(1, 50, 0.5, -1)).toBe(1); // its claim stands
+    d.friendDied(unit(v(0, 0, 0), 'alpha'), 1);
+    d.releaseFlank(2);
+    expect(d.flankersOn(50)).toBe(1);
+    expect(d.claimFlank(4, 50, ARENA.flank.maxT + 1, 1)).not.toBe(0);
+  });
+});
+
+/** A brain on a test body in an open field, with a director, a nav grid and the given hostiles and friends. */
+function rig(at: THREE.Vector3, opts: { hostiles?: Combatant[]; friends?: Combatant[]; persona?: Partial<Persona> } = {}) {
+  const d = director();
+  const col = new CollisionWorld();
+  const nodes: THREE.Vector3[] = [];
+  for (let x = -60; x <= 60; x += 4) for (let z = -60; z <= 60; z += 4) nodes.push(v(x, 1, z));
+  const me = Object.assign(unit(at, 'alpha'), {
+    kind: 'gunner' as const, speed: 3.3, look: { voice: 'human' as const }, isAiming: false, airborne: false, sliding: false, slides: 0,
+    steer: () => 0, face: () => {}, jump: () => true, fireRound: () => 'none' as const, strike: () => {}, wallAhead: () => 0, open: () => true, bark: () => {},
+    slide() { this.slides++; return true; },
+  }) as unknown as ArenaBody & { slides: number; hpFrac: number };
+  (me as unknown as { tac: unknown }).tac = createTac(me as never);
+  const stats = newArenaStats();
+  const friends = [me, ...(opts.friends ?? [])];
+  const ctx = {
+    time: 0, arena: { director: d, sched: new ThinkScheduler(), stats }, hostiles: opts.hostiles ?? [], friends, lanes: d.lanes,
+    nav: { nodes }, col, coverPoints: [], avoid: () => false,
+  } as unknown as EnemyCtx;
+  const brain = new DeathmatchBrain(me, { ...drawPersona(mulberry32(7)), flank: 1, ...opts.persona });
+  brain.state = 'advance';
+  brain.stateT = 1;
+  return { d, me, ctx, brain, stats };
+}
+
+const see = (brain: DeathmatchBrain, h: Combatant, vis: boolean, now = 0) => brain.seen.set(h.uid, { vis, since: now, last: now, at: now, next: now + 1 });
+
+describe('12.0: a bot with a temperament', () => {
+  it('reaction times differ per bot, mostly 0.1–0.25 s, never outside the clamp', () => {
+    const rng = mulberry32(3);
+    const r = Array.from({ length: 2000 }, () => drawPersona(rng).react);
+    const mean = r.reduce((a, b) => a + b, 0) / r.length;
+    expect(mean).toBeGreaterThan(0.15);
+    expect(mean).toBeLessThan(0.19);
+    expect(Math.min(...r)).toBeGreaterThanOrEqual(ARENA.persona.reactClamp[0]);
+    expect(Math.max(...r)).toBeLessThanOrEqual(ARENA.persona.reactClamp[1]);
+    expect(new Set(r.map((x) => x.toFixed(3))).size).toBeGreaterThan(100);
+  });
+
+  it('a face in view is decided after its own reaction time, not on the same frame', () => {
+    const { brain } = rig(v(0, 0, 0), { persona: { react: 0.2 } });
+    brain.nextThink = 100;
+    brain.urgent = false;
+    brain.onSight(unit(v(0, 0, -20), 'omega'), 5);
+    expect(brain.urgent).toBe(false);
+    expect(brain.nextThink).toBeGreaterThanOrEqual(5 + 0.2 * 0.8);
+    expect(brain.nextThink).toBeLessThanOrEqual(5 + 0.2 * 1.25);
+  });
+});
+
+describe('12.0: retreat and regroup', () => {
+  it('hurt badly by someone it cannot see: it breaks off towards a friend behind it', () => {
+    const h = unit(v(0, 0, -25), 'omega');
+    const friend = unit(v(0, 0, 20), 'alpha');
+    const { brain, me, ctx, stats } = rig(v(0, 0, 0), { hostiles: [h], friends: [friend] });
+    see(brain, h, false);
+    brain.decide(ctx);
+    me.hpFrac = 0.55;
+    brain.alert.set(h.uid, 0.4);
+    (ctx as { time: number }).time = 0.5;
+    brain.decide(ctx);
+    expect(brain.state).toBe('retreat');
+    expect(stats.retreatWhy.unseen).toBe(1);
+    expect(brain.goal!.z).toBeCloseTo(20);
+  });
+
+  it('outnumbered and hurt: it breaks off; with friends at its side it fights on', () => {
+    const hs = [unit(v(-4, 0, -18), 'omega'), unit(v(4, 0, -18), 'omega'), unit(v(0, 0, -22), 'omega')];
+    const a = rig(v(0, 0, 0), { hostiles: hs, friends: [unit(v(0, 0, 30), 'alpha')] });
+    a.me.hpFrac = 0.5;
+    for (const h of hs) see(a.brain, h, true);
+    a.brain.decide(a.ctx);
+    expect(a.brain.state).toBe('retreat');
+    expect(a.stats.retreatWhy.outnumbered).toBe(1);
+    const b = rig(v(0, 0, 0), { hostiles: hs, friends: [unit(v(3, 0, 2), 'alpha'), unit(v(-3, 0, 2), 'alpha')] });
+    b.me.hpFrac = 0.5;
+    for (const h of hs) see(b.brain, h, true);
+    b.brain.decide(b.ctx);
+    expect(b.brain.state).toBe('engage');
+  });
+
+  it('a nearly dead target in sight close by is finished, not run from', () => {
+    const h = Object.assign(unit(v(0, 0, -10), 'omega'), { hpFrac: 0.15 });
+    const { brain, me, ctx } = rig(v(0, 0, 0), { hostiles: [h, unit(v(5, 0, -12), 'omega')] });
+    me.hpFrac = 0.5;
+    for (const x of ctx.hostiles!) see(brain, x, true);
+    brain.decide(ctx);
+    expect(brain.state).not.toBe('retreat');
+  });
+});
+
+describe('12.0: flanking a contact a teammate is fighting', () => {
+  it('out of its sight but in a teammate\'s: it goes round to the flank point, a second bot to the other side', () => {
+    const h = unit(v(0, 0, -30), 'omega');
+    const spotter = unit(v(0, 0, -5), 'alpha');
+    const a = rig(v(-20, 0, 0), { hostiles: [h], friends: [spotter] });
+    const b = rig(v(20, 0, 0), { hostiles: [h], friends: [spotter] });
+    // Both bots share one director (one team).
+    (b.ctx as { arena: { director: ArenaDirector } }).arena.director = a.d;
+    a.d.sighting(h, 0, 'sight', spotter);
+    see(a.brain, h, false);
+    see(b.brain, h, false);
+    a.brain.decide(a.ctx);
+    b.brain.decide(b.ctx);
+    expect(a.brain.state).toBe('flank');
+    expect(b.brain.state).toBe('flank');
+    const ga = a.brain.goal!, gb = b.brain.goal!;
+    // Each on its own side of the contact, about dist m from it.
+    expect(Math.sign(ga.x)).toBe(-1);
+    expect(Math.sign(gb.x)).toBe(1);
+    expect(Math.hypot(ga.x - h.pos.x, ga.z - h.pos.z)).toBeLessThan(ARENA.flank.dist + 3);
+    expect(a.stats.flanks + b.stats.flanks).toBe(2);
+  });
+
+  it('a contact only heard (nobody has eyes on it) is hunted, not flanked', () => {
+    const h = unit(v(0, 0, -30), 'omega');
+    const a = rig(v(-20, 0, 0), { hostiles: [h] });
+    a.d.heard(h.pos, h, 0, [a.me]);
+    see(a.brain, h, false);
+    a.brain.decide(a.ctx);
+    expect(a.brain.state).toBe('hunt');
+  });
+});

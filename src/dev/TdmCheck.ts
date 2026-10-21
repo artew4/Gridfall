@@ -164,7 +164,10 @@ export async function tdmSoak(game: Game, opts: { seconds?: number; timeScale?: 
  * frame, and the frame probe (FPS, CPU, GPU). `withPlayer`: he stands at the centre lane's mouth and
  * shoots the nearest OMEGA bot every 0.6 s (more targets, suppression, hits); otherwise he spectates.
  */
-export async function tdmBench(game: Game, opts: { seconds?: number; settle?: number; withPlayer?: boolean; ai?: Ai } = {}) {
+export async function tdmBench(game: Game, opts: { seconds?: number; settle?: number; withPlayer?: boolean; ai?: Ai; spotting?: boolean } = {}) {
+  // 12.0 A/B: `spotting: false` runs the match without the human's spotting and the minimap.
+  const spot0 = TDM.spotting;
+  if (opts.spotting !== undefined) TDM.spotting = opts.spotting;
   startMatch(game, !opts.withPlayer, 999, opts.ai);
   const tdm = game.tdm;
   const met = meter(game);
@@ -189,12 +192,16 @@ export async function tdmBench(game: Game, opts: { seconds?: number; settle?: nu
   if (game.state === 'paused') dev().lock();
   met.reset();
   tdm.sched.resetStats();
+  tdm.mapMs = tdm.mapFrames = 0;
+  const sense0 = tdm.sensing ? { ...tdm.sensing.stats } : null;
   const alive0 = tdm.bots.filter((b) => b.alive).length;
   const engaged0 = tdm.directors ? [tdm.directors.alpha.stance, tdm.directors.omega.stance] : [tdm.squads.alpha.mode, tdm.squads.omega.mode];
   const r = (await probe(game, opts.seconds ?? 8)) as unknown as Record<string, number>;
   clearInterval(shooter);
   met.stop();
+  TDM.spotting = spot0;
   const s = tdm.sched.stats;
+  const sense1 = tdm.sensing?.stats;
   return {
     ai: tdm.ai,
     withPlayer: !!opts.withPlayer,
@@ -217,6 +224,10 @@ export async function tdmBench(game: Game, opts: { seconds?: number; settle?: nu
     modes: engaged0,
     drawCalls: r.drawCalls,
     sensing: tdm.sensing ? { ...tdm.sensing.stats } : null,
+    // 12.0: the spotting pass over the measured window (rays and cache hits per frame) and the minimap's draw.
+    spotting: TDM.spotting && opts.spotting !== false,
+    sensingWindow: sense0 && sense1 ? { checksPerFrame: +((sense1.checks - sense0.checks) / Math.max(1, sense1.frames - sense0.frames)).toFixed(2), raysPerFrame: +((sense1.rays - sense0.rays) / Math.max(1, sense1.frames - sense0.frames)).toFixed(2), cacheHitsPerFrame: +((sense1.cacheHits - sense0.cacheHits) / Math.max(1, sense1.frames - sense0.frames)).toFixed(2) } : null,
+    minimapMs: +(tdm.mapMs / Math.max(1, tdm.mapFrames)).toFixed(3),
     focused: document.hasFocus() && !document.hidden,
   };
 }
@@ -236,7 +247,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   const dt = opts.dt ?? 1 / 60;
@@ -250,6 +261,17 @@ export async function tdmSim(
   if (opts.ads === false) {
     ARENA.ads.enter = ARENA.ads.exit = ARENA.ads.maxRange = Infinity;
     ARENA.hipSpread = 0;
+  }
+  // 12.0 A/B: `v12: false` is the 11.0 bot (reacts on the frame, ±15% decide jitter, never flanks,
+  // retreats or slides). Bots draw their temperament when they spawn, so this is set before.
+  const P = ARENA.persona, keep12 = { react: P.react, clamp: P.reactClamp, jitter: P.jitter, per: ARENA.flank.per, retreat: ARENA.retreat.on, slide: ARENA.slide.on };
+  if (opts.v12 === false) {
+    P.react = [0, 0];
+    P.reactClamp = [0, 0];
+    P.jitter = 0.15;
+    ARENA.flank.per = 0;
+    ARENA.retreat.on = false;
+    ARENA.slide.on = false;
   }
   startMatch(game, true, opts.tickets ?? 25, ai);
   const tdm = game.tdm;
@@ -318,6 +340,10 @@ export async function tdmSim(
   ARENA.ads.exit = exit0;
   ARENA.ads.maxRange = max0;
   ARENA.hipSpread = hip0;
+  Object.assign(P, { react: keep12.react, reactClamp: keep12.clamp, jitter: keep12.jitter });
+  ARENA.flank.per = keep12.per;
+  ARENA.retreat.on = keep12.retreat;
+  ARENA.slide.on = keep12.slide;
   const simT = game.elapsed - t0;
   const k = tdm.kills;
   const st = tdm.arenaStats;
@@ -368,6 +394,10 @@ export async function tdmSim(
               aimingPctOfAlive: +((100 * st.aimT) / Math.max(1e-6, st.aliveT)).toFixed(1),
             },
             perBot: st.perBot,
+            // 12.0: flanks off the shared spotting, retreats, slides.
+            flank: { started: st.flanks, arrived: st.flankArrive, engagedFromFlank: st.flankEngage, kills: st.flankKills },
+            retreat: { n: st.retreats, why: st.retreatWhy, lived: st.retreatLived, diedRetreating: st.retreatDeaths },
+            slides: { n: st.slides, why: st.slideWhy, perMin: +((st.slides / simT) * 60).toFixed(1) },
           }
         : null,
     stuck,

@@ -329,3 +329,5 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin: 0 4px; t
 .tdm-board .col.a b { color: var(--alpha); } .tdm-board .col.o b { color: var(--omega); }
 .tdm-board span { color: #e8fbff; } .tdm-board span.you { color: var(--alpha); text-decoration: underline; }
 .bark.ally { color: var(--alpha); border-color: var(--alpha-dim); }
+/* 12.0: the Team Deathmatch minimap (top left; the kill feed has the right). */
+.minimap.tdm-map { left: 22px; right: auto; top: 22px; }

@@ -54,6 +54,11 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
   - `tdmSim` reports `arena.aim`: aimed vs hip rounds, the hit rate of each per range band (`hitPctByRange`; every round carries its own mode and range), and the share of time aiming.
   - `tdmSim({ ads: false })` is the 10.0 shooter for an A/B.
   - Each gunner exposes `isAiming` and `aimRaise`.
+- Mobility, spotting, Desert 2.0 (12.0):
+  - `__game.player.sliding` / `.slideV` / `.slideK` read the slide.
+  - `tdmSim` reports `arena.flank` (started, arrived, engaged from the flank, kills), `arena.retreat` (by why, lived, died retreating) and `arena.slides`. `tdmSim({ v12: false })` is the 11.0 bot for an A/B.
+  - `tdmBench({ withPlayer: true, spotting: false })` turns the player's spotting and the minimap off; the result has `minimapMs` and `sensingWindow`.
+  - `TDM.spotting` switches the spotting off in play.
 - Stairs (9.1): `__dev.world()` also reports a stair flush with a wall (`stair flush with wall`); `await __dev.stairGaps()` lists every stair-to-wall gap (3 cm) and presses a body into each one to check it keeps its floor (`drops: 0`).
 - Music (9.0): `__game.debug().music` (current track, file or procedural, live sources, files found); `await __dev.musicSoak({ cycles: 3 })` cycles every level and the title and checks that every music source is disposed (`unaccounted: 0`).
 - Arena bots (7.0), on the desert. Every TDM check takes `ai: 'arena'` (the default) or `ai: 'tactical'` (the 6.0 squads):

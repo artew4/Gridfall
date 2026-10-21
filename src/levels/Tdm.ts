@@ -9,6 +9,10 @@ import { ArenaDirector } from '../enemies/arena/ArenaDirector';
 import { Sensing } from '../enemies/arena/Sensing';
 import { ARENA, newArenaStats, type ArenaCtx, type ArenaStats } from '../enemies/arena/ArenaCtx';
 import type { DeathmatchBrain } from '../enemies/arena/DeathmatchAI';
+import type { Spot } from '../enemies/arena/ArenaDirector';
+import { PlayerSense } from '../enemies/arena/PlayerSense';
+import type { SenseAgent } from '../enemies/arena/Sensing';
+import { TdmMinimap, spotAlpha, type MapDot } from '../ui/TdmMinimap';
 import { ARENA_SEE, fogRange } from '../world/Visibility';
 import { RANGED_ONLY, filterRoster, type RosterRequest, type Slot as RosterSlot, type UnitKind } from '../enemies/Roster';
 import { otherTeam, TEAMS, type Combatant, type TeamId } from '../combat/Team';
@@ -29,6 +33,11 @@ import type { TdmLine } from '../ui/TdmHud';
   7.0: by default the bots run the arena AI instead (enemies/arena: a deathmatch brain per bot, an
   arena director per team, attention-driven sensing; the same bodies). `TDM.ai = 'tactical'` brings
   back the 6.0 path exactly, for comparisons. The match rules are the same either way.
+
+  12.0, shared team spotting: the human is a viewer in the same sensing pass as the bots, so a hostile
+  in anyone's line of sight on ALPHA (his or a bot's) is spotted for all of ALPHA — a red dot on his
+  minimap that fades 2.5 s after the last sighting, and a contact on the bots' board (which they push
+  and flank on). OMEGA's bots share theirs the same way.
 */
 
 export const TDM = {
@@ -54,6 +63,8 @@ export const TDM = {
    * enemy's head, or his shout behind a wall, gives his position away. Survival keeps them.
    */
   barks: false,
+  /** 12.0: shared team spotting for the human (his eyes in the sensing pass) and the minimap. Off: the 11.0 callout rays (perf A/B). */
+  spotting: true,
 };
 
 /** The 5.0 scheduler defaults (the tactical path restores them). */
@@ -127,6 +138,18 @@ export class TdmRules implements ModeRules {
   sensing: Sensing | null = null;
   arenaStats: ArenaStats = newArenaStats();
   private brains: DeathmatchBrain[] = [];
+  /** 12.0: the human's eyes in the sensing pass, and everyone who looks this frame. */
+  private playerSense: PlayerSense | null = null;
+  private viewers: SenseAgent[] = [];
+  /** 12.0: the minimap (built once per level) and its markers. */
+  private minimap: TdmMinimap | null = null;
+  private mapLevel: unknown = null;
+  private spots: Spot[] = [];
+  private allyDots: MapDot[] = [];
+  private hostileDots: MapDot[] = [];
+  /** DEV: time spent drawing the minimap (ms, summed) and the frames it was drawn. */
+  mapMs = 0;
+  mapFrames = 0;
 
   constructor(private game: Game) {}
 
@@ -164,7 +187,9 @@ export class TdmRules implements ModeRules {
       // Back to the 6.0 path (an A/B after an arena match): nothing of the arena may linger.
       this.directors = null;
       this.sensing = null;
+      this.playerSense = null;
     }
+    this.minimap?.show(this.ai === 'arena' && TDM.spotting);
     g.ctx.difficulty = TDM.difficulty;
     g.ctx.enemies = this.bots;
     this.ctxs = { alpha: this.makeCtx('alpha'), omega: this.makeCtx('omega') };
@@ -225,7 +250,14 @@ export class TdmRules implements ModeRules {
     );
     this.arenaStats = newArenaStats();
     this.brains = [];
+    this.playerSense = TDM.spotting ? new PlayerSense(g.playerUnit) : null;
     g.nav.ensureVaultLinks();
+    // The minimap's floor plan comes from the level's collision world: drawn once per level.
+    if (this.mapLevel !== g.level) {
+      this.minimap?.dispose();
+      this.minimap = new TdmMinimap(g.tdmHud.root, g.col.colliders, g.level.data.bounds);
+      this.mapLevel = g.level;
+    }
   }
 
   /** A team context: the game's (read live through the prototype: time, sight, cover…) plus the team's own. */
@@ -338,6 +370,7 @@ export class TdmRules implements ModeRules {
       this.sensing?.forget(v.uid);
       if (isArenaBot(by)) {
         if (by.brain.state === 'push' && by.brain.target === v) this.arenaStats.pushKills++;
+        if (by.brain.flankedOn === v.uid) this.arenaStats.flankKills++;
         by.bark('kill', this.ctxs[by.team]);
       }
     } else this.squads[otherTeam(v.team)].hostileDied(v, by && !by.isPlayer ? (by as TacticalEnemy) : null);
@@ -389,11 +422,28 @@ export class TdmRules implements ModeRules {
     if (!this.winner) {
       for (const s of this.slots) if (!s.bot && now >= s.respawnAt && this.tickets[s.team] > 0) this.spawn(s);
       if (g.state === 'dead' && now >= this.playerRespawnAt && this.tickets.alpha > 0) this.respawnPlayer();
-      if (!this.spectate) this.spot(dt);
+      // 7.0's callouts (rays from his camera); 12.0's arena has him in the sensing pass instead.
+      if (!this.spectate && (!this.directors || !TDM.spotting)) this.spot(dt);
     } else if (g.state !== 'ending' && now - this.endT > 1.2) this.finish();
     g.tdmHud.setTickets(this.tickets.alpha, this.tickets.omega);
     g.tdmHud.setRespawn(g.state === 'dead' && !this.winner ? this.playerRespawnAt - now : null, this.killerName);
     g.tdmHud.update(dt, g.camera, this.friends.alpha);
+    if (this.directors && this.minimap && TDM.spotting) {
+      const t0 = performance.now();
+      this.drawMap(now);
+      this.mapMs += performance.now() - t0;
+      this.mapFrames++;
+    }
+  }
+
+  /** 12.0: the minimap: ALPHA's bots, and every hostile ALPHA has spotted (fading once lost). */
+  private drawMap(now: number) {
+    const g = this.game;
+    const allies = this.allyDots, hostiles = this.hostileDots;
+    allies.length = hostiles.length = 0;
+    for (const b of this.bots) if (b.alive && b.team === 'alpha') allies.push({ x: b.pos.x, y: b.pos.y, z: b.pos.z, a: 1 });
+    for (const s of this.directors!.alpha.spotted(now, this.spots)) hostiles.push({ x: s.pos.x, y: s.pos.y, z: s.pos.z, a: spotAlpha(s.age, ARENA.spot.fade) });
+    this.minimap!.draw(g.player.pos, g.player.yaw, allies, hostiles);
   }
 
   /**
@@ -406,17 +456,24 @@ export class TdmRules implements ModeRules {
     const brains = this.brains;
     brains.length = 0;
     for (const b of this.bots) if (b.alive && isArenaBot(b)) brains.push(b.brain);
+    // 12.0: the human looks too (his team's spotting), in the same pass and budget.
+    const viewers = this.viewers;
+    viewers.length = 0;
+    for (const br of brains) viewers.push(br);
+    const ps = this.playerSense;
+    if (ps && !this.spectate && this.game.player.alive) viewers.push(ps);
+    else ps?.reset();
     this.sensing!.update(
       now,
-      brains,
+      viewers,
       (a) => this.hostiles[a.self.team],
       (a, h) => dirs[a.self.team].isHot(h.uid, now),
       // The arena sees only what a player could pick out of the scene's fog (world/Visibility.ts).
       this.game.fog.density > 0 ? fogRange(this.game.fog.density, ARENA_SEE) : undefined,
     );
-    // What anyone sees goes on the team's board.
-    for (const br of brains) {
-      for (const h of this.hostiles[br.self.team]) if (h.alive && br.seen.get(h.uid)?.vis) dirs[br.self.team].sighting(h, now);
+    // What anyone sees goes on the team's board (who saw it, from where: the flankers read that).
+    for (const v of viewers) {
+      for (const h of this.hostiles[v.self.team]) if (h.alive && v.seen.get(h.uid)?.vis) dirs[v.self.team].sighting(h, now, 'sight', v.self);
     }
     for (const t of TEAMS) {
       const enemyAlive = this.hostiles[t].filter((h) => h.alive).length;
@@ -515,6 +572,7 @@ export class TdmRules implements ModeRules {
   toTitle() {
     const g = this.game;
     this.reset();
+    this.minimap?.show(false);
     this.squads.alpha.human = null;
     g.tdmHud.show(false);
     g.hud.root.classList.remove('tdm');

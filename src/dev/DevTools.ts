@@ -126,11 +126,11 @@ export function installDevTools(game: Game) {
       return (await import('./TdmCheck')).tdmSoak(game, opts);
     },
     /** TDM frame cost with nine bots fighting (spectating or with the player shooting). */
-    async tdmBench(opts: { seconds?: number; settle?: number; withPlayer?: boolean; ai?: 'arena' | 'tactical' } = {}) {
+    async tdmBench(opts: { seconds?: number; settle?: number; withPlayer?: boolean; ai?: 'arena' | 'tactical'; spotting?: boolean } = {}) {
       return (await import('./TdmCheck')).tdmBench(game, opts);
     },
     /** 7.0: a whole TDM match stepped headless at a fixed 1/60 s (bot vs bot): length, movement, aggression, AI cost. */
-    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number } = {}) {
+    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean } = {}) {
       return (await import('./TdmCheck')).tdmSim(game, opts);
     },
     /** 7.0: tdmSim for the arena AI and the 6.0 tactical AI, n runs each, side by side. */

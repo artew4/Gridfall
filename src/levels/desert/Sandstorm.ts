@@ -8,9 +8,22 @@ const CLEAR_DENSITY = 0.0045;
 const STORM_DENSITY = 0.062;
 /** Distance at which FogExp2 hides 90% of a surface: sqrt(ln 10) / density. */
 const HIDE_90 = Math.sqrt(Math.log(10));
-const MAX_ROOMS = 8;
+/** Interiors the dust shader keeps out of (12.0: eight with the culvert). */
+const MAX_ROOMS = 10;
 
 type Phase = 'calm' | 'rising' | 'peak' | 'easing';
+
+/**
+ * Phase durations (s, drawn per cycle). 12.0: the storm is the map's normal state, clear air the
+ * exception: a long peak (70–100 s), quick fronts either side, and only a brief calm (8–14 s) — about
+ * nine tenths of every cycle is dust. (4.0–11.0: calm 40–65 s, peak 35–55 s, fronts 16–24 s.)
+ */
+export const STORM_TIMING: Record<Phase, [number, number]> = {
+  calm: [8, 14],
+  rising: [10, 14],
+  peak: [70, 100],
+  easing: [8, 12],
+};
 
 /**
  * The storm cycle: calm, a rising wall of dust, the peak, easing off; durations vary every cycle.
@@ -19,7 +32,7 @@ type Phase = 'calm' | 'rising' | 'peak' | 'easing';
 export class StormClock {
   phase: Phase = 'calm';
   private t = 0;
-  private dur = 25;
+  private dur = STORM_TIMING.calm[1];
   intensity = 0.05;
   /** Wind (m/s) on the ground plane. Prevailing from the west, veering slowly. */
   wind = new THREE.Vector3(5, 0, 0);
@@ -32,8 +45,8 @@ export class StormClock {
       this.t = 0;
       const next: Record<Phase, Phase> = { calm: 'rising', rising: 'peak', peak: 'easing', easing: 'calm' };
       this.phase = next[this.phase];
-      this.dur = this.phase === 'calm' ? rand(40, 65) : this.phase === 'peak' ? rand(35, 55) : rand(16, 24);
-      if (this.phase === 'rising') this.peakLevel = rand(0.85, 1);
+      this.dur = rand(...STORM_TIMING[this.phase]);
+      if (this.phase === 'rising') this.peakLevel = rand(0.88, 1);
     }
     const k = this.t / this.dur;
     const calm = 0.06;
@@ -49,7 +62,8 @@ export class StormClock {
   set(phase: Phase, intensity?: number) {
     this.phase = phase;
     this.t = 0;
-    this.dur = phase === 'peak' ? 45 : phase === 'calm' ? 50 : 20;
+    const [lo, hi] = STORM_TIMING[phase];
+    this.dur = (lo + hi) / 2;
     if (intensity !== undefined) this.intensity = intensity;
   }
 }

@@ -16,6 +16,25 @@ export const DESERT_EXTENT = CLIFF + CLIFF_RECESS + 0.5;
 export const BARRIER_X = 30.55;
 export const BARRIER_Z = 27.55;
 
+/**
+ * 12.0, the culvert: a concrete drain under the yard from the west gate to the east gate, roofed over
+ * the middle (|x| < `roof`) and open where its stairs go down at either end (from the rim at
+ * |x| = `top` to the floor at |x| = `roof`). The terrain is carved to its floor (the heightfield is
+ * the only ground under the yard, so the floor has to be the terrain's); the visible terrain has a
+ * hole cut there (buildTerrainMesh) that the culvert's own roof and paving cover. Point-symmetric.
+ */
+export const CULVERT = { x: 27.6, z: 2.1, top: 27, roof: 21, floor: -3 };
+
+/** The culvert's floor under (x, z) (its stairs ramp up to the rim), or null outside it. */
+export function culvertFloor(x: number, z: number): number | null {
+  const C = CULVERT;
+  const ax = Math.abs(x);
+  if (ax >= C.x || Math.abs(z) >= C.z) return null;
+  if (ax >= C.top) return 0;
+  if (ax <= C.roof) return C.floor;
+  return (C.floor * (C.top - ax)) / (C.top - C.roof);
+}
+
 /** Smooth, deterministic 2D value noise in 0..1. */
 function hash(ix: number, iz: number) {
   let h = Math.imul(ix, 374761393) + Math.imul(iz, 668265263);
@@ -52,7 +71,7 @@ function drift(x: number, z: number) {
  * treat them as continuous ground. The compound inside the barrier is exactly flat.
  */
 export function desertHeight(x: number, z: number): number {
-  if (Math.abs(x) < BARRIER_X && Math.abs(z) < BARRIER_Z) return 0;
+  if (Math.abs(x) < BARRIER_X && Math.abs(z) < BARRIER_Z) return culvertFloor(x, z) ?? 0;
   // 6.0: the arena is point-symmetric (Team Deathmatch: neither base gets better ground): the dunes
   // are the mean of the field and its 180° rotation. A mean of two fields is never steeper than the
   // steeper of them, so every slope bound below still holds.
@@ -121,6 +140,19 @@ export function buildTerrainMesh(map: THREE.Texture, detail: THREE.Texture, size
     colors[i * 3 + 2] = k * (0.93 + h * 0.008);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  // 12.0: a hole where the culvert is cut (every triangle with a corner inside it). Its edge runs at
+  // most one cell (1.3 m) outside the cut; the culvert's roof and paving reach 1.45 m out over it.
+  const idx = geo.index!;
+  const keep: number[] = [];
+  for (let t = 0; t < idx.count; t += 3) {
+    let cut = false;
+    for (let k = 0; k < 3; k++) {
+      const v = idx.getX(t + k);
+      if (culvertFloor(pos.getX(v), pos.getZ(v)) !== null) cut = true;
+    }
+    if (!cut) keep.push(idx.getX(t), idx.getX(t + 1), idx.getX(t + 2));
+  }
+  geo.setIndex(keep);
   geo.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({ map, vertexColors: true, roughness: 0.95, metalness: 0, envMapIntensity: 0.25 });
   // The detail map spans the whole terrain once (world-mapped): multiplied into the sand colour.

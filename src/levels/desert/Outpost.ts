@@ -7,7 +7,7 @@ import type { Breakable, CabinetSpot } from '../../gameplay/Interactives';
 import { mulberry32 } from '../../core/math';
 import type { Zone } from '../Level';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
-import { CLIFF, CLIFF_RECESS, DESERT_EXTENT, desertHeight } from './Terrain';
+import { CLIFF, CLIFF_RECESS, CULVERT, DESERT_EXTENT, culvertFloor, desertHeight } from './Terrain';
 import * as T from './textures';
 import { buildArena, type ArenaResult } from './Arena';
 import { arenaKeepOut } from './ArenaLayout';
@@ -24,6 +24,10 @@ import { arenaKeepOut } from './ArenaLayout';
                 porch on its north side      CLINIC (6..14, 10..17)   WATCHTOWER (22..27, 10..15)
                                          water tower (2, 22)          + stair on its east side
             z=27   ════════ HESCO ═══ S gate (x -10..-4) ═════════════
+
+  12.0 (Desert 2.0): the barracks, motor pool and clinic roofs are walkable (stairs, crates), joined by
+  a skybridge (north) and two bridges (south); the culvert runs under the yard from the west gate to
+  the east gate (Terrain.ts CULVERT); every side of the HESCO has a breach and a vaultable slump.
 */
 
 /** Interior volumes: storm particles stay out, wind is muffled, zones name them. */
@@ -75,6 +79,12 @@ const WIN_Y0 = 1.15;
 const WIN_Y1 = 2.0;
 
 type Side = 'n' | 's' | 'w' | 'e';
+/** A gap in a parapet: on `side`, from `a` to `b` along it. */
+interface Gap {
+  side: Side;
+  a: number;
+  b: number;
+}
 interface Opening {
   side: Side;
   /** Centre along the wall (x for n/s walls, z for w/e walls). */
@@ -150,7 +160,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
    */
   const building = (o: {
     name: string; jp: string; x0: number; z0: number; x1: number; z1: number; h: number; mat: THREE.Material;
-    openings: Opening[]; parapet?: number; parapetGap?: { side: Side; a: number; b: number }; roofWalk?: boolean; roofMat?: THREE.Material;
+    openings: Opening[]; parapet?: number; parapetGaps?: Gap[]; roofWalk?: boolean; roofMat?: THREE.Material;
   }) => {
     const t = WALL_T;
     const on = (s: Side) => o.openings.filter((p) => p.side === s);
@@ -162,16 +172,22 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     const rt = o.h + 0.25;
     solid(o.x0, o.h, o.z0, o.x1, rt, o.z1, o.roofMat ?? m.roof);
     const ph = o.parapet ?? 0.5;
-    if (ph > 0) parapet(o.x0, o.z0, o.x1, o.z1, rt, ph, o.mat, o.parapetGap);
+    if (ph > 0) parapet(o.x0, o.z0, o.x1, o.z1, rt, ph, o.mat, o.parapetGaps);
     interiors.push({ name: o.name, jp: o.jp, x0: o.x0 + t, z0: o.z0 + t, x1: o.x1 - t, z1: o.z1 - t, h: o.h });
     if (o.roofWalk) roofs.push({ name: o.name + ' ROOF', jp: o.jp + ' 屋上', x0: o.x0, z0: o.z0, x1: o.x1, z1: o.z1, h: rt });
   };
 
-  /** Parapet ring on a roof, with an optional gap for a stair. */
-  const parapet = (x0: number, z0: number, x1: number, z1: number, y: number, h: number, mat: THREE.Material, gap?: { side: Side; a: number; b: number }) => {
+  /** Parapet ring on a roof, with gaps where stairs and (12.0) bridges arrive. */
+  const parapet = (x0: number, z0: number, x1: number, z1: number, y: number, h: number, mat: THREE.Material, gaps: Gap[] = []) => {
     const pt = 0.25;
     const run = (alongX: boolean, a0: number, a1: number, c0: number, c1: number, side: Side) => {
-      const segs: [number, number][] = gap && gap.side === side ? [[a0, gap.a], [gap.b, a1]] : [[a0, a1]];
+      const segs: [number, number][] = [];
+      let cur = a0;
+      for (const g of gaps.filter((q) => q.side === side).sort((p, q) => p.a - q.a)) {
+        segs.push([cur, g.a]);
+        cur = g.b;
+      }
+      segs.push([cur, a1]);
       for (const [p0, p1] of segs) {
         if (p1 - p0 < 0.01) continue;
         if (alongX) solid(p0, y, c0, p1, y + h, c1, mat);
@@ -188,7 +204,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
    * Stair = visual steps over a smooth ramp (3.3 rules): stepped fill underneath for bullets and so
    * nobody walks under it, a railing collider on the open side.
    */
-  const stair = (sx0: number, sz0: number, sx1: number, sz1: number, axis: 'x' | 'z', rise: 1 | -1, top: number, openSide: Side | null) => {
+  const stair = (sx0: number, sz0: number, sx1: number, sz1: number, axis: 'x' | 'z', rise: 1 | -1, top: number, openSide: Side | null, open = false) => {
     // 9.1: fitted like every other stair (StairFit): never into a wall, never flush with one.
     const fit = fitStairWidth(col.colliders, { x0: sx0, z0: sz0, x1: sx1, z1: sz1 }, axis, 0, top);
     if (fit.blocked.length) console.warn('[stair] runs into a wall', [sx0, sz0, sx1, sz1]);
@@ -223,10 +239,27 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
       const t = 0.08;
       const RH = 1.05;
       const f = openSide === 'e' ? x1 - t : openSide === 'w' ? x0 : openSide === 's' ? z1 - t : z0;
+      // 12.0, `open`: the same plate as a collider only (rounds and sight pass the bars), drawn as
+      // posts and a sloping handrail.
+      const plate = open ? (a0: number, y0: number, b0: number, a1: number, y1: number, b1: number) => (col.add(a0, y0, b0, a1, y1, b1, 'metal').ray = false) : (a0: number, y0: number, b0: number, a1: number, y1: number, b1: number) => solid(a0, y0, b0, a1, y1, b1, m.darkMetal, 'metal');
       if (along) {
-        solid(x0 + 0.8 * (rise > 0 ? 1 : 0), 0, f, x1 - 0.8 * (rise > 0 ? 0 : 1), top + RH, f + t, m.darkMetal, 'metal');
+        plate(x0 + 0.8 * (rise > 0 ? 1 : 0), 0, f, x1 - 0.8 * (rise > 0 ? 0 : 1), top + RH, f + t);
       } else {
-        solid(f, 0, z0 + (rise > 0 ? 0.8 : 0), f + t, top + RH, z1 - (rise > 0 ? 0 : 0.8), m.darkMetal, 'metal');
+        plate(f, 0, z0 + (rise > 0 ? 0.8 : 0), f + t, top + RH, z1 - (rise > 0 ? 0 : 0.8));
+      }
+      if (open) {
+        const n = Math.max(2, Math.ceil(L / 1.2));
+        const ang = Math.atan2(top, L) * (rise > 0 ? 1 : -1);
+        const c = f + t / 2;
+        for (let i = 0; i <= n; i++) {
+          const a = (L * i) / n;
+          const y = (top * (rise > 0 ? a : L - a)) / L;
+          if (along) b.add(worldBox(0.06, RH, 0.06, 1), m.darkMetal, x0 + a, y + RH / 2, c);
+          else b.add(worldBox(0.06, RH, 0.06, 1), m.darkMetal, c, y + RH / 2, z0 + a);
+        }
+        const len = Math.hypot(L, top);
+        if (along) b.add(worldBox(len, 0.06, 0.06, 1), m.darkMetal, (x0 + x1) / 2, top / 2 + RH, c, 0, 0, ang);
+        else b.add(worldBox(0.06, 0.06, len, 1), m.darkMetal, c, top / 2 + RH, (z0 + z1) / 2, -ang, 0, 0);
       }
     }
   };
@@ -267,9 +300,12 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     openings: [
       { side: 's', at: -22.8, w: 1.4 }, { side: 's', at: -13.3, w: 1.4 }, { side: 'e', at: -14.5, w: 1.4 },
       { side: 'n', at: -23.4, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'n', at: -20.2, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 },
-      { side: 'n', at: -15.8, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'n', at: -12.6, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 },
+      { side: 'n', at: -15.8, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 },
       { side: 's', at: -19.6, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'w', at: -14.5, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 },
     ],
+    // 12.0: a walkable roof: the stair up its north side lands in the north gap (where the fourth
+    // window was), the skybridge to the motor pool in the east gap.
+    roofWalk: true, parapetGaps: [{ side: 'n', a: -14, b: -12.6 }, { side: 'e', a: -16, b: -14.4 }],
   });
   wall(false, -17.7, -11.3, -18.15, -17.85, 3.3, m.plaster, [{ side: 'w', at: -14.5, w: 1.4 }], m.wood);
   // Bunks along the north wall (low boxes you can see over) and lockers.
@@ -282,9 +318,11 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     openings: [
       { side: 's', at: 16.5, w: 7, y1: 4.2 }, { side: 'e', at: -13.3, w: 1.4 },
       { side: 'w', at: -16, w: 2.4, y0: 2.8, y1: 3.8 }, { side: 'w', at: -12, w: 2.4, y0: 2.8, y1: 3.8 },
-      { side: 'n', at: 14, w: 2.4, y0: 2.8, y1: 3.8 }, { side: 'n', at: 21, w: 2.4, y0: 2.8, y1: 3.8 },
+      { side: 'n', at: 14, w: 2.4, y0: 2.8, y1: 3.8 }, { side: 'n', at: 24, w: 2.4, y0: 2.8, y1: 3.8 },
     ],
-    parapet: 0.3,
+    // 12.0: the high roof (5.25 m), with a parapet to fight behind (was 0.3 m): its stair runs up the
+    // north wall to the north gap (the second window moved east of it), the skybridge lands in the west gap.
+    parapet: 1.0, roofWalk: true, parapetGaps: [{ side: 'n', a: 20.6, b: 22 }, { side: 'w', a: -16, b: -14.4 }],
   });
   solid(10.3, 0, -8, 25.7, 0.05, -2, m.concrete); // apron
   // Truck: cab and covered bed (cover inside the hangar).
@@ -312,7 +350,9 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     // Parapet around the L, open where the stair lands (east edge of the south wing, z 15.4..17.0).
     const ph = 1.0, pt = 0.25;
     solid(-24, rt, 8, -10, rt + ph, 8 + pt, mat);
-    solid(-10 - pt, rt, 8 + pt, -10, rt + ph, 15, mat);
+    // (12.0: open at z 11..12.6, where the bridge to the clinic roof leaves.)
+    solid(-10 - pt, rt, 8 + pt, -10, rt + ph, 11, mat);
+    solid(-10 - pt, rt, 12.6, -10, rt + ph, 15, mat);
     solid(-17, rt, 15 - pt, -10 - pt, rt + ph, 15, mat);
     solid(-17 - pt, rt, 17.0, -17, rt + ph, 24, mat);
     solid(-24, rt, 24 - pt, -17 - pt, rt + ph, 24, mat);
@@ -339,8 +379,11 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     name: 'CLINIC', jp: '診療所', x0: 6, z0: 10, x1: 14, z1: 17, h: 3.1, mat: m.whitewash,
     openings: [
       { side: 'w', at: 13.5, w: 1.4 }, { side: 'n', at: 9.7, w: 1.4 },
-      { side: 'e', at: 12.2, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'e', at: 15.0, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 's', at: 10, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 },
+      { side: 'e', at: 12.2, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'e', at: 15.0, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 's', at: 12.8, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 },
     ],
+    // 12.0: a walkable roof, the middle of ALPHA's rooftop route: bridges from the trading post (west)
+    // and to the watchtower (east), and a climb of crates up its south wall (the window moved off it).
+    roofWalk: true, parapetGaps: [{ side: 'w', a: 11, b: 12.6 }, { side: 'e', a: 11.5, b: 13 }, { side: 's', a: 6.8, b: 8.0 }],
   });
   {
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.2), new THREE.MeshStandardMaterial({ map: T.clinicSignTexture(), roughness: 0.8 }));
@@ -354,7 +397,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   building({
     name: 'WATCHTOWER', jp: '監視塔', x0: 22, z0: 10, x1: 27, z1: 15, h: 3.0, mat: m.concrete,
     openings: [{ side: 'w', at: 12.5, w: 1.4 }, { side: 'n', at: 24.5, w: 1.0, y0: WIN_Y0, y1: WIN_Y1 }, { side: 's', at: 24.5, w: 1.0, y0: WIN_Y0, y1: WIN_Y1 }],
-    parapet: 1.1, parapetGap: { side: 'e', a: 10.2, b: 11.6 }, roofWalk: true,
+    // 12.0: a second gap on the west, where the bridge from the clinic roof lands.
+    parapet: 1.1, parapetGaps: [{ side: 'e', a: 10.2, b: 11.6 }, { side: 'w', a: 11.5, b: 13 }], roofWalk: true,
   });
   solid(27, 0, 10, 28.4, 3.25, 11.6, m.concrete); // landing
   stair(27, 11.6, 28.4, 16.6, 'z', -1, 3.25, 'e');
@@ -409,8 +453,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   crateStack(-9.0, 3.0, 1);
   crateStack(16.0, 2.5, 2);
   crateStack(-14.5, -6.5, 1);
-  crateStack(24.0, -1.0, 1);
-  crateStack(-24.0, -3.0, 2);
+  crateStack(23.0, -5.5, 1); // 12.0: off the culvert's east stair
+  crateStack(-24.0, -4.6, 2); // 12.0: clear of the culvert parapet
   cylinder(8.8, -2.0, 0.32, 0.95, m.rust);
   const jersey = (x0: number, z0: number, x1: number, z1: number) => {
     const c = solid(x0, 0, z0, x1, 0.9, z1, m.concrete);
@@ -418,8 +462,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   };
   jersey(3.2, -24.0, 8.8, -23.4);
   jersey(-10.4, 23.4, -4.6, 24.0);
-  jersey(-26.6, -6.4, -26.0, -0.6);
-  jersey(26.0, -4.4, 26.6, 1.6);
+  // (12.0: the barriers inside the west and east gates gave way to the culvert's stairs and parapets.)
   // Tents: canvas walls with a ridge roof (all within the walls' footprint).
   const tent = (x0: number, z0: number, x1: number, z1: number) => {
     solid(x0, 0, z0, x1, 2.0, z1, m.tent, 'wood');
@@ -548,6 +591,110 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   bulb(10, 2.65, 13.5);
   bulb(24.5, 2.7, 12.5);
 
+  // ======================================================================= 12.0: Desert 2.0
+  // The compound in three levels instead of one open yard, and open on every side:
+  //  - OMEGA's side (north): stairs to the barracks roof and to the motor pool's high roof (5.25 m),
+  //    and a skybridge between them over the north yard.
+  //  - ALPHA's side (south): the trading post roof (its own stair) — a bridge to the clinic roof
+  //    (crates climb its south wall) — a bridge on to the watchtower (its own stair).
+  //  - Under the yard: the culvert (Terrain.ts CULVERT), from inside the west gate to inside the east
+  //    gate, roofed over the middle: the way across that nobody sees from the roofs.
+  //  - The HESCO (below): a breach and a collapsed, vaultable stretch in every side, point-symmetric.
+  // Free-standing: railed with posts and a handrail (`open`), not the plate a stair against a wall
+  // gets (on an open stair it reads as a blank wall). The rail's collider is still the full plate:
+  // a jump onto the low steps from the side would otherwise be pushed out of the step fill, through
+  // the motor pool's wall behind them.
+  stair(-14, -24.2, -12.6, -18, 'z', 1, 3.55, 'w', true);
+  stair(11, -21.45, 20.6, -20.03, 'x', 1, 5.25, 'n', true);
+  // The motor pool stair's landing (solid to the ground) beside the roof's north gap, railed.
+  solid(20.6, 0, -21.45, 22, 5.25, -20.03, m.concrete);
+  solid(20.6, 5.25, -21.45, 22, 6.3, -21.37, m.darkMetal, 'metal');
+  solid(21.92, 5.25, -21.37, 22, 6.3, -20.03, m.darkMetal, 'metal');
+
+  /**
+   * A footbridge along x between two roofs: deck from height h0 at x0 to h1 at x1 (a ramp to walk,
+   * thin ray-only slabs under it so rounds and sight stop at the planks), railings both sides (they
+   * keep bodies on the deck; rounds and sight pass between the bars), piers at the given x.
+   */
+  const bridge = (x0: number, x1: number, z0: number, z1: number, h0: number, h1: number, piers: number[]) => {
+    const L = x1 - x0, dh = h1 - h0, T = 0.14;
+    const ang = Math.atan2(dh, L), len = Math.hypot(L, dh);
+    b.add(worldBox(len, T, z1 - z0, 1), m.wood, (x0 + x1) / 2, (h0 + h1) / 2 - T / 2, (z0 + z1) / 2, 0, 0, ang);
+    col.addRamp(x0, z0, x1, z1, 'x', h0, h1);
+    const n = Math.max(1, Math.ceil(L / 2));
+    for (let i = 0; i < n; i++) {
+      const xa = x0 + (L * i) / n, xb = x0 + (L * (i + 1)) / n;
+      const ya = h0 + (dh * i) / n, yb = h0 + (dh * (i + 1)) / n;
+      col.add(xa, Math.min(ya, yb) - T, z0, xb, Math.max(ya, yb) - 0.02, z1, 'wood', false).ray = true;
+      for (const zr of [z0, z1 - 0.06]) col.add(xa, Math.min(ya, yb), zr, xb, Math.max(ya, yb) + 1.0, zr + 0.06, 'metal').ray = false;
+    }
+    for (const zr of [z0 + 0.03, z1 - 0.03]) {
+      b.add(worldBox(len, 0.06, 0.06, 1), m.darkMetal, (x0 + x1) / 2, (h0 + h1) / 2 + 1.0, zr, 0, 0, ang);
+      for (let i = 0; i <= n; i++) b.add(worldBox(0.06, 1.0, 0.06, 1), m.darkMetal, x0 + (L * i) / n, h0 + (dh * i) / n + 0.5, zr);
+    }
+    for (const px of piers) {
+      const y = h0 + (dh * (px - x0)) / L;
+      solid(px - 0.2, 0, (z0 + z1) / 2 - 0.2, px + 0.2, y - T, (z0 + z1) / 2 + 0.2, m.concrete);
+    }
+  };
+  bridge(-10, 10, -16, -14.4, 3.55, 5.25, [-2, 8.5]); // the skybridge: barracks roof → motor pool roof
+  bridge(-10, 6, 11, 12.6, 3.55, 3.35, [-2]); // trading post roof → clinic roof
+  bridge(14, 22, 11.5, 13, 3.35, 3.25, []); // clinic roof → watchtower
+  roofs.push({ name: 'SKYBRIDGE', jp: '空中通路', x0: -10, z0: -16, x1: 10, z1: -14.4, h: 3.55 });
+  roofs.push({ name: 'ROOF BRIDGE', jp: '屋上の橋', x0: -10, z0: 11, x1: 6, z1: 12.6, h: 3.35 });
+  roofs.push({ name: 'ROOF BRIDGE', jp: '屋上の橋', x0: 14, z0: 11.5, x1: 22, z1: 13, h: 3.25 });
+
+  // Crates up the clinic's south wall, a jump each (0.6 m), to the roof's south gap: the player's way
+  // up (the bots take the bridges).
+  for (let k = 0; k < 5; k++) {
+    const x0 = 11.6 - k * 1.2;
+    for (let i = 0; i <= k; i++) crate(x0, i * 0.6, 17.0, x0 + 1.2, (i + 1) * 0.6, 18.2, i % 2 ? crateMats.ammo : crateMats.gear);
+  }
+
+  // The culvert: walls the whole length (parapets above ground over its open ends), the roof slab over
+  // the middle, stairs down at each end, paving round the open ends. Roof and paving reach 1.45 m past
+  // the cut on every side (the terrain mesh's hole is at most a cell, 1.3 m, beyond it).
+  {
+    const C = CULVERT, F = C.floor, W = 0.5, inner = C.z - W, PAVE = 1.45;
+    for (const sz of [-1, 1]) {
+      const z0 = sz < 0 ? -C.z : inner, z1 = sz < 0 ? -inner : C.z;
+      solid(-C.x, F, z0, C.x, 0, z1, m.concrete);
+      for (const sx of [-1, 1]) {
+        const xa = sx < 0 ? -C.x : C.roof, xb = sx < 0 ? -C.roof : C.x;
+        solid(xa, 0, z0, xb, 1.0, z1, m.concrete);
+        // Paving along the open trench and round its rim.
+        const pz0 = sz < 0 ? -C.z - PAVE : C.z, pz1 = sz < 0 ? -C.z : C.z + PAVE;
+        solid(xa, -0.3, pz0, xb, 0.04, pz1, m.concrete);
+      }
+    }
+    // Paving past each end, and the landing at the top of each stair (between the walls).
+    for (const sx of [-1, 1]) {
+      solid(sx < 0 ? -C.x - PAVE : C.x, -0.3, -C.z - PAVE, sx < 0 ? -C.x : C.x + PAVE, 0.04, C.z + PAVE, m.concrete);
+      solid(sx < 0 ? -C.x : C.top, -0.3, -inner, sx < 0 ? -C.top : C.x, 0.04, inner, m.concrete);
+    }
+    // The roof: flush with the yard (it is the yard's paving there).
+    solid(-C.roof, -0.3, -C.z - PAVE, C.roof, 0.04, C.z + PAVE, m.concrete);
+    // The floor you see (the terrain is the floor you stand on, but its mesh has a hole here), flush
+    // with it, under the stairs too.
+    solid(-C.x, F - 0.3, -inner, C.x, F, inner, m.concrete);
+    // Stairs: treads you see over the terrain's own ramp (the walking surface), inset from the walls.
+    const steps = Math.round(-F / 0.25), run = (C.top - C.roof) / steps;
+    for (const sx of [-1, 1]) {
+      for (let i = 0; i < steps; i++) {
+        const top = F + ((i + 1) * -F) / steps;
+        const a = C.roof + i * run;
+        const cx = sx * (a + run / 2);
+        b.add(worldBox(run, top - F, 2 * (inner - STAIR_GAP), 1), m.concrete, cx, (top + F) / 2, 0);
+      }
+    }
+    // Cover down there: a crate stack against each wall, staggered (point-symmetric).
+    // (0.8 m: on top of one a body still fits under the roof; at 1.0 m its head went into the slab.)
+    crate(-8, F, -inner, -6.8, F + 0.8, -inner + 1.1, crateMats.case);
+    crate(6.8, F, inner - 1.1, 8, F + 0.8, inner, crateMats.case);
+    interiors.push({ name: 'CULVERT', jp: '暗渠', x0: -C.x, z0: -inner, x1: C.x, z1: inner, h: -0.3 });
+    for (const x of [-14, 0, 14]) bulb(x, -0.75, 0);
+  }
+
   // ======================================================================= Perimeter (HESCO, four gates)
   const hesco = (x0: number, z0: number, x1: number, z1: number) => solid(x0, 0, z0, x1, 1.5, z1, m.hesco, 'sand', 1.2);
   const H = 0.55;
@@ -567,10 +714,23 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     }
     hesco(x - H, cur, x + H, 27 - H);
   };
-  lineX(-27, [[3, 9]]);
-  lineX(27, [[-10, -4]]);
-  lineZ(-30, [[-6, 0]]);
-  lineZ(30, [[-4, 2]]);
+  // 12.0: each side also has a breach (open) and a collapsed stretch (knee-high, vaultable), placed
+  // point-symmetrically so both teams get the same ways in.
+  lineX(-27, [[-18, -14.5], [3, 9], [18, 24]]);
+  lineX(27, [[-24, -18], [-10, -4], [14.5, 18]]);
+  lineZ(-30, [[-24, -18], [-6, 0], [14, 17.5]]);
+  lineZ(30, [[-17.5, -14], [-4, 2], [18, 24]]);
+  // A slump stands free of the full-height HESCO either side (1.1 m open): one that abutted it
+  // pushed a body vaulting along the tall wall's end, as it dropped below the vault, into that wall.
+  const slump = (x0: number, z0: number, x1: number, z1: number) => {
+    const alongX = x1 - x0 > z1 - z0, g = 1.1;
+    const c = alongX ? solid(x0 + g, 0, z0, x1 - g, 0.95, z1, m.hesco, 'sand', 1.2) : solid(x0, 0, z0 + g, x1, 0.95, z1 - g, m.hesco, 'sand', 1.2);
+    c.vault = true;
+  };
+  slump(18, -27 - H, 24, -27 + H);
+  slump(-24, 27 - H, -18, 27 + H);
+  slump(-30 - H, -24, -30 + H, -18);
+  slump(30 - H, 18, 30 + H, 24);
 
   // ======================================================================= Dune field
   // Boulders, a burnt-out truck, low ruins: cover out in the storm.
@@ -694,7 +854,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // ======================================================================= Gameplay data
   const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
   const medkits = [v(-12.0, SLAB, -13.6), v(9.0, SLAB, 15.6)];
-  const perches = [v(24.5, 3.25, 12.5), v(-20.5, 3.55, 20.5), v(-12.0, 3.55, 11.5)];
+  const perches = [v(24.5, 3.25, 12.5), v(-20.5, 3.55, 20.5), v(-12.0, 3.55, 11.5), v(-20, 3.55, -14.5), v(18, 5.25, -14), v(10, 3.35, 13.5)];
   const coverPoints: THREE.Vector3[] = [];
   for (const [x, z] of [
     [0, -5.4], [-5.4, -1], [5.4, -1], [-6, -8.4], [-2.4, -6], [6.5, -1.6], [6.5, -5.4], [-9, 1], [-9, 5],
@@ -704,7 +864,14 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     // 3.5 clutter.
     [24.2, -6.6], [12.9, -3.9], [-17, -9.6], [-8.8, -16.8], [1.6, -18.6], [-8.6, 13.7], [17.6, 7], [13.4, 7], [22.7, 16.6],
   ]) {
+    // (12.0: the yard's cover over the culvert's line is the culvert's now.)
+    if (culvertFloor(x, z) !== null) continue;
     const p = v(x, desertHeight(x, z), z);
+    if (!col.blocked(p, 0.45)) coverPoints.push(p);
+  }
+  // 12.0: down in the culvert (behind its crates) and behind the parapets on the new roofs.
+  for (const [x, y, z] of [[-7.4, -3, 0.2], [7.4, -3, -0.2], [-12.6, 3.55, -17.3], [-25.3, 3.55, -11.7], [12, 5.25, -19.3], [24.3, 5.25, -8.8], [6.8, 3.35, 16.3], [13.3, 3.35, 10.7]]) {
+    const p = v(x, y, z);
     if (!col.blocked(p, 0.45)) coverPoints.push(p);
   }
   for (const p of dumps) if (!col.blocked(p, 0.45)) coverPoints.push(p);
@@ -724,8 +891,10 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   const links: [number, number][] = [];
   const N = (x: number, y: number, z: number) => nodes.push(v(x, y, z)) - 1;
   const insideBuilding = (x: number, z: number, pad: number) =>
-    interiors.some((r) => x > r.x0 - pad - WALL_T && x < r.x1 + pad + WALL_T && z > r.z0 - pad - WALL_T && z < r.z1 + pad + WALL_T) ||
-    (x > 26.5 && x < 29 && z > 9.5 && z < 17.2) || (x > -17.5 && x < -15 && z > 14.5 && z < 24.2);
+    interiors.some((r) => r.name !== 'CULVERT' && x > r.x0 - pad - WALL_T && x < r.x1 + pad + WALL_T && z > r.z0 - pad - WALL_T && z < r.z1 + pad + WALL_T) ||
+    (x > 26.5 && x < 29 && z > 9.5 && z < 17.2) || (x > -17.5 && x < -15 && z > 14.5 && z < 24.2) ||
+    // 12.0: the barracks and motor pool stairs, the clinic's crates.
+    (x > -14.5 && x < -12.1 && z > -24.7 && z < -17.5) || (x > 10.5 && x < 22.5 && z > -22 && z < -19.5) || (x > 6.3 && x < 13.3 && z > 16.5 && z < 18.7);
   const probe = new THREE.Vector3();
   for (let x = -81; x <= 81; x += 9) {
     for (let z = -81; z <= 81; z += 9) {
@@ -776,6 +945,29 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // Generator shed.
   const gs = room(-3, -21.4);
   links.push([door(-3, -18.6, -3, -20.6), gs]);
+  // 12.0: the rooftop routes and the culvert, linked by hand along stairs and bridges (auto links
+  // join each level's own nodes).
+  {
+    const chain = (...ids: number[]) => {
+      for (let i = 1; i < ids.length; i++) links.push([ids[i - 1], ids[i]]);
+    };
+    // OMEGA's side: barracks stair → roof → skybridge → motor pool roof ← its stair.
+    const bRoofE = N(-11.6, 3.55, -15.2), bRoofM = N(-17, 3.55, -14.5);
+    chain(N(-13.3, 0, -25.0), N(-13.3, 1.78, -21.1), N(-13.3, 3.55, -17.0), bRoofM, bRoofE);
+    chain(N(-22, 3.55, -14.5), bRoofM);
+    const mRoofW = N(11.6, 5.25, -15.2), mRoofC = N(18, 5.25, -14);
+    chain(bRoofE, N(0, 4.4, -15.2), mRoofW, mRoofC);
+    chain(N(10.2, 0, -20.74), N(15.8, 2.73, -20.74), N(21.3, 5.25, -20.74), N(21.3, 5.25, -18.6), mRoofC);
+    chain(mRoofC, N(24, 5.25, -10));
+    // ALPHA's side: trading post roof → bridge → clinic roof → bridge → watchtower platform.
+    const cRoof = N(10, 3.35, 13.5);
+    chain(tr4, N(-11.4, 3.55, 11.8), N(-2, 3.45, 11.8), N(7.2, 3.35, 11.8), cRoof, N(12.8, 3.35, 12.25), N(18, 3.3, 12.25), wp);
+    // The culvert: rim, half way down, the floor under the roof's edge, at either end; its floor.
+    const C = CULVERT;
+    const west = [N(-C.x - 0.6, 0, 0), N(-(C.top + C.roof) / 2, C.floor / 2, 0), N(-C.roof + 1, C.floor, 0)];
+    const east = [N(C.x + 0.6, 0, 0), N((C.top + C.roof) / 2, C.floor / 2, 0), N(C.roof - 1, C.floor, 0)];
+    chain(...west, N(-10, C.floor, 0.6), N(0, C.floor, 0), N(10, C.floor, -0.6), east[2], east[1], east[0]);
+  }
   // The arena: bases, chicanes, hamlet doorways, pump houses, lanes (hand links where auto ones can't
   // see round a corner). A node a wall swallowed is dropped (and its links with it).
   {

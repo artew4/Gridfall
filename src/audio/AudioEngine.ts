@@ -973,6 +973,15 @@ export class AudioEngine {
     this.tone(o, 'sine', 90, 50, 0.12 * intensity, 0.002, 0.06, t);
   }
 
+  /** 12.0: a slide: grit under the boots, a low scrape that dies away with the speed. */
+  slide(intensity: number) {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(null, 0.12);
+    this.burst(o, this.pink, 'lowpass', 1400, 0.7, 0.32 * intensity, 0.02, 0.95, t, 300);
+    this.burst(o, this.white, 'bandpass', 2600, 1.2, 0.07 * intensity, 0.01, 0.6, t, 900);
+  }
+
   land() {
     if (!this.started) return;
     const o = this.out(null, 0.1);

@@ -8,6 +8,7 @@ import type { BarkKind, Voice } from '../tactics/Barks';
 import { rand } from '../../core/math';
 import { ARENA, type ArenaCtx } from './ArenaCtx';
 import type { Seen, SenseAgent } from './Sensing';
+import type { ArenaContact } from './ArenaDirector';
 import { ARENA_SEE, contrastAt, densityOfSightRange, fogRange } from '../../world/Visibility';
 
 /*
@@ -34,9 +35,67 @@ import { ARENA_SEE, contrastAt, densityOfSightRange, fogRange } from '../../worl
      `isAiming`), takes a moment to focus (0.24 s at 13 m, longer further out), then fires short,
      tight bursts while walking its strafe. Hysteresis (11/13 m) keeps it from flicking between the
      two; a push, a break, a jump, a reload or losing sight drops the rifle back to the hip.
+
+  12.0, alive rather than mechanical:
+   - Temperament (`persona`, drawn per bot): its own reaction time (~0.17 s, 0.09–0.32), so a squad
+     never turns on the same frame; aggression (push thresholds, range band), patience (aimed focus),
+     a liking for flanks and for slides. Decide intervals are jittered ±25%.
+   - FLANK: a hostile a teammate is fighting right now (the shared spotting board: who saw it, from
+     where) and this bot can't see is taken from the side: a point off the spotter's line, the other
+     side of a second flanker (a pincer), then the hunt from there.
+   - RETREAT: hurt badly by someone it can't see, or outnumbered and hurt: it stops trading, sprints
+     out of sight to the nearest friend behind it, and fights again from there (or when cornered).
+   - Slides (the player's model): rushing a wounded target, diving into a spot, or crossing open
+     ground with a contact close.
 */
 
-export type ArenaState = 'emerge' | 'advance' | 'hunt' | 'engage' | 'push' | 'break';
+export type ArenaState = 'emerge' | 'advance' | 'hunt' | 'engage' | 'push' | 'break' | 'flank' | 'retreat';
+
+/** 12.0: a bot's temperament (ARENA.persona). */
+export interface Persona {
+  /** Reaction time (s): from a hostile coming into view, or a hit, to acting on it. */
+  react: number;
+  /** Push thresholds and range band (1 = the defaults; above is bolder). */
+  aggro: number;
+  /** Aimed focus time × this. */
+  patience: number;
+  /** Chance it goes round a spotted contact rather than straight at it; how readily it slides. */
+  flank: number;
+  slide: number;
+}
+
+/** A normal deviate (Box–Muller). */
+function gauss(rng: () => number) {
+  return Math.sqrt(-2 * Math.log(Math.max(1e-9, rng()))) * Math.cos(2 * Math.PI * rng());
+}
+
+/** 12.0: draw a temperament. */
+export function drawPersona(rng: () => number = Math.random): Persona {
+  const P = ARENA.persona;
+  const between = (r: [number, number]) => r[0] + (r[1] - r[0]) * rng();
+  return {
+    react: Math.min(P.reactClamp[1], Math.max(P.reactClamp[0], P.react[0] + P.react[1] * gauss(rng))),
+    aggro: between(P.aggro),
+    patience: between(P.patience),
+    flank: between(P.flank),
+    slide: between(P.slide),
+  };
+}
+
+/**
+ * 12.0: where to go round a contact at `c` that a teammate at `from` is fighting: `dist` m from it,
+ * `angle` off the line to the spotter, on `side` (+1 / -1). XZ only.
+ */
+export function flankPoint(c: { x: number; z: number }, from: { x: number; z: number }, side: number, out: THREE.Vector3) {
+  const F = ARENA.flank;
+  let ux = from.x - c.x, uz = from.z - c.z;
+  const l = Math.hypot(ux, uz) || 1;
+  ux /= l;
+  uz /= l;
+  const a = F.angle * side;
+  const ca = Math.cos(a), sa = Math.sin(a);
+  return out.set(c.x + (ux * ca - uz * sa) * F.dist, 0, c.z + (ux * sa + uz * ca) * F.dist);
+}
 
 /** What the brain drives (ArenaGunner / ArenaRunner). */
 export interface ArenaBody extends Combatant {
@@ -49,6 +108,10 @@ export interface ArenaBody extends Combatant {
   isAiming: boolean;
   tac: TacState;
   readonly airborne: boolean;
+  /** 12.0: mid-slide (the body carries it; the brain may still fire). */
+  readonly sliding: boolean;
+  /** 12.0: start a slide along the way it is running (false if it can't: in the air, too slow, already). */
+  slide(): boolean;
   /** Steer towards a floor point at `speed` (graph routing, vault links); returns the XZ distance left. */
   steer(goal: THREE.Vector3, speed: number, ctx: EnemyCtx, dt: number, desired: THREE.Vector3): number;
   face(p: THREE.Vector3, dt: number, rate: number): void;
@@ -127,8 +190,30 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   /** When it last lowered the rifle, and on whom (a short interruption keeps the focus). */
   private droppedAt = -Infinity;
   private droppedOn: Combatant | null = null;
+  /** 12.0: its temperament. */
+  readonly persona: Persona;
+  /** 12.0: the hostile it is flanking (or came round on: kills on it count as flank kills), and the flank's side. */
+  flankedOn = -1;
+  private flankCd = -Infinity;
+  /** The hostile it last decided whether to flank (one roll per contact, not one per decide). */
+  private flankRolled = -1;
+  private flankWill = false;
+  /** 12.0: retreat: its health over the last seconds (time, hpFrac), when it may retreat again, why it is. */
+  private hpLog: [number, number][] = [];
+  private retreatCd = -Infinity;
+  private slideCd = -Infinity;
 
-  constructor(readonly self: ArenaBody) {}
+  constructor(readonly self: ArenaBody, persona?: Persona) {
+    this.persona = persona ?? drawPersona();
+  }
+
+  /**
+   * 12.0: act on something new after this bot's own reaction time (stretched or shortened a little
+   * each time: `k` scales it, a hit startles faster). Never later than a decide already due.
+   */
+  private react(now: number, k = 1) {
+    this.nextThink = Math.min(this.nextThink, now + this.persona.react * k * rand(0.8, 1.25));
+  }
 
   get reloading() {
     return this.reloadT > 0;
@@ -139,16 +224,17 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   }
 
   // ------------------------------------------------------------------ events
-  onSight(_h: Combatant, _now: number) {
-    // No reaction delay: a new face in view is decided on this very frame.
-    this.urgent = true;
+  onSight(_h: Combatant, now: number) {
+    // 12.0: a new face in view is decided after its reaction time (7.0: on the same frame, which made
+    // a squad turn as one).
+    this.react(now);
   }
 
   /** Hit by `by`: look at it now, maybe jump out of the line. */
   onHit(ctx: EnemyCtx, by: Combatant | null) {
     if (by && !by.isPlayer && by.team === this.self.team) return;
     if (by) this.alert.set(by.uid, ctx.time);
-    this.urgent = true;
+    this.react(ctx.time, 0.6);
     this.jitter = Math.max(this.jitter, 0.015);
     // Aiming, it flinches (the jitter) and holds its shot rather than jumping out of it.
     if (!this.aiming && (this.state === 'engage' || this.state === 'push' || this.state === 'hunt') && Math.random() < ARENA.hitJump) this.tryJump(ctx, false);
@@ -169,6 +255,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
 
   died(A: ArenaCtx | undefined) {
     A?.director.releasePush(this.self.uid);
+    A?.director.releaseFlank(this.self.uid);
+    if (A && this.state === 'retreat') A.stats.retreatDeaths++;
   }
 
   private dealtTo(uid: number, now: number) {
@@ -180,6 +268,16 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   private setState(s: ArenaState, ctx: EnemyCtx, A: ArenaCtx) {
     if (s === this.state) return;
     if (this.state === 'push') A.director.releasePush(this.self.uid);
+    if (this.state === 'flank') {
+      A.director.releaseFlank(this.self.uid);
+      if (s === 'engage') A.stats.flankEngage++;
+      else this.flankedOn = -1;
+      this.flankCd = ctx.time + ARENA.flank.cooldown;
+    }
+    if (this.state === 'retreat') {
+      this.retreatCd = ctx.time + ARENA.retreat.cooldown;
+      if (this.self.alive) A.stats.retreatLived++;
+    }
     this.state = s;
     this.stateT = 0;
     this.goal = null;
@@ -198,7 +296,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   }
 
   private tryJump(ctx: EnemyCtx, vault: boolean, vy = ARENA.jumpV) {
-    if (this.self.airborne || (!vault && (this.jumpCd > 0 || this.swing))) return false;
+    if (this.self.airborne || this.self.sliding || (!vault && (this.jumpCd > 0 || this.swing))) return false;
     if (!this.self.jump(vy, vault)) return false;
     if (!vault) this.jumpCd = ARENA.jumpCooldown;
     const A = ctx.arena;
@@ -274,6 +372,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       // Sight-to-shot measures the decision, not the magazine: a pick made mid-reload isn't timed.
       this.reactPending = !!best && !this.reloading;
     }
+    if (this.target?.uid !== this.flankedOn && this.state !== 'flank') this.flankedOn = -1;
     const T = this.target;
     const tv = T !== null && this.visible(T);
     const contact = T ? dir.contacts.get(T.uid) ?? null : null;
@@ -282,12 +381,19 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // ---- State.
     const gunner = me.kind === 'gunner';
     const attackers = [...this.alert.values()].filter((t) => now - t < 1.5).length;
+    this.hpLog.push([now, me.hpFrac]);
+    while (this.hpLog.length && now - this.hpLog[0][0] > ARENA.retreat.window) this.hpLog.shift();
     let next: ArenaState;
-    if (this.state === 'break' && this.stateT < ARENA.breakMax && (this.reloading || this.stateT < 0.5)) next = 'break';
+    let retreatWhy: 'unseen' | 'outnumbered' | null = null;
+    if (this.state === 'retreat' && this.keepRetreating(ctx, A, T, tv, dT, contact)) next = 'retreat';
+    else if ((retreatWhy = this.retreatWhy(ctx, now, T, tv, dT))) next = 'retreat';
+    else if (this.state === 'break' && this.stateT < ARENA.breakMax && (this.reloading || this.stateT < 0.5)) next = 'break';
     // Reloading is done on the move unless someone is shooting at it.
     else if (gunner && tv && now > this.breakCd && ((this.reloading && attackers >= 1) || (me.hpFrac < ARENA.breakHp && T.hpFrac > me.hpFrac) || attackers >= 2)) next = 'break';
     else if (T && (tv || (contact && now - contact.t < ARENA.contactTtl))) {
-      const hurt = T.hpFrac <= (gunner ? ARENA.pushHp : ARENA.runnerPushHp) || this.dealtTo(T.uid, now) >= ARENA.pushDamage || (!gunner && T.reloading);
+      // 12.0: a bold bot pushes sooner (higher health, less damage dealt), a careful one later.
+      const ag = this.persona.aggro;
+      const hurt = T.hpFrac <= (gunner ? ARENA.pushHp * ag : ARENA.runnerPushHp) || this.dealtTo(T.uid, now) >= ARENA.pushDamage / ag || (!gunner && T.reloading);
       let pushing = this.state === 'push' && now < this.pushUntil;
       // A blade has one way to fight, close in; a claimed rush on someone hurt is a push (it counts,
       // it barks, two at most). A gunner pushes only what it can see.
@@ -297,12 +403,28 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
         this.pushUntil = now + ARENA.pushMax;
         pushing = true;
       }
-      next = pushing ? 'push' : tv ? 'engage' : 'hunt';
+      // 12.0: out of its sight but in a teammate's (the shared spotting): go round.
+      const flanking = !pushing && !tv && !!contact && this.wantsFlank(ctx, A, T, contact, now);
+      next = pushing ? 'push' : tv ? 'engage' : flanking ? 'flank' : 'hunt';
     } else next = 'advance';
     this.setState(next, ctx, A);
+    if (retreatWhy) {
+      A.stats.retreats++;
+      A.stats.retreatWhy[retreatWhy]++;
+      A.director.releasePush(me.uid);
+    }
 
     // ---- Goals.
-    if (next === 'break' && !this.goal && T) this.goal = this.breakSpot(ctx, A, T);
+    if (next === 'retreat' && !this.goal) {
+      // First out of its line of sight (the nearest spot that breaks it, as a BREAK finds), then to a friend.
+      const cover = T && this.visible(T) ? this.breakSpot(ctx, A, T) : null;
+      this.retreatLeg = cover ? 'cover' : 'regroup';
+      this.goal = cover ?? this.regroupGoal(ctx, A, T, contact);
+    }
+    else if (next === 'flank' && this.flankGoal) {
+      this.goal = this.flankGoal;
+      this.flankGoal = null;
+    } else if (next === 'break' && !this.goal && T) this.goal = this.breakSpot(ctx, A, T);
     else if (next === 'hunt' && contact) {
       this.goal = this.laneGoal(ctx, A, contact.pos) ?? _v.copy(contact.pos).addScaledVector(contact.vel, ARENA.huntLead).clone();
       if (!this.laneTo) this.goal.y = contact.pos.y;
@@ -312,8 +434,188 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // A runner closing in leaps the last metres now and then.
     if (!gunner && tv && dT > 4 && dT < 9 && Math.random() < 0.08) this.tryJump(ctx, false);
 
+    this.considerSlide(ctx, A, next, T, dT, now);
+
     const iv = tv && dT < ARENA.decide.closeDist ? ARENA.decide.close : T ? ARENA.decide.far : ARENA.decide.calm;
-    this.nextThink = now + iv * (0.85 + 0.3 * Math.random());
+    // 12.0: wider jitter (7.0: ±15%), so bots that saw the same thing drift apart in time.
+    const J = ARENA.persona.jitter;
+    this.nextThink = now + iv * (1 - J + 2 * J * Math.random());
+  }
+
+  // ------------------------------------------------------------------ 12.0: retreat, flank, slide
+  /** Why it should break off and regroup now (see ARENA.retreat), or null. */
+  private retreatWhy(ctx: EnemyCtx, now: number, T: Combatant | null, tv: boolean, dT: number): 'unseen' | 'outnumbered' | null {
+    const R = ARENA.retreat;
+    const me = this.self;
+    // (Already breaking off: keepRetreating says when that ends, and the cooldown starts then.)
+    if (!R.on || now < this.retreatCd || this.state === 'emerge' || this.state === 'retreat') return null;
+    // Finishing a kill beats running: its target in sight, close and nearly down.
+    if (tv && T && T.hpFrac < 0.25 && dT < 15) return null;
+    let peak = me.hpFrac;
+    for (const [, h] of this.hpLog) if (h > peak) peak = h;
+    if (peak - me.hpFrac >= R.unseenDmg) {
+      let seenShooter = false;
+      for (const [uid, t] of this.alert) if (now - t < R.window && this.seen.get(uid)?.vis) seenShooter = true;
+      if (!seenShooter) return 'unseen';
+    }
+    if (me.hpFrac < R.outHp) {
+      let vis = 0;
+      for (const h of hostilesOf(ctx)) if (h.alive && this.seen.get(h.uid)?.vis) vis++;
+      if (vis >= R.outSeen) {
+        let fr = 0;
+        for (const f of ctx.friends ?? []) if (f !== me && f.alive && Math.hypot(f.pos.x - me.pos.x, f.pos.z - me.pos.z) < R.friendR) fr++;
+        if (vis - fr >= R.outnumbered) return 'outnumbered';
+      }
+    }
+    return null;
+  }
+
+  /** Who it is falling back to (a friend behind it), if anyone; and which leg of the retreat it is on. */
+  private regroupWith: Combatant | null = null;
+  private retreatLeg: 'cover' | 'regroup' = 'regroup';
+
+  /** Still breaking off: not cornered, not with its friend yet, not out of time. */
+  private keepRetreating(ctx: EnemyCtx, A: ArenaCtx, T: Combatant | null, tv: boolean, dT: number, contact: ArenaContact | null) {
+    const R = ARENA.retreat;
+    const me = this.self;
+    // Out of sight at the first spot: now back to a friend.
+    if (!this.goal && this.retreatLeg === 'cover') {
+      this.retreatLeg = 'regroup';
+      this.goal = this.regroupGoal(ctx, A, T, contact);
+    }
+    if (this.stateT > R.maxT || !this.goal) return false;
+    if (tv && T && dT < R.corner) return false;
+    const w = this.retreatLeg === 'regroup' ? this.regroupWith : null;
+    if (w && (!w.alive || Math.hypot(w.pos.x - me.pos.x, w.pos.z - me.pos.z) < R.joinR)) return false;
+    // Follow a friend who moves.
+    if (w && this.goal) this.goal.copy(w.pos);
+    return true;
+  }
+
+  /**
+   * Where to fall back to: the nearest friend further from the threat than it is (not one already at
+   * its side), else two waypoints back down its own lane.
+   */
+  private regroupGoal(ctx: EnemyCtx, A: ArenaCtx, T: Combatant | null, contact: ArenaContact | null): THREE.Vector3 | null {
+    const R = ARENA.retreat;
+    const me = this.self;
+    let threat: THREE.Vector3 | null = T ? (this.visible(T) ? T.pos : (contact?.pos ?? T.pos)) : null;
+    if (!threat) {
+      // Shot from nowhere: whoever alerted it last, as the board has them.
+      let lt = -Infinity;
+      for (const [uid, t] of this.alert) {
+        const c = A.director.contacts.get(uid);
+        if (c && t > lt) {
+          lt = t;
+          threat = c.pos;
+        }
+      }
+    }
+    const myT = threat ? Math.hypot(threat.x - me.pos.x, threat.z - me.pos.z) : 0;
+    let best: Combatant | null = null, bs = Infinity;
+    for (const f of ctx.friends ?? []) {
+      if (f === me || !f.alive) continue;
+      const d = Math.hypot(f.pos.x - me.pos.x, f.pos.z - me.pos.z);
+      if (d < R.joinR) continue;
+      if (threat && Math.hypot(f.pos.x - threat.x, f.pos.z - threat.z) < myT + 2) continue;
+      if (d < bs) {
+        bs = d;
+        best = f;
+      }
+    }
+    this.regroupWith = best;
+    if (best) return best.pos.clone();
+    const L = ctx.lanes;
+    if (!L || !L.length) return null;
+    const W = L[A.director.laneFor(me.uid, me.pos)];
+    let bi = 0, bd = Infinity;
+    W.forEach((w, i) => {
+      const d = Math.hypot(w.x - me.pos.x, w.z - me.pos.z);
+      if (d < bd) {
+        bd = d;
+        bi = i;
+      }
+    });
+    const w = W[Math.max(0, bi - 2)];
+    return new THREE.Vector3(w.x, w.y, w.z);
+  }
+
+  /** The flank goal decided this decide (set once the state is 'flank'). */
+  private flankGoal: THREE.Vector3 | null = null;
+
+  /** Go round a contact a teammate is fighting (ARENA.flank)? Claims the flank and plans its point. */
+  private wantsFlank(ctx: EnemyCtx, A: ArenaCtx, T: Combatant, c: ArenaContact, now: number) {
+    const F = ARENA.flank;
+    const me = this.self;
+    if (this.state === 'flank') return this.stateT < F.maxT && !!this.goal && now - c.t < ARENA.contactTtl;
+    if (now < this.flankCd || c.src !== 'sight' || now - c.seenT > F.fresh || c.by < 0 || c.by === me.uid) return false;
+    if (Math.hypot(c.from.x - me.pos.x, c.from.z - me.pos.z) < F.spotterGap) return false;
+    const d = Math.hypot(c.pos.x - me.pos.x, c.pos.z - me.pos.z);
+    if (d < F.min || d > F.max) return false;
+    // One roll per contact: its temperament decides whether it goes round or straight in.
+    if (this.flankRolled !== T.uid) {
+      this.flankRolled = T.uid;
+      this.flankWill = Math.random() < this.persona.flank;
+    }
+    if (!this.flankWill) return false;
+    const pa = flankPoint(c.pos, c.from, 1, new THREE.Vector3());
+    const pb = flankPoint(c.pos, c.from, -1, new THREE.Vector3());
+    const prefer = Math.hypot(pa.x - me.pos.x, pa.z - me.pos.z) <= Math.hypot(pb.x - me.pos.x, pb.z - me.pos.z) ? 1 : -1;
+    const side = A.director.claimFlank(me.uid, T.uid, now, prefer);
+    if (!side) return false;
+    const goal = this.snapGoal(ctx, side > 0 ? pa : pb, c.pos.y);
+    if (!goal) {
+      A.director.releaseFlank(me.uid);
+      return false;
+    }
+    this.flankGoal = goal;
+    this.flankedOn = T.uid;
+    A.stats.flanks++;
+    return true;
+  }
+
+  /** The nav node nearest a point (within 8 m, on about the level `y`, never in their base): its floor. */
+  private snapGoal(ctx: EnemyCtx, p: THREE.Vector3, y: number): THREE.Vector3 | null {
+    let best: THREE.Vector3 | null = null, bs = 64;
+    for (const n of ctx.nav.nodes) {
+      const fy = n.y - 1;
+      if (Math.abs(fy - y) > 2.5) continue;
+      const d = (n.x - p.x) ** 2 + (n.z - p.z) ** 2;
+      if (d >= bs || ctx.avoid?.(n)) continue;
+      bs = d;
+      best = n;
+    }
+    return best ? new THREE.Vector3(best.x, best.y - 1, best.z) : null;
+  }
+
+  /** Slide (ARENA.slide): into a wounded target, into a spot, or across open ground near a contact. */
+  private considerSlide(ctx: EnemyCtx, A: ArenaCtx, next: ArenaState, T: Combatant | null, dT: number, now: number) {
+    const S = ARENA.slide;
+    const me = this.self;
+    if (!S.on || now < this.slideCd || me.airborne || me.sliding || this.aiming || this.swing) return;
+    const hs = Math.hypot(me.vel.x, me.vel.z);
+    if (hs < me.speed * ARENA.run) return;
+    const dx = me.vel.x / hs, dz = me.vel.z / hs;
+    const toward = (p: THREE.Vector3, d: number) => ((p.x - me.pos.x) * dx + (p.z - me.pos.z) * dz) / Math.max(d, 1e-3) > 0.8;
+    const k = this.persona.slide;
+    let why: 'push' | 'dive' | 'exposed' | null = null;
+    if (next === 'push' && T && dT >= S.push[0] && dT <= S.push[1] && toward(T.pos, dT) && Math.random() < 0.6 * k) why = 'push';
+    else if ((next === 'break' || next === 'retreat') && this.goal) {
+      const d = Math.hypot(this.goal.x - me.pos.x, this.goal.z - me.pos.z);
+      if (d >= S.dive[0] && d <= S.dive[1] && toward(this.goal, d) && Math.random() < 0.8 * k) why = 'dive';
+    } else if ((next === 'hunt' || next === 'flank' || next === 'advance') && Math.random() < 0.06 * k) {
+      for (const c of A.director.contacts.values()) {
+        if (now - c.seenT < 1 && Math.hypot(c.pos.x - me.pos.x, c.pos.z - me.pos.z) < S.exposed) {
+          why = 'exposed';
+          break;
+        }
+      }
+    }
+    if (!why || !me.open(ctx, dx, dz, S.open)) return;
+    if (!me.slide()) return;
+    A.stats.slides++;
+    A.stats.slideWhy[why]++;
+    this.slideCd = now + S.cooldown / k;
   }
 
   /** The current hunt goal is a lane waypoint (not the contact itself). */
@@ -486,22 +788,26 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
         // No spot: sidestep out of its line, away from it.
         this.strafe(dt, ctx, T, sprint, desired, -1);
       }
-    } else if ((this.state === 'hunt' || this.state === 'advance') && this.goal) {
+    } else if ((this.state === 'hunt' || this.state === 'advance' || this.state === 'flank' || this.state === 'retreat') && this.goal) {
       const d = me.steer(this.goal, sprint, ctx, dt, desired);
-      if (d < 2 && Math.abs(this.goal.y - me.pos.y) < 1.5) {
+      const at = this.state === 'flank' ? ARENA.flank.arrive : 2;
+      if (d < at && Math.abs(this.goal.y - me.pos.y) < 1.5) {
         if (this.state === 'hunt' && T) A.director.cleared(T.uid, now);
+        if (this.state === 'flank') A.stats.flankArrive++;
         this.goal = null;
         this.urgent = true;
       }
     } else this.urgent = this.urgent || this.stateT > 0.3;
 
-    // ---- Facing: the target, else where the threat was (pre-aim), else where it runs.
-    if (tv) {
+    // ---- Facing: the target, else where the threat was (pre-aim), else where it runs. Retreating it
+    // runs, looking where it goes (12.0).
+    const fleeing = this.state === 'retreat';
+    if (tv && !fleeing) {
       const flight = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) / ARENA.boltSpeed;
       _aim.set(T.pos.x, T.pos.y + T.chestY, T.pos.z).addScaledVector(T.vel, flight);
       this.aimPoint.copy(_aim);
       me.face(_aim, dt, ARENA.yawRate);
-    } else if (T && this.state !== 'advance') {
+    } else if (T && this.state !== 'advance' && !fleeing) {
       const c = A.director.contacts.get(T.uid);
       const p = c?.pos ?? T.pos;
       if (Math.hypot(p.x - me.pos.x, p.z - me.pos.z) < 25) me.face(_v.set(p.x, p.y + 1.3, p.z), dt, 12);
@@ -509,7 +815,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     } else if (Math.hypot(me.vel.x, me.vel.z) > 0.3) me.face(_v.copy(me.pos).add(me.vel), dt, 10);
 
     // ---- Fire (gunner) and reload.
-    if (gunner) this.gun(dt, ctx, A, tv ? T : null, strafing);
+    if (gunner) this.gun(dt, ctx, A, tv && !fleeing ? T : null, strafing);
     me.tac.phase = tv && gunner && !this.reloading ? (this.aiming && this.focusT < this.focusNeed ? 'aim' : 'fire') : this.reloading ? 'reload' : '';
     if (this.aiming) A.stats.aimT += dt;
 
@@ -551,7 +857,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.flipT = rand(ARENA.flip[0], ARENA.flip[1]);
     }
     const [lo, hi] = ARENA.band;
-    const radial = away ? -0.7 : me.kind === 'runner' ? 1 : d < lo ? -0.6 : d > hi ? 0.6 : Math.sin(ctx.time * 0.9 + this.seed) * 0.25;
+    // 12.0: a bold bot keeps a closer band, a careful one a longer one.
+    const ag = this.persona.aggro;
+    const radial = away ? -0.7 : me.kind === 'runner' ? 1 : d < lo / ag ? -0.6 : d > hi / ag ? 0.6 : Math.sin(ctx.time * 0.9 + this.seed) * 0.25;
     const k = away ? 1 : ARENA.strafe;
     desired.set((-tz * this.strafeDir * k + tx * radial) * speed, 0, (tx * this.strafeDir * k + tz * radial) * speed);
   }
@@ -598,7 +906,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // Aimed: pinpoint (no bloom; a walking strafe adds a touch). Hip: the 7.0 cone, wider by hipSpread.
     const spread = this.aiming
       ? ARENA.ads.spread + this.jitter + fog + (strafing ? ARENA.strafeSpread * 0.3 : 0)
-      : ARENA.spread + ARENA.hipSpread + bloom + this.jitter + fog + (strafing ? ARENA.strafeSpread : 0) + (me.airborne ? ARENA.airSpread : 0);
+      : ARENA.spread + ARENA.hipSpread + bloom + this.jitter + fog + (strafing ? ARENA.strafeSpread : 0) + (me.airborne ? ARENA.airSpread : 0) + (me.sliding ? ARENA.slide.spread : 0);
     const range = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
     const r = me.fireRound(ctx, _aim, spread, { aimed: this.aiming, range });
     if (r === 'friend') {
@@ -640,7 +948,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // Engaging, or a hunt or advance that just caught sight of it (the state follows at the next
     // decide, a frame or few later); never in a push, a break, the air, a reload or a swing.
     const st = this.state;
-    const can = gunner && T !== null && (st === 'engage' || st === 'hunt' || st === 'advance') && !this.reloading && !me.airborne && !this.swing;
+    const can = gunner && T !== null && (st === 'engage' || st === 'hunt' || st === 'advance' || st === 'flank') && !this.reloading && !me.airborne && !me.sliding && !this.swing;
     if (can && tv) {
       this.lostT = 0;
       const d = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
@@ -649,7 +957,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
         this.aiming = true;
         // Back on the same face after a moment's break: the focus it had stands.
         if (this.droppedOn !== T || now - this.droppedAt > a.keep) this.focusT = 0;
-        this.focusNeed = focusFor(d);
+        this.focusNeed = focusFor(d) * this.persona.patience;
         this.burstLeft = Math.min(this.burstLeft, a.burst);
       } else if (!far && this.aiming) this.lower(now);
     } else if (can && this.aiming && st === 'engage') {

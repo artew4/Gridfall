@@ -26,7 +26,7 @@ No install and no plugin. Open the link, click, play. Desktop browser with a mou
 | World | What it is | Modes |
 |---|---|---|
 | **Tokyo Night** | A vertical neon district in the rain: streets, walkways, rooftops 8.5 m up, and a metro station 6 m under the street with trains on a real timetable. | Story Escape, Arcade Survival |
-| **Desert Outpost** | A HESCO-walled outpost in open dunes under a harsh sun, with sandstorms that roll in and cut visibility to 25 m. Mirrored into a three-lane arena for TDM. | Arcade Survival, Team Deathmatch |
+| **Desert Outpost** | A HESCO-walled outpost in open dunes under a harsh sun, where the sandstorm is the normal state and clear air lasts seconds. The compound is in three levels: rooftops joined by bridges and a skybridge, the yard, and a culvert under it. It's mirrored into an arena for TDM. | Arcade Survival, Team Deathmatch |
 | **Deep Jungle: Firebase Viper** | A walled paramilitary compound in the rainforest, in mist and dappled light. Built as a linear assault map, then turned into a loop for TDM: two landing zones, the gate, two breaches and a drain culvert. | Arcade Survival, Team Deathmatch |
 | **Neon Docks** | A harbour at night, built for 5v5: a container maze (close range), a warehouse with catwalks (mid range) and an open quay under a crane (long range). | Team Deathmatch |
 
@@ -45,6 +45,8 @@ No install and no plugin. Open the link, click, play. Desktop browser with a mou
   - **Steadier:** hip fire is about 30% tighter and steps are quiet.
   - **The cost:** you move at 55% speed.
   - **Standing up:** sprinting or jumping stands you up, if there's room overhead.
+- **Slide (C while sprinting):** your sprint carries you along the ground, and friction brings you down to a crouch in about 1.2 s (about 6 m). You drop to crouch height at once and can shoot and aim down sights all the way. Jump out of it to keep the speed.
+- **Minimap (TDM):** shows your team, and every enemy anyone on your team can see right now. Each red dot fades 2.5 s after the last sighting.
 
 ## Technical highlights
 
@@ -64,17 +66,18 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 | Goal | be a readable, fair threat to one player | be a convincing player among peers |
 | Decisions | utility scoring per enemy, a squad director handing out roles | a state machine per bot, an arena director per team |
 | In a fight | real cover against the threat's position, pop-and-shoot after a laser warning, suppression pins | snap-targeting the moment it sees you; hip fire on the move up close, an aimed shot at range; jumps and vaults; the Push on a wounded target |
-| Team play | suppressors pin you while flankers work round your sides; melee rushes are slotted and timed | a shared contact board, push / hold / regroup from momentum, lane discipline, push claims |
+| Team play | suppressors pin you while flankers work round your sides; melee rushes are slotted and timed | shared team spotting (your eyes count too), pincer flanks on whoever a teammate is fighting, push / hold / regroup from momentum, lane discipline, push claims |
 | Information | no wallhacks: last known position, then a widening search | sight plus heard gunfire, bounded by fog contrast |
 
-- **Snap + spread:** an arena bot fires on the frame it confirms sight. There's no reaction delay; instead its first rounds at a new target bloom wide and tighten within 0.3 s. Fast, but fair.
+- **Human reactions:** each bot has its own reaction time (about 0.1–0.3 s), aggression, patience, and taste for flanks and slides, so a squad never turns as one. Its first rounds at a new target bloom wide and tighten within 0.3 s.
+- **Not a robot:** hurt by someone it can't see, or outnumbered, a bot breaks line of sight and falls back to a friend instead of trading to the death. It slides into a rush or into cover.
 - **It picks its shot like a player:**
   - **Under ~12 m:** it hip-fires at full speed, strafing and jumping, with a wider cone.
   - **Further out:** it plants its feet, raises the rifle to its eye (you can see it coming), settles for a quarter to half a second, then fires short, tight bursts while it walks.
   - **Beyond 40 m:** it moves up instead of plinking.
   - **Measured:** aimed rounds hit 2–4× as often as hip fire at the same range.
 - **Attention-driven sensing:** line-of-sight checks are prioritised (current target, a new attacker, contacts in front, everyone else round-robin). A shared ray budget, plus a symmetric pair cache so one ray answers for both bots.
-- **Time-sliced:** every brain runs on a scheduler with per-frame budgets. Nine arena bots cost about 0.3–0.4 ms of CPU per frame.
+- **Time-sliced:** every brain runs on a scheduler with per-frame budgets. Nine arena bots, plus your spotting and the minimap, cost about 0.5–0.6 ms of CPU per frame.
 - **Fog is fair:** in a sandstorm or the jungle mist, bots see only as far as a player could pick a figure out of the haze, contrast exp(−(ρd)²), and their aim degrades with distance.
 
 ### Ballistics without garbage
@@ -89,7 +92,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **165 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director and its range heuristics, timetables, terrain, collision, pools, stair fitting, and frame-rate independence of the ADS and crouch blends.
+- **186 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;
@@ -124,7 +127,7 @@ One runtime dependency: `three`.
 | X | Holster / draw (a drawn weapon gets you noticed) |
 | E (tap or hold) | Interact: talk, read, cut the relay |
 | Shift | Sprint |
-| C (tap or hold) | Crouch: a tap toggles, a hold crouches while held. Quieter steps, tighter hip fire, a smaller target; slower |
+| C (tap or hold) | Crouch: a tap toggles, a hold crouches while held. Quieter steps, tighter hip fire, a smaller target; slower. While sprinting: slide |
 | Space | Jump; vault low railings mid-jump |
 | Tab (hold) | Objective overview |
 | Esc | Pause: resume, restart, volume, graphics, quit to menu |

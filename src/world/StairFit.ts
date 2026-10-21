@@ -107,7 +107,18 @@ export function stairsOf(colliders: readonly Collider[]) {
 /** World check: every stair whose footprint a wall still intrudes into, at its own heights. */
 export function stairWallOverlaps(colliders: readonly Collider[]) {
   const out: { stair: Rect; yLo: number; yHi: number; wall: Collider }[] = [];
-  for (const s of stairsOf(colliders)) for (const w of intruders(colliders, s.rect, s.yLo, s.yHi)) out.push({ stair: s.rect, yLo: s.yLo, yHi: s.yHi, wall: w });
+  for (const s of stairsOf(colliders)) {
+    for (const w of intruders(colliders, s.rect, s.yLo, s.yHi)) {
+      // 12.0: a solid wholly under the walking surface over its own footprint (a bridge's pier under
+      // a sloped deck) is under the steps, not through them.
+      const r = s.ramp, alongX = r.axis === 'x';
+      const a0 = Math.max(alongX ? s.rect.x0 : s.rect.z0, alongX ? w.min.x : w.min.z), a1 = Math.min(alongX ? s.rect.x1 : s.rect.z1, alongX ? w.max.x : w.max.z);
+      const lo = alongX ? s.rect.x0 : s.rect.z0, hi = alongX ? s.rect.x1 : s.rect.z1;
+      const h = (a: number) => r.h0! + ((r.h1! - r.h0!) * (a - lo)) / (hi - lo);
+      if (w.max.y <= Math.min(h(a0), h(a1)) + 0.02) continue;
+      out.push({ stair: s.rect, yLo: s.yLo, yHi: s.yHi, wall: w });
+    }
+  }
   return out;
 }
 
