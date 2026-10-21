@@ -3,6 +3,8 @@ export const KEYS = {
   holster: 'KeyX',
   interact: 'KeyE',
   reload: 'KeyR',
+  /** 11.0: tap to toggle, hold to crouch while held. */
+  crouch: 'KeyC',
   /** Objective overview (held). */
   objective: 'Tab',
 } as const;
@@ -13,6 +15,7 @@ export const KEY_LABEL: Record<Action, string> = {
   holster: 'X',
   interact: 'E',
   reload: 'R',
+  crouch: 'C',
   objective: 'TAB',
 };
 

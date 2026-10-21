@@ -11,9 +11,17 @@ export class PlayerUnit implements Combatant {
   readonly isPlayer = true;
   readonly team: TeamId;
   readonly name: string;
-  /** Eye of a standing player minus a little (what a perception ray aims at), and where rounds aim. */
-  readonly headY = 1.4;
-  readonly chestY = 1.25;
+  /**
+   * Eye of a standing player minus a little (what a perception ray aims at), and where rounds aim.
+   * 11.0: they follow the crouch (the body's height scale), so bots see and shoot a crouched player
+   * where he actually is.
+   */
+  get headY() {
+    return 1.4 * this.player.heightScale;
+  }
+  get chestY() {
+    return 1.25 * this.player.heightScale;
+  }
   pressureT = -Infinity;
   onHurt: (dmg: number, from: THREE.Vector3, by: Combatant | null) => void = () => {};
   isReloading: () => boolean = () => false;

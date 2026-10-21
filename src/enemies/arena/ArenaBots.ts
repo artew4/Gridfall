@@ -63,6 +63,10 @@ export class ArenaGunner extends Gunner implements ArenaBody {
   get reloading() {
     return this.brain.reloading;
   }
+  /** 11.0: the brain decides when it aims (by range), not the tactical phase. */
+  protected get isArena() {
+    return true;
+  }
 
   /** Never called: the arena scheduler drives the brain. */
   decide() {}
@@ -118,7 +122,7 @@ export class ArenaGunner extends Gunner implements ArenaBody {
     this.vaulting = true;
     return true;
   }
-  fireRound(ctx: EnemyCtx, aim: THREE.Vector3, spread: number): 'fired' | 'friend' | 'none' {
+  fireRound(ctx: EnemyCtx, aim: THREE.Vector3, spread: number, tag?: { aimed: boolean; range: number }): 'fired' | 'friend' | 'none' {
     const muzzle = this.muzzleWorld();
     if (this.friendInLine(ctx, muzzle, aim)) {
       this.heldFire++;
@@ -129,7 +133,7 @@ export class ArenaGunner extends Gunner implements ArenaBody {
     dir.y += rand(-spread, spread) * 0.66;
     dir.z += rand(-spread, spread);
     dir.normalize();
-    ctx.projectiles.fire(muzzle, dir, ARENA.boltSpeed, this);
+    ctx.projectiles.fire(muzzle, dir, ARENA.boltSpeed, this, tag);
     ctx.audio.enemyShot(muzzle, this.look.voice);
     ctx.fx.add.spawn({ x: muzzle.x, y: muzzle.y, z: muzzle.z, r: 5, g: 2.5, b: 0.6, size: 0.45, life: 0.06 });
     this.leanX.impulse(-1.2);
@@ -151,6 +155,8 @@ export class ArenaGunner extends Gunner implements ArenaBody {
 export class ArenaRunner extends Runner implements ArenaBody {
   brain: DeathmatchBrain;
   air: Air = { up: false, vy: 0, t: 0 };
+  /** A blade never aims. */
+  isAiming = false;
 
   constructor(spawn: THREE.Vector3, difficulty: number, look: EnemyLook) {
     super(spawn, difficulty, look);

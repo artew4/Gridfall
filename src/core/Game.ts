@@ -5,7 +5,7 @@ import { InteractionController, type Interactable } from './Interaction';
 import { StaticBuilder } from '../world/Builder';
 import { FramePacer, PRESETS, effectiveCap } from './Performance';
 import { KEYS } from './Bindings';
-import { clamp, damp, rand } from './math';
+import { clamp, damp, lerp, rand } from './math';
 import { disposeScene } from './dispose';
 import { AudioEngine } from '../audio/AudioEngine';
 import { MusicManager } from '../audio/music/MusicManager';
@@ -617,20 +617,21 @@ export class Game {
     const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
     const up = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
     const w = this.weapon.spec;
-    const spread = w.spread + this.player.moveAmount * 0.012 + this.weapon.bloom * 0.018 + (this.player.onGround ? 0 : 0.03);
+    const spread = this.spreadNow();
     const a = Math.random() * Math.PI * 2;
     const r = Math.sqrt(Math.random()) * spread;
     dir.addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
     this.stats.shots++;
     this.rules.onGunshot?.(origin);
 
-    const muzzle = cam.localToWorld(new THREE.Vector3(...w.muzzle));
+    // 11.0: with the sights up the gun is centred, and the muzzle and port with it.
+    const muzzle = cam.localToWorld(this.weapon.camPoint(w.muzzle, this.player.ads, new THREE.Vector3()));
     const tracer = new THREE.Color(...w.tracer);
     this.fx.muzzleSmoke(muzzle, dir);
     if (w.pellets) this.fx.muzzleSmoke(muzzle, dir);
     // 8.1: brass only from kinetic guns, onto the floor under the port (a catwalk, a roof, the street).
     if (w.ballistic === 'kinetic') {
-      const port = cam.localToWorld(new THREE.Vector3(...w.shell));
+      const port = cam.localToWorld(this.weapon.camPoint(w.shell, this.player.ads, new THREE.Vector3()));
       this.fx.ejectShell(port, right, up, this.col.groundHeightAt(port.x, port.z, 0.1, this.player.pos.y + 0.3), true);
     }
     this.muzzleLight.color.set(w.flash.light);
@@ -650,7 +651,7 @@ export class Game {
       pd.copy(dir);
       if (w.pellets) {
         const pa = Math.random() * Math.PI * 2;
-        const pr = Math.sqrt(Math.random()) * w.pellets.spread;
+        const pr = Math.sqrt(Math.random()) * w.pellets.spread * (1 - 0.2 * this.player.ads);
         pd.addScaledVector(right, Math.cos(pa) * pr).addScaledVector(up, Math.sin(pa) * pr).normalize();
       }
       const wh = this.col.raycast(origin, pd, 200, this.tmpHit);
@@ -714,15 +715,34 @@ export class Game {
       if (anyKill) this.player.trauma = Math.min(1, this.player.trauma + 0.12);
     }
 
-    // Camera kick: a bit of permanent climb plus a springy punch (per weapon).
+    // Camera kick: a bit of permanent climb plus a springy punch (per weapon). 11.0: a shouldered gun
+    // (ADS) kicks less than half as much, and a crouched stance a little less again.
     const c = w.camera;
-    this.player.pitch += c.climb;
-    this.player.yaw += rand(-c.yaw, c.yaw);
-    this.player.kickPitch.impulse(c.pitchKick);
-    this.player.kickYaw.impulse(rand(-c.yawKick, c.yawKick));
-    this.player.kickRoll.impulse(rand(-c.roll, c.roll));
-    this.player.fovPunch = c.fov;
-    this.player.trauma = Math.min(1, this.player.trauma + c.trauma);
+    const k = lerp(1, 0.45, this.player.ads) * lerp(1, 0.85, this.player.crouch);
+    this.player.pitch += c.climb * k;
+    this.player.yaw += rand(-c.yaw, c.yaw) * k;
+    this.player.kickPitch.impulse(c.pitchKick * k);
+    this.player.kickYaw.impulse(rand(-c.yawKick, c.yawKick) * k);
+    this.player.kickRoll.impulse(rand(-c.roll, c.roll) * k);
+    this.player.fovPunch = c.fov * k;
+    this.player.trauma = Math.min(1, this.player.trauma + c.trauma * k);
+  }
+
+  /**
+   * The cone a round leaves in now (radians): the weapon's own, plus movement, bloom and air. 11.0:
+   * ADS halves the base and takes 75% off movement and 60% off bloom; a crouch takes 30% off movement
+   * and bloom (and 15% off the base). Shared by the shot and the crosshair.
+   */
+  private spreadNow() {
+    const p = this.player;
+    const a = p.ads, c = p.crouch;
+    const steady = 1 - 0.3 * c;
+    return (
+      this.weapon.spec.spread * (1 - 0.5 * a) * (1 - 0.15 * c) +
+      p.moveAmount * 0.012 * (1 - 0.75 * a) * steady +
+      this.weapon.bloom * 0.018 * (1 - 0.6 * a) * steady +
+      (p.onGround ? 0 : 0.03)
+    );
   }
 
   /**
@@ -769,6 +789,7 @@ export class Game {
       this.rules.updateEnding?.(dt, rawDt);
     } else if (this.state === 'play' || this.state === 'dead') {
       const controls = this.state === 'play' && input.locked;
+      this.player.aimWant = input.aimDown && this.weapon.canAim;
       this.player.update(dt, input, controls, this.elapsed);
       if (this.state === 'play' && this.player.alive) this.safety.update(dt, this.player);
       if (controls && this.player.alive) {
@@ -776,7 +797,7 @@ export class Game {
         if (input.pressed.has(KEYS.reload)) this.weapon.startReload();
         if (input.mouseDown && this.weapon.tryFire()) this.shoot();
       }
-      this.player.applyCamera(this.camera, this.elapsed);
+      this.player.applyCamera(this.camera, this.elapsed, rawDt, this.weapon.spec.ads.zoom);
       // What the squad can observe about him (each use is gated by its own visibility rule).
       const sp = this.waves.squad.player;
       sp.reloading = this.weapon.reloading;
@@ -823,7 +844,10 @@ export class Game {
       this.hud.setArmed(this.weapon.visible);
       this.hud.setWave(this.waves.wave, this.waves.remaining, this.waves.state === 'break');
       this.hud.root.classList.toggle('holstered', this.weapon.holstered);
-      this.hud.setSpread(4 + this.player.moveAmount * 6 + this.weapon.bloom * 12 + (this.player.onGround ? 0 : 10));
+      // The crosshair opens with the real cone (500 px per radian of spread: the 3.x scale for movement), and fades out as the
+      // sights come up: with the sights up they are the reference.
+      this.hud.setSpread(4 + (this.spreadNow() - this.weapon.spec.spread) * 500);
+      this.hud.setAim(this.player.ads);
     }
 
     if (!paused) this.updateWorld(dt, rawDt);
@@ -834,7 +858,8 @@ export class Game {
     if (!paused) this.audio.update(dt, this.camera.position);
 
     // Weapon camera mirrors the main camera's lens (without sprint FOV, to avoid gun distortion).
-    this.weaponCamera.fov = 58;
+    // 11.0: with the sights up the viewmodel lens narrows a little too (the sight reads larger).
+    this.weaponCamera.fov = 58 * lerp(1, 0.88, this.player.ads);
     this.weaponCamera.updateProjectionMatrix();
     this.renderer.render(this.elapsed);
     this.adaptQuality(rawDt);

@@ -6,7 +6,8 @@ import { StaticBuilder, type VisualPiece } from '../world/Builder';
 
 /** Player body used for every standability test (same as Player.ts / resolveCircle defaults). */
 const R = 0.35;
-const H = 1.8;
+/** Standing body height; `checkWorld({ bodyHeight })` scans with another (11.0: crouched, 1.2). */
+const STAND_H = 1.8;
 /** Highest ledge reachable by walking (ramps allow 0.5) and by jumping (apex ~0.77 m + step 0.3). */
 const WALK_UP = 0.5;
 const JUMP_UP = 1.0;
@@ -49,8 +50,9 @@ function isOpaqueSolidLooking(m: THREE.Material) {
  *  - walk-through visuals (opaque drawn surfaces crossed by a reachable step at body height).
  * Results are clustered into regions with coordinates. Heuristics, not proofs: candidates are for review.
  */
-export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: boolean; from?: THREE.Vector3 } = {}) {
+export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: boolean; from?: THREE.Vector3; bodyHeight?: number } = {}) {
   const t0 = performance.now();
+  const H = opts.bodyHeight ?? STAND_H;
   const col = game.col;
   const cell = opts.cell ?? 0.5;
   const data = game.level.data;
@@ -422,12 +424,15 @@ export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: bool
   };
 }
 
-/** Does the segment a→b (at fixed heights) pass through the inside of a solid box collider? */
-function crossesSolid(game: Game, a: THREE.Vector3, b: THREE.Vector3, feetY: number) {
+/**
+ * Does the segment a→b (at fixed heights) pass through the inside of a solid box collider? `bodyH`:
+ * the body's height now (11.0: a crouched body passes under what a standing one would hit).
+ */
+function crossesSolid(game: Game, a: THREE.Vector3, b: THREE.Vector3, feetY: number, bodyH = STAND_H) {
   for (const c of game.col.near(Math.min(a.x, b.x), Math.min(a.z, b.z), Math.max(a.x, b.x), Math.max(a.z, b.z))) {
     if (!c.solid || c.kind !== 'box' || c.vault) continue;
     // Only real walls at body height (not kerbs you step onto, not ceilings).
-    if (c.max.y <= feetY + 0.35 || c.min.y >= feetY + 1.6) continue;
+    if (c.max.y <= feetY + 0.35 || c.min.y >= feetY + bodyH - 0.2) continue;
     // Segment vs slab, shrunk a hair so grazing a face doesn't count.
     const e = 0.03;
     let t0 = 0, t1 = 1;
@@ -518,9 +523,14 @@ export function stairGapProbe(game: Game) {
   return { stairs: ramps.length, wallSides: pairs, gaps: [...gaps].sort(), probes, drops, bad };
 }
 
-export function stressController(game: Game, opts: { samples?: number; seconds?: number; fps?: (number | 'spiky')[] } = {}) {
+/**
+ * `crouch` (11.0): start from every cell a crouched body reaches (1.2 m), and run two crouch modes:
+ * crouch-walk (C held), and crouch then sprint-jump (a tap of C, then Shift and Space after 0.5 s:
+ * standing up wherever it is, under low ceilings included).
+ */
+export function stressController(game: Game, opts: { samples?: number; seconds?: number; fps?: (number | 'spiky')[]; crouch?: boolean } = {}) {
   const t0 = performance.now();
-  const world = checkWorld(game, { stationOpen: true });
+  const world = checkWorld(game, { stationOpen: true, bodyHeight: opts.crouch ? 1.2 : undefined });
   const cells = world.reachableCells;
   const okKey = (x: number, h: number, z: number) => Math.round(x * 2) + ',' + Math.round(z * 2) + ',' + Math.round(h * 2);
   const ok = new Set(cells.map(([x, h, z]) => okKey(x - 0.25, h, z - 0.25)));
@@ -544,12 +554,14 @@ export function stressController(game: Game, opts: { samples?: number; seconds?:
     const [x, h, z] = cells[Math.floor(k * stride)];
     for (let dir = 0; dir < 8; dir++) {
       for (const profile of opts.fps ?? [20, 60]) {
-        for (const mode of ['walk', 'sprintJump'] as const) {
+        for (const mode of opts.crouch ? (['crouchWalk', 'crouchThenSprintJump'] as const) : (['walk', 'sprintJump'] as const)) {
           runs++;
           P.reset(x, z, (dir * Math.PI) / 4, h);
           keys.clear();
           keys.add('KeyW');
           if (mode === 'sprintJump') keys.add('ShiftLeft');
+          if (mode === 'crouchWalk') keys.add('KeyC');
+          const jumps = mode === 'sprintJump' || mode === 'crouchThenSprintJump';
           let fail: Record<string, unknown> | null = null;
           let seed = (k * 8 + dir) * 7919 + 1;
           const nextDt = () => {
@@ -560,10 +572,16 @@ export function stressController(game: Game, opts: { samples?: number; seconds?:
           };
           let dt = nextDt();
           for (let t = 0; t < (opts.seconds ?? 1.2); t += dt, dt = nextDt()) {
-            (inp as unknown as { pressed: Set<string> }).pressed = new Set(mode === 'sprintJump' && Math.floor(t / 0.45) !== Math.floor((t - dt) / 0.45) ? ['Space'] : []);
+            const pressed: string[] = [];
+            if (jumps && Math.floor(t / 0.45) !== Math.floor((t - dt) / 0.45)) pressed.push('Space');
+            if (mode === 'crouchThenSprintJump') {
+              if (t === 0) pressed.push('KeyC');
+              if (t >= 0.5) keys.add('ShiftLeft');
+            }
+            (inp as unknown as { pressed: Set<string> }).pressed = new Set(pressed);
             prev.copy(P.pos);
             P.update(dt, inp, true, t);
-            const c = crossesSolid(game, prev, P.pos, Math.min(prev.y, P.pos.y));
+            const c = crossesSolid(game, prev, P.pos, Math.min(prev.y, P.pos.y), P.height);
             if (c) fail = { why: 'crossed a solid wall', collider: `[${c.min.toArray().map((q) => q.toFixed(2))}]→[${c.max.toArray().map((q) => q.toFixed(2))}]` };
             else if (P.pos.y < data.floorMin - 0.6) fail = { why: 'fell below the lowest floor (track pit / under the world)' };
             else if (P.pos.x < b.min.x || P.pos.x > b.max.x || P.pos.z < b.min.y || P.pos.z > b.max.y) fail = { why: 'left the playable extent' };
@@ -573,15 +591,17 @@ export function stressController(game: Game, opts: { samples?: number; seconds?:
             }
           }
           // Ended inside geometry, or standing on nothing (grid aliasing near walls isn't a failure).
-          // One idle frame first: a run can end on the exact frame it lands from a vault, still
+          // Two idle frames first: a run can end on the exact frame it lands from a vault, still
           // overlapping the rail it jumped over (by design while airborne); that resolves next frame.
+          // 11.0: the landing itself can fall on the first idle frame (a crouch shifts the jump timing).
           if (!fail) {
             keys.clear();
             (inp as unknown as { pressed: Set<string> }).pressed = new Set();
             P.update(1 / 60, inp, true, 99);
+            P.update(1 / 60, inp, true, 99);
           }
           if (!fail && P.onGround) {
-            const inGeo = game.col.blocked(P.pos, P.radius - 0.02, 1.8);
+            const inGeo = game.col.blocked(P.pos, P.radius - 0.02, P.height);
             const floor = game.col.groundHeightAt(P.pos.x, P.pos.z, P.radius * 0.6, P.pos.y);
             if (inGeo || Math.abs(floor - P.pos.y) > 0.05) fail = { why: inGeo ? 'ended inside geometry' : 'standing on nothing', start: [x, h, z], dir, fps: profile, mode, pos: P.pos.toArray().map((q) => +q.toFixed(2)), zone: zoneAt(P.pos.x, P.pos.y, P.pos.z)?.name ?? '', grid: standableNear(P.pos) };
           }

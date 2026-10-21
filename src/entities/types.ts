@@ -40,6 +40,13 @@ export interface WeaponSpec {
   camera: { climb: number; yaw: number; pitchKick: number; yawKick: number; roll: number; fov: number; trauma: number };
   /** Where the viewmodel rests in camera space. */
   rest: [number, number, number];
+  /**
+   * 11.0, aim down sights. `sight`: the gun-space point the eye looks through (the rear notch and
+   * front post line, the bead, the reflex dot). With the sights up the viewmodel root sits at
+   * (−sight.x, −sight.y, z) and unrotated, which puts that point on the camera's axis: the screen
+   * centre, where rounds go. `zoom`: the world FOV factor (0.72 = 28% narrower).
+   */
+  ads: { sight: [number, number, number]; z: number; zoom: number };
   /** Camera-space points: muzzle (tracer start, flash light) and ejection port. */
   muzzle: [number, number, number];
   shell: [number, number, number];

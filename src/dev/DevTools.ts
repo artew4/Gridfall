@@ -79,11 +79,11 @@ export function installDevTools(game: Game) {
       w.__colDebug.set(on);
     },
     /** World validation: reachability, escapes, traps, invisible walls, walk-through visuals. */
-    async world(opts: { cell?: number; stationOpen?: boolean } = {}) {
+    async world(opts: { cell?: number; stationOpen?: boolean; bodyHeight?: number } = {}) {
       return (await import('./WorldCheck')).checkWorld(game, opts);
     },
     /** Real-controller stress runs from sampled reachable cells (walls, falls, voids). */
-    async stress(opts: { samples?: number; seconds?: number; fps?: (number | 'spiky')[] } = {}) {
+    async stress(opts: { samples?: number; seconds?: number; fps?: (number | 'spiky')[]; crouch?: boolean } = {}) {
       return (await import('./WorldCheck')).stressController(game, opts);
     },
     /** 9.1: stair-to-wall gaps: their widths, and that a body pressed into one keeps its floor. */

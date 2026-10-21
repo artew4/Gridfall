@@ -7,6 +7,8 @@ export class Input {
   mouseDY = 0;
   mouseDown = false;
   mouseClicked = false;
+  /** 11.0: right button held (aim down sights). */
+  aimDown = false;
   locked = false;
   onLockChange: (locked: boolean) => void = () => {};
   /** The browser refused pointer lock (e.g. re-locking too soon after Esc). */
@@ -24,6 +26,7 @@ export class Input {
     window.addEventListener('blur', () => {
       this.keys.clear();
       this.mouseDown = false;
+      this.aimDown = false;
     });
     document.addEventListener('mousemove', (e) => {
       if (!this.locked) return;
@@ -33,16 +36,26 @@ export class Input {
       this.mouseDY += e.movementY;
     });
     document.addEventListener('mousedown', (e) => {
+      if (e.button === 2) {
+        this.aimDown = true;
+        return;
+      }
       if (e.button !== 0) return;
       this.mouseDown = true;
       this.mouseClicked = true;
     });
     document.addEventListener('mouseup', (e) => {
       if (e.button === 0) this.mouseDown = false;
+      if (e.button === 2) this.aimDown = false;
+    });
+    // The right button aims: no context menu over the game (or anywhere while the mouse is captured).
+    this.element.addEventListener('contextmenu', (e) => e.preventDefault());
+    document.addEventListener('contextmenu', (e) => {
+      if (this.locked) e.preventDefault();
     });
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.element;
-      if (!this.locked) this.mouseDown = false;
+      if (!this.locked) this.mouseDown = this.aimDown = false;
       this.onLockChange(this.locked);
     });
     document.addEventListener('pointerlockerror', () => this.onLockError());

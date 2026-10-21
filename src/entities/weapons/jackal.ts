@@ -19,6 +19,8 @@ export const JACKAL_AR: WeaponSpec = {
   kick: { z: 1.5, rot: 6.5, rotJitter: 2.5, side: 2.4, slide: 0.05 },
   camera: { climb: 0.0042, yaw: 0.0035, pitchKick: 3, yawKick: 1.2, roll: 0.6, fov: 0.8, trauma: 0.05 },
   rest: [0.18, -0.2, -0.36],
+  // Through the red-dot tube to the dot on its lens; eye 15 cm behind the sight.
+  ads: { sight: [0, 0.086, -0.083], z: -0.13, zoom: 0.72 },
   muzzle: [0.14, -0.18, -0.98],
   shell: [0.2, -0.18, -0.4],
   flash: { color: [7, 4.4, 1.6], size: 1.35, at: [0, 0.018, -0.62], light: 0xffb24a },
@@ -30,7 +32,8 @@ export const JACKAL_AR: WeaponSpec = {
     const black = new THREE.MeshStandardMaterial({ color: 0x1f2022, metalness: 0.6, roughness: 0.45, envMapIntensity: 0.9 });
     const worn = new THREE.MeshStandardMaterial({ color: 0x3a3a38, metalness: 0.75, roughness: 0.35, envMapIntensity: 1.1 });
     const tan = new THREE.MeshStandardMaterial({ color: 0x8c7552, metalness: 0.05, roughness: 0.8, envMapIntensity: 0.5 });
-    const glass = new THREE.MeshStandardMaterial({ color: 0x223330, metalness: 0.2, roughness: 0.1, envMapIntensity: 1.6 });
+    // 11.0: you look through it now, so the lens is a faint tinted pane, not an opaque block.
+    const glass = new THREE.MeshStandardMaterial({ color: 0x3a6a60, metalness: 0.2, roughness: 0.05, envMapIntensity: 1.6, transparent: true, opacity: 0.18, depthWrite: false });
     const reddot = new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 0.2, 0.15) });
     const glove = new THREE.MeshStandardMaterial({ color: 0x7a6447, roughness: 0.85 });
     const sleeve = new THREE.MeshStandardMaterial({ color: 0x8f8463, roughness: 0.9 });
@@ -53,10 +56,17 @@ export const JACKAL_AR: WeaponSpec = {
     box(0.04, 0.012, 0.2, worn, 0, 0.046, -0.05, gun);
     box(0.022, 0.008, 0.26, black, 0, 0.056, -0.09, gun);
     for (let i = 0; i < 9; i++) box(0.026, 0.004, 0.008, worn, 0, 0.061, -0.2 + i * 0.026, gun);
-    // Red-dot sight: housing, front lens, the dot.
-    box(0.032, 0.036, 0.064, black, 0, 0.083, -0.05, gun);
-    box(0.026, 0.026, 0.004, glass, 0, 0.086, -0.083, gun);
-    box(0.002, 0.002, 0.001, reddot, 0, 0.086, -0.0175, gun);
+    // Red-dot sight: an open tube (four walls round a 26 mm window, so the eye sees through it when
+    // aiming), a base, the tinted lens at the front and the dot on it.
+    box(0.032, 0.005, 0.064, black, 0, 0.1015, -0.05, gun);
+    box(0.032, 0.005, 0.064, black, 0, 0.0705, -0.05, gun);
+    for (const s of [-1, 1]) box(0.003, 0.036, 0.064, black, s * 0.0145, 0.086, -0.05, gun);
+    box(0.026, 0.008, 0.05, black, 0, 0.064, -0.05, gun);
+    box(0.026, 0.026, 0.002, glass, 0, 0.086, -0.082, gun);
+    // Faces +z: back at the eye.
+    const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0006, 10), reddot);
+    dot.position.set(0, 0.086, -0.0805);
+    gun.add(dot);
     // Bolt carrier and charging handle on the right: the part that cycles.
     gun.add(slide);
     box(0.006, 0.02, 0.07, worn, 0.025, 0.012, -0.02, slide);

@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { Input } from '../core/Input';
 import type { CollisionWorld } from '../world/Collision';
 import type { AudioEngine } from '../audio/AudioEngine';
-import { clamp, damp, Spring } from '../core/math';
+import { clamp, damp, lerp, Spring } from '../core/math';
+import { KEYS } from '../core/Bindings';
 
 const WALK = 5.0;
 const SPRINT = 7.8;
@@ -10,8 +11,19 @@ const JUMP_V = 4.8;
 const GRAVITY = 15;
 const EYE = 1.65;
 const SENS = 0.0022;
-/** Collision height of the body. */
-const BODY_H = 1.8;
+/** Collision height of the body, standing and crouched (11.0). */
+export const BODY_H = 1.8;
+export const CROUCH_H = 1.2;
+/** Eye height crouched (standing: EYE). */
+const CROUCH_EYE = 1.08;
+/**
+ * 11.0 handling. Speed multipliers (they stack: crouched and aiming is 0.55 × 0.62), and how long the
+ * sights take to come up and go down (s): the ADS blend runs linearly over that time and is eased
+ * with a smoothstep, so it is frame-rate independent and lands exactly, with no asymptotic tail.
+ */
+export const HANDLING = { crouchSpeed: 0.55, adsSpeed: 0.62, adsIn: 0.2, adsOut: 0.16, crouchRate: 12, crouchStepVol: 0.35, adsSens: 0.7 };
+/** A tap of the crouch key toggles; held longer than this, it crouches only while held. */
+const CROUCH_TAP = 0.25;
 /** Longest move between two collision resolutions (well under the body radius). */
 const MAX_STEP = 0.15;
 const _probe = new THREE.Vector3();
@@ -36,6 +48,15 @@ export class Player {
   moveAmount = 0; // 0..1 horizontal speed fraction
   bobPhase = 0;
   eyeY = EYE;
+  /** 11.0: 0 standing … 1 crouched (smoothed), and the collision height it gives. */
+  crouch = 0;
+  height = BODY_H;
+  private crouchToggle = false;
+  private crouchHeld = 0;
+  /** 11.0: aim down sights. `aimWant` is set by the game each frame (RMB, weapon ready); `adsT` runs 0..1 linearly, `ads` is it eased. */
+  aimWant = false;
+  adsT = 0;
+  ads = 0;
   lastDamage = -100;
   /** Camera kick from weapon recoil and hits. */
   kickPitch = new Spring(120, 16);
@@ -44,6 +65,7 @@ export class Player {
   landDip = new Spring(160, 14);
   trauma = 0;
   fovPunch = 0;
+  private sprintFov = 0;
   private lastStepIdx = 0;
   private wasOnGround = true;
   private fallSpeed = 0;
@@ -62,6 +84,12 @@ export class Player {
     this.health = this.maxHealth;
     this.alive = true;
     this.eyeY = EYE;
+    this.crouch = 0;
+    this.height = BODY_H;
+    this.crouchToggle = false;
+    this.crouchHeld = 0;
+    this.aimWant = false;
+    this.adsT = this.ads = 0;
     this.trauma = 0;
     this.kickPitch.reset();
     this.kickYaw.reset();
@@ -72,11 +100,28 @@ export class Player {
     return out.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
   }
 
+  /** Body sample heights scale with this (perception rays, hit volumes): 1 standing. */
+  get heightScale() {
+    return this.height / BODY_H;
+  }
+
+  /** Eye height above the feet now (standing EYE, crouched CROUCH_EYE). */
+  get eyeHeight() {
+    return lerp(EYE, CROUCH_EYE, this.crouch);
+  }
+
   update(dt: number, input: Input, controls: boolean, time: number) {
+    // ADS: a linear clock eased with a smoothstep (see HANDLING). Sprinting or dying drops the sights.
+    const aim = this.aimWant && controls && this.alive;
+    this.adsT = clamp(this.adsT + (aim ? dt / HANDLING.adsIn : -dt / HANDLING.adsOut), 0, 1);
+    this.ads = this.adsT * this.adsT * (3 - 2 * this.adsT);
     if (controls) {
-      this.yaw -= input.mouseDX * SENS;
-      this.pitch = clamp(this.pitch - input.mouseDY * SENS, -1.45, 1.45);
+      // Slower look while aiming: the zoom narrows the view, so the same hand movement stays as precise.
+      const sens = SENS * lerp(1, HANDLING.adsSens, this.ads);
+      this.yaw -= input.mouseDX * sens;
+      this.pitch = clamp(this.pitch - input.mouseDY * sens, -1.45, 1.45);
     }
+    this.updateCrouch(dt, input, controls);
     const fx = -Math.sin(this.yaw);
     const fz = -Math.cos(this.yaw);
     let wx = 0;
@@ -90,13 +135,21 @@ export class Player {
     const wl = Math.hypot(wx, wz);
     if (wl > 0) { wx /= wl; wz /= wl; }
     this.sprinting = controls && (input.key('ShiftLeft') || input.key('ShiftRight'));
-    this.sprinting = this.sprinting && wl > 0 && input.key('KeyW');
-    const speed = this.sprinting ? SPRINT : WALK;
+    this.sprinting = this.sprinting && wl > 0 && input.key('KeyW') && !aim;
+    // Sprinting stands you up (if there's room); crouched or aiming you can't sprint.
+    if (this.sprinting && this.crouch > 0.05) {
+      this.crouchToggle = false;
+      if (this.crouchWanted(input) || this.roomAbove() < BODY_H) this.sprinting = false;
+    }
+    const speed = (this.sprinting ? SPRINT : WALK) * lerp(1, HANDLING.crouchSpeed, this.crouch) * lerp(1, HANDLING.adsSpeed, this.ads);
     const accel = this.onGround ? 16 : 3;
     this.vel.x = damp(this.vel.x, wx * speed, accel, dt);
     this.vel.z = damp(this.vel.z, wz * speed, accel, dt);
 
-    if (controls && this.alive && this.onGround && input.pressed.has('Space')) {
+    // Space while crouched stands up instead of jumping (as long as there's room).
+    if (controls && this.alive && this.onGround && input.pressed.has('Space') && this.crouch > 0.3) {
+      this.crouchToggle = false;
+    } else if (controls && this.alive && this.onGround && input.pressed.has('Space')) {
       this.vel.y = JUMP_V;
       this.onGround = false;
       this.audio.footstep(0.6);
@@ -108,7 +161,7 @@ export class Player {
     const steps = Math.min(8, Math.max(1, Math.ceil(travel / Player.safeguards.maxStep)));
     const h = dt / steps;
     for (let i = 0; i < steps; i++) {
-      const headBefore = this.pos.y + BODY_H;
+      const headBefore = this.pos.y + this.height;
       const feetBefore = this.pos.y;
       stepStart.copy(this.pos);
       this.pos.addScaledVector(this.vel, h);
@@ -125,23 +178,23 @@ export class Player {
       // treated the underside as a wall and ejected the body sideways, through walls.
       if (Player.safeguards.vertical && this.vel.y > 0) {
         const ceil = this.col.ceilingAbove(this.pos.x, this.pos.z, this.radius, headBefore - 0.05);
-        if (this.pos.y + BODY_H > ceil) {
-          this.pos.y = ceil - BODY_H;
+        if (this.pos.y + this.height > ceil) {
+          this.pos.y = ceil - this.height;
           this.vel.y = 0;
         }
       }
       // Airborne: railings marked as vaultable can be jumped over.
       const vaulting = !this.onGround;
-      this.col.resolveCircle(this.pos, this.radius, BODY_H, 0.3, vaulting);
+      this.col.resolveCircle(this.pos, this.radius, this.height, 0.3, vaulting);
       // Never wedge into a gap narrower than the body: if the push-out couldn't separate the body from
       // every wall (two walls closer than its width), keep the last position that fitted.
       if (Player.safeguards.vertical) {
         _probe.copy(this.pos);
-        this.col.resolveCircle(_probe, this.radius - 0.02, BODY_H, 0.3, vaulting);
+        this.col.resolveCircle(_probe, this.radius - 0.02, this.height, 0.3, vaulting);
         if (Math.abs(_probe.x - this.pos.x) + Math.abs(_probe.z - this.pos.z) > 0.01) {
           // Only fall back to a start that itself fitted (never freeze someone already squeezed).
           _probe.copy(stepStart);
-          this.col.resolveCircle(_probe, this.radius - 0.02, BODY_H, 0.3, vaulting);
+          this.col.resolveCircle(_probe, this.radius - 0.02, this.height, 0.3, vaulting);
           if (Math.abs(_probe.x - stepStart.x) + Math.abs(_probe.z - stepStart.z) <= 0.01) {
             this.pos.x = stepStart.x;
             this.pos.z = stepStart.z;
@@ -178,7 +231,8 @@ export class Player {
       const idx = Math.floor(this.bobPhase / Math.PI);
       if (idx !== this.lastStepIdx) {
         this.lastStepIdx = idx;
-        this.audio.footstep(this.sprinting ? 1 : 0.7);
+        // Crouched steps are quiet (11.0).
+        this.audio.footstep((this.sprinting ? 1 : 0.7) * lerp(1, HANDLING.crouchStepVol, this.crouch));
       }
     }
 
@@ -193,7 +247,39 @@ export class Player {
     this.landDip.update(dt);
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     this.fovPunch = damp(this.fovPunch, 0, 10, dt);
-    this.eyeY = damp(this.eyeY, this.pos.y + EYE, 18, dt);
+    this.eyeY = damp(this.eyeY, this.pos.y + this.eyeHeight, 18, dt);
+  }
+
+  /** The crouch key: a tap toggles, a hold crouches until it's let go (see CROUCH_TAP). */
+  private crouchWanted(input: Input) {
+    return this.crouchToggle || input.key(KEYS.crouch);
+  }
+
+  /** Free height over the body now (a low ceiling keeps it down): up to standing. */
+  private roomAbove() {
+    return Math.min(BODY_H, this.col.ceilingAbove(this.pos.x, this.pos.z, this.radius, this.pos.y + this.height - 0.05) - this.pos.y - 0.02);
+  }
+
+  private updateCrouch(dt: number, input: Input, controls: boolean) {
+    if (controls && this.alive) {
+      if (input.pressed.has(KEYS.crouch)) {
+        this.crouchToggle = !this.crouchToggle;
+        this.crouchHeld = 0;
+      }
+      if (input.key(KEYS.crouch)) this.crouchHeld += dt;
+      else {
+        if (this.crouchHeld > CROUCH_TAP) this.crouchToggle = false;
+        this.crouchHeld = 0;
+      }
+    } else if (!this.alive) this.crouchToggle = false;
+    const want = controls && this.alive && this.crouchWanted(input) ? 1 : 0;
+    // Standing up needs the room: under a low ceiling it rises only as far as that allows.
+    const room = this.roomAbove();
+    const most = clamp((BODY_H - room) / (BODY_H - CROUCH_H), 0, 1);
+    const target = Math.max(want, most);
+    // Going down is immediate in height terms (never taller than the room), the rest is smoothed.
+    this.crouch = Math.max(damp(this.crouch, target, HANDLING.crouchRate, dt), most);
+    this.height = lerp(BODY_H, CROUCH_H, this.crouch);
   }
 
   damage(amount: number, from: THREE.Vector3, time: number) {
@@ -211,8 +297,13 @@ export class Player {
     }
   }
 
-  applyCamera(cam: THREE.PerspectiveCamera, time: number) {
-    const bobAmt = this.onGround ? Math.min(this.moveAmount, 1.4) : 0;
+  /** Hip-fire field of view (deg); ADS narrows it by the weapon's zoom. */
+  static FOV = 74;
+
+  applyCamera(cam: THREE.PerspectiveCamera, time: number, dt = 1 / 60, adsZoom = 1) {
+    // Aiming steadies the head: bob and shake fade with the sights up.
+    const steady = 1 - 0.8 * this.ads;
+    const bobAmt = (this.onGround ? Math.min(this.moveAmount, 1.4) : 0) * steady;
     const bobY = Math.abs(Math.sin(this.bobPhase)) * 0.045 * bobAmt;
     const bobX = Math.cos(this.bobPhase) * 0.025 * bobAmt;
     const t2 = this.trauma * this.trauma;
@@ -228,8 +319,11 @@ export class Player {
       this.yaw + this.kickYaw.value * 0.05 + sh(31, 4) * 0.03 * t2,
       this.kickRoll.value * 0.05 + Math.cos(this.bobPhase) * 0.006 * bobAmt + sh(23, 5) * 0.04 * t2,
     );
-    const targetFov = 74 + (this.sprinting ? 6 : 0) + this.fovPunch;
-    cam.fov = damp(cam.fov, targetFov, 8, 1 / 60);
+    // ADS: the FOV follows the eased blend directly (no second smoothing on top, so no lag behind the
+    // gun); sprint and punch are added and damped with the real frame time (3.x used a fixed 1/60 s).
+    const zoomed = Player.FOV * lerp(1, adsZoom, this.ads);
+    this.sprintFov = damp(this.sprintFov, (this.sprinting ? 6 : 0) + this.fovPunch, 8, dt);
+    cam.fov = zoomed + this.sprintFov;
     cam.updateProjectionMatrix();
   }
 }

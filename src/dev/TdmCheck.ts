@@ -23,6 +23,16 @@ import { probe } from './PerfProbe';
 type Dev = { start(m: string, s?: string): void; god(on?: boolean): void; tp(x: number, y: number, z: number, yaw?: number, pitch?: number): void; lock(): void; look(x: number, y: number, z: number): void; shoot(): void };
 const dev = () => (window as unknown as { __dev: Dev }).__dev;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** 11.0: hit rate (%) and rounds per range band, aimed and hip. */
+function byRange(st: { aimedRange: number[]; hipRange: number[]; aimedHitRange: number[]; hipHitRange: number[] }) {
+  const bands: [string, number, number][] = [['0-12', 0, 12], ['12-25', 12, 25], ['25-40', 25, 40], ['40+', 40, Infinity]];
+  const rate = (shots: number[], hits: number[], lo: number, hi: number) => {
+    const n = shots.filter((r) => r >= lo && r < hi).length;
+    const h = hits.filter((r) => r >= lo && r < hi).length;
+    return { pct: n ? +((100 * h) / n).toFixed(1) : null, n };
+  };
+  return Object.fromEntries(bands.map(([k, lo, hi]) => [k, { aimed: rate(st.aimedRange, st.aimedHitRange, lo, hi), hip: rate(st.hipRange, st.hipHitRange, lo, hi) }]));
+}
 const q = (a: number[], k: number) => (a.length ? +a.slice().sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(k * a.length))].toFixed(2) : 0);
 
 /** Wraps the TDM frame: wall time per frame and collision rays cast inside it. */
@@ -226,7 +236,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   const dt = opts.dt ?? 1 / 60;
@@ -235,6 +245,12 @@ export async function tdmSim(
   const roster0 = TDM.roster, lane0 = ARENA.laneLeave;
   if (opts.roster) TDM.roster = opts.roster === 'any' ? ANY : RANGED_ONLY;
   if (opts.laneLeave !== undefined) ARENA.laneLeave = opts.laneLeave;
+  // 11.0 A/B: `ads: false` is the 10.0 shooter (never aims, no extra hip spread).
+  const ads0 = ARENA.ads.enter, exit0 = ARENA.ads.exit, hip0 = ARENA.hipSpread, max0 = ARENA.ads.maxRange;
+  if (opts.ads === false) {
+    ARENA.ads.enter = ARENA.ads.exit = ARENA.ads.maxRange = Infinity;
+    ARENA.hipSpread = 0;
+  }
   startMatch(game, true, opts.tickets ?? 25, ai);
   const tdm = game.tdm;
   const g = game as unknown as { time: { value: number } };
@@ -298,6 +314,10 @@ export async function tdmSim(
   game.timeScale = 1;
   TDM.roster = roster0;
   ARENA.laneLeave = lane0;
+  ARENA.ads.enter = ads0;
+  ARENA.ads.exit = exit0;
+  ARENA.ads.maxRange = max0;
+  ARENA.hipSpread = hip0;
   const simT = game.elapsed - t0;
   const k = tdm.kills;
   const st = tdm.arenaStats;
@@ -335,6 +355,18 @@ export async function tdmSim(
             switchWhy: st.switchWhy,
             shots: st.shots,
             sightToShotMs: { median: +(q(st.reactions, 0.5) * 1000).toFixed(0), p90: +(q(st.reactions, 0.9) * 1000).toFixed(0), n: st.reactions.length },
+            // 11.0: hip vs aimed (by range). Each round carries its mode and firing range; hit rates per range band.
+            aim: {
+              aimedShots: st.aimedShots,
+              hipShots: st.hipShots,
+              aimedSharePct: +((100 * st.aimedShots) / Math.max(1, st.aimedShots + st.hipShots)).toFixed(1),
+              aimedHitPct: +((100 * st.aimedHitRange.length) / Math.max(1, st.aimedShots)).toFixed(1),
+              hipHitPct: +((100 * st.hipHitRange.length) / Math.max(1, st.hipShots)).toFixed(1),
+              aimedRange: { median: +q(st.aimedRange, 0.5).toFixed(1), p90: +q(st.aimedRange, 0.9).toFixed(1) },
+              hipRange: { median: +q(st.hipRange, 0.5).toFixed(1), p90: +q(st.hipRange, 0.9).toFixed(1) },
+              hitPctByRange: byRange(st),
+              aimingPctOfAlive: +((100 * st.aimT) / Math.max(1e-6, st.aliveT)).toFixed(1),
+            },
             perBot: st.perBot,
           }
         : null,
