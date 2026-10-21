@@ -298,6 +298,8 @@ export class Game {
     const s = this.scene;
 
     this.fx = new Effects(s, this.fog);
+    // 8.1: brass lands on the real floor (terrain, catwalks, roofs), looked up twice per casing.
+    this.fx.casings.floorAt = (x, z, y) => this.col.groundHeightAt(x, z, 0.02, y, 0.3);
     this.fx.onShellBounce = (p, k) => this.audio.shellBounce(p, k);
     this.weapon.setLights(null);
     const level = levelEntry(id).create(this);
@@ -622,7 +624,11 @@ export class Game {
     const tracer = new THREE.Color(...w.tracer);
     this.fx.muzzleSmoke(muzzle, dir);
     if (w.pellets) this.fx.muzzleSmoke(muzzle, dir);
-    this.fx.ejectShell(cam.localToWorld(new THREE.Vector3(...w.shell)), right, up);
+    // 8.1: brass only from kinetic guns, onto the floor under the port (a catwalk, a roof, the street).
+    if (w.ballistic === 'kinetic') {
+      const port = cam.localToWorld(new THREE.Vector3(...w.shell));
+      this.fx.ejectShell(port, right, up, this.col.groundHeightAt(port.x, port.z, 0.1, this.player.pos.y + 0.3), true);
+    }
     this.muzzleLight.color.set(w.flash.light);
     this.muzzleLight.position.copy(muzzle);
     this.muzzleT = 0.06;
@@ -664,7 +670,7 @@ export class Game {
         target = null;
         eh = null;
       }
-      this.fx.tracer(muzzle, origin.clone().addScaledVector(pd, maxDist), tracer);
+      this.fx.tracer(muzzle, origin.clone().addScaledVector(pd, maxDist), tracer, w.ballistic);
       this.nearMisses(origin, pd, maxDist, target, suppressed);
       if (target && eh) {
         const k = fall ? (eh.dist <= fall.near ? 1 : eh.dist >= fall.far ? fall.min : 1 - ((eh.dist - fall.near) / (fall.far - fall.near)) * (1 - fall.min)) : 1;

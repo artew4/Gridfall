@@ -9,6 +9,7 @@ import { ArenaDirector } from '../enemies/arena/ArenaDirector';
 import { Sensing } from '../enemies/arena/Sensing';
 import { ARENA, newArenaStats, type ArenaCtx, type ArenaStats } from '../enemies/arena/ArenaCtx';
 import type { DeathmatchBrain } from '../enemies/arena/DeathmatchAI';
+import { ARENA_SIGHT_SHARE } from '../world/Visibility';
 import { RANGED_ONLY, filterRoster, type RosterRequest, type Slot as RosterSlot, type UnitKind } from '../enemies/Roster';
 import { otherTeam, TEAMS, type Combatant, type TeamId } from '../combat/Team';
 import { DESERT_GARRISON } from '../entities/enemies/mercs';
@@ -48,6 +49,11 @@ export const TDM = {
    * to the other team in a firefight. Survival keeps its own compositions (runners and gunners).
    */
   roster: RANGED_ONLY as RosterRequest,
+  /**
+   * 8.1: no barks in TDM (text or voice), either brain: in a competitive mode a callout over an
+   * enemy's head, or his shout behind a wall, gives his position away. Survival keeps them.
+   */
+  barks: false,
 };
 
 /** The 5.0 scheduler defaults (the tactical path restores them). */
@@ -145,7 +151,10 @@ export class TdmRules implements ModeRules {
     this.friendlyDamage = 0;
     this.playerRespawnAt = Infinity;
     this.startT = this.now;
-    for (const t of TEAMS) this.squads[t].reset();
+    for (const t of TEAMS) {
+      this.squads[t].reset();
+      this.squads[t].barks.enabled = TDM.barks;
+    }
     this.squads.alpha.human = this.spectate || TDM.ai === 'arena' ? null : g.playerUnit;
     this.ai = TDM.ai;
     Object.assign(this.sched, this.ai === 'arena' ? ARENA.sched : TACTICAL_SCHED);
@@ -400,7 +409,8 @@ export class TdmRules implements ModeRules {
       brains,
       (a) => this.hostiles[a.self.team],
       (a, h) => dirs[a.self.team].isHot(h.uid, now),
-      this.game.ctx.sightRange,
+      // 8.1: the arena sees only what a player could pick out of the fog (world/Visibility.ts).
+      this.game.ctx.sightRange !== undefined ? this.game.ctx.sightRange * ARENA_SIGHT_SHARE : undefined,
     );
     // What anyone sees goes on the team's board.
     for (const br of brains) {

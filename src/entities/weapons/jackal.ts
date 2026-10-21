@@ -23,6 +23,7 @@ export const JACKAL_AR: WeaponSpec = {
   shell: [0.2, -0.18, -0.4],
   flash: { color: [7, 4.4, 1.6], size: 1.35, at: [0, 0.018, -0.62], light: 0xffb24a },
   tracer: [1.0, 0.6, 0.2],
+  ballistic: 'kinetic',
   sound: 'rifle',
   ammoGlow: false,
   build({ gun, slide, mag }: WeaponBuild) {

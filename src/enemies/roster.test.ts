@@ -27,3 +27,20 @@ describe('Roster filtering', () => {
     expect(wavesSrc).toMatch(/new Runner\(/);
   });
 });
+
+describe('Team Deathmatch is silent (8.1)', () => {
+  it('a disabled bark gate says, shows and logs nothing; TDM turns its gates off, survival never does', async () => {
+    const { BarkGate } = await import('./tactics/Barks');
+    const g = new BarkGate<string>();
+    let heard = 0;
+    g.onBark = () => heard++;
+    g.enabled = false;
+    expect(g.say('a', 'reload', 'human', 10)).toBe(null);
+    expect(heard).toBe(0);
+    expect(g.log.length).toBe(0);
+    g.enabled = true;
+    expect(g.say('a', 'reload', 'human', 20)).not.toBe(null);
+    expect(TDM.barks).toBe(false);
+    expect(wavesSrc).not.toMatch(/barks\.enabled/);
+  });
+});

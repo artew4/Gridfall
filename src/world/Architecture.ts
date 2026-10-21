@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fitStairWidth } from './StairFit';
 import type { BuildCtx } from './City';
 import { worldBox } from './Builder';
 import { perforatedTexture } from './Textures';
@@ -153,10 +154,14 @@ export class Architecture {
    * Solid concrete stair: a stepped extrusion for the eye, a smooth ramp for the feet (no camera
    * bounce), stepped fill boxes underneath for bullets and to keep anyone from walking under it.
    */
-  stair(s: StairSpec) {
+  stair(spec: StairSpec) {
     const { builder: b, col } = this.ctx;
-    const top = s.top ?? DECK;
-    const bot = s.bottom ?? 0;
+    const top = spec.top ?? DECK;
+    const bot = spec.bottom ?? 0;
+    // 8.1: never into a wall (StairFit): narrowed to the face of a wall intruding into its width.
+    const fit = fitStairWidth(col.colliders, spec, spec.axis, Math.min(bot, top), Math.max(bot, top));
+    if (fit.blocked.length) console.warn('[stair] runs into a wall', [spec.x0, spec.z0, spec.x1, spec.z1], fit.blocked.map((c) => [c.min.toArray(), c.max.toArray()]));
+    const s: StairSpec = { ...spec, ...fit.rect };
     const H = top - bot;
     const alongX = s.axis === 'x';
     const L = alongX ? s.x1 - s.x0 : s.z1 - s.z0;

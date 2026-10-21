@@ -9,6 +9,7 @@ import { Rain } from '../../world/Rain';
 import { ReflectionCatchers } from '../../world/ReflectionCatchers';
 import { WET4, createStreak, updateStreaks } from '../../world/Ground';
 import { damp } from '../../core/math';
+import { fogRange } from '../../world/Visibility';
 import { JACKAL_AR } from '../../entities/weapons/jackal';
 import { NEON_SYNTHS } from '../../entities/enemies/neon';
 
@@ -42,7 +43,7 @@ export class DocksLevel implements LevelRuntime {
   readonly info = DOCKS_INFO;
   data: LevelData;
   readonly look: LevelLook = {
-    exposure: 1.0,
+    exposure: 1.12,
     bloom: { strength: 0.7, radius: 0.85, threshold: 1.0 },
     shadows: false,
     shadowTint: [0.004, 0.01, 0.028],
@@ -119,8 +120,8 @@ export class DocksLevel implements LevelRuntime {
     const game = this.game;
     // After the engine built the halos: the rain lights its drops from the same glows.
     this.rain = new Rain(game.scene, game.glows, game.time, game.fog, { ...this.docks.rain, holes: game.col.holes });
-    // The rain and the floods: enemies see as far as you do.
-    game.ctx.sightRange = 95;
+    // The rain and the floods: enemies see as far as you do (the fog's 90% distance, ~95 m).
+    game.ctx.sightRange = fogRange(game.fog.density);
     game.weapon.setLights({ sky: 0x5a6aa8, ground: 0x2a1c2c, hemi: 0.9, key: 0xffc890, keyI: 1.6, rim: 0xff4ad8, rimI: 0.9 });
   }
 

@@ -4,6 +4,7 @@ import type { Collider, CollisionWorld } from '../../world/Collision';
 import type { Glows } from '../../world/Glows';
 import type { Breakable, CabinetSpot } from '../../gameplay/Interactives';
 import { mulberry32 } from '../../core/math';
+import { fitStairWidth } from '../../world/StairFit';
 import type { Zone } from '../Level';
 import { BASE, CLIFF, CLIFF_RECESS, JUNGLE_EXTENT, ROAD, STRIP, baseDist, jungleHeight, roadX } from './Terrain';
 import * as T from './textures';
@@ -174,7 +175,11 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
    * under or through it, and the ramp is the floor. `rails` puts a stepped steel side plate on those
    * sides (each segment 1.05 m above its highest tread: not vaultable, it's a fall).
    */
-  const stair = (x0: number, z0: number, x1: number, z1: number, axis: 'x' | 'z', rise: 1 | -1, base: number, top: number, mat: THREE.Material, rails: Side[] = []) => {
+  const stair = (sx0: number, sz0: number, sx1: number, sz1: number, axis: 'x' | 'z', rise: 1 | -1, base: number, top: number, mat: THREE.Material, rails: Side[] = []) => {
+    // 8.1: never into a wall (StairFit): narrowed to the face of a wall intruding into its width.
+    const fit = fitStairWidth(col.colliders, { x0: sx0, z0: sz0, x1: sx1, z1: sz1 }, axis, base, top);
+    if (fit.blocked.length) console.warn('[stair] runs into a wall', [sx0, sz0, sx1, sz1]);
+    const { x0, z0, x1, z1 } = fit.rect;
     const along = axis === 'x';
     const L = along ? x1 - x0 : z1 - z0;
     const H = top - base;

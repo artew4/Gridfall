@@ -52,6 +52,7 @@ export const BOAR_SHOTGUN: WeaponSpec = {
   shell: [0.2, -0.17, -0.42],
   flash: { color: [8, 5, 1.8], size: 2.1, at: [0, 0.028, -0.66], light: 0xffb050 },
   tracer: [1.0, 0.72, 0.38],
+  ballistic: 'kinetic',
   sound: 'shotgun',
   pellets: { count: 8, spread: 0.06, falloff: { near: 7, far: 26, min: 0.2 } },
   cycle: { start: 0.2, back: 0.13, forward: 0.15, travel: 0.1 },
