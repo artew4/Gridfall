@@ -1,0 +1,56 @@
+{
+  "version": "8.0 (feature/neon-docks-arena-8.0)",
+  "machine": "Apple M5, Chrome, ANGLE Metal, DPR 2",
+  "preset": "Balanced (saved settings unchanged)",
+  "docks_integrity": {
+    "world": { "from": [0, 0, 72], "findings": 0, "reachableCells": 46528, "perZone": { "RED STACKS": 5670, "BLUE STACKS": 5670, "YELLOW STACKS": 2562, "ALPHA SPAWN": 2686, "OMEGA SPAWN": 2686, "ALPHA FORECOURT": 3733, "OMEGA FORECOURT": 3733, "WAREHOUSE 7": 4656, "CATWALKS": 1434, "SOUTH QUAY": 5663, "NORTH QUAY": 5663, "THE CRANE": 2372 } },
+    "stress": { "samples": 800, "fps": [20, 30, 60, 120, "spiky"], "runs": 64000, "failures": 0, "note": "first build: 2 failures (sprint-jump into the open side of an interior stair, inside its fill); fixed by plating both sides" },
+    "levelAI_sight25": { "nodes": 563, "graphOk": true, "runners": { "runs": 384, "ok": 384, "medianS": 15.6, "worstStallS": 8.8 }, "gunners": { "runs": 24, "ok": 24 } },
+    "levelAI_sight300": { "graphOk": true, "runners": { "runs": 384, "ok": 384, "medianS": 15.7, "worstStallS": 8.2 }, "gunners": { "runs": 24, "ok": 24 } },
+    "note_first_build": "first levelAI: 347/384 runners; a container stair whose foot faced another container (0.23 m) and whose foot nav node was inside it"
+  },
+  "docks_matches": {
+    "method": "__dev.tdmSim() on the docks, 25 tickets, arena AI, ranged-only roster, bot vs bot (4 ALPHA bots vs 5 OMEGA), fixed 1/60 s, headless. zoneTimePct sampled every 15 steps per bot.",
+    "final": [
+      { "simSeconds": 193.6, "killsPerMin": 14.3, "elevatedPct": 10.6, "catwalkTimePct": 7.6, "killsByZone": { "WAREHOUSE 7": 18, "CATWALKS": 7, "THE CRANE": 8, "SOUTH QUAY": 4, "NORTH QUAY": 3, "YELLOW STACKS": 3, "BLUE STACKS": 1, "ALPHA FORECOURT": 2 }, "stuck": 0 },
+      { "simSeconds": 184.1, "killsPerMin": 15.0, "elevatedPct": 9.4, "catwalkTimePct": 7.0, "killsByZone": { "ALPHA FORECOURT": 13, "WAREHOUSE 7": 9, "CATWALKS": 7, "THE CRANE": 5, "SOUTH QUAY": 4, "YELLOW STACKS": 4, "BLUE STACKS": 4 }, "stuck": 0 },
+      { "simSeconds": 181.7, "killsPerMin": 15.2, "elevatedPct": 9.8, "catwalkTimePct": 6.5, "killsByZone": { "WAREHOUSE 7": 17, "ALPHA FORECOURT": 11, "CATWALKS": 3, "BLUE STACKS": 4, "YELLOW STACKS": 4, "SOUTH QUAY": 4, "THE CRANE": 2, "NORTH QUAY": 1 }, "stuck": 0 }
+    ],
+    "iterations": [
+      { "build": "first (shortest-path hunts)", "warehouseTimePct": "40-43", "warehouseKills": "45 of 49", "stacksTimePct": "1-2 each", "catwalkTimePct": 0 },
+      { "build": "+ lane discipline", "warehouseTimePct": "24-25", "stacksTimePct": "~5 each", "quayAndCraneTimePct": "22-28", "catwalkTimePct": "0-0.2" },
+      { "build": "+ crate stack breaking the door-to-door floor line, centre lane over the catwalk", "catwalkTimePct": "0-1.4" },
+      { "build": "+ interior stairs reversed (foot at the doors, onto a mid landing)", "catwalkTimePct": "6.5-7.6", "elevatedPct": "9.4-10.6" }
+    ],
+    "allKillsByRifles": true, "friendlyDamage": 0, "drowned": 0
+  },
+  "docks_bench": {
+    "method": "__dev.bench(3) on the docks: every view with the match running (nine bots, god mode). All valid.",
+    "columns": ["fps", "cpuMs", "gpuMs", "frameMsP99", "drawCalls", "triangles"],
+    "alphaYard": [60, 2.55, 6.35, 26.3, 314, 44549],
+    "stacks": [59.6, 2.96, 6.47, 24.8, 179, 41327],
+    "stacksTop": [59.3, 2.66, 5.81, 31.7, 115, 40727],
+    "warehouseFloor": [59.6, 2.82, 6.09, 29.5, 263, 45611],
+    "catwalk": [60, 2.83, 6.37, 28.1, 217, 44951],
+    "quay": [60, 2.86, 6.02, 25.4, 227, 43669],
+    "crane": [60, 2.42, 6.09, 25.6, 98, 39849],
+    "firefight": [60, 2.51, 6.54, 23.4, 227, 43537]
+  },
+  "docks_tdmBench": {
+    "columns": ["fps", "cpuMs", "gpuMs", "frameP99", "aiMsAvg", "aiMsP95", "aiMsP99", "aiMsWorst", "raysPerFrame", "decidesPerFrame", "drawCalls"],
+    "spectate": [60, 2.52, 6.28, 25.9, 0.319, 0.7, 1.1, 2.1, 18.7, 1.69, 329],
+    "withPlayer": [59.9, 2.48, 6.55, 24.7, 0.36, 0.7, 1.0, 2.5, 15.0, 1.57, 224],
+    "sensing": { "spectate": { "rays": 6884, "frames": 2278, "cacheHits": 2829, "checks": 6623, "deferred": 10, "maxRaysInAFrame": 18 }, "withPlayer": { "rays": 6690, "frames": 2280, "cacheHits": 2648, "checks": 6505, "deferred": 50, "maxRaysInAFrame": 18 } }
+  },
+  "desert_tdm_after_8.0": {
+    "method": "__dev.tdmSim() on Desert Outpost with the 8.0 code (ranged-only, lane discipline), 3 runs",
+    "runs": [
+      { "simSeconds": 187.9, "killsPerMin": 14.4, "kills": { "gunner": 45 }, "breakPct": 12.9, "stuck": 0 },
+      { "simSeconds": 167.6, "killsPerMin": 14.3, "kills": { "gunner": 40 }, "breakPct": 14.9, "stuck": 0 },
+      { "simSeconds": 198.5, "killsPerMin": 14.2, "kills": { "gunner": 47 }, "breakPct": 15.7, "stuck": 0 }
+    ],
+    "versus_7.0": "7.0 (with blades): 135-153 s, 18.3-20 kills/min",
+    "attribution": "not completed: the in-code A/B (blades back, lane discipline off) was cut off when the browser extension disconnected; an earlier console attempt modified a second module copy and is void"
+  },
+  "tests": { "unit": "141 passed (8 new: roster 4, docks layout 4)", "build": "ok; tdmSim/bench/docks dev code not in the bundle" }
+}

@@ -360,9 +360,48 @@ Branch `feature/deathmatch-ai-core-7.0`, based on 6.0 (`e5d2989`). Plan: `docs/P
 
 **Not verified (needs a human):** whether the bots feel ruthless but fair against a person (snap + spread was tuned on bot-vs-bot numbers only); whether BREAK and the Push read as intent; balance of a full match with a human.
 
+## 8.0: Neon Docks arena and the ranged-only TDM roster
+Branch `feature/neon-docks-arena-8.0`, based on 7.0 (`08e55d1`). Plan: `docs/PLAN-8.0.md`. Numbers: `docs/BENCH-8.0.json`.
+
+| Step | Commit | Notes |
+|---|---|---|
+| Phases 1–3 | `b0676e1` | roster filtering (TDM ranged only), the Neon Docks arena, the arena AI's lane discipline |
+| Phases 4–5 | (second 8.0 commit) | zone and height stats in `tdmSim`, a docks `bench` set, A/B switches, docs |
+
+**Fixes found in validation:**
+- **Stress:** 2 of 64,000 runs failed. A sprint-jump into the open side of an interior stair landed inside its fill. Both sides are now plated: 0 of 64,000.
+- **levelAI:** 347/384 runners reached their goals. A container stair's foot faced another container (0.23 m) and its foot nav node was inside it. The stair now runs along the container's side, and the build checks every node: 384/384.
+- **Lane start points:** the first lane point of each lane was 0.4 m from its blast wall; moved to the middle of the 4.4 m gap.
+- **Everything through the middle:** 40% of bot time and 45 of 49 kills were in the warehouse, 1–2% in each stack zone. The arena brain hunted every contact by the shortest path. Now a far contact (> 22 m) is hunted along the bot's own lane first (lane discipline). Warehouse time fell to 22–26%; the quays and crane took 22–28% and the stacks ~16%.
+- **No one on the catwalks:**
+  - Two aligned main doors gave a floor-level line through the warehouse; a crate stack under the bridge breaks it.
+  - The centre lane now runs over the west catwalk, and raised lane waypoints are taken at any distance.
+  - The interior stairs rose away from the doors; reversed, onto a mid landing.
+  - Catwalk time went from 0 to 6.5–7.6% of bot time (elevated 9–11%), with 3–7 catwalk kills a match.
+- **Too dark:** the stacks were near black. The floods were raised to physical intensities (650 / 450 cd), three work lights were strung over the maze, and the sky fill was raised.
+
+**Validation** (Chrome, Apple M5, Balanced):
+- **World integrity:** `__dev.world()` 0 findings, 46,528 reachable cells; the per-zone counts are equal between mirrored halves. `__dev.stress()` 0 failures in 64,000 runs (800 samples × 8 directions × 5 frame-rate profiles × walk / sprint-jump). `__dev.colliders()` overlay inspected on the stairs and catwalks.
+- **AI pathing:** `__dev.levelAI({ spawns: 24 })` at sight 25 and 300: graph connected, runners 384/384 (median 15.6 s, worst stall < 9 s) to the catwalks, bridge, exterior landing, container roofs, platform, maze, warehouse and quay; gunners 24/24. An arena bot sent to the catwalk walks in the door, vaults the pallets, climbs and walks the catwalk.
+- **Bot-vs-bot on the docks (`tdmSim`, 3 matches):**
+  - 182–194 s, 14.3–15.2 kills/min, every kill by a rifle;
+  - 95% of bot time moving, 9–11% elevated, 6.5–7.6% on the catwalks;
+  - kills spread over the warehouse, catwalks, crane, quays, stacks and forecourts;
+  - stuck 0, friendly damage 0, drowned 0.
+- **Performance:**
+  - `__dev.bench(3)` on the docks, every view with the match running: 59.3–60 FPS, CPU 2.4–3.0 ms, GPU 5.8–6.5 ms, 98–314 draw calls, all valid.
+  - `__dev.tdmBench()`: 60 FPS; AI 0.32 ms average (P99 1.1, worst 2.1) spectating, 0.36 ms (P99 1.0, worst 2.5) with the player shooting.
+- **Survival keeps melee:** `Waves` never consults a roster request (unit test); the 7.0 survival regression stands, with nothing in the survival path changed.
+- **Tests and build:** 141 unit tests (8 new); `npm run build` ok; DEV tools not in the bundle.
+
+**Open:**
+- **Desert TDM is slower:** with the 8.0 code, desert matches run 168–198 s at ~14.3 kills/min (7.0: 135–153 s, ~18.4). The in-code A/B that separates the roster change from lane discipline (`tdmSim({ roster: 'any' })`, `tdmSim({ laneLeave: Infinity })`) was cut off when the browser extension disconnected. An earlier console attempt changed a second copy of the module and is void.
+- **Not human-tested:** the docks, the lanes' balance with a human, whether the colour callouts read in a fight, and the lighting on other displays.
+
 ## Next
 Human playtest:
-- 7.0 items: a full TDM match against the arena bots: do they feel fast and ruthless or unfair (the first rounds go wide for a third of a second; is that enough?); do the jumps and vaults look natural; does a wounded enemy getting rushed read; do your allies help or just run off; is the match length (about 2–3 minutes bot-only) right; `TDM.ai = 'tactical'` for a side-by-side.
+- 8.0 items: Neon Docks in TDM: does each lane have a purpose (stacks close, warehouse mid, quay long), do the catwalks pay off, can you call out "red stacks", is the quay too open, is it bright enough, is a match the right length without the blades.
+- 7.0 items (played: snap + spread felt great; blades fed tickets → removed from TDM in 8.0): a full TDM match against the arena bots: do they feel fast and ruthless or unfair (the first rounds go wide for a third of a second; is that enough?); do the jumps and vaults look natural; does a wounded enemy getting rushed read; do your allies help or just run off; is the match length (about 2–3 minutes bot-only) right; `TDM.ai = 'tactical'` for a side-by-side.
 - 6.0 items: a full TDM match: do Maxim, Anatoly, Kostya and Ilya help, do they flank when you lay down fire and cover you when you push or fall back, is the respawn pace right, does either base feel favoured, are the name tags readable, are the blades too strong.
 - 5.0 items: do the enemies read as a squad (suppress, flank, rush together), is cover-flanking satisfying, do callouts help or nag, are staged rushers too passive, is the jungle undergrowth fair, does losing them and being searched for work.
 - 4.2 items: is the jungle oppressive or just dark? Are the shafts cinematic or too strong up close? Does the mud read as wet in motion? Is the fog too thick for spotting enemies?

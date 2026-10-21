@@ -13,6 +13,7 @@ A level owns everything about a place: geometry, collision, lights, weather, amb
 | TOKYO NIGHT | Story Escape, Arcade Survival | `src/levels/tokyo/` (`TokyoLevel`, `TokyoStory`) plus the Tokyo content modules in `src/world`, `src/story`, `src/rail`, `src/stealth`, `src/city` |
 | DESERT OUTPOST | Arcade Survival | `src/levels/desert/` (`DesertLevel`, `Outpost`, `Terrain`, `Sandstorm`, `DesertIntro`, `textures`) |
 | DEEP JUNGLE | Arcade Survival | `src/levels/jungle/` (`JungleLevel`, `Base`, `Foliage`, `Terrain`, `JungleIntro`, `textures`) |
+| NEON DOCKS (8.0) | Team Deathmatch | `src/levels/docks/` (`DocksLevel`, `Docks`, `DocksLayout`) |
 
 ## How it fits together
 
@@ -187,4 +188,32 @@ Desert Outpost's arena (`src/levels/desert/ArenaLayout.ts`, `Arena.ts`):
 - **Centre approach:** a burnt truck, jersey barriers, a sandbag nest facing the compound, two rocks.
 - **Nav:** hand links through every doorway, chicane and the nest; lane waypoints are nodes. Validate with `__dev.levelAI()` after any change (a wrong link is built twice).
 - **Survival** on the desert plays on the same map: its 3.4 ruins and salvage dumps (where the hamlet and wadi are now) were replaced by the arena's cover.
+
+## Neon Docks: a TDM-only 3-lane arena (8.0)
+`src/levels/docks/` (`DocksLayout.ts` holds the plan, the lanes and the zones; `Docks.ts` builds it; `DocksLevel.ts` is the runtime). `info.modes = ['tdm']`: the menu makes TDM its primary mode. Plan and numbers: `docs/PLAN-8.0.md`, `docs/BENCH-8.0.json`.
+
+Layout and fairness:
+- **Mirror symmetry (z → −z):** the water stays east the whole length, so each lane keeps its identity. A 180° rotation, as on the desert, would swap the quay to the other side at mid-field.
+- **Colour callouts are not symmetric:** blue stacks on ALPHA's half, yellow in the middle, red on OMEGA's.
+
+Lanes:
+
+| Lane | What | Range | Verticality |
+|---|---|---|---|
+| Stacks (x < −17) | a container maze on an 8 m grid | close | stairs onto container roofs |
+| Warehouse 7 (\|x\| < 14) | the meat grinder | mid | catwalks, stairs from the doors up to a mid landing, a bridge |
+| Quay (x > 14) | open, along the water, under the crane | long | a loading platform, an exterior stair to a catwalk door |
+
+Transitions between lanes:
+- the divider's gaps and the warehouse's west doors (stacks ↔ warehouse);
+- the east doors and the exterior stair (warehouse ↔ quay);
+- both forecourts (all three).
+
+Rules learned building it:
+- **Fill under the treads:** a stair that has floor along a side needs a side plate there. A sprint-jump into the open side landed inside the stepped fill below the treads (stress test).
+- **Stair foot and nav nodes:** a stair's foot must face open floor. Check every nav node: the build warns about any node inside geometry (`laneProblems`).
+- **Break the meat grinder's long axis:** two aligned doors gave an eye-level line through the whole warehouse, and the bots fought there from outside. A 2.4 m crate stack under the bridge breaks it; from the catwalks you see over it.
+- **Stairs face the way people arrive:** stairs that rose away from the doors left the catwalks unused (0–1.4% of bot time). Reversed, with the foot at the door and a mid landing onto the catwalk, it rose to 6.5–7.6%.
+- **The water edge:** a fence that beats every jump from what stands near it: 1.6 m, chain link, not vaultable (props within 6 m are ≤ 1 m tall), plus a drown volume behind it.
+- **Survival-only data:** `data.spawns` holds both teams' spawns and the lane points, so `levelAI` has somewhere to start (the level has no survival).
 

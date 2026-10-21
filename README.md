@@ -1,4 +1,4 @@
-# NEON RAIN 7.0: Three Settings, Tactical AI, 5v5 Team Deathmatch with Arena Bots
+# NEON RAIN 8.0: Four Settings, Tactical AI, 5v5 Team Deathmatch on Neon Docks
 
 One night in Shinjuku. One gun you'd rather keep holstered. One last train. Or an outpost in the dunes, and a sandstorm coming. Or a walled firebase deep in the rainforest, and a road up to its gate.
 
@@ -269,6 +269,16 @@ Team Deathmatch bots no longer fight like survival enemies. They play like playe
 - **They know the map.** Each team keeps a board of everyone seen, heard firing or called out in the last few seconds, and runs at the freshest contact. The team pushes when it has the numbers, holds its ground when it's even, and regroups when it's down. Every lane stays covered.
 - **Survival is unchanged.** Tokyo, the jungle and the desert's survival mode still run the 5.0 tactical squads (cover, suppression, flanks, searches).
 
+### Neon Docks (8.0)
+A harbour at night, in the rain, built for Team Deathmatch only. Three lanes run from base to base:
+- **The stacks:** a maze of shipping containers with tight corners and corridors two metres wide. Steel stairs lead up onto a couple of roofs. They are blue on your side, yellow in the middle and red on theirs, so you can call where the enemy is.
+- **Warehouse 7:** the meat grinder. Catwalks run along both walls, with stairs up from the doors, and a bridge crosses the middle.
+- **The quay:** open concrete along the water, under a gantry crane, with long sightlines for riflemen.
+
+Side doors, gaps in the stacks, an outside stair to a catwalk door, and the forecourts at both ends let you switch lanes and flank. It's wet everywhere, lit by sodium and LED floodlights, with neon reflecting in the puddles.
+
+TDM is all rifles now: since 8.0 the two blades on each roster fight with rifles. Survival still has its melee rushers.
+
 ### Survival tactics (5.0)
 The survival enemies fight as a squad, in every setting:
 - **They take real cover.** A rifleman hunkers where the obstacle actually hides him from where you are, then pops up or leans out, fires a burst after a short laser warning, and ducks again. Walk round his cover and he notices within a fraction of a second ("He's flanking!") and moves.
@@ -334,6 +344,7 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
     - AI ms per step and the sensing counters.
   - `await __dev.tdmAB({ runs: 3 })`: `tdmSim` for both AIs, alternating, with the medians side by side. Compare with `docs/BENCH-7.0.json`.
   - `TDM.ai = 'tactical'` (in `src/levels/Tdm.ts`) brings back the 6.0 bots in play.
+- Neon Docks (8.0): every TDM check runs on the loaded level if it has an arena (`?setting=docks`). `tdmSim` also reports time and kills per zone and the share of time off the floor, and takes `roster: 'any'` (blades back) and `laneLeave: Infinity` (lane discipline off) for A/Bs. `bench(3)` has a docks set: seven views and a firefight, with the match running.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
 
 ## Structure
@@ -370,6 +381,8 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
 - `src/player`: FPS controller and the viewmodel weapon (holster, recoil, reload, pump and tube-loading mechanics)
 - `src/enemies`: models (merged per joint), Runner, Gunner (two-rate tactical brains), nav and arcade waves
 - `src/enemies/tactics`: the squad director, time-slicing scheduler, utility selection, dynamic cover and generated cover spots, callouts
+- `src/levels/docks` (8.0): Neon Docks, the TDM arena (plan, lanes and zones in `DocksLayout`)
+- `src/enemies/Roster.ts` (8.0): roster filtering (a mode requests unit classes)
 - `src/enemies/arena` (7.0, Team Deathmatch only): the deathmatch brain, the arena director (fronts, momentum, contact board, push claims), attention-driven sensing, jump and vault movement, the arena bodies
 - `src/ui`: HUD, story HUD, minimap, marker, pause and settings menu, end screen
 - `src/dev`: route check and console helpers (DEV only)

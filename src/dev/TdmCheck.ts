@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { Game } from '../core/Game';
 import { TDM } from '../levels/Tdm';
+import { ANY, RANGED_ONLY } from '../enemies/Roster';
+import { ARENA } from '../enemies/arena/ArenaCtx';
 import type { TacticalEnemy } from '../enemies/Enemy';
 import { probe } from './PerfProbe';
 
@@ -68,7 +70,8 @@ function startMatch(game: Game, spectate: boolean, tickets?: number, ai: Ai = 'a
   if (tickets) TDM.tickets = tickets;
   TDM.ai = ai;
   game.tdm.spectate = spectate;
-  dev().start('tdm', 'desert');
+  // The loaded level if it has an arena (8.0: the docks), else the desert.
+  dev().start('tdm', game.level.data.tdm ? game.setting : 'desert');
   dev().god(true);
   TDM.tickets = before;
   TDM.ai = beforeAi;
@@ -157,7 +160,9 @@ export async function tdmBench(game: Game, opts: { seconds?: number; settle?: nu
   const met = meter(game);
   let shooter = 0;
   if (opts.withPlayer) {
-    dev().tp(-3, 0, 40, 0, 0);
+    // The centre lane's mouth (the desert's 6.0/7.0 spot; elsewhere the centre lane's second waypoint).
+    const c = game.setting === 'desert' ? { x: -3, z: 40 } : game.level.data.tdm!.lanes.alpha[1][1];
+    dev().tp(c.x, 0, c.z, 0, 0);
     shooter = window.setInterval(() => {
       const p = game.player;
       let best: THREE.Vector3 | null = null, bd = 45;
@@ -219,10 +224,17 @@ function engaged(game: Game) {
  * the CPU allows, yielding to the browser every `chunk` steps. Bot-vs-bot (the player spectates in
  * god mode). Stops at the end of the match or after `maxSeconds` of sim time.
  */
-export async function tdmSim(game: Game, opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number } = {}) {
+export async function tdmSim(
+  game: Game,
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number } = {},
+) {
   const ai = opts.ai ?? 'arena';
   const dt = opts.dt ?? 1 / 60;
   const maxSeconds = opts.maxSeconds ?? 1200;
+  // 8.0 A/B switches (restored at the end): the roster request, lane discipline (Infinity: off).
+  const roster0 = TDM.roster, lane0 = ARENA.laneLeave;
+  if (opts.roster) TDM.roster = opts.roster === 'any' ? ANY : RANGED_ONLY;
+  if (opts.laneLeave !== undefined) ARENA.laneLeave = opts.laneLeave;
   startMatch(game, true, opts.tickets ?? 25, ai);
   const tdm = game.tdm;
   const g = game as unknown as { time: { value: number } };
@@ -231,7 +243,10 @@ export async function tdmSim(game: Game, opts: { ai?: Ai; tickets?: number; maxS
   const t0 = game.elapsed;
   let steps = 0, firstContact: number | null = null;
   // Per bot-step samples: moving (> 1.5 m/s), crouched (> 0.5), standing still (< 0.5 m/s).
-  const smp = { n: 0, moving: 0, crouched: 0, still: 0, speed: 0 };
+  const smp = { n: 0, moving: 0, crouched: 0, still: 0, speed: 0, elevated: 0 };
+  // 8.0: where the fight happens — bot time per zone (sampled), height above the floor.
+  const zoneT: Record<string, number> = {};
+  const zoneOf = (x: number, y: number, z: number) => game.level.data.zoneAt(x, y, z)?.name ?? '-';
   const track = new Map<TacticalEnemy, { x: number; z: number; t: number }>();
   const stuck: string[] = [];
   const wall0 = performance.now();
@@ -254,6 +269,11 @@ export async function tdmSim(game: Game, opts: { ai?: Ai; tickets?: number; maxS
         if (sp > 1.5) smp.moving++;
         if (sp < 0.5) smp.still++;
         if (b.crouch > 0.5) smp.crouched++;
+        if (b.pos.y > 1) smp.elevated++;
+        if (steps % 15 === 0) {
+          const zn = zoneOf(b.pos.x, b.pos.y, b.pos.z);
+          zoneT[zn] = (zoneT[zn] ?? 0) + 1;
+        }
         if (steps % 60 === 0) {
           const r = track.get(b);
           if (!r || Math.hypot(b.pos.x - r.x, b.pos.z - r.z) > 1.5) track.set(b, { x: b.pos.x, z: b.pos.z, t: now });
@@ -268,6 +288,8 @@ export async function tdmSim(game: Game, opts: { ai?: Ai; tickets?: number; maxS
   }
   met.stop();
   game.timeScale = 1;
+  TDM.roster = roster0;
+  ARENA.laneLeave = lane0;
   const simT = game.elapsed - t0;
   const k = tdm.kills;
   const st = tdm.arenaStats;
@@ -285,7 +307,12 @@ export async function tdmSim(game: Game, opts: { ai?: Ai; tickets?: number; maxS
     victimDoing: k.reduce<Record<string, number>>((a, x) => ((a[x.victimAction.split('/')[0]] = (a[x.victimAction.split('/')[0]] ?? 0) + 1), a), {}),
     flankKills: k.filter((x) => x.flank).length,
     range: { median: q(k.map((x) => x.dist), 0.5), p10: q(k.map((x) => x.dist), 0.1), p90: q(k.map((x) => x.dist), 0.9), melee: k.filter((x) => x.dist < 3).length },
-    movement: { movingPct: pct(smp.moving), crouchedPct: pct(smp.crouched), stillPct: pct(smp.still), avgSpeed: +(smp.speed / Math.max(1, smp.n)).toFixed(2) },
+    movement: { movingPct: pct(smp.moving), crouchedPct: pct(smp.crouched), stillPct: pct(smp.still), elevatedPct: pct(smp.elevated), avgSpeed: +(smp.speed / Math.max(1, smp.n)).toFixed(2) },
+    zoneTimePct: (() => {
+      const tot = Object.values(zoneT).reduce((a, b) => a + b, 0) || 1;
+      return Object.fromEntries(Object.entries(zoneT).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, +((100 * n) / tot).toFixed(1)]));
+    })(),
+    killsByZone: k.reduce<Record<string, number>>((a, x) => ((a[x.zone ?? '-'] = (a[x.zone ?? '-'] ?? 0) + 1), a), {}),
     arena:
       tdm.ai === 'arena'
         ? {
