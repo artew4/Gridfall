@@ -6,9 +6,21 @@ import type { Weapon } from '../player/Weapon';
 import type { Player } from '../player/Player';
 import type { Arsenal } from '../entities/types';
 import type { LookGrade } from '../core/Renderer';
+import type { TeamId } from '../combat/Team';
+
+/** What Team Deathmatch needs from a level (6.0): each team's spawn zone, spawns and lanes. */
+export interface TdmData {
+  spawns: Record<TeamId, THREE.Vector3[]>;
+  /** Waypoints from each team's base towards the other's, left, centre, right (as that team faces). */
+  lanes: Record<TeamId, THREE.Vector3[][]>;
+  /** Inside a team's walled spawn yard. */
+  inBase(team: TeamId, p: THREE.Vector3): boolean;
+  /** Where the player starts and faces (ALPHA's base). */
+  start: { x: number; z: number; yaw: number; y: number };
+}
 
 export type SettingId = 'tokyo' | 'desert' | 'jungle';
-export type Mode = 'story' | 'arcade';
+export type Mode = 'story' | 'arcade' | 'tdm';
 
 /** A named area of a level (the zone toast reads these). Rects are x0, z0, x1, z1. */
 export interface Zone {
@@ -65,6 +77,8 @@ export interface LevelData {
   zoneAt(x: number, y: number, z: number): Zone | null;
   /** DEV validation: places enemies must be able to reach (inside every building, on every roof). */
   testGoals?: THREE.Vector3[];
+  /** Team Deathmatch layout, if the level supports the mode. */
+  tdm?: TdmData;
 }
 
 /** An opening sequence over the live world. */
@@ -118,6 +132,8 @@ export interface ModeRules {
   /** Something other than enemies in the line of fire (bystanders). */
   bystander?(origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number): { dist: number; hit(dir: THREE.Vector3): void } | null;
   onKill?(): void;
+  /** The player died. True: the mode respawns him (no death screen; TDM). */
+  onPlayerDeath?(): boolean;
   musicIntensity(): number;
   /** Ending state (story): returns true while it runs. */
   updateEnding?(dt: number, rawDt: number): void;

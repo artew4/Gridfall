@@ -287,3 +287,43 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin: 0 4px; t
 .bark { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 12px var(--mono); letter-spacing: 0.08em; color: #ffd9a0; text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 1px 2px #000; padding: 2px 7px; border-left: 2px solid rgba(255, 170, 80, 0.8); background: rgba(10, 6, 2, 0.45); will-change: transform, opacity; }
 .bark.synth { color: #ff9fb0; border-left-color: rgba(255, 60, 90, 0.85); letter-spacing: 0.18em; font-size: 11px; background: rgba(12, 2, 6, 0.5); }
 .bark[data-kind="go"], .bark[data-kind="contact"] { color: #fff2d8; }
+
+/* 6.0 Team Deathmatch: ticket score, kill feed, respawn countdown, ally name tags, result. */
+:root { --alpha: #7cc8ff; --alpha-dim: rgba(124, 200, 255, 0.35); --omega: #ff6a4d; --omega-dim: rgba(255, 106, 77, 0.35); }
+#hud.tdm .wave { display: none; }
+.tdm-hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; transition: opacity 0.4s; }
+.tdm-score { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); display: flex; align-items: flex-start; gap: 18px; font-size: 10px; letter-spacing: 0.25em; }
+.tdm-score .vs { color: var(--cyan-dim); padding-top: 12px; }
+.tdm-score .side { display: flex; flex-direction: column; min-width: 130px; gap: 4px; }
+.tdm-score .side.a { align-items: flex-end; color: var(--alpha); }
+.tdm-score .side.o { align-items: flex-start; color: var(--omega); }
+.tdm-score .side em { font-style: normal; font-family: var(--jp); opacity: 0.6; margin-left: 8px; }
+.tdm-score b { font-size: 26px; font-weight: 300; letter-spacing: 0.1em; color: #f2fbff; }
+.tdm-score .bar { width: 130px; height: 3px; background: rgba(255,255,255,0.08); }
+.tdm-score .bar i { display: block; height: 100%; transition: transform 0.4s; }
+.tdm-score .bar.a i { background: var(--alpha); transform-origin: right; box-shadow: 0 0 8px var(--alpha); }
+.tdm-score .bar.o i { background: var(--omega); transform-origin: left; box-shadow: 0 0 8px var(--omega); }
+.tdm-score.low-a .side.a b, .tdm-score.low-o .side.o b { color: var(--red); animation: tdmPulse 0.9s ease-in-out infinite; }
+@keyframes tdmPulse { 50% { opacity: 0.45; } }
+.tdm-feed { position: absolute; right: 22px; top: 22px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 11px; letter-spacing: 0.14em; }
+.tdm-feed .row { background: rgba(0,0,0,0.35); padding: 3px 9px; color: #dfe9ee; }
+.tdm-feed .row i { font-style: normal; margin: 0 8px; color: rgba(255,255,255,0.5); }
+.tdm-feed .a { color: var(--alpha); } .tdm-feed .o { color: var(--omega); } .tdm-feed .you { text-decoration: underline; }
+.tdm-respawn { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); text-align: center; letter-spacing: 0.35em; font-size: 12px; color: #e8fbff; }
+.tdm-respawn .by { color: var(--omega); margin-bottom: 10px; font-size: 11px; }
+.tdm-respawn b { font-size: 20px; font-weight: 300; }
+.tdm-tags { position: absolute; inset: 0; }
+.tdm-tag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; letter-spacing: 0.2em; color: var(--alpha); text-shadow: 0 0 6px rgba(0,0,0,0.9); white-space: nowrap; }
+.tdm-tag i { display: block; width: 36px; height: 2px; background: rgba(255,255,255,0.15); }
+.tdm-tag i b { display: block; height: 100%; background: var(--alpha); transform-origin: left; }
+#tdmscreen { z-index: 13; background: radial-gradient(ellipse at center, rgba(8, 6, 20, 0.5) 0%, rgba(0, 0, 0, 0.9) 75%); cursor: default; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; }
+#tdmscreen.hidden { pointer-events: none; }
+#tdmscreen .end-title.win { text-shadow: 0 0 22px rgba(124, 200, 255, 0.6); }
+#tdmscreen .end-title.lose { text-shadow: 0 0 22px rgba(255, 80, 60, 0.6); }
+#tdmscreen .end-sub { margin-top: 14px; letter-spacing: 0.3em; font-size: 12px; color: #e8fbff; }
+.tdm-board { margin: 26px 0; display: flex; gap: 48px; font-size: 11px; letter-spacing: 0.2em; }
+.tdm-board .col { display: grid; grid-template-columns: 130px 36px 36px; gap: 6px 10px; }
+.tdm-board .hd { display: contents; color: var(--cyan-dim); }
+.tdm-board .col.a b { color: var(--alpha); } .tdm-board .col.o b { color: var(--omega); }
+.tdm-board span { color: #e8fbff; } .tdm-board span.you { color: var(--alpha); text-decoration: underline; }
+.bark.ally { color: var(--alpha); border-color: var(--alpha-dim); }

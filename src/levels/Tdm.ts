@@ -1,0 +1,412 @@
+import * as THREE from 'three';
+import type { Game } from '../core/Game';
+import type { ModeRules, TdmData } from './Level';
+import { Gunner, Runner, type EnemyCtx, type TacticalEnemy } from '../enemies/Enemy';
+import { Squad } from '../enemies/tactics/Squad';
+import { ThinkScheduler } from '../enemies/tactics/Scheduler';
+import { otherTeam, TEAMS, type Combatant, type TeamId } from '../combat/Team';
+import { DESERT_GARRISON } from '../entities/enemies/mercs';
+import { rand } from '../core/math';
+import type { TdmLine } from '../ui/TdmHud';
+
+/*
+  Team Deathmatch, 5v5 (6.0): ALPHA (the player and four bots) against OMEGA (five bots). Each team
+  has a shared pool of tickets; every death costs its team one; the dead respawn at their base after
+  3–5 s while their team still has tickets; the first team to run out loses.
+
+  Two squad directors (one per team) share one ThinkScheduler: one frame budget of decides, rays,
+  cover searches and path re-plans for all nine bots, picked most-overdue-first across both teams.
+  Each bot runs with its own team's context (squad, hostiles, friends, lanes): the same 5.0 brain,
+  pointed at a different set of hostiles.
+*/
+
+export const TDM = {
+  tickets: 25,
+  respawn: [3, 5] as [number, number],
+  /** The player's respawn delay (inside the 3–5 s window; long enough to read the killer). */
+  playerRespawn: 4,
+  /** Spawn protection (s). */
+  protect: 2,
+  /** Damage of a bot's round to another bot (survival bolts only ever meet the player: 10). */
+  botDamage: 20,
+  /** Bots' difficulty (speed, damage step): wave 3 of survival. */
+  difficulty: 2,
+};
+
+interface Slot {
+  team: TeamId;
+  name: string;
+  kind: 'gunner' | 'runner';
+  bot: TacticalEnemy | null;
+  respawnAt: number;
+  kills: number;
+  deaths: number;
+}
+
+/** Callsigns. Two of the player's squadmates are Maxim and Anatoly. */
+const ROSTER: Record<TeamId, [string, 'gunner' | 'runner'][]> = {
+  alpha: [['MAXIM', 'gunner'], ['ANATOLY', 'gunner'], ['KOSTYA', 'gunner'], ['ILYA', 'runner']],
+  omega: [['VULTURE', 'gunner'], ['JACKAL', 'gunner'], ['HYENA', 'gunner'], ['ADDER', 'gunner'], ['KITE', 'runner']],
+};
+
+/** One kill, for the report and the checks. */
+export interface KillRecord {
+  t: number;
+  killer: string;
+  killerTeam: TeamId | null;
+  killerKind: string;
+  killerRole: string;
+  victim: string;
+  victimTeam: TeamId;
+  victimKind: string;
+  victimAction: string;
+  dist: number;
+  /** The killer was more than 90° off where the victim faced (taken from the side or behind). */
+  flank: boolean;
+}
+
+export class TdmRules implements ModeRules {
+  sched = new ThinkScheduler();
+  squads: Record<TeamId, Squad> = { alpha: new Squad({ team: 'alpha', sched: this.sched }), omega: new Squad({ team: 'omega', sched: this.sched }) };
+  ctxs!: Record<TeamId, EnemyCtx>;
+  /** Every bot body in the world (both teams, the dying included). */
+  bots: TacticalEnemy[] = [];
+  slots: Slot[] = [];
+  tickets: Record<TeamId, number> = { alpha: TDM.tickets, omega: TDM.tickets };
+  player = { kills: 0, deaths: 0 };
+  winner: TeamId | null = null;
+  private endT = 0;
+  private startT = 0;
+  playerRespawnAt = Infinity;
+  private killerName: string | null = null;
+  private hostiles: Record<TeamId, Combatant[]> = { alpha: [], omega: [] };
+  private friends: Record<TeamId, Combatant[]> = { alpha: [], omega: [] };
+  private spotT = 0;
+  kills: KillRecord[] = [];
+  /** Damage dealt between teammates (must stay 0: friendly fire is off by construction). */
+  friendlyDamage = 0;
+  /**
+   * DEV: the player watches (bot-vs-bot checks): nobody targets him, he isn't in ALPHA's squad, and
+   * his deaths (there are none: checks run him in god mode) wouldn't count.
+   */
+  spectate = false;
+
+  constructor(private game: Game) {}
+
+  private get data(): TdmData {
+    const d = this.game.level.data.tdm;
+    if (!d) throw new Error(`${this.game.setting} has no Team Deathmatch layout`);
+    return d;
+  }
+
+  private get now() {
+    return this.game.elapsed;
+  }
+
+  // ------------------------------------------------------------------ match
+  begin() {
+    const g = this.game;
+    this.clearBots();
+    this.tickets = { alpha: TDM.tickets, omega: TDM.tickets };
+    this.player = { kills: 0, deaths: 0 };
+    this.winner = null;
+    this.kills = [];
+    this.friendlyDamage = 0;
+    this.playerRespawnAt = Infinity;
+    this.startT = this.now;
+    for (const t of TEAMS) this.squads[t].reset();
+    this.squads.alpha.human = this.spectate ? null : g.playerUnit;
+    this.sched.resetStats();
+    g.ctx.difficulty = TDM.difficulty;
+    g.ctx.enemies = this.bots;
+    this.ctxs = { alpha: this.makeCtx('alpha'), omega: this.makeCtx('omega') };
+    // Rounds: hostile bots are hit or suppressed (in their own team's context); teammates passed through.
+    g.projectiles.targets = {
+      bots: this.bots,
+      damage: TDM.botDamage,
+      hit: (e, dmg, dir, point, by) => {
+        if (by && by.team === e.team) this.friendlyDamage += dmg;
+        e.takeHit(dmg, dir, point, this.ctxs[e.team], by);
+      },
+      nearMiss: (e, dose) => e.suppress(dose, this.ctxs[e.team]),
+    };
+    // The other team hears every shot.
+    g.projectiles.onFire = (from, by) => {
+      if (by) this.squads[otherTeam(by.team)].hearShot(from, by);
+    };
+    const st = this.data.start;
+    g.player.reset(st.x, st.z, st.yaw, st.y);
+    g.safety.reset(g.player.pos);
+    g.playerInvulnUntil = this.now + TDM.protect;
+    g.playerAttacker = null;
+    g.weapon.raiseTarget = 1;
+    g.weapon.setHolstered(false, true);
+    g.storyHud.show(false);
+    g.tdmHud.clear();
+    g.tdmHud.setMax(TDM.tickets);
+    g.tdmHud.show(true);
+    g.hud.root.classList.add('tdm');
+    this.slots = [];
+    for (const team of TEAMS) for (const [name, kind] of ROSTER[team]) this.slots.push({ team, name, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0 });
+    for (const s of this.slots) this.spawn(s);
+    g.hud.bannerShow('TEAM DEATHMATCH', 'チームデスマッチ · 5v5', 2.6);
+  }
+
+  /** A team context: the game's (read live through the prototype: time, sight, cover…) plus the team's own. */
+  private makeCtx(team: TeamId): EnemyCtx {
+    const g = this.game;
+    const c = Object.create(g.ctx) as EnemyCtx;
+    const other = otherTeam(team);
+    Object.assign(c, {
+      team,
+      squad: this.squads[team],
+      hostiles: this.hostiles[team],
+      friends: this.friends[team],
+      enemies: this.bots,
+      lanes: this.data.lanes[team],
+      avoid: (p: THREE.Vector3) => this.data.inBase(other, p),
+      onDeath: (v: Combatant, by: Combatant | null) => this.onDeath(v, by),
+    } satisfies Partial<EnemyCtx>);
+    return c;
+  }
+
+  private spawn(s: Slot) {
+    const g = this.game;
+    const at = this.spawnPoint(s.team);
+    const look = s.team === 'alpha' ? DESERT_GARRISON : g.level.info.arsenal.enemies;
+    const e: TacticalEnemy = s.kind === 'runner' ? new Runner(at, TDM.difficulty, look) : new Gunner(at, TDM.difficulty, g.scene, null, look);
+    e.team = s.team;
+    e.name = s.name;
+    e.invulnUntil = this.now + TDM.protect;
+    // Facing the other base (enemy yaw: forward = (sin, cos); ALPHA's base is in the south).
+    e.yaw = s.team === 'alpha' ? Math.PI : 0;
+    g.scene.add(e.rig.root);
+    this.bots.push(e);
+    s.bot = e;
+  }
+
+  /** The base spawn furthest from every hostile, not on top of a body. */
+  private spawnPoint(team: TeamId): THREE.Vector3 {
+    const pts = this.data.spawns[team];
+    let best = pts[0], bs = -Infinity;
+    for (const p of pts) {
+      if (this.bots.some((b) => b.alive && Math.hypot(b.pos.x - p.x, b.pos.z - p.z) < 1.4)) continue;
+      if (team === 'alpha' && Math.hypot(this.game.player.pos.x - p.x, this.game.player.pos.z - p.z) < 1.4) continue;
+      let near = Infinity;
+      for (const h of this.hostilesNow(team)) near = Math.min(near, h.pos.distanceTo(p));
+      const s = Math.min(near, 80) + Math.random() * 3;
+      if (s > bs) {
+        bs = s;
+        best = p;
+      }
+    }
+    return best.clone();
+  }
+
+  private hostilesNow(team: TeamId): Combatant[] {
+    const out: Combatant[] = this.bots.filter((b) => b.alive && b.team !== team);
+    if (team === 'omega' && this.game.player.alive) out.push(this.game.playerUnit);
+    return out;
+  }
+
+  private slotOf(c: Combatant) {
+    return this.slots.find((s) => s.bot === c) ?? null;
+  }
+
+  /** Someone died: a ticket off their team, the feed, kill credit, their respawn, maybe the end. */
+  private onDeath(v: Combatant, by: Combatant | null) {
+    const g = this.game;
+    if (this.winner) return;
+    this.tickets[v.team] = Math.max(0, this.tickets[v.team] - 1);
+    g.tdmHud.kill(by, v);
+    const vs = this.slotOf(v);
+    if (vs) {
+      vs.deaths++;
+      vs.bot = null;
+      vs.respawnAt = this.now + rand(TDM.respawn[0], TDM.respawn[1]);
+    }
+    if (by) {
+      if (by.isPlayer) this.player.kills++;
+      else {
+        const ks = this.slotOf(by);
+        if (ks) ks.kills++;
+      }
+    }
+    // The record (for the report): who, how far, from where.
+    const facing = v.facing(new THREE.Vector2());
+    const flank = by ? facing.x * (by.pos.x - v.pos.x) + facing.y * (by.pos.z - v.pos.z) < 0 : false;
+    const kb = by as Partial<TacticalEnemy> | null;
+    const vb = v as Partial<TacticalEnemy>;
+    this.kills.push({
+      t: +(this.now - this.startT).toFixed(1),
+      killer: by?.name ?? 'world',
+      killerTeam: by?.team ?? null,
+      killerKind: by ? (by.isPlayer ? 'player' : (kb?.kind ?? '?')) : '-',
+      killerRole: kb?.tac?.role ?? (by?.isPlayer ? this.squads.alpha.humanStyle : '-'),
+      victim: v.name,
+      victimTeam: v.team,
+      victimKind: v.isPlayer ? 'player' : (vb.kind ?? '?'),
+      victimAction: vb.tac ? `${vb.tac.action}/${vb.tac.phase}` : '-',
+      dist: by ? +by.pos.distanceTo(v.pos).toFixed(1) : 0,
+      flank,
+    });
+    this.squads[otherTeam(v.team)].hostileDied(v, by && !by.isPlayer ? (by as TacticalEnemy) : null);
+    if (this.tickets[v.team] <= 0) this.end(otherTeam(v.team));
+  }
+
+  /** The player died: the mode respawns him (Game shows the countdown instead of the death screen). */
+  onPlayerDeath(): boolean {
+    const g = this.game;
+    this.player.deaths++;
+    this.killerName = g.playerAttacker?.name ?? null;
+    this.onDeath(g.playerUnit, g.playerAttacker);
+    this.playerRespawnAt = this.now + TDM.playerRespawn;
+    return true;
+  }
+
+  private end(winner: TeamId) {
+    this.winner = winner;
+    this.endT = this.now;
+    this.game.timeScale = 0.4;
+    this.game.hud.bannerShow(winner === 'alpha' ? 'VICTORY' : 'DEFEAT', winner === 'alpha' ? '勝利' : '敗北', 3);
+  }
+
+  // ------------------------------------------------------------------ frame
+  update(dt: number) {
+    const g = this.game;
+    if (dt <= 0) return;
+    const now = this.now;
+    // Who each team fights, and whom it must not shoot through.
+    for (const t of TEAMS) {
+      const h = this.hostiles[t], f = this.friends[t];
+      h.length = f.length = 0;
+      for (const b of this.bots) if (b.alive) (b.team === t ? f : h).push(b);
+      if (!this.spectate) (t === 'alpha' ? f : h).push(g.playerUnit);
+    }
+    Squad.updateAll(this.sched, [
+      { squad: this.squads.alpha, ctx: this.ctxs.alpha, agents: this.bots.filter((b) => b.team === 'alpha') },
+      { squad: this.squads.omega, ctx: this.ctxs.omega, agents: this.bots.filter((b) => b.team === 'omega') },
+    ]);
+    for (const b of this.bots) b.update(dt, this.ctxs[b.team]);
+    for (let i = this.bots.length - 1; i >= 0; i--) {
+      if (this.bots[i].dead) {
+        this.bots[i].dispose(g.scene);
+        this.bots.splice(i, 1);
+      }
+    }
+    if (!this.winner) {
+      for (const s of this.slots) if (!s.bot && now >= s.respawnAt && this.tickets[s.team] > 0) this.spawn(s);
+      if (g.state === 'dead' && now >= this.playerRespawnAt && this.tickets.alpha > 0) this.respawnPlayer();
+      if (!this.spectate) this.spot(dt);
+    } else if (g.state !== 'ending' && now - this.endT > 1.2) this.finish();
+    g.tdmHud.setTickets(this.tickets.alpha, this.tickets.omega);
+    g.tdmHud.setRespawn(g.state === 'dead' && !this.winner ? this.playerRespawnAt - now : null, this.killerName);
+    g.tdmHud.update(dt, g.camera, this.friends.alpha);
+  }
+
+  /**
+   * What the player sees, his team knows: every 0.4 s, up to three hostile bots in front of his
+   * camera (within ~55° of where he looks, in sight range) are checked with a ray and reported to
+   * the ALPHA director as sightings. That's how the bots act on contacts he makes.
+   */
+  private spot(dt: number) {
+    const g = this.game;
+    this.spotT -= dt;
+    if (this.spotT > 0 || !g.player.alive) return;
+    this.spotT = 0.4;
+    const eye = g.camera.position;
+    const fwd = g.camera.getWorldDirection(new THREE.Vector3());
+    const range = Math.min(g.ctx.sightRange ?? 70, 70);
+    let rays = 0;
+    const head = new THREE.Vector3();
+    for (const b of this.hostiles.alpha) {
+      if (rays >= 3 || !b.alive) continue;
+      head.set(b.pos.x, b.pos.y + b.headY, b.pos.z);
+      const d = head.distanceTo(eye);
+      if (d > range || fwd.dot(head.clone().sub(eye).divideScalar(d)) < 0.57) continue;
+      rays++;
+      if (g.col.lineOfSight(eye, head)) this.squads.alpha.sighting(null, b.pos, b.vel, b);
+    }
+  }
+
+  private respawnPlayer() {
+    const g = this.game;
+    const p = this.spawnPoint('alpha');
+    g.revive(p, 0);
+    g.playerInvulnUntil = this.now + TDM.protect;
+    this.playerRespawnAt = Infinity;
+    this.killerName = null;
+  }
+
+  private finish() {
+    const g = this.game;
+    const lines: TdmLine[] = [
+      { name: 'YOU', team: 'alpha', you: true, kills: this.player.kills, deaths: this.player.deaths },
+      ...this.slots.map((s) => ({ name: s.name, team: s.team, you: false, kills: s.kills, deaths: s.deaths })),
+    ];
+    g.finishTdm(this.winner === 'alpha', { ...this.tickets }, lines, this.endT - this.startT);
+  }
+
+  updateEnding(dt: number) {
+    // The world carries on behind the result (slow motion), nobody respawns.
+    this.update(dt);
+  }
+
+  onGunshot() {
+    const g = this.game;
+    if (this.spectate) return;
+    this.squads.omega.hearShot(g.player.pos, g.playerUnit);
+    this.squads.alpha.humanObs.shot(this.now);
+  }
+
+  musicIntensity(): number {
+    if (this.winner) return 0.2;
+    const fight = this.squads.alpha.mode === 'engage' || this.squads.omega.mode === 'engage';
+    return fight ? 0.8 : 0.45;
+  }
+
+  private clearBots() {
+    const g = this.game;
+    for (const b of this.bots) b.dispose(g.scene);
+    this.bots.length = 0;
+    for (const s of this.slots) s.bot = null;
+  }
+
+  reset() {
+    this.clearBots();
+    for (const t of TEAMS) this.squads[t].reset();
+    this.game.tdmHud.clear();
+  }
+
+  toTitle() {
+    const g = this.game;
+    this.reset();
+    this.squads.alpha.human = null;
+    g.tdmHud.show(false);
+    g.hud.root.classList.remove('tdm');
+    if (g.projectiles) {
+      g.projectiles.targets = null;
+      g.projectiles.onFire = () => {};
+    }
+    g.ctx.enemies = g.waves.enemies;
+  }
+
+  death() {
+    return { story: false, kills: this.player.kills };
+  }
+
+  /** DEV: a snapshot for checks and the report. */
+  debug() {
+    return {
+      tickets: { ...this.tickets },
+      winner: this.winner,
+      alive: { alpha: this.bots.filter((b) => b.alive && b.team === 'alpha').length, omega: this.bots.filter((b) => b.alive && b.team === 'omega').length },
+      modes: { alpha: this.squads.alpha.mode, omega: this.squads.omega.mode },
+      human: this.squads.alpha.humanStyle,
+      humanRates: this.squads.alpha.humanObs.rates,
+      sched: { ...this.sched.stats },
+      friendlyDamage: this.friendlyDamage,
+      kills: this.kills.length,
+    };
+  }
+}

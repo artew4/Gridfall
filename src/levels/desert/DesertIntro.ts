@@ -21,7 +21,10 @@ export class DesertIntro implements IntroLike {
   private a = new THREE.Quaternion();
   private b = new THREE.Quaternion();
 
-  constructor(private end: THREE.Vector3, private endLook: THREE.Vector3) {}
+  /** `path` (TDM): a different flight; `from`/`to`: what the camera looks at early and late in it. */
+  constructor(private end: THREE.Vector3, private endLook: THREE.Vector3, path?: THREE.Vector3[], private from = new THREE.Vector3(0, 2, 2), private to = new THREE.Vector3(0, 2.5, -8)) {
+    if (path) this.path = new THREE.CatmullRomCurve3(path);
+  }
 
   skip() {
     if (this.t < 8.6) this.t = 8.6;
@@ -32,7 +35,7 @@ export class DesertIntro implements IntroLike {
     const t = this.t;
     const k = easeInOut(clamp((t - 0.3) / 8.3, 0, 1));
     const pos = this.path.getPointAt(k);
-    const look = new THREE.Vector3(0, 2, 2).lerp(new THREE.Vector3(0, 2.5, -8), smoothstep(5, 8.5, t));
+    const look = this.from.clone().lerp(this.to, smoothstep(5, 8.5, t));
     this.m.lookAt(pos, look, new THREE.Vector3(0, 1, 0));
     this.a.setFromRotationMatrix(this.m);
     this.m.lookAt(this.end, this.endLook, new THREE.Vector3(0, 1, 0));

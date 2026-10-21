@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Terrain } from '../../world/Collision';
 import { smoothstep } from '../../core/math';
+import { BASE } from './ArenaLayout';
 
 /** Flat pad of the outpost (y = 0 exactly inside it, so buildings sit on level ground). */
 const PAD_RX = 44;
@@ -51,6 +52,28 @@ function drift(x: number, z: number) {
  * treat them as continuous ground. The compound inside the barrier is exactly flat.
  */
 export function desertHeight(x: number, z: number): number {
+  if (Math.abs(x) < BARRIER_X && Math.abs(z) < BARRIER_Z) return 0;
+  // 6.0: the arena is point-symmetric (Team Deathmatch: neither base gets better ground): the dunes
+  // are the mean of the field and its 180° rotation. A mean of two fields is never steeper than the
+  // steeper of them, so every slope bound below still holds.
+  let h = 0.5 * (rawHeight(x, z) + rawHeight(-x, -z));
+  // Each base stands on a flat pad that blends back into the dunes.
+  const k = basePad(x, z);
+  if (k > 0) h += (BASE.y - h) * k;
+  return h;
+}
+
+/** 1 on a base's pad, falling to 0 over BASE.pad.fall metres outside it. */
+function basePad(x: number, z: number) {
+  const p = BASE.pad;
+  const ax = Math.abs(x), az = Math.abs(z);
+  const dx = Math.max(ax - p.x, 0);
+  const dz = Math.max(p.z0 - az, az - p.z1, 0);
+  const d = Math.hypot(dx, dz);
+  return d >= p.fall ? 0 : 1 - smoothstep(0, p.fall, d);
+}
+
+function rawHeight(x: number, z: number): number {
   if (Math.abs(x) < BARRIER_X && Math.abs(z) < BARRIER_Z) return 0;
   const w = duneWeight(x, z);
   let dunes = 0;

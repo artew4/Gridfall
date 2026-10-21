@@ -29,10 +29,15 @@ import { EndScreen } from '../ui/EndScreen';
 import type { IntroLike, LevelRuntime, Mode, ModeRules, SettingId } from '../levels/Level';
 import { LEVELS, LEVEL_ORDER, levelEntry } from '../levels/registry';
 import { ArcadeRules } from '../levels/Arcade';
+import { TdmRules } from '../levels/Tdm';
+import { TdmHud, TdmScreen, type TdmLine } from '../ui/TdmHud';
+import type { TeamId } from '../combat/Team';
 import { TokyoLevel } from '../levels/tokyo/TokyoLevel';
 import { BarkView } from '../ui/BarkView';
 import { nearMissDose } from '../enemies/tactics/Squad';
 import { buildCoverSpots } from '../enemies/tactics/CoverSpots';
+import { PlayerUnit, registerUnit } from '../combat/PlayerUnit';
+import type { Combatant } from '../combat/Team';
 
 export type { Mode };
 
@@ -81,12 +86,18 @@ export class Game {
   menu: PauseMenu;
   settings: Settings;
   state: State = 'title';
-  mode: Mode = new URLSearchParams(location.search).get('mode') === 'arcade' ? 'arcade' : 'story';
+  mode: Mode = ((m) => (m === 'arcade' || m === 'tdm' ? m : 'story'))(new URLSearchParams(location.search).get('mode'));
   /** The loaded setting and its runtime. */
   setting: SettingId = 'tokyo';
   level!: LevelRuntime;
   private rules!: ModeRules;
   private arcade = new ArcadeRules(this);
+  /** Team Deathmatch (6.0): its rules, score HUD and result screen. */
+  tdm = new TdmRules(this);
+  tdmHud: TdmHud;
+  tdmScreen: TdmScreen;
+  /** The player is dead and the mode will respawn him (no death screen). */
+  private respawning = false;
   private stateBeforePause: State = 'play';
   endScreen: EndScreen;
   interactables: Interactable[] = [];
@@ -98,6 +109,12 @@ export class Game {
   fx!: Effects;
   interactives!: Interactives;
   player!: Player;
+  /** The player as a combatant (his team, his damage path); what enemies perceive and target. */
+  playerUnit!: PlayerUnit;
+  /** Spawn protection: damage before this sim time is ignored. */
+  playerInvulnUntil = -Infinity;
+  /** Who hurt him last (TDM kill credit). */
+  playerAttacker: Combatant | null = null;
   /** Out-of-bounds / stuck recovery; a fallback only, see SafetyNet. */
   safety!: SafetyNet;
   weapon!: Weapon;
@@ -140,11 +157,14 @@ export class Game {
     this.hud = new Hud(document.body);
     this.storyHud = new StoryHud(document.body);
     this.barkView = new BarkView(document.body);
-    // Callouts: the line above the speaker and its voice from where it stands.
-    this.waves.squad.barks.onBark = (e) => {
-      this.barkView.add(e);
-      this.audio.callout(e.speaker.pos.clone().setY(e.speaker.pos.y + 1.6), e.speaker.look.voice, e.text.split(/\s+/).length, e.kind === 'go' || e.kind === 'contact');
-    };
+    this.tdmHud = new TdmHud(document.body);
+    this.tdmScreen = new TdmScreen(document.body);
+    // Callouts: the line above the speaker and its voice from where it stands (both TDM teams too).
+    for (const sq of [this.waves.squad, this.tdm.squads.alpha, this.tdm.squads.omega])
+      sq.barks.onBark = (e) => {
+        this.barkView.add(e);
+        this.audio.callout(e.speaker.pos.clone().setY(e.speaker.pos.y + 1.6), e.speaker.look.voice, e.text.split(/\s+/).length, e.kind === 'go' || e.kind === 'contact');
+      };
     this.storyHud.show(false);
     this.endScreen = new EndScreen(document.body);
     this.settings = loadSettings();
@@ -294,6 +314,10 @@ export class Game {
 
     this.player = new Player(this.col, this.audio);
     this.player.reset(d.start.x, d.start.z, d.start.yaw, d.start.y ?? 0);
+    this.playerUnit = new PlayerUnit(this.player);
+    this.playerUnit.onHurt = (dmg, from, by) => this.damagePlayer(dmg, from, by);
+    this.playerUnit.isReloading = () => this.weapon.reloading;
+    registerUnit(this.player, this.playerUnit);
     this.safety = new SafetyNet({
       bounds: d.bounds,
       floorMin: d.floorMin,
@@ -308,12 +332,12 @@ export class Game {
     this.hud.setWeapon(arsenal.weapon.name, arsenal.weapon.jp, arsenal.weapon.mag, this.weapon.lowAmmo);
     this.waves.look = arsenal.enemies;
     this.projectiles = new Projectiles(s, this.col, this.fx, this.audio, arsenal.enemies);
-    this.projectiles.onPlayerHit = (dmg, from) => {
-      this.waves.squad.player.pressureT = this.elapsed;
-      this.damagePlayer(dmg, from);
+    this.projectiles.onPlayerHit = (dmg, from, by) => {
+      this.waves.squad.player.pressureT = this.playerUnit.pressureT = this.elapsed;
+      this.damagePlayer(dmg, from, by);
     };
     // A round cracking past him counts as pressure too (the rushers' opening).
-    this.projectiles.onWhiz = () => (this.waves.squad.player.pressureT = this.elapsed);
+    this.projectiles.onWhiz = () => (this.waves.squad.player.pressureT = this.playerUnit.pressureT = this.elapsed);
     this.nav = new Nav(this.col, d.nav);
 
     // Only spawn on open ground that the nav graph can reach: never inside walls or off-map.
@@ -403,7 +427,14 @@ export class Game {
     if (!this.level.info.modes.includes(this.mode)) this.mode = this.level.info.modes[0];
   }
 
+  /** Switch mode rules; the outgoing mode cleans up what it set up (TDM's bots, its HUD). */
+  private useRules(next: ModeRules) {
+    if (this.rules && this.rules !== next) this.rules.toTitle();
+    this.rules = next;
+  }
+
   private pickRules(): ModeRules {
+    if (this.mode === 'tdm' && this.level.data.tdm) return this.tdm;
     return this.mode === 'story' && this.level.storyRules ? this.level.storyRules() : this.arcade;
   }
 
@@ -433,7 +464,7 @@ export class Game {
       if (act === 'controls') return this.hud.showControls(true);
       if (act === 'back') return this.hud.showControls(false);
       if (this.loading) return;
-      const mode = el.dataset.mode === 'arcade' ? 'arcade' : 'story';
+      const mode: Mode = el.dataset.mode === 'arcade' || el.dataset.mode === 'tdm' ? el.dataset.mode : 'story';
       if (!this.level.info.modes.includes(mode)) return;
       this.mode = mode;
       this.music.start(this.audio);
@@ -465,6 +496,11 @@ export class Game {
       this.restart(false);
     };
     this.endScreen.onMenu = () => void this.toTitle();
+    this.tdmScreen.onRematch = () => {
+      this.tdmScreen.hide();
+      this.restart(false);
+    };
+    this.tdmScreen.onMenu = () => void this.toTitle();
     this.menu.onChange = (s) => {
       this.applySettings();
       saveSettings(s);
@@ -500,7 +536,7 @@ export class Game {
 
   private startIntro() {
     this.state = 'intro';
-    this.rules = this.pickRules();
+    this.useRules(this.pickRules());
     const card = this.level.info.cine[this.mode] ?? this.level.info.cine.arcade!;
     this.hud.setCine(card);
     this.hud.show(this.hud.skip, true);
@@ -519,7 +555,7 @@ export class Game {
 
   private beginPlay(fromCheckpoint = false) {
     this.state = 'play';
-    this.rules = this.pickRules();
+    this.useRules(this.pickRules());
     this.intro?.dispose();
     this.intro = null;
     this.hud.skip.style.opacity = '0';
@@ -545,6 +581,8 @@ export class Game {
     this.level.reset();
     this.rules.reset();
     this.endScreen.hide();
+    this.tdmScreen.hide();
+    this.respawning = false;
     this.failReason = '';
     this.timeScale = 1;
     this.damageFx = 0;
@@ -553,8 +591,10 @@ export class Game {
     this.beginPlay(fromCheckpoint && this.mode === 'story');
   }
 
-  private damagePlayer(dmg: number, from: THREE.Vector3) {
+  private damagePlayer(dmg: number, from: THREE.Vector3, by: Combatant | null = null) {
     if (this.state !== 'play' || !this.player.alive) return;
+    if (this.elapsed < this.playerInvulnUntil) return;
+    if (by) this.playerAttacker = by;
     this.player.damage(dmg, from, this.elapsed);
     this.damageFx = Math.min(1, this.damageFx + 0.6);
     // HUD arrow: angle of the source relative to where we look.
@@ -608,6 +648,8 @@ export class Game {
       let target: Enemy | null = null;
       let eh: EnemyHit | null = null;
       for (const e of this.ctx.enemies) {
+        // His rounds pass through his own team's bots (friendly fire is off).
+        if (e.team === this.playerUnit.team) continue;
         const h = e.raycast(origin, pd);
         if (h && h.dist < maxDist) {
           maxDist = h.dist;
@@ -651,7 +693,7 @@ export class Game {
       this.stats.hits++;
       let anyKill = false;
       for (const [e, h] of onEnemy) {
-        const killed = e.takeHit(h.dmg, h.dir, h.point, this.ctx);
+        const killed = e.takeHit(h.dmg, h.dir, h.point, this.ctx, this.playerUnit);
         if (killed) {
           anyKill = true;
           this.rules.onKill?.();
@@ -679,7 +721,7 @@ export class Game {
    */
   private nearMisses(origin: THREE.Vector3, dir: THREE.Vector3, len: number, hit: Enemy | null, out: Map<Enemy, number>) {
     for (const e of this.ctx.enemies) {
-      if (!e.alive || e === hit) continue;
+      if (!e.alive || e === hit || e.team === this.playerUnit.team) continue;
       const k = nearMissDose(origin, dir, len, e.chest);
       if (k > 0) out.set(e, Math.max(out.get(e) ?? 0, k));
     }
@@ -736,11 +778,16 @@ export class Game {
       if (this.state === 'play' && !this.player.alive) {
         this.state = 'dead';
         this.deadT = 0;
-        this.timeScale = 0.35;
+        // A mode with respawns (TDM) keeps the game running and the mouse captured.
+        this.respawning = this.rules.onPlayerDeath?.() ?? false;
+        this.timeScale = this.respawning ? 1 : 0.35;
         this.weapon.raiseTarget = 0;
-        document.exitPointerLock();
+        if (!this.respawning) document.exitPointerLock();
       }
-      if (this.state === 'dead') {
+      if (this.state === 'dead' && this.respawning) {
+        this.deadT += rawDt;
+        this.renderer.grade.uniforms.uFade.value = clamp(this.deadT * 0.5, 0, 0.45);
+      } else if (this.state === 'dead') {
         this.deadT += rawDt;
         this.renderer.grade.uniforms.uFade.value = clamp(this.deadT * 0.35, 0, 0.6);
         if (this.deadT > 1.2 && this.hud.death.classList.contains('hidden')) {
@@ -772,7 +819,7 @@ export class Game {
     if (!paused) this.updateWorld(dt, rawDt);
     this.updateMusic(dt);
     this.hud.update(rawDt);
-    this.barkView.update(dt, this.camera, this.state === 'play' && this.mode === 'arcade');
+    this.barkView.update(dt, this.camera, (this.state === 'play' || (this.state === 'dead' && this.respawning)) && this.mode !== 'story');
     this.audio.updateListener(this.camera);
     if (!paused) this.audio.update(dt, this.camera.position);
 
@@ -782,6 +829,35 @@ export class Game {
     this.renderer.render(this.elapsed);
     this.adaptQuality(rawDt);
     input.endFrame();
+  }
+
+  /** TDM: back on his feet at `at` (feet), facing `yaw`, full health, a fresh magazine. */
+  revive(at: THREE.Vector3, yaw: number) {
+    this.player.reset(at.x, at.z, yaw, at.y);
+    this.safety.reset(this.player.pos);
+    this.weapon.reset();
+    this.weapon.raiseTarget = 1;
+    this.weapon.setHolstered(false, true);
+    this.playerAttacker = null;
+    this.respawning = false;
+    this.state = 'play';
+    this.timeScale = 1;
+    this.damageFx = 0;
+    this.renderer.grade.uniforms.uFade.value = 0;
+    this.hud.show(this.hud.root, true);
+    // The mouse was released while he was down: back in play behind the pause menu.
+    if (!this.input.locked) this.pause();
+  }
+
+  /** TDM is over: the result over the world in slow motion. */
+  finishTdm(won: boolean, tickets: Record<TeamId, number>, lines: TdmLine[], time: number) {
+    this.state = 'ending';
+    this.respawning = false;
+    this.weapon.raiseTarget = 0;
+    if (document.pointerLockElement) document.exitPointerLock();
+    this.hud.show(this.hud.root, false);
+    this.tdmHud.show(false);
+    this.tdmScreen.show(won, tickets, lines, time);
   }
 
   private updateMusic(dt: number) {
@@ -826,6 +902,8 @@ export class Game {
     this.input.keys.clear();
     this.input.endFrame();
     this.endScreen.hide();
+    this.tdmScreen.hide();
+    this.respawning = false;
     this.menu.show(false);
     this.hud.show(this.hud.death, false);
     this.hud.show(this.hud.root, false);
@@ -940,6 +1018,7 @@ export class Game {
       zone: this.zone?.id ?? null,
       mode: this.mode,
       holstered: this.weapon.holstered,
+      ...(this.mode === 'tdm' ? { tdm: this.tdm.debug() } : {}),
       ...this.level.debug?.(),
     };
   }

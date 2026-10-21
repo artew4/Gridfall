@@ -42,9 +42,9 @@ function base(armor: number, cloth: number, glow: THREE.Color) {
 }
 
 /** Scavenger: fast and light, head wrapped against the sand, goggles, a machete. Faces +z. */
-function buildScavenger(): Rig {
+function buildScavenger(armor = 0x4f3f2b, cloth = 0x8a7556, glint = new THREE.Color(0.32, 0.2, 0.08)): Rig {
   // Goggle lenses catch the light: a dim warm glint, not a glow.
-  const { armorMat, clothMat, glowMat, parts, add } = base(0x4f3f2b, 0x8a7556, new THREE.Color(0.32, 0.2, 0.08));
+  const { armorMat, clothMat, glowMat, parts, add } = base(armor, cloth, glint);
   const root = new THREE.Group();
   root.userData.dynamic = true;
   const body = pivot(root, 0, 0.95, 0);
@@ -90,9 +90,9 @@ function buildScavenger(): Rig {
 }
 
 /** Contractor: plate carrier, helmet with goggles, face wrap, a black rifle with a laser module. Faces +z. */
-function buildContractor(): Rig {
+function buildContractor(armor = 0x7d6a4a, cloth = 0x6b6748, strobe = new THREE.Color(1.6, 0.18, 0.1)): Rig {
   // The glow is the rifle's laser module and the helmet's IR strobe: small and red.
-  const { armorMat, clothMat, glowMat, parts, add } = base(0x7d6a4a, 0x6b6748, new THREE.Color(1.6, 0.18, 0.1));
+  const { armorMat, clothMat, glowMat, parts, add } = base(armor, cloth, strobe);
   const root = new THREE.Group();
   root.userData.dynamic = true;
   const body = pivot(root, 0, 1.0, 0);
@@ -149,12 +149,28 @@ function buildContractor(): Rig {
 /** Desert Outpost survival enemies. */
 export const DESERT_MERCS: EnemyLook = {
   id: 'mercs',
-  buildRunner: buildScavenger,
-  buildGunner: buildContractor,
+  buildRunner: () => buildScavenger(),
+  buildGunner: () => buildContractor(),
   runnerAccent: RUNNER_DUST,
   gunnerAccent: GUNNER_DUST,
   organic: true,
   // Rifle tracers: thin, hot orange, no plasma glow trail.
   bolt: { core: [7, 3.2, 0.9], trail: [1.4, 0.6, 0.15], size: 0.55 },
+  voice: 'human',
+};
+
+/**
+ * 6.0, Team Deathmatch: the Kestrel garrison (ALPHA, the player's side). The same kit in blue-grey
+ * plates and olive cloth, a cyan IR strobe instead of the contractors' red, and cool-white tracers,
+ * so a friend reads as a friend at a glance (name tags do the rest).
+ */
+export const DESERT_GARRISON: EnemyLook = {
+  id: 'garrison',
+  buildRunner: () => buildScavenger(0x2f3c4c, 0x51604f, new THREE.Color(0.12, 0.3, 0.45)),
+  buildGunner: () => buildContractor(0x3a4d63, 0x56604a, new THREE.Color(0.2, 0.7, 1.8)),
+  runnerAccent: RUNNER_DUST,
+  gunnerAccent: GUNNER_DUST,
+  organic: true,
+  bolt: { core: [3.2, 4.6, 7], trail: [0.5, 0.75, 1.3], size: 0.55 },
   voice: 'human',
 };
