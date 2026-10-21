@@ -8,6 +8,7 @@ import type { BarkKind, Voice } from '../tactics/Barks';
 import { rand } from '../../core/math';
 import { ARENA, type ArenaCtx } from './ArenaCtx';
 import type { Seen, SenseAgent } from './Sensing';
+import { ARENA_SIGHT_SHARE, contrastAt, densityOfSightRange } from '../../world/Visibility';
 
 /*
   The deathmatch brain (7.0): one per arena bot. Two rates, like 5.0, but both fast:
@@ -535,7 +536,18 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (err > ARENA.fireCone) return;
     let bloom = this.bloom;
     if (this.state === 'push') bloom = Math.min(bloom, ARENA.pushBloomMax);
-    const spread = ARENA.spread + bloom + this.jitter + (strafing ? ARENA.strafeSpread : 0) + (me.airborne ? ARENA.airSpread : 0);
+    // Fog: aim degrades with the contrast lost on the way (and nothing is fired past fog sight).
+    let fog = 0;
+    const sr = ctx.sightRange;
+    if (sr !== undefined) {
+      const d = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
+      if (d > sr * ARENA_SIGHT_SHARE) {
+        A.stats.fogShots++;
+        return;
+      }
+      fog = ARENA.fogSpread * (1 - contrastAt(densityOfSightRange(sr), d));
+    }
+    const spread = ARENA.spread + bloom + this.jitter + fog + (strafing ? ARENA.strafeSpread : 0) + (me.airborne ? ARENA.airSpread : 0);
     const r = me.fireRound(ctx, _aim, spread);
     if (r === 'friend') {
       this.shotT = ARENA.burstGap;

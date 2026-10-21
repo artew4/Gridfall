@@ -16,6 +16,9 @@ export interface WeaponBuild {
  * A player weapon: model, handling and feel. The viewmodel mechanics (springs, sway, bob, raise and
  * holster, reload timeline, muzzle flash) are shared; this decides what they look and feel like.
  */
+/** 8.1: kinetic rounds (tracers, brass) or energy bolts (plasma). */
+export type Ballistic = 'kinetic' | 'energy';
+
 export interface WeaponSpec {
   id: string;
   /** HUD name. */
@@ -44,6 +47,11 @@ export interface WeaponSpec {
   flash: { color: [number, number, number]; size: number; at: [number, number, number]; light: number };
   /** Tracer colour (linear). */
   tracer: [number, number, number];
+  /**
+   * 8.1: what it fires. Kinetic (rifle, shotgun): thin fast yellow-orange tracers and brass casings
+   * ejected; energy (the Kitsune's plasma): the neon blaster look, no casings.
+   */
+  ballistic: Ballistic;
   sound: 'plasma' | 'rifle' | 'shotgun';
   /**
    * Several hitscan rays per trigger pull (a shotgun): each pellet gets its own direction inside
@@ -74,6 +82,8 @@ export interface EnemyLook {
   organic: boolean;
   /** Gunner projectiles: core colour (HDR), trail colour, size. */
   bolt: { core: [number, number, number]; trail: [number, number, number]; size: number };
+  /** 8.1: their gunners' rounds: kinetic tracers and casings, or energy bolts (see WeaponSpec). */
+  ballistic: Ballistic;
   /** Plasma whine and screech, or rifle crack and shouts. */
   voice: 'synth' | 'human';
 }

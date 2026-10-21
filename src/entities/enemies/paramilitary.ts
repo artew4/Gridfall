@@ -213,5 +213,6 @@ export const JUNGLE_GUARDS: EnemyLook = {
   organic: true,
   // Rifle tracers: thin, yellow-orange.
   bolt: { core: [6.5, 4, 1.2], trail: [1.2, 0.8, 0.2], size: 0.5 },
+  ballistic: 'kinetic',
   voice: 'human',
 };

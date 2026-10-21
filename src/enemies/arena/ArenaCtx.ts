@@ -35,6 +35,11 @@ export const ARENA = {
   switchBloom: 0.5,
   strafeSpread: 0.01,
   airSpread: 0.03,
+  /**
+   * 8.1: aim through fog. Extra spread × (1 − contrast left at the target's distance): nothing in
+   * clear air, +0.06 at the edge of sight in a sandstorm (world/Visibility.ts).
+   */
+  fogSpread: 0.06,
   /** A push fires on the move at most this bloom (it closes in on someone it already hit). */
   pushBloomMax: 0.05,
   /** Continuous fire: rounds per burst, between rounds, between bursts, magazine, reload (s). */
@@ -43,8 +48,12 @@ export const ARENA = {
   burstRest: 0.15,
   mag: 20,
   reload: 1.5,
-  /** Bolt speed (m/s; survival bolts fly at 24–29, slow enough to sidestep on purpose). */
-  boltSpeed: 40,
+  /**
+   * Round speed (m/s; survival bolts fly at 24–29, slow enough to sidestep on purpose). 8.1: 40 → 70,
+   * both teams alike (kinetic rifles read as fast tracers; a per-look speed would make the docks'
+   * rifles against plasma unfair). Survival keeps its dodgeable rounds.
+   */
+  boltSpeed: 70,
   /** Movement: sprint and run multipliers of the body's base speed, strafe share of the run. */
   sprint: 1.5,
   run: 1.2,
@@ -124,6 +133,8 @@ export interface ArenaStats {
   /** Why it switched: the old target died or vanished, the new one shot at it, or a bigger threat. */
   switchWhy: { lost: number; shotAt: number; threat: number };
   shots: number;
+  /** 8.1: rounds fired at a target beyond the fog sight range (must stay 0). */
+  fogShots: number;
   /** Seconds from a hostile becoming visible to the first round at it (one per acquisition). */
   reactions: number[];
   /** Sim seconds alive, moving faster than 1.5 m/s, in BREAK, crouched (all bots together). */
@@ -137,7 +148,7 @@ export interface ArenaStats {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {} };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {} };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

@@ -23,6 +23,7 @@ export const KITSUNE_9: WeaponSpec = {
   shell: [0.18, -0.08, -0.35],
   flash: { color: [6, 4.2, 2.6], size: 1, at: [0, 0.02, -0.15], light: 0xffa860 },
   tracer: [1.0, 0.75, 0.4],
+  ballistic: 'energy',
   sound: 'plasma',
   ammoGlow: true,
   build({ gun, slide, mag, display }: WeaponBuild) {

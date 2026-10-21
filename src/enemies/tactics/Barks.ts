@@ -109,6 +109,11 @@ export class BarkGate<S> {
   /** Everything said, most recent last (bounded); the view and tests read it. */
   log: BarkEvent<S>[] = [];
   onBark: (e: BarkEvent<S>) => void = () => {};
+  /**
+   * 8.1: a mode may silence a squad completely (Team Deathmatch: a callout floating over a bot, or
+   * its voice, gives its position away). Nothing is said, shown or logged while off.
+   */
+  enabled = true;
 
   reset() {
     this.last = -Infinity;
@@ -119,6 +124,7 @@ export class BarkGate<S> {
 
   /** Returns the line if it was let through. */
   say(speaker: S, kind: BarkKind, voice: Voice, now: number): string | null {
+    if (!this.enabled) return null;
     const pri = BARK_PRIORITY[kind];
     const gap = pri >= 3 ? BARK_GAP_PRIORITY : BARK_GAP;
     if (now - this.last < gap) return null;

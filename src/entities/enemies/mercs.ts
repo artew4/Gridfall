@@ -156,6 +156,7 @@ export const DESERT_MERCS: EnemyLook = {
   organic: true,
   // Rifle tracers: thin, hot orange, no plasma glow trail.
   bolt: { core: [7, 3.2, 0.9], trail: [1.4, 0.6, 0.15], size: 0.55 },
+  ballistic: 'kinetic',
   voice: 'human',
 };
 
@@ -172,5 +173,6 @@ export const DESERT_GARRISON: EnemyLook = {
   gunnerAccent: GUNNER_DUST,
   organic: true,
   bolt: { core: [3.2, 4.6, 7], trail: [0.5, 0.75, 1.3], size: 0.55 },
+  ballistic: 'kinetic',
   voice: 'human',
 };

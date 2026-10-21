@@ -5,6 +5,7 @@ import type { Glow, Glows } from '../../world/Glows';
 import type { BuildCtx, Mats } from '../../world/City';
 import { addSign, type SignSpec } from '../../world/Signs';
 import { applyWet } from '../../world/Ground';
+import { fitStairWidth } from '../../world/StairFit';
 import type { RainAreas } from '../../world/Rain';
 import { chainLinkTexture, concreteTexture as pavedTexture, perforatedTexture } from '../../world/Textures';
 import { concreteTexture, steelTexture } from '../jungle/textures';
@@ -71,6 +72,7 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     hull: std(steelTexture('#1d2430', 20), 0xffffff, 0.7, 0.4, 0.3),
     amber: hdr(5.5, 3.6, 1.4),
     white: hdr(4.2, 4.5, 5.0),
+    warm: hdr(5.5, 4.4, 2.4),
     alphaLamp: hdr(1.6, 3.4, 6.0),
     omegaLamp: hdr(6.0, 1.2, 1.0),
     magenta: hdr(4.5, 0.6, 3.8),
@@ -117,7 +119,11 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
    * -axis (-1); stepped fill underneath (bullets, and nobody walks under or through it); stepped steel
    * side plates 1.05 m above the treads on the `rails` sides ('lo'/'hi': the -/+ side across the run).
    */
-  const stair = (x0: number, z0: number, x1: number, z1: number, axis: 'x' | 'z', rise: 1 | -1, base: number, top: number, mat: THREE.Material, rails: ('lo' | 'hi')[] = []) => {
+  const stair = (sx0: number, sz0: number, sx1: number, sz1: number, axis: 'x' | 'z', rise: 1 | -1, base: number, top: number, mat: THREE.Material, rails: ('lo' | 'hi')[] = []) => {
+    // 8.1: never into a wall (StairFit): narrowed to the face of a wall intruding into its width.
+    const fit = fitStairWidth(col.colliders, { x0: sx0, z0: sz0, x1: sx1, z1: sz1 }, axis, base, top);
+    if (fit.blocked.length) console.warn('[stair] runs into a wall', [sx0, sz0, sx1, sz1]);
+    const { x0, z0, x1, z1 } = fit.rect;
     const along = axis === 'x';
     const L = along ? x1 - x0 : z1 - z0;
     const H = top - base;
@@ -249,7 +255,7 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     solid(BASE.x0 + 0.6, 0, g0, BASE.x0 + 2.4, 1.9, g1, m.darkMetal, 'metal', 1);
     solid(BASE.x1 - 2.4, 0, g0, BASE.x1 - 0.6, 1.9, g1, m.darkMetal, 'metal', 1);
     // A mast against the back wall: team light.
-    mast(0, Z(BASE.z1 - 0.8), 9, flip ? m.omegaLamp : m.alphaLamp, flip ? 0xff3a30 : 0x58a8ff, 70, 24);
+    mast(0, Z(BASE.z1 - 0.8), 9, flip ? m.omegaLamp : m.alphaLamp, flip ? 0xff3a30 : 0x58a8ff, 220, 30);
   }
 
   // ---------------------------------------------------------------- lane 1: the container maze
@@ -389,24 +395,46 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   }
   const lamps: Glow[] = [];
   // Quay: amber sodium floods; maze: cold white LED floods against the west wall.
+  // 8.1, "too dark for competitive play": warm light over every lane, measured as illuminance at
+  // chest height on the floor nav nodes of each zone (I / d², the shader's own falloff) — mean and
+  // the darkest 10%. The sky, the water and the distance stay dark: lights only where people fight.
   // (Intensities in candela with physical decay: a head 11–13 m up needs ~600 to light the ground.)
   for (const z of [18, 46]) for (const s of [1, -1]) lamps.push(mast(44, z * s, 13, m.amber, 0xffa040, 650, 48));
-  for (const z of [24, 48]) for (const s of [1, -1]) lamps.push(mast(WEST_X + 0.2, z * s, 11, m.white, 0xd8e6ff, 450, 42));
-  // Work lights strung over the maze's corridors (the stacks' colours are the callouts: they must read).
+  // West wall floods: warm white now (8.0: cold LED), stronger.
+  for (const z of [24, 48]) for (const s of [1, -1]) lamps.push(mast(WEST_X + 0.2, z * s, 11, m.warm, 0xffd9a0, 520, 44));
+  // Quay, warehouse side: two more sodium masts (the quay's middle was lit only from the water's edge).
+  for (const s of [1, -1]) mast(18.5, 32 * s, 12, m.amber, 0xffa040, 560, 44);
+  // Forecourts: one mast each (8.0: unlit, the darkest 10% at zero).
+  for (const s of [1, -1]) mast(-3, 46 * s, 12, m.warm, 0xffc880, 600, 44);
+  // Work lights strung over the maze's crossings, warm (the stacks' colours are the callouts).
   const work = (x: number, z: number) => {
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.18, 0.4), m.white);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.18, 0.4), m.warm);
     head.position.set(x, 7, z);
     scene.add(head);
     b.add(new THREE.BoxGeometry(0.03, 3, 0.03), m.darkMetal, x, 8.5, z);
-    const light = new THREE.PointLight(0xe6eeff, 160, 26, 2);
+    const light = new THREE.PointLight(0xffd090, 200, 26, 2);
     light.position.set(x, 6.8, z);
     scene.add(light);
-    const g = glows.add({ pos: v(x, 6.8, z), color: new THREE.Color(0.9, 0.93, 1), radius: 10, base: 1, light, lightBase: 160, haloSize: 2.6, haloStrength: 0.35, mode: 'buzz', reflect: { width: 1.4, anchor: v(x, 0, z), length: 6, map: null } });
-    g.materials.push({ mat: m.white, base: m.white.color.clone() });
+    const g = glows.add({ pos: v(x, 6.8, z), color: new THREE.Color(1, 0.8, 0.5), radius: 10, base: 1, light, lightBase: 200, haloSize: 2.6, haloStrength: 0.35, mode: 'steady', reflect: { width: 1.4, anchor: v(x, 0, z), length: 6, map: null } });
+    g.materials.push({ mat: m.warm, base: m.warm.color.clone() });
   };
   work(-37, 0);
-  work(-41, 20);
-  work(-41, -20);
+  for (const s of [1, -1]) {
+    work(-45, 14 * s);
+    work(-29, 14 * s);
+    work(-37, 30 * s);
+  }
+  // Under the crane's hanging container: a work light over the quay's middle.
+  {
+    const light = new THREE.PointLight(0xffc070, 320, 30, 2);
+    light.position.set(35, 8.5, 0);
+    scene.add(light);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.15, 0.6), m.warm);
+    head.position.set(35, 8.9, 0);
+    scene.add(head);
+    const g = glows.add({ pos: v(35, 8.5, 0), color: new THREE.Color(1, 0.75, 0.42), radius: 12, base: 1, light, lightBase: 320, haloSize: 3, haloStrength: 0.35, reflect: { width: 2, anchor: v(35, 0, 0), length: 8, map: null } });
+    g.materials.push({ mat: m.warm, base: m.warm.color.clone() });
+  }
   // Warehouse: sodium lamps hung from the roof trusses (two real lights, the rest glow only).
   const hang = (x: number, z: number, real: boolean) => {
     const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 0.35, 12), m.amber);
@@ -414,16 +442,21 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     scene.add(lamp);
     let light: THREE.PointLight | undefined;
     if (real) {
-      light = new THREE.PointLight(0xffb060, 90, 26, 2);
+      light = new THREE.PointLight(0xffb060, 150, 28, 2);
       light.position.set(x, 8.2, z);
       scene.add(light);
     }
     b.add(new THREE.BoxGeometry(0.04, WH.h - 8.8, 0.04), m.darkMetal, x, (WH.h + 8.8) / 2, z);
-    const g = glows.add({ pos: v(x, 8.3, z), color: new THREE.Color(1, 0.62, 0.3), radius: 9, base: 1, light, lightBase: real ? 90 : 0, haloSize: 2.4, haloStrength: 0.3, mode: real ? 'steady' : 'flicker' });
+    const g = glows.add({ pos: v(x, 8.3, z), color: new THREE.Color(1, 0.62, 0.3), radius: 9, base: 1, light, lightBase: real ? 150 : 0, haloSize: 2.4, haloStrength: 0.3, mode: real ? 'steady' : 'flicker' });
     g.materials.push({ mat: m.amber, base: m.amber.color.clone() });
   };
+  // Four real lamps on the floor fight (8.0: two), the rest glow only.
   for (const z of [-14, 14]) hang(0, z, true);
-  for (const z of [-6, 6, -20, 20]) for (const x of [-6, 6]) hang(x, z, false);
+  hang(-6, 6, true);
+  hang(6, -6, true);
+  hang(6, 6, false);
+  hang(-6, -6, false);
+  for (const z of [-20, 20]) for (const x of [-6, 6]) hang(x, z, false);
   // Neon tubes on the warehouse corners and along the end walls (no lights: halos and the rain).
   const tube = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.MeshBasicMaterial, color: THREE.Color) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.08, x1 - x0), Math.max(0.08, y1 - y0), Math.max(0.08, z1 - z0)), mat);

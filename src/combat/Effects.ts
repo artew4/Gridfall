@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Casings } from './Casings';
 import { rand } from '../core/math';
 import type { Surface } from '../world/Collision';
 
@@ -158,21 +159,14 @@ export class Particles {
   }
 }
 
-interface Shell {
-  pos: THREE.Vector3;
-  vel: THREE.Vector3;
-  rot: THREE.Euler;
-  spin: THREE.Vector3;
-  life: number;
-  bounces: number;
-}
+const _bounce = new THREE.Vector3();
 
 /** Combat visual effects: sparks, tracers, impact smoke, ejected shells, scorch decals. */
 export class Effects {
   add: Particles;
   smoke: Particles;
-  private shells: Shell[] = [];
-  private shellMesh: THREE.InstancedMesh;
+  /** 8.1: brass from kinetic weapons, a fixed instanced pool (Casings.ts). */
+  readonly casings: Casings;
   private decals: THREE.InstancedMesh;
   private decalLife: number[] = [];
   private decalIdx = 0;
@@ -183,13 +177,8 @@ export class Effects {
     this.add = new Particles(scene, 900, true, fog);
     this.smoke = new Particles(scene, 300, false, fog);
 
-    const shellGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.022, 6);
-    shellGeo.rotateZ(Math.PI / 2);
-    const brass = new THREE.MeshStandardMaterial({ color: 0xd9a84a, metalness: 1, roughness: 0.25, envMapIntensity: 1.5 });
-    this.shellMesh = new THREE.InstancedMesh(shellGeo, brass, 32);
-    this.shellMesh.count = 0;
-    this.shellMesh.frustumCulled = false;
-    scene.add(this.shellMesh);
+    this.casings = new Casings(scene, 256);
+    this.casings.onBounce = (x, y, z, k) => this.onShellBounce(_bounce.set(x, y, z), k);
 
     // Scorch decals: dark burn with a hot rim that cools.
     const c = document.createElement('canvas');
@@ -217,7 +206,7 @@ export class Effects {
   clear() {
     this.add.clear();
     this.smoke.clear();
-    this.shells.length = 0;
+    this.casings.clear();
   }
 
   /** Bright stretched sparks; metal gets a lot more of them. */
@@ -363,15 +352,21 @@ export class Effects {
     this.add.spawn({ x: pos.x, y: pos.y, z: pos.z, r: 3, g: 3.2, b: 3.4, size: 0.6, life: 0.07 });
   }
 
-  tracer(from: THREE.Vector3, to: THREE.Vector3, color = new THREE.Color(1.0, 0.75, 0.4)) {
-    const d = to.clone().sub(from);
-    const len = d.length();
+  /**
+   * A shot's tracer from the muzzle to what it hit. Energy (the plasma pistol): the 3.x look, a soft
+   * glowing streak at 280 m/s. Kinetic (8.1): a thinner, hotter, longer yellow-orange line at 520 m/s.
+   */
+  tracer(from: THREE.Vector3, to: THREE.Vector3, color = new THREE.Color(1.0, 0.75, 0.4), kind: 'kinetic' | 'energy' = 'energy') {
+    const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
+    const len = Math.hypot(dx, dy, dz);
     if (len < 1.5) return;
-    const speed = 280;
-    d.divideScalar(len).multiplyScalar(speed);
+    const kinetic = kind === 'kinetic';
+    const speed = kinetic ? 520 : 280;
+    const k = speed / len;
+    const hot = kinetic ? 5 : 3;
     this.add.spawn({
-      x: from.x, y: from.y, z: from.z, vx: d.x, vy: d.y, vz: d.z,
-      r: color.r * 3, g: color.g * 3, b: color.b * 3, size: 0.018, stretch: 0.012, life: Math.min(len / speed, 0.25),
+      x: from.x, y: from.y, z: from.z, vx: dx * k, vy: dy * k, vz: dz * k,
+      r: color.r * hot, g: color.g * hot, b: color.b * hot, size: kinetic ? 0.011 : 0.018, stretch: kinetic ? 0.008 : 0.012, life: Math.min(len / speed, 0.25),
     });
   }
 
@@ -385,17 +380,12 @@ export class Effects {
     }
   }
 
-  ejectShell(pos: THREE.Vector3, right: THREE.Vector3, up: THREE.Vector3) {
-    if (this.shells.length >= 32) this.shells.shift();
-    const vel = right.clone().multiplyScalar(rand(1.8, 2.6)).addScaledVector(up, rand(1.6, 2.4));
-    this.shells.push({
-      pos: pos.clone(),
-      vel,
-      rot: new THREE.Euler(rand(0, 6), rand(0, 6), rand(0, 6)),
-      spin: new THREE.Vector3(rand(-20, 20), rand(-20, 20), rand(-20, 20)),
-      life: 6,
-      bounces: 0,
-    });
+  /**
+   * A casing out of the port at `pos`, thrown along the weapon's `right` and `up`, onto the floor at
+   * `floorY` (8.1: it bounces on that floor, not on y = 0 — a catwalk's brass used to fall through).
+   */
+  ejectShell(pos: THREE.Vector3, right: THREE.Vector3, up: THREE.Vector3, floorY = 0, loud = true) {
+    this.casings.spawn(pos.x, pos.y, pos.z, right.x, right.y, right.z, up.x, up.y, up.z, floorY, loud);
   }
 
   private decal(pos: THREE.Vector3, normal: THREE.Vector3) {
@@ -415,42 +405,6 @@ export class Effects {
   update(dt: number) {
     this.add.update(dt);
     this.smoke.update(dt);
-    let n = 0;
-    for (let i = this.shells.length - 1; i >= 0; i--) {
-      const s = this.shells[i];
-      s.life -= dt;
-      if (s.life <= 0) {
-        this.shells.splice(i, 1);
-        continue;
-      }
-      if (s.bounces < 4) {
-        s.vel.y -= 9.8 * dt;
-        s.pos.addScaledVector(s.vel, dt);
-        s.rot.x += s.spin.x * dt;
-        s.rot.y += s.spin.y * dt;
-        s.rot.z += s.spin.z * dt;
-        if (s.pos.y < 0.01) {
-          s.pos.y = 0.01;
-          const strength = Math.min(1, Math.abs(s.vel.y) / 3);
-          s.vel.y = Math.abs(s.vel.y) * 0.35;
-          s.vel.x *= 0.5;
-          s.vel.z *= 0.5;
-          s.spin.multiplyScalar(0.5);
-          s.bounces++;
-          if (strength > 0.1) this.onShellBounce(s.pos, strength);
-          if (s.bounces >= 4) s.rot.set(0, s.rot.y, 0);
-        }
-      }
-    }
-    for (const s of this.shells) {
-      this.dummy.position.copy(s.pos);
-      this.dummy.rotation.copy(s.rot);
-      const k = Math.min(1, s.life);
-      this.dummy.scale.setScalar(k);
-      this.dummy.updateMatrix();
-      this.shellMesh.setMatrixAt(n++, this.dummy.matrix);
-    }
-    this.shellMesh.count = n;
-    this.shellMesh.instanceMatrix.needsUpdate = true;
+    this.casings.update(dt);
   }
 }
