@@ -74,6 +74,12 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
     It also reports `arena.flank.high` (flank spots above the contact). `tdmSim({ vantage: false })` is the 13.0 flank for an A/B.
   - `TDM.skins = 'legacy'` brings back the 6.0–13.0 looks (garrison vs the level's survival enemies) for side-by-side screenshots.
   - `__dev.world()` now counts instanced props as drawn (per instance), and skips per-frame instanced meshes (rounds, brass).
+- Arena flow (15.0):
+  - `tdmSim` reports `laneTimePct` (bot time in each of the map's three lanes, the contested middle only) and `killsByLane` (by where the victim died).
+    - Lanes come from `TdmData.laneOf`. Docks: containers, warehouse, waterfront. Crash Site: ridge, wreck, ravine. Neon Block: west, centre, east.
+    - `arena.laneMoves` counts bots moved off a hot lane.
+  - `tdmSim({ pressure: false })`: lanes by head count alone (14.0), for an A/B.
+  - `bench(3)` has a Crash Site set (eight views and a firefight) and three new Docks views (quay gantry, crane nest, container gantry).
 - Stairs (9.1): `__dev.world()` also reports a stair flush with a wall (`stair flush with wall`); `await __dev.stairGaps()` lists every stair-to-wall gap (3 cm) and presses a body into each one to check it keeps its floor (`drops: 0`).
 - Music (9.0): `__game.debug().music` (current track, file or procedural, live sources, files found); `await __dev.musicSoak({ cycles: 3 })` cycles every level and the title and checks that every music source is disposed (`unaccounted: 0`).
 - Arena bots (7.0), on the desert. Every TDM check takes `ai: 'arena'` (the default) or `ai: 'tactical'` (the 6.0 squads):

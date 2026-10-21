@@ -265,6 +265,36 @@ describe('Arena locomotion', () => {
   });
 });
 
+describe('15.0: lane pressure', () => {
+  const lanes = [[v(-30, 0, 40), v(-30, 0, -40)], [v(0, 0, 40), v(0, 0, -40)], [v(30, 0, 40), v(30, 0, -40)]];
+  const mk = () => new ArenaDirector('alpha', v(0, 0, 50), v(0, 0, -50), lanes);
+  const bot = (uid: number, x: number) => ({ uid, alive: true, isPlayer: false, pos: v(x, 0, 30), team: 'alpha' as TeamId });
+
+  it('deaths and gunfire heat the lane they happen in; the heat halves every halfLife', () => {
+    const d = mk();
+    d.addHeat({ x: 1, z: 0 }, 2, 10);
+    expect(d.heat[1]).toBeCloseTo(2);
+    expect(d.heat[0]).toBe(0);
+    d.addHeat({ x: -29, z: 5 }, 0, 10 + ARENA.lanePressure.halfLife);
+    expect(d.heat[1]).toBeCloseTo(1, 5);
+  });
+
+  it('new bots avoid a hot lane; a hot lane with two on it gives one up to the coolest', () => {
+    const d = mk();
+    d.addHeat({ x: 0, z: 0 }, 6, 1);
+    const bots = [bot(1, 0), bot(2, 0), bot(3, 0)];
+    d.update(1, bots as never, 5, { own: 25, theirs: 25 });
+    expect([...d.laneOf.values()].filter((l) => l === 1).length).toBe(0);
+    // Everyone forced onto the centre, which is still hot: one moves off.
+    for (const b of bots) d.laneOf.set(b.uid, 1);
+    d.addHeat({ x: 0, z: 0 }, 6, 30);
+    d.update(30, bots as never, 5, { own: 25, theirs: 25 });
+    const onCentre = [...d.laneOf.values()].filter((l) => l === 1).length;
+    expect(d.laneMoves).toBeGreaterThan(0);
+    expect(onCentre).toBeLessThan(3);
+  });
+});
+
 describe('Survival keeps the 5.0 brain', () => {
   // The split is structural: nothing on the survival path may reach the arena AI.
   it('Waves, Squad, Arcade and the Gunner/Runner classes never import the arena modules', () => {

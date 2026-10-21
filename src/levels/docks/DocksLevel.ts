@@ -112,6 +112,10 @@ export class DocksLevel implements LevelRuntime {
         lanes: { alpha: lanesOf('alpha'), omega: lanesOf('omega') },
         inBase: (team, p) => inBase(p, team),
         start,
+        // 15.0: the containers (west), the warehouse and its alley (centre), the quay (east); the
+        // yards and the walls in front of them are no lane.
+        laneOf: (x, _y, z) => (Math.abs(z) > 52 ? null : x < -16 ? 0 : x > 16 ? 2 : 1),
+        laneNames: ['containers', 'warehouse', 'waterfront'],
       },
     };
   }

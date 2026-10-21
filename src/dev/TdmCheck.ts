@@ -248,7 +248,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   const dt = opts.dt ?? 1 / 60;
@@ -257,6 +257,9 @@ export async function tdmSim(
   const roster0 = TDM.roster, lane0 = ARENA.laneLeave;
   if (opts.roster) TDM.roster = opts.roster === 'any' ? ANY : RANGED_ONLY;
   if (opts.laneLeave !== undefined) ARENA.laneLeave = opts.laneLeave;
+  // 15.0 A/B: `pressure: false` assigns lanes by count alone (14.0).
+  const pressure0 = ARENA.lanePressure.on;
+  if (opts.pressure !== undefined) ARENA.lanePressure.on = opts.pressure;
   // 14.0 A/B: `vantage: false` keeps flank spots on the contact's level (12.0–13.0).
   const vantage0 = ARENA.vantage.on;
   if (opts.vantage !== undefined) ARENA.vantage.on = opts.vantage;
@@ -298,6 +301,9 @@ export async function tdmSim(
   const dropFrom: Record<string, number> = {};
   // 8.0: where the fight happens — bot time per zone (sampled), height above the floor.
   const zoneT: Record<string, number> = {};
+  // 15.0: bot time per lane (the map's laneOf), sampled with the zones.
+  const tdmData = game.level.data.tdm;
+  const laneT = [0, 0, 0];
   // 9.0: how often a bot came into each zone (a passage like a culvert is crossed in a second: time
   // share undersells it).
   const zoneIn: Record<string, number> = {};
@@ -339,6 +345,8 @@ export async function tdmSim(
         if (steps % 15 === 0) {
           const zn = zoneOf(b.pos.x, b.pos.y, b.pos.z);
           zoneT[zn] = (zoneT[zn] ?? 0) + 1;
+          const ln = tdmData?.laneOf?.(b.pos.x, b.pos.y, b.pos.z);
+          if (ln !== undefined && ln !== null) laneT[ln]++;
           if (lastZone.get(b.uid) !== zn) {
             if (lastZone.has(b.uid)) zoneIn[zn] = (zoneIn[zn] ?? 0) + 1;
             lastZone.set(b.uid, zn);
@@ -362,6 +370,7 @@ export async function tdmSim(
   ARENA.laneLeave = lane0;
   TDM.arms = arms0;
   ARENA.vantage.on = vantage0;
+  ARENA.lanePressure.on = pressure0;
   Object.assign(rifle, { aim: rifle0.aim, hipSpread: rifle0.hip, maxRange: rifle0.max });
   Object.assign(P, { react: keep12.react, reactClamp: keep12.clamp, jitter: keep12.jitter });
   ARENA.flank.per = keep12.per;
@@ -408,6 +417,25 @@ export async function tdmSim(
       const tot = Object.values(zoneT).reduce((a, b) => a + b, 0) || 1;
       return Object.fromEntries(Object.entries(zoneT).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, +((100 * n) / tot).toFixed(1)]));
     })(),
+    // 15.0: share of lane time (in the contested middle) per lane, flank / centre / flank.
+    laneTimePct: (() => {
+      const tot = laneT[0] + laneT[1] + laneT[2];
+      if (!tot) return null;
+      const names = tdmData?.laneNames ?? ['left', 'centre', 'right'];
+      return Object.fromEntries(names.map((n, i) => [n, +((100 * laneT[i]) / tot).toFixed(1)]));
+    })(),
+    killsByLane: (() => {
+      if (!tdmData?.laneOf) return null;
+      const names = tdmData.laneNames ?? ['left', 'centre', 'right'];
+      const out: Record<string, number> = {};
+      for (const x of k) {
+        if (x.victimPos === undefined) continue;
+        const lane: 0 | 1 | 2 | null = tdmData.laneOf!(x.victimPos[0], x.victimPos[1], x.victimPos[2]);
+        const n = lane === null ? 'none' : names[lane];
+        out[n] = (out[n] ?? 0) + 1;
+      }
+      return out;
+    })(),
     zoneEntries: Object.fromEntries(Object.entries(zoneIn).sort((a, b) => b[1] - a[1])),
     killsByZone: k.reduce<Record<string, number>>((a, x) => ((a[x.zone ?? '-'] = (a[x.zone ?? '-'] ?? 0) + 1), a), {}),
     arena:
@@ -437,6 +465,7 @@ export async function tdmSim(
             },
             perBot: st.perBot,
             // 12.0: flanks off the shared spotting, retreats, slides.
+            laneMoves: tdm.directors ? tdm.directors.alpha.laneMoves + tdm.directors.omega.laneMoves : 0,
             flank: { started: st.flanks, high: st.flankHigh, arrived: st.flankArrive, engagedFromFlank: st.flankEngage, kills: st.flankKills },
             retreat: { n: st.retreats, why: st.retreatWhy, lived: st.retreatLived, diedRetreating: st.retreatDeaths },
             slides: { n: st.slides, why: st.slideWhy, perMin: +((st.slides / simT) * 60).toFixed(1) },

@@ -141,6 +141,40 @@ function swaying(mat: THREE.MeshStandardMaterial, time: { value: number }, amoun
   return mat;
 }
 
+/**
+ * 15.0: what the foliage needs to know about the ground it grows on (Firebase Viper by default; the
+ * TDM jungle, Crash Site, passes its own): the floor's height, how much forest a point is (0 cleared …
+ * 1 deep), whether a plant may stand `minD` out from the clearings, and the extents of the scatter.
+ */
+export interface FoliageSite {
+  height(x: number, z: number): number;
+  /** 0 on cleared ground, rising to 1 in the deep forest (the undergrowth's base density). */
+  forest(x: number, z: number): number;
+  /** A plant may stand here: `minD` is the plant kind's distance from the clearings (Firebase: from its wall). */
+  allowed(x: number, z: number, minD: number): boolean;
+  /** Scatter extent (half-size), the canopy's and the vines' extents, the mist sheets' size. */
+  extent: number;
+  canopyR: number;
+  vineR: number;
+  mistSize: number;
+  /** Where the canopy and the vines may hang (Firebase: never right over the compound). */
+  canopyOk(x: number, z: number): boolean;
+  vineOk(x: number, z: number): boolean;
+}
+
+/** Firebase Viper's site (the 3.6–14.0 behaviour exactly). */
+export const FIREBASE_SITE: FoliageSite = {
+  height: jungleHeight,
+  forest: (x, z) => THREE.MathUtils.smoothstep(baseDist(x, z), STRIP - 1, STRIP + 8),
+  allowed: (x, z, minD) => baseDist(x, z) >= minD,
+  extent: JUNGLE_EXTENT,
+  canopyR: 78,
+  vineR: 62,
+  mistSize: 150,
+  canopyOk: (x, z) => baseDist(x, z) >= 4,
+  vineOk: (x, z) => baseDist(x, z) >= STRIP,
+};
+
 export interface FoliageResult {
   group: THREE.Group;
   /** Total plant instances by kind (for the report and the bench). */
@@ -171,7 +205,9 @@ export function buildFoliage(
   fogColor: THREE.Color,
   quality: number,
   rooms: Interior[] = [],
+  site: FoliageSite = FIREBASE_SITE,
 ): FoliageResult {
+  const H = site.height;
   const rnd = mulberry32(777);
   const group = new THREE.Group();
   group.name = 'foliage';
@@ -182,11 +218,11 @@ export function buildFoliage(
 
   const blockedSpot = (x: number, z: number, r: number) =>
     keepClear.some(([a0, b0, a1, b1]) => x > a0 - r && x < a1 + r && z > b0 - r && z < b1 + r) ||
-    col.blocked(_p.set(x, jungleHeight(x, z), z), r, 0.6);
+    col.blocked(_p.set(x, H(x, z), z), r, 0.6);
 
   /** Density 0..1 of the undergrowth at a point: none on the cleared strip, thick in the forest and around spawns. */
   const density = (x: number, z: number) => {
-    const forest = THREE.MathUtils.smoothstep(baseDist(x, z), STRIP - 1, STRIP + 8);
+    const forest = site.forest(x, z);
     const patch = noise(x * 0.08 + 3, z * 0.08 - 9);
     let d = 0.15 + forest * (0.35 + patch * 0.7);
     for (const s of spawns) if (Math.abs(s.x - x) < 9 && Math.abs(s.z - z) < 9) d = Math.max(d, 1 - Math.hypot(s.x - x, s.z - z) / 9);
@@ -196,12 +232,12 @@ export function buildFoliage(
   /** Scatters `n` candidates of one kind over the map (at least `minD` out from the wall), keeping those the density accepts. */
   const scatter = (n: number, minD: number, accept: (x: number, z: number) => boolean) => {
     const out: THREE.Vector3[] = [];
-    const ext = JUNGLE_EXTENT - 1;
+    const ext = site.extent - 1;
     for (let i = 0; i < n * 6 && out.length < n; i++) {
       const x = (rnd() * 2 - 1) * ext, z = (rnd() * 2 - 1) * ext;
-      if (baseDist(x, z) < minD) continue;
+      if (!site.allowed(x, z, minD)) continue;
       if (!accept(x, z)) continue;
-      out.push(new THREE.Vector3(x, jungleHeight(x, z), z));
+      out.push(new THREE.Vector3(x, H(x, z), z));
     }
     return out;
   };
@@ -243,7 +279,7 @@ export function buildFoliage(
       const a = rnd() * Math.PI * 2, d = 1.6 + rnd() * 5;
       const x = s.x + Math.cos(a) * d, z = s.z + Math.sin(a) * d;
       if (blockedSpot(x, z, 0.4)) continue;
-      bushPts.push({ p: new THREE.Vector3(x, jungleHeight(x, z), z), s: 1.3 + rnd() * 1.1, yaw: rnd() * 6.28, color: tint(0.24 + rnd() * 0.06, 0.5, 0.16 + rnd() * 0.08) });
+      bushPts.push({ p: new THREE.Vector3(x, H(x, z), z), s: 1.3 + rnd() * 1.1, yaw: rnd() * 6.28, color: tint(0.24 + rnd() * 0.06, 0.5, 0.16 + rnd() * 0.08) });
     }
   }
   const bushGeo = bushGeometry(rnd);
@@ -283,8 +319,8 @@ export function buildFoliage(
   const canopyPts: { p: THREE.Vector3; s: number; yaw: number; color: THREE.Color }[] = [];
   for (const t of trees) if (t.giant) canopyPts.push({ p: new THREE.Vector3(t.x, t.y + t.h - 4, t.z), s: 9 + rnd() * 6, yaw: rnd() * 6.28, color: tint(0.26, 0.4, 0.09 + rnd() * 0.05) });
   for (let i = 0; i < Math.round(110 * q); i++) {
-    const x = (rnd() * 2 - 1) * 78, z = (rnd() * 2 - 1) * 78;
-    if (baseDist(x, z) < 4) continue;
+    const x = (rnd() * 2 - 1) * site.canopyR, z = (rnd() * 2 - 1) * site.canopyR;
+    if (!site.canopyOk(x, z)) continue;
     canopyPts.push({ p: new THREE.Vector3(x, 34 + rnd() * 10, z), s: 8 + rnd() * 8, yaw: rnd() * 6.28, color: tint(0.26, 0.4, 0.08 + rnd() * 0.05) });
   }
   instanced('canopy', crownGeo, leafMat(0.006), canopyPts, false);
@@ -302,10 +338,10 @@ export function buildFoliage(
       const t = giants[Math.floor(rnd() * giants.length)];
       const nearTree = rnd() < 0.6 && t;
       const a = rnd() * Math.PI * 2, d = nearTree ? t.r + 0.8 + rnd() * 5 : 0;
-      const x = nearTree ? t.x + Math.cos(a) * d : (rnd() * 2 - 1) * 62;
-      const z = nearTree ? t.z + Math.sin(a) * d : (rnd() * 2 - 1) * 62;
-      if (baseDist(x, z) < STRIP) continue;
-      const g = jungleHeight(x, z);
+      const x = nearTree ? t.x + Math.cos(a) * d : (rnd() * 2 - 1) * site.vineR;
+      const z = nearTree ? t.z + Math.sin(a) * d : (rnd() * 2 - 1) * site.vineR;
+      if (!site.vineOk(x, z)) continue;
+      const g = H(x, z);
       const top = g + 16 + rnd() * 14;
       // Most end well above head height; a few trail down to the ground.
       const bottom = rnd() < 0.25 ? g + 0.3 : g + 2.4 + rnd() * 6;
@@ -330,11 +366,11 @@ export function buildFoliage(
   const roomRects = Array.from({ length: MAX_ROOMS }, (_, i) => (rooms[i] ? new THREE.Vector4(rooms[i].x0, rooms[i].z0, rooms[i].x1, rooms[i].z1) : new THREE.Vector4(1e5, 1e5, 1e5, 1e5)));
   const mists: THREE.ShaderMaterial[] = [];
   const mistMesh = (y: number, opacity: number, scale: number, drift: [number, number]) => {
-    const size = 150, segs = 75;
+    const size = site.mistSize, segs = 75;
     const geo = new THREE.PlaneGeometry(size, size, segs, segs);
     geo.rotateX(-Math.PI / 2);
     const p = geo.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < p.count; i++) p.setY(i, jungleHeight(p.getX(i), p.getZ(i)) + y);
+    for (let i = 0; i < p.count; i++) p.setY(i, H(p.getX(i), p.getZ(i)) + y);
     const mat = new THREE.ShaderMaterial({
       uniforms: THREE.UniformsUtils.merge([
         THREE.UniformsLib.fog,
@@ -388,7 +424,7 @@ export function buildFoliage(
   mistMesh(1.1, 0.32, 0.022, [-0.004, 0.003]);
 
   /** Plants per square metre, as the scatter sees them (0 where the ground is kept clear). */
-  const cover = (x: number, z: number) => (keepClear.some(([a0, b0, a1, b1]) => x > a0 && x < a1 && z > b0 && z < b1) ? 0 : baseDist(x, z) < STRIP - 1 ? 0 : density(x, z));
+  const cover = (x: number, z: number) => (keepClear.some(([a0, b0, a1, b1]) => x > a0 && x < a1 && z > b0 && z < b1) ? 0 : !site.allowed(x, z, STRIP - 1) ? 0 : density(x, z));
   const concealment = (a: THREE.Vector3, b: THREE.Vector3) => {
     const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
     const len = Math.hypot(dx, dy, dz);
@@ -401,7 +437,7 @@ export function buildFoliage(
     for (let i = 1; i < n; i++) {
       const t = i / len;
       const x = a.x + dx * t, y = a.y + dy * t, z = a.z + dz * t;
-      if (y - jungleHeight(x, z) > 1.9) continue;
+      if (y - H(x, z) > 1.9) continue;
       tau += 0.3 * cover(x, z);
       if (tau > 3) return 0;
     }

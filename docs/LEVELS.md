@@ -263,3 +263,26 @@ How it fits:
 - **The boundary is 14 m buildings on every side**, over twice the highest reachable floor.
 - **Repeated props are `InstancedMesh`**: vending machines, AC units, lanterns and rubbish bags (`Instancer` in `NeonBlock.ts`). `__dev.world()` reads instanced meshes since 14.0.
 
+## Jungle: Crash Site (15.0)
+
+`src/levels/crashsite/`: `CrashLayout.ts` (the plan, the heightfield, lanes and zones), `CrashSite.ts` (the builder), `CrashSiteLevel.ts` (the runtime). TDM only; Firebase Viper (`jungle/`) is untouched.
+
+- **Mirrored about z = 0.**
+  - **The ridge** (west): a 3.6 m rock plateau.
+  - **The wreck** (centre): a dropship's hull, its wings ramps to the roof, mud trenches 1.4 m deep.
+  - **The ravine** (east): a 4 m-deep floor between rock rims, fallen giant trees across it.
+- **Heightfield rules:** the terrain is always floor (the foot circle stands on its highest point), so no steep terrain face may be exposed.
+  - The trenches' banks are gentle (≤ 22°, unit-tested).
+  - The ridge is rock blocks on flat ground.
+  - The ravine's drop lies under its rims, clear of every foot sample.
+- **Step height:** anything walked onto is ≤ 0.3 m: rim tops, trunk decks, the hull's deck. Taller needs a jump.
+- **Foliage:** `buildFoliage` takes a `FoliageSite` (height, forest density, extents). Firebase's default reproduces 14.0 exactly (plant counts and concealment checked against `main`).
+
+## Neon Docks rework (15.0)
+
+- **Warehouse:** roofless, walls 10 m → 7 m, main doors 8 m → 4 m, the tall crate stacks and the container removed (low cover only).
+- **Spawn yards:** two exits (no centre one), each behind an L of blast wall that turns you to your flank.
+- **Container gantry** (2.6 m, over the maze's x = -45 corridor): stairs at both ends, drops into the cross corridors.
+- **Quay gantry** (6.5 m, 4 m out from the warehouse's east wall): a 1.1 m armoured half-wall facing the warehouse, the crane nest at mid-field, stairs at both ends and from the quay up to the nest.
+- **Lanes:** containers (over the gantry), the warehouse, the waterfront (the quay and the nest).
+

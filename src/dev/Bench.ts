@@ -55,6 +55,7 @@ export async function bench(game: Game, seconds = 3, opts: { pipelines?: Pipelin
   if (game.setting === 'jungle') return benchJungle(game, dev, m, out);
   if (game.setting === 'docks') return benchDocks(game, dev, m, out);
   if (game.setting === 'neonblock') return benchNeonBlock(game, dev, m, out);
+  if (game.setting === 'crashsite') return benchCrashSite(game, dev, m, out);
   dev.start('story');
   dev.god();
   dev.noGuards();
@@ -187,6 +188,47 @@ async function benchJungle(game: Game, dev: Dev, m: (name: string) => Promise<vo
 }
 
 /**
+ * Jungle: Crash Site (15.0, a TDM arena): the match running, the three lanes at eye level (the ridge's
+ * long line, the trench, the ravine floor), the wreck's roof, the densest undergrowth (the east
+ * bank), the whole map from the ridge, then a firefight from the trench.
+ */
+async function benchCrashSite(game: Game, dev: Dev, m: (name: string) => Promise<void>, out: Record<string, unknown>) {
+  dev.start('tdm', 'crashsite');
+  dev.god();
+  const views: [string, [number, number, number], [number, number, number]][] = [
+    ['alphaLZ', [0, 0, 59], [0, 2, 30]],
+    ['ridge', [-39, 3.6, 30], [-38, 4, -30]],
+    ['westTrench', [-12.5, -1.4, 27], [-4, 1.5, 4]],
+    ['wreckRoof', [-5, 3.9, 0], [10, 2, -20]],
+    ['wreckInside', [-8, 0.28, 0], [8, 1.5, 0]],
+    ['ravine', [28.5, -4, 36], [28.5, -2.5, -20]],
+    ['eastBank', [40, 0.2, 20], [40, 1.5, -20]],
+    ['wholeMap', [-40, 3.6, 40], [20, 0, -20]],
+  ];
+  for (const [name, p, l] of views) {
+    dev.tp(p[0], p[1], p[2], 0, 0);
+    dev.look(l[0], l[1], l[2]);
+    await m(name);
+  }
+  dev.tp(-12.5, -1.4, 27, 0, 0);
+  const tdm = game.tdm;
+  const shooter = window.setInterval(() => {
+    let best: { x: number; y: number; z: number } | null = null, bd = 60;
+    for (const b of tdm.bots) if (b.alive && b.team === 'omega' && b.pos.distanceTo(game.player.pos) < bd) {
+      bd = b.pos.distanceTo(game.player.pos);
+      best = b.pos;
+    }
+    if (!best) return;
+    dev.look(best.x, best.y + 1.2, best.z);
+    dev.shoot();
+  }, 600);
+  await new Promise((r) => setTimeout(r, 4000));
+  await m('firefight');
+  clearInterval(shooter);
+  return out;
+}
+
+/**
  * Tokyo: Neon Block (14.0, a TDM arena): the match running (nine bots, the player in god mode), the
  * three lanes at eye level, the roofs, the footbridge, the worst view (the whole block from Block W's
  * roof: every facade, sign and light in frame), then a firefight from the street.
@@ -244,6 +286,10 @@ async function benchDocks(game: Game, dev: Dev, m: (name: string) => Promise<voi
     ['catwalk', [-12.1, 4.5, 20], [8, 2, -10]],
     ['quay', [33, 0, 48], [30, 2, -40]],
     ['crane', [30, 0, 8], [40, 12, -6]],
+    // 15.0: the raised walks.
+    ['quayGantry', [19.2, 6.5, 26], [0, 2, -10]],
+    ['craneNest', [21.3, 6.5, 0], [-6, 1, 6]],
+    ['containerGantry', [-45, 2.6, 30], [-40, 1, -20]],
   ];
   for (const [name, p, l] of views) {
     dev.tp(p[0], p[1], p[2], 0, 0);

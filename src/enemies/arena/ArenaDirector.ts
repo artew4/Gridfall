@@ -69,6 +69,12 @@ export class ArenaDirector {
   laneTarget: number[] = [];
   /** Bot uid → lane. */
   laneOf = new Map<number, number>();
+  /** 15.0: how contested each lane is (deaths and gunfire there, decaying), and when it was decayed. */
+  heat: number[] = [];
+  private heatT = 0;
+  private moveT = -Infinity;
+  /** 15.0 (DEV): bots moved off a hot lane. */
+  laneMoves = 0;
   private trades: [number, number][] = [];
   private pushes = new Map<number, { bots: number[]; until: number }>();
   private flanks = new Map<number, { bots: number[]; sides: number[]; until: number }>();
@@ -97,6 +103,23 @@ export class ArenaDirector {
     this.axis.normalize();
     this.laneProg = this.lanes.map((L) => L.map((p) => this.progress(p)));
     this.laneTarget = this.lanes.map(() => 0);
+    this.heat = this.lanes.map(() => 0);
+  }
+
+  /** 15.0: decay the lane heat to `now`. */
+  private coolTo(now: number) {
+    const dt = now - this.heatT;
+    if (dt <= 0) return;
+    const k = Math.pow(0.5, dt / ARENA.lanePressure.halfLife);
+    for (let l = 0; l < this.heat.length; l++) this.heat[l] *= k;
+    this.heatT = now;
+  }
+
+  /** 15.0: something happened at `p` (a death, a shot): its lane gets hotter. */
+  addHeat(p: { x: number; z: number }, amount: number, now: number) {
+    if (!ARENA.lanePressure.on || !this.lanes.length) return;
+    this.coolTo(now);
+    this.heat[this.nearestLane(p)] += amount;
   }
 
   reset() {
@@ -112,6 +135,10 @@ export class ArenaDirector {
     this.nextT = 0;
     this.log.length = 0;
     this.laneTarget = this.lanes.map(() => 0);
+    this.heat = this.lanes.map(() => 0);
+    this.heatT = 0;
+    this.moveT = -Infinity;
+    this.laneMoves = 0;
   }
 
   private note(now: number, what: string, detail = '') {
@@ -170,6 +197,7 @@ export class ArenaDirector {
     let near = false;
     for (const m of members) if (m.alive && Math.hypot(m.pos.x - from.x, m.pos.z - from.z) < HEAR) near = true;
     if (!near) return false;
+    this.addHeat(from, ARENA.lanePressure.shot, now);
     const c = this.contactFor(by, now);
     c.firedT = now;
     if (now - c.seenT > 0.3) {
@@ -210,6 +238,7 @@ export class ArenaDirector {
 
   // ------------------------------------------------------------------ deaths
   hostileDied(v: Combatant, now: number) {
+    this.addHeat(v.pos, ARENA.lanePressure.death, now);
     this.contacts.delete(v.uid);
     this.pushes.delete(v.uid);
     this.flanks.delete(v.uid);
@@ -217,6 +246,7 @@ export class ArenaDirector {
   }
 
   friendDied(v: Combatant, now: number) {
+    this.addHeat(v.pos, ARENA.lanePressure.death, now);
     this.laneOf.delete(v.uid);
     this.releasePush(v.uid);
     this.releaseFlank(v.uid);
@@ -322,7 +352,8 @@ export class ArenaDirector {
       if (i < 0) i = P.length - 1;
       this.laneTarget[l] = i;
     }
-    this.assignLanes(alive);
+    this.coolTo(now);
+    this.assignLanes(alive, now);
     return true;
   }
 
@@ -335,7 +366,7 @@ export class ArenaDirector {
   }
 
   /** Keep every lane manned: new bots go to the emptiest lane; an empty lane takes the newest bot of the fullest. */
-  private assignLanes(alive: readonly ArenaMember[]) {
+  private assignLanes(alive: readonly ArenaMember[], now = 0) {
     const n = this.lanes.length;
     if (!n) return;
     const count = new Array(n).fill(0);
@@ -349,14 +380,38 @@ export class ArenaDirector {
     for (const b of bots) {
       if (this.laneOf.has(b.uid)) continue;
       // The emptiest lane; among equals the centre, else (12.0: five lanes on the desert, more than a
-      // team has bots) any of them at random, so over a match every lane is walked.
-      const least = Math.min(...count);
-      const open = count.map((c, l) => (c === least ? l : -1)).filter((l) => l >= 0);
-      const best = open.includes(1) ? 1 : open[Math.floor(Math.random() * open.length)];
+      // team has bots) any of them at random, so over a match every lane is walked. 15.0: a hot lane
+      // counts as fuller than it is (weight × heat).
+      const P = ARENA.lanePressure;
+      const cost = count.map((c, l) => c + (P.on ? P.weight * (this.heat[l] ?? 0) : 0));
+      const least = Math.min(...cost);
+      const open = cost.map((c, l) => (c - least < 0.25 ? l : -1)).filter((l) => l >= 0);
+      const best = !P.on && open.includes(1) ? 1 : open[Math.floor(Math.random() * open.length)];
       this.laneOf.set(b.uid, best);
       count[best]++;
     }
-    const empty = count.indexOf(0);
+    // 15.0: lane pressure: off the hottest lane (two or more on it) to a cooler one, now and then.
+    const P = ARENA.lanePressure;
+    if (P.on && now - this.moveT >= P.moveCd) {
+      let hot = -1, cool = -1;
+      for (let l = 0; l < n; l++) {
+        if (count[l] >= 2 && (hot < 0 || this.heat[l] > this.heat[hot])) hot = l;
+        if (cool < 0 || this.heat[l] + 0.3 * count[l] < this.heat[cool] + 0.3 * count[cool]) cool = l;
+      }
+      if (hot >= 0 && cool >= 0 && hot !== cool && this.heat[hot] - this.heat[cool] >= P.hot) {
+        const mover = [...bots].reverse().find((b) => this.laneOf.get(b.uid) === hot);
+        if (mover) {
+          this.laneOf.set(mover.uid, cool);
+          count[hot]--;
+          count[cool]++;
+          this.moveT = now;
+          this.laneMoves++;
+          this.note(now, 'lane', `${hot}>${cool} heat ${this.heat[hot].toFixed(1)}/${this.heat[cool].toFixed(1)}`);
+        }
+      }
+    }
+    // An empty lane takes a bot back, unless (15.0) it is empty because it is hot.
+    const empty = count.findIndex((c, l) => c === 0 && !(P.on && (this.heat[l] ?? 0) >= P.hot));
     if (empty >= 0 && count.reduce((a, c) => a + c, 0) >= n) {
       let full = 0;
       for (let l = 1; l < n; l++) if (count[l] > count[full]) full = l;

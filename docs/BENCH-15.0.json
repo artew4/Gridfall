@@ -1,0 +1,37 @@
+{
+  "version": "15.0",
+  "machine": "Apple M5 laptop, Chrome, Balanced preset, on mains power (rAF 121 Hz; the game caps at 60)",
+  "bench3": {
+    "crashsite": { "views": 9, "fps": [59.9, 60], "cpuMs": [1.88, 2.29], "gpuMs": [4.77, 6.56], "p99FrameMs": [24.0, 25.4] },
+    "docks": { "views": 11, "fps": [59.9, 60.3], "cpuMs": [1.91, 2.99], "gpuMs": [6.38, 8.29], "p99FrameMs": 25.9 },
+    "neonblock": { "views": 10, "fps": [60, 60.3], "cpuMs": [1.18, 3.0], "gpuMs": [7.13, 12.41], "note": "the 60 FPS 14.0 could not show on battery" },
+    "jungle": { "views": 6, "fps": [60, 60.3], "cpuMs": [2.24, 2.62], "gpuMs": [6.07, 6.22] },
+    "desert": { "views": 6, "fps": 60, "cpuMs": [1.95, 2.73], "gpuMs": [5.25, 6.14] },
+    "tokyo": { "views": 8, "fps": [60, 60.3], "cpuMs": [2.49, 2.82], "gpuMs": [6.14, 6.69] }
+  },
+  "laneFlow_tdmSim_25_tickets": {
+    "note": "share of bot time in each lane's contested middle (yards excluded); ranges over matches",
+    "docks": {
+      "before_14.0_5": { "containers": [12.8, 21.2], "warehouse": [60.3, 74.5], "waterfront": [11.3, 23.7], "warehouseKillsPerMatch": [31, 41] },
+      "rework_5lanes_5": { "containers": [37.8, 42.3], "warehouse": [24.1, 30.5], "waterfront": [27.6, 37.5] },
+      "rework_3lanes_pressureOff_5": { "containers": [26.4, 35.0], "warehouse": [42.3, 54.7], "waterfront": [18.9, 22.7] },
+      "final_pressureOn_11": { "containers": [33.3, 40.1], "warehouse": [32.4, 42.0], "waterfront": [20.2, 30.3], "kills": { "warehouse": [15, 28], "containers": [11, 16], "waterfront": [7, 13] } },
+      "raisedZones": { "containerGantryPct": [3.7, 5.8], "quayGantryPct": [0, 0.2], "craneNestPct": [0, 0.4], "dropsPerMatch": [10, 19] },
+      "stuck": 0, "friendlyDamage": 0
+    },
+    "crashsite": {
+      "first_frontExits_5": { "ridge": [9.2, 20.6], "wreck": [46.2, 74.6], "ravine": [16.2, 33.5] },
+      "sideExits_pressureOff_4": { "ridge": [15.6, 22.3], "wreck": [39.6, 61.3], "ravine": [17.4, 44.8] },
+      "final_pressureOn_5": { "ridge": [23.5, 31.8], "wreck": [43.1, 50.8], "ravine": [21.8, 33.4], "dropsPerMatch": [7, 12], "aiMsAvg": [0.071, 0.082] },
+      "stuck": 0, "friendlyDamage": 0
+    },
+    "neonblock_2": { "west": [28.3, 33.2], "centre": [41.0, 49.1], "east": [22.6, 25.8] },
+    "regression_2_each": { "desert": "0 stuck, 0 ff", "jungle": "0 stuck, 0 ff", "neonblock": "0 stuck, 0 ff" }
+  },
+  "world": {
+    "crashsite": { "standing": 0, "crouched": 0, "reachableCells": 44810, "stress": "0/16000 standing, 0/16000 crouched", "perZoneMirrored": { "approach": 5822, "lz": 1068 } },
+    "docks": { "standing": 0, "crouched": 0, "stress": "0/16000 standing, 0/16000 crouched", "stairGapDrops": 0 }
+  },
+  "firebaseFoliageUnchanged": { "counts": { "bushes": 1303, "ferns": 1500, "grass": 2600, "bigleaf": 380, "crowns": 80, "canopy": 133, "vines": 260 }, "concealmentSamples": [1, 0.09095, 0], "comparedWith": "main (14.0) served from a worktree" },
+  "leakcheck_forcedGC": { "loop": "crashsite -> docks -> neonblock, 2 laps", "aliveAfterGC": "0/48", "heapMB": [13.1, 16.3] }
+}

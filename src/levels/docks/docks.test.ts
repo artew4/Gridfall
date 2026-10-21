@@ -1,16 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { BASE, QUAY_X, WEST_X, inBase, lanesOf, spawnsOf, stackColor, zoneAt } from './DocksLayout';
+import { BASE, CG, EXITS, QG, QUAY_X, WEST_X, WH, inBase, lanesOf, spawnsOf, stackColor, zoneAt } from './DocksLayout';
 
 describe('Neon Docks layout', () => {
-  it('three lanes per team: maze, warehouse, quay; OMEGA\'s are ALPHA\'s mirrored, its left being the quay', () => {
+  it('three lanes per team: containers (over the gantry), warehouse, waterfront (the quay, through the crane nest); OMEGA\'s mirrored and reversed', () => {
     const a = lanesOf('alpha'), o = lanesOf('omega');
     expect(a.length).toBe(3);
-    expect(Math.max(...a[0].map((p) => p.x))).toBeLessThan(-14);
-    expect(a[1].every((p) => Math.abs(p.x) < 14)).toBe(true);
-    expect(Math.min(...a[2].map((p) => p.x))).toBeGreaterThan(14);
-    // OMEGA's left (index 0) is the quay, mirrored in z.
-    expect(o[0].map((p) => [p.x, p.z])).toEqual(a[2].map((p) => [p.x, -p.z]));
-    expect(o[2].map((p) => [p.x, p.z])).toEqual(a[0].map((p) => [p.x, -p.z]));
+    const mid = (L: { x: number; y: number; z: number }[]) => L.filter((p) => Math.abs(p.z) < 40);
+    expect(Math.max(...mid(a[0]).map((p) => p.x))).toBeLessThan(-30);
+    expect(mid(a[1]).every((p) => Math.abs(p.x) < 14)).toBe(true);
+    expect(Math.min(...mid(a[2]).map((p) => p.x))).toBeGreaterThan(17);
+    // 15.0: the flank lanes run raised (the gantries).
+    expect(mid(a[0]).filter((p) => p.y > 2).length).toBeGreaterThanOrEqual(4);
+    expect(mid(a[2]).filter((p) => p.y > 6).length).toBeGreaterThanOrEqual(1);
+    for (let i = 0; i < 3; i++) expect(o[i].map((p) => [p.x, p.z, p.y])).toEqual(a[2 - i].map((p) => [p.x, -p.z, p.y]));
+  });
+
+  it('15.0: the yards open only to the flanks (no centre exit), the warehouse is roofless and 7 m', () => {
+    expect(EXITS).toEqual([-17, 17]);
+    expect(WH.h).toBe(7);
+    expect(zoneAt(19.2, QG.y, 10)?.name).toBe('QUAY GANTRY');
+    expect(zoneAt(21.3, QG.y, 0)?.name).toBe('CRANE NEST');
+    expect(zoneAt(-45, CG.y, 10)?.name).toBe('CONTAINER GANTRY');
+    expect(zoneAt(-45, 0, 10)?.name).not.toBe('CONTAINER GANTRY');
   });
 
   it('lanes start at the team\'s own exits, end short of the other yard, and stay inside the map', () => {

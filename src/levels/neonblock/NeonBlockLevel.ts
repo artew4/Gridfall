@@ -110,6 +110,8 @@ export class NeonBlockLevel implements LevelRuntime {
         lanes: { alpha: lanesOf('alpha'), omega: lanesOf('omega') },
         inBase: (team, p) => inBase(p, team),
         start,
+        laneOf: (x, _y, z) => (Math.abs(z) > 50 ? null : x < -12 ? 0 : x > 12 ? 2 : 1),
+        laneNames: ['west', 'centre', 'east'],
       },
     };
   }

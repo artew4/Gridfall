@@ -10,7 +10,7 @@ import type { RainAreas } from '../../world/Rain';
 import { chainLinkTexture, concreteTexture as pavedTexture, perforatedTexture } from '../../world/Textures';
 import { concreteTexture, steelTexture } from '../jungle/textures';
 import { corrugatedTexture, crateTexture } from '../desert/textures';
-import { BASE, CONT, DECK, END_Z, MAZE, QUAY_X, WEST_X, WH, lanesOf, mz, spawnsOf, stackColor, zoneAt } from './DocksLayout';
+import { BASE, CG, CONT, DECK, END_Z, EXITS, MAZE, QG, QUAY_X, WEST_X, WH, lanesOf, mz, spawnsOf, stackColor, zoneAt } from './DocksLayout';
 import type { Zone } from '../Level';
 
 /*
@@ -25,7 +25,7 @@ import type { Zone } from '../Level';
 */
 
 export interface DocksResult {
-  nav: { nodes: THREE.Vector3[]; links: [number, number][]; slope: number };
+  nav: { nodes: THREE.Vector3[]; links: [number, number][]; drops: [number, number][]; slope: number };
   spawns: { alpha: THREE.Vector3[]; omega: THREE.Vector3[] };
   coverPoints: THREE.Vector3[];
   testGoals: THREE.Vector3[];
@@ -230,7 +230,9 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
 
   // ---------------------------------------------------------------- spawn yards (south, mirrored)
   const BW = 3.4;
-  const exits = [-15, 0, 15];
+  // 15.0: two exits, not three, and each turned out to its flank by an L of blast wall (the centre
+  // exit opened straight onto the warehouse door: the match started there and stayed there).
+  const exits = EXITS;
   for (const flip of [false, true]) {
     const Z = (z: number) => mz(z, flip);
     const zr = (a: number, c: number): [number, number] => (flip ? [-c, -a] : [a, c]);
@@ -249,10 +251,14 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
       const [s0, s1] = zr(END_Z, BASE.z1 - 0.6);
       solid(BASE.x0, 0, s0, BASE.x0 + 0.6, BW, s1, m.concrete, 'concrete', 2);
       solid(BASE.x1 - 0.6, 0, s0, BASE.x1, BW, s1, m.concrete, 'concrete', 2);
-      // Blast walls in front of each exit: no line of fire into the yard.
+      // Blast walls in front of each exit (no line of fire into the yard), with a wing on the inner
+      // side back to the yard wall: out of the west exit you can only turn west, out of the east, east.
       for (const x of exits) {
         const [w0, w1] = zr(55, 55.6);
         solid(x - 3.5, 0, w0, x + 3.5, 2.6, w1, m.jersey, 'concrete', 1);
+        const ix = x < 0 ? x + 3.5 - 0.6 : x - 3.5;
+        const [g0, g1] = zr(55.6, BASE.z0);
+        solid(ix, 0, g0, ix + 0.6, 2.6, g1, m.jersey, 'concrete', 1);
       }
     }
     // Yard props: a generator and crates against the side walls (cover from the exits, not traps).
@@ -294,12 +300,15 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   for (const flip of [false, true]) {
     const zr = (a: number, c: number): [number, number] => (flip ? [-c, -a] : [a, c]);
     const [e0, e1] = zr(WH.z1 - T, WH.z1);
-    wall(true, WH.x0, WH.x1, e0, e1, WH.h, m.wall, [{ at: 0, w: 8, y1: 6 }, { at: -12, w: 1.6, y1: 2.3 }, { at: 12, w: 1.6, y1: 2.3 }]);
+    // 15.0: the main door narrowed to 4 m (was 8 m by 6 m): a way through, not a gate to hold.
+    wall(true, WH.x0, WH.x1, e0, e1, WH.h, m.wall, [{ at: 0, w: 4, y1: 4.5 }, { at: -12, w: 1.6, y1: 2.3 }, { at: 12, w: 1.6, y1: 2.3 }]);
   }
   const sideOpen = (zs: number[], w: number, y0: number, y1: number): Opening[] => zs.flatMap((z) => [{ at: z, w, y0, y1 }, { at: -z, w, y0, y1 }]);
   wall(false, WH.z0 + T, WH.z1 - T, WH.x0, WH.x0 + T, WH.h, m.wall, sideOpen([12], 3, 0, 2.6));
   wall(false, WH.z0 + T, WH.z1 - T, WH.x1 - T, WH.x1, WH.h, m.wall, [...sideOpen([6.5], 3, 0, 2.6), ...sideOpen([20.3], 2.4, DECK, 6.8)]);
-  solid(WH.x0, WH.h, WH.z0, WH.x1, WH.h + 0.4, WH.z1, m.roof, 'metal', 4);
+  // 15.0: no roof. Open trusses across it (out of reach: 6.8 m and up over a 4.5 m catwalk), so the
+  // floor and the catwalks are seen from the quay gantry and the crane nest.
+  for (let z = -20; z <= 20.01; z += 8) solid(WH.x0 + 0.4, WH.h - 0.2, z - 0.15, WH.x1 - 0.4, WH.h, z + 0.15, m.darkMetal, 'metal', 1);
   // Catwalks along both long walls, landings at the ends, a bridge across the middle.
   const DT = DECK - 0.25;
   for (const sx of [-1, 1]) {
@@ -333,16 +342,12 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   solid(-10.6, DECK, -1.5, 10.6, DECK + 1.05, -1.42, m.paint, 'metal', 1);
   solid(-10.6, DECK, 1.42, 10.6, DECK + 1.05, 1.5, m.paint, 'metal', 1);
   for (const x of [-5, 5]) solid(x - 0.15, 0, -0.15, x + 0.15, DT, 0.15, m.darkMetal, 'metal', 1);
-  // Floor cover: crate stacks, a container, a jersey line, pallets (south half, mirrored).
-  solid2(-6, 0, 14, -3, 2.4, 16.4, m.crate, 'wood', 1.2);
-  solid2(3, 0, 7, 6, 2.4, 9.4, m.crate, 'wood', 1.2);
-  container2(5, 17, 'x', 1, m.yellow);
+  // Floor cover: 15.0, only low cover (a jersey line, pallets): the crate stacks, the container and
+  // the stack under the bridge were the fortress that held the match (8.0–14.0: 60–75% of bot time
+  // in the centre lane). Crossing the floor is now a risk, not a place to stay.
   vault2(-8, 5, -4, 5.6, 0.95, m.jersey);
   vault2(-2, 20, 2, 21.2, 1.0, m.pallet, 'wood');
-  // Under the bridge: a crate stack (2.4 m) that breaks the floor-level line through both main doors
-  // (eye height). Without it the forecourts saw each other down the whole warehouse and the fights
-  // stayed on the floor; from the catwalks and the bridge you still see over it (8.0 bot matches).
-  solid(-2.2, 0, -1.2, 2.2, 2.4, 1.2, m.crate, 'wood', 1.2);
+  vault2(3, 9, 6, 9.6, 0.95, m.jersey);
   // Exterior stair on the quay side up to the catwalk door (lanes 2–3, and a way up from the water).
   stair2(14.2, 10.9, 16.6, 19.0, 'z', 1, 0, DECK, m.darkMetal, ['hi']);
   solid2(14.0, 0, 19.0, 16.6, DECK, 21.6, m.concrete, 'concrete', 1.5);
@@ -382,6 +387,43 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   }
   b.add(worldBox(10, 16, 10, 4), m.hull, 92, 17, 74);
 
+  // ---------------------------------------------------------------- 15.0: the container gantry
+  // A steel walk at container-top height (2.6 m) over the maze's x = -45 corridor, flush with the
+  // single containers either side (step across onto them), the corridor still open beneath. Stairs at
+  // both ends from the forecourts; drop-downs into the cross corridors (z = ±16).
+  solid(CG.x0, CG.y - 0.2, -CG.z, CG.x1, CG.y, CG.z, m.deck, 'metal', 1);
+  stair2(CG.x0, CG.z, CG.x1, CG.z + 8.2, 'z', -1, 0, CG.y, m.darkMetal, ['lo', 'hi']);
+  for (const z of [-30, -16, -2, 2, 16, 30]) solid(CG.x0 + 0.02, 0, z - 0.1, CG.x0 + 0.2, CG.y - 0.2, z + 0.1, m.darkMetal, 'metal', 1);
+
+  // ---------------------------------------------------------------- 15.0: the quay gantry and the crane nest
+  // A 6.5 m walk along the warehouse's east side (4 m out from its 7 m wall): from it you see the
+  // east doors below and over the wall into the roofless floor and the west catwalk. At mid-field it
+  // widens east into the crane nest between the crane's legs, a low wall on its warehouse side.
+  // Stairs at both ends, and from the quay straight up to the nest (z ±22 → ±9: the first cut had
+  // only the end stairs, and bots on the waterfront lane, already at mid-field, never turned back to
+  // climb: 0.2% of their time up there).
+  solid(QG.x0, QG.y - 0.25, -QG.z, QG.x1, QG.y, QG.z, m.deck, 'metal', 1);
+  solid(QG.x1, QG.y - 0.25, -QG.nest.z, QG.nest.x1, QG.y, QG.nest.z, m.deck, 'metal', 1);
+  stair2(QG.x0, QG.z, QG.x1, QG.z + 13, 'z', -1, 0, QG.y, m.darkMetal, ['lo', 'hi']);
+  // Clear of the crane's west legs (x 22.4).
+  const NEST_X1 = 22.3;
+  stair2(QG.x1 + 0.05, 9, NEST_X1, 22, 'z', -1, 0, QG.y, m.darkMetal, ['hi']);
+  // Rails: the west rail is a 1.1 m armoured half-wall (cover facing the warehouse); the east rail
+  // is broken by the nest and the drop gaps.
+  solid(QG.x0, QG.y, -QG.z, QG.x0 + 0.25, QG.y + 1.1, QG.z, m.paint, 'metal', 1);
+  for (const s of [1, -1]) {
+    const zr = (a: number, c: number): [number, number] => (s > 0 ? [a, c] : [-c, -a]);
+    let [a, c] = zr(9, QG.z);
+    solid(QG.x1 - 0.08, QG.y, a, QG.x1, QG.y + 1.05, c, m.paint, 'metal', 1);
+    // The nest's stair: a landing joining the nest and the walk (z 4–9), the flight down to the quay.
+    [a, c] = zr(QG.nest.z, 9);
+    solid(QG.x1, QG.y - 0.25, a, NEST_X1, QG.y, c, m.deck, 'metal', 1);
+    solid(NEST_X1 - 0.08, QG.y, a, NEST_X1, QG.y + 1.05, c, m.paint, 'metal', 1);
+    // Posts under the walk.
+    for (const z of [6, 14, 22]) solid(QG.x0 + 0.9, 0, s * z - 0.15, QG.x0 + 1.2, QG.y - 0.25, s * z + 0.15, m.darkMetal, 'metal', 1);
+  }
+  solid(QG.nest.x1 - 0.08, QG.y, -QG.nest.z, QG.nest.x1, QG.y + 1.05, QG.nest.z, m.paint, 'metal', 1);
+
   // ---------------------------------------------------------------- light: masts, lamps, neon
   /** A floodlight mast: pole, head (HDR emissive), a real light and a glow (halo, rain, wet reflection). */
   function mast(x: number, z: number, h: number, head: THREE.MeshBasicMaterial, color: number, intensity: number, dist: number) {
@@ -408,7 +450,7 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // West wall floods: warm white now (8.0: cold LED), stronger.
   for (const z of [24, 48]) for (const s of [1, -1]) lamps.push(mast(WEST_X + 0.2, z * s, 11, m.warm, 0xffd9a0, 520, 44));
   // Quay, warehouse side: two more sodium masts (the quay's middle was lit only from the water's edge).
-  for (const s of [1, -1]) mast(18.5, 32 * s, 12, m.amber, 0xffa040, 560, 44);
+  for (const s of [1, -1]) mast(22.8, 34 * s, 12, m.amber, 0xffa040, 560, 44);
   // Forecourts: one mast each (8.0: unlit, the darkest 10% at zero).
   for (const s of [1, -1]) mast(-3, 46 * s, 12, m.warm, 0xffc880, 600, 44);
   // Work lights strung over the maze's crossings, warm (the stacks' colours are the callouts).
@@ -443,25 +485,24 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // Warehouse: sodium lamps hung from the roof trusses (two real lights, the rest glow only).
   const hang = (x: number, z: number, real: boolean) => {
     const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 0.35, 12), m.amber);
-    lamp.position.set(x, 8.6, z);
+    lamp.position.set(x, WH.h - 0.6, z);
     scene.add(lamp);
     let light: THREE.PointLight | undefined;
     if (real) {
       light = new THREE.PointLight(0xffb060, 150, 28, 2);
-      light.position.set(x, 8.2, z);
+      light.position.set(x, WH.h - 1, z);
       scene.add(light);
     }
-    b.add(new THREE.BoxGeometry(0.04, WH.h - 8.8, 0.04), m.darkMetal, x, (WH.h + 8.8) / 2, z);
-    const g = glows.add({ pos: v(x, 8.3, z), color: new THREE.Color(1, 0.62, 0.3), radius: 9, base: 1, light, lightBase: real ? 150 : 0, haloSize: 2.4, haloStrength: 0.3, mode: real ? 'steady' : 'flicker' });
+    const g = glows.add({ pos: v(x, WH.h - 0.9, z), color: new THREE.Color(1, 0.62, 0.3), radius: 9, base: 1, light, lightBase: real ? 150 : 0, haloSize: 2.4, haloStrength: 0.3, mode: real ? 'steady' : 'flicker' });
     g.materials.push({ mat: m.amber, base: m.amber.color.clone() });
   };
   // Four real lamps on the floor fight (8.0: two), the rest glow only.
-  for (const z of [-14, 14]) hang(0, z, true);
-  hang(-6, 6, true);
-  hang(6, -6, true);
-  hang(6, 6, false);
-  hang(-6, -6, false);
-  for (const z of [-20, 20]) for (const x of [-6, 6]) hang(x, z, false);
+  // 15.0: hung from the open trusses (z = 0, ±8, ±16…).
+  for (const z of [-16, 16]) hang(0, z, true);
+  hang(-6, 8, true);
+  hang(6, -8, true);
+  hang(6, 8, false);
+  hang(-6, -8, false);
   // Neon tubes on the warehouse corners and along the end walls (no lights: halos and the rain).
   const tube = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.MeshBasicMaterial, color: THREE.Color) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.08, x1 - x0), Math.max(0.08, y1 - y0), Math.max(0.08, z1 - z0)), mat);
@@ -470,8 +511,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     glows.add({ pos: mesh.position.clone(), color, radius: 6, base: 0.8, mode: 'buzz', haloSize: 1.6, haloStrength: 0.25 });
   };
   for (const s of [1, -1]) {
-    tube(-12, 9.4, s * (WH.z1 + 0.06), 12, 9.48, s * (WH.z1 + 0.14), s > 0 ? m.magenta : m.cyan, s > 0 ? new THREE.Color(1, 0.15, 0.85) : new THREE.Color(0.1, 0.85, 1));
-    for (const x of [WH.x0 - 0.1, WH.x1 + 0.1]) tube(x - 0.04, 0.4, s * (WH.z1 + 0.1) - 0.04, x + 0.04, 9.4, s * (WH.z1 + 0.1) + 0.04, s > 0 ? m.magenta : m.cyan, s > 0 ? new THREE.Color(1, 0.15, 0.85) : new THREE.Color(0.1, 0.85, 1));
+    tube(-12, WH.h - 0.4, s * (WH.z1 + 0.06), 12, WH.h - 0.32, s * (WH.z1 + 0.14), s > 0 ? m.magenta : m.cyan, s > 0 ? new THREE.Color(1, 0.15, 0.85) : new THREE.Color(0.1, 0.85, 1));
+    for (const x of [WH.x0 - 0.1, WH.x1 + 0.1]) tube(x - 0.04, 0.4, s * (WH.z1 + 0.1) - 0.04, x + 0.04, WH.h - 0.4, s * (WH.z1 + 0.1) + 0.04, s > 0 ? m.magenta : m.cyan, s > 0 ? new THREE.Color(1, 0.15, 0.85) : new THREE.Color(0.1, 0.85, 1));
   }
   // Ship lights (glows only): masthead whites and port reds.
   for (const z of [-80, -40, 0, 40, 80]) {
@@ -483,11 +524,11 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // Neon signs (canvas textures, HDR, wet streaks): the callouts you can see from each lane.
   const ctx: BuildCtx = { scene, builder: b, col, glows, time, mats: { darkMetal: m.darkMetal } as unknown as Mats, fog };
   const signs: SignSpec[] = [
-    { text: 'NEON DOCKS', color: '#ff2bd6', style: 'neon', vertical: false, mount: 'wall', face: 's', wall: WH.z1, x: 0, y: 7.6, z: WH.z1 + 0.12, size: 9, floorY: 0, light: 40, lightDist: 18 },
-    { text: '第七埠頭', color: '#19e6ff', style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: WH.z0, x: 0, y: 7.6, z: WH.z0 - 0.12, size: 8, floorY: 0, light: 40, lightDist: 18 },
-    { text: '港湾', color: '#ffb000', style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 6.2, z: 19, size: 4, floorY: 0, mode: 'flicker' },
-    { text: '倉庫', color: '#ffb000', style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 6.2, z: -19, size: 4, floorY: 0, mode: 'flicker' },
-    { text: 'CARGO', color: '#39ff88', style: 'box', vertical: false, mount: 'wall', face: 'e', wall: WH.x1, x: WH.x1 + 0.12, y: 8, z: 0, size: 6, floorY: 0 },
+    { text: 'NEON DOCKS', color: '#ff2bd6', style: 'neon', vertical: false, mount: 'wall', face: 's', wall: WH.z1, x: -7.5, y: 5.6, z: WH.z1 + 0.12, size: 7, floorY: 0, light: 40, lightDist: 18 },
+    { text: '第七埠頭', color: '#19e6ff', style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: WH.z0, x: 7.5, y: 5.6, z: WH.z0 - 0.12, size: 6, floorY: 0, light: 40, lightDist: 18 },
+    { text: '港湾', color: '#ffb000', style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: 19, size: 3.4, floorY: 0, mode: 'flicker' },
+    { text: '倉庫', color: '#ffb000', style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: -19, size: 3.4, floorY: 0, mode: 'flicker' },
+    { text: 'CARGO', color: '#39ff88', style: 'box', vertical: false, mount: 'wall', face: 'e', wall: WH.x1, x: WH.x1 + 0.12, y: 2.8, z: 0, size: 4, floorY: 0 },
     { text: 'ALPHA', color: '#3aa0ff', style: 'box', vertical: false, mount: 'wall', face: 'n', wall: BASE.z0, x: 0, y: 2.6, z: BASE.z0 - 0.12, size: 3.2, floorY: 0 },
     { text: 'OMEGA', color: '#ff3040', style: 'box', vertical: false, mount: 'wall', face: 's', wall: -BASE.z0, x: 0, y: 2.6, z: -BASE.z0 + 0.12, size: 3.2, floorY: 0 },
   ];
@@ -512,7 +553,21 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   for (const x of exits) {
     N2(x, 0, 61.6);
     N2(x, 0, 57.6);
+    // 15.0: round the blast wall's outer end.
+    N2(x + Math.sign(x) * 4.4, 0, 57.4);
+    N2(x + Math.sign(x) * 4.4, 0, 53.6);
   }
+  // 15.0: the container gantry (its stairs, its deck) and the drops off it into the cross corridors.
+  for (const s of [1, -1]) chain(N(-45, 0, (CG.z + 8.8) * s), N(-45, CG.y / 2, (CG.z + 4.1) * s), N(-45, CG.y, (CG.z - 0.8) * s));
+  for (let z = -32; z <= 32; z += 4) N(-45, CG.y, z);
+  const drops: [number, number][] = [];
+  for (const s of [1, -1]) drops.push([N(-45, CG.y, 15 * s), N(-47.6, 0, 15 * s)]);
+  // 15.0: the quay gantry (stairs, deck, nest), the drops to the quay.
+  for (const s of [1, -1]) chain(N(19.2, 0, (QG.z + 13.6) * s), N(19.2, QG.y / 2, (QG.z + 6.5) * s), N(19.2, QG.y, (QG.z - 0.8) * s));
+  for (let z = -26; z <= 26; z += 4) N(19.2, QG.y, z);
+  for (const z of [-2.5, 0, 2.5]) N(21.3, QG.y, z);
+  for (const s of [1, -1]) chain(N(21.4, 0, 22.6 * s), N(21.4, QG.y / 2, 15.5 * s), N(21.4, QG.y, 8.4 * s));
+  for (const s of [1, -1]) N(21.4, QG.y, 6 * s);
   for (const x of [-53, -45, -37, -29, -20.7]) for (const z of [0, 8, 16, 24, 32]) if (open(x, 0, z)) N2(x, 0, z);
   // Catwalks, bridge, landings (deck level).
   for (const x of [-12.1, 12.1]) for (const z of [0, 5, 10, 16, 22]) N2(x, DECK, z);
@@ -553,6 +608,10 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // Authored cover spots: the engine adds spots round every waist-high solid at load.
   const coverPoints: THREE.Vector3[] = [];
   const testGoals = [
+    v(-45, CG.y, 20),
+    v(-45, CG.y, -8),
+    v(19.2, QG.y, 18),
+    v(21.3, QG.y, 0),
     v(-12.1, DECK, -10),
     v(0, DECK, 0),
     v(12.1, DECK, 16),
@@ -577,18 +636,26 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
       [GX0, WH.z1, GX1, GZ],
       [GX0, WH.z0, WH.x0, WH.z1],
       [WH.x1, WH.z0, GX1, WH.z1],
+      // 15.0: the warehouse is open to the sky.
+      [WH.x0, WH.z0, WH.x1, WH.z1],
     ],
     surfaces: [
       { x0: 28, z0: 40, x1: 40, z1: 48, y: 1.2 },
       { x0: 28, z0: -48, x1: 40, z1: -40, y: 1.2 },
       { x0: 14, z0: 19, x1: 16.6, z1: 21.6, y: DECK },
       { x0: 14, z0: -21.6, x1: 16.6, z1: -19, y: DECK },
+      { x0: QG.x0, z0: -QG.z, x1: QG.x1, z1: QG.z, y: QG.y },
+      { x0: QG.x1, z0: -9, x1: QG.nest.x1, z1: 9, y: QG.y },
+      { x0: CG.x0, z0: -CG.z, x1: CG.x1, z1: CG.z, y: CG.y },
     ],
-    shelters: [{ x0: WH.x0, z0: WH.z0, x1: WH.x1, z1: WH.z1, y: WH.h }],
+    shelters: [
+      { x0: QG.x0, z0: -QG.z, x1: QG.x1, z1: QG.z, y: QG.y - 0.25 },
+      { x0: CG.x0, z0: -CG.z, x1: CG.x1, z1: CG.z, y: CG.y - 0.2 },
+    ],
   };
 
   return {
-    nav: { nodes, links, slope: 0 },
+    nav: { nodes, links, drops, slope: 0 },
     spawns,
     coverPoints,
     testGoals,
@@ -597,7 +664,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     catcherPicks: [
       ...lamps.slice(0, 4).map((g) => [g.pos.x, g.pos.y, g.pos.z] as [number, number, number]),
     ],
-    indoor: { x0: WH.x0, z0: WH.z0, x1: WH.x1, z1: WH.z1, y0: 0, h: WH.h },
+    // 15.0: roofless: no longer indoors (no muffled rain, no shaded viewmodel).
+    indoor: { x0: WH.x0, z0: WH.z0, x1: WH.x1, z1: WH.z1, y0: 0, h: 0 },
     laneProblems,
   };
 }

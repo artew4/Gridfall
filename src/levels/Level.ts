@@ -19,9 +19,16 @@ export interface TdmData {
   inBase(team: TeamId, p: THREE.Vector3): boolean;
   /** Where the player starts and faces (ALPHA's base). */
   start: { x: number; z: number; yaw: number; y: number };
+  /**
+   * 15.0: which lane a point is in, as the map defines them (the flow reports and the bots' lane
+   * pressure): 0 and 2 the flanks, 1 the centre; null outside the contested middle (yards, behind them).
+   */
+  laneOf?(x: number, y: number, z: number): 0 | 1 | 2 | null;
+  /** 15.0: the lanes' names for the reports, [flank, centre, flank]. */
+  laneNames?: [string, string, string];
 }
 
-export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock';
+export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock' | 'crashsite';
 export type Mode = 'story' | 'arcade' | 'tdm';
 
 /** A named area of a level (the zone toast reads these). Rects are x0, z0, x1, z1. */

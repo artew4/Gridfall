@@ -856,8 +856,82 @@ Branch `feature/tokyo-tdm-14.0`. 13.0 was deployed first: `main` was fast-forwar
 - **Performance** (`docs/BENCH-14.0.json`): on battery at 11%, Chrome held every page at 30 Hz. Neon Block's ten views cost 4.5–5.9 ms CPU and 6.5–8.7 ms GPU per frame, inside the 16.7 ms budget. The 60 FPS figure needs a re-run on mains power.
 - **Tests:** 203, including drop-down routing.
 
+## 15.0: Jungle: Crash Site, the Neon Docks rework, lane pressure
+
+Branch `feature/arenas-rework-15.0`. 14.0 was deployed first: `main` was fast-forwarded to `ecc0ca5` and pushed.
+
+### Jungle: Crash Site (`src/levels/crashsite/`, TDM only; Firebase Viper untouched)
+- **Mirrored, three lanes:**
+  - **The ridge** (west): a 3.6 m rock plateau, stone steps at both ends and at z ±22, a fallen tree at mid-field, a rock lip with drop gaps.
+  - **The wreck** (centre): a crashed dropship to walk through (doors, a breach), broken wings as ramps to its 3.9 m roof, mud trenches 1.4 m deep down from both approaches.
+  - **The ravine** (east): a 4 m-deep floor between rock rims, three fallen giant trees across, the jungle bank beyond.
+- **Landing zones:** HESCO yards that open only at their sides, toward the flanks.
+- **Heightfield rules** (the terrain is always floor):
+  - gentle relief is terrain (≤ 22°, unit-tested);
+  - steep relief is colliders (the ridge's blocks, the ravine's rims over its drop);
+  - steps walked onto are ≤ 0.3 m.
+- **Mirrored to the noise:** heights, trees, boulders and the foliage density.
+- **The jungle look:** the dappled sun with static shadows, light shafts onto the wreck, the ridge and the middle bridge, mist, mud, a slightly thinner fog (90% at ~64 m) so the ridge's rifle lines work.
+- **Foliage:** `buildFoliage` takes a `FoliageSite`. Firebase's default reproduces 14.0 exactly (plant counts and concealment checked against `main` served from a worktree).
+
+### The Neon Docks rework
+- **Warehouse:** roofless, walls 10 → 7 m, the tall cover removed (crate stacks, the container, the under-bridge stack), main doors 8 → 4 m.
+- **Yards:** no centre exit; two side exits, each behind an L of blast wall that turns you to your flank.
+- **Container gantry** over the maze at container-top height (2.6 m): stairs at both ends, drops into the cross corridors.
+- **Quay gantry** (6.5 m) 4 m out from the warehouse, with an armoured half-wall facing it and the crane nest at mid-field; stairs at both ends and from the quay to the nest.
+- **Three lanes:** containers (over the gantry), the warehouse, the waterfront (the quay and the nest).
+
+### AI: lane pressure (`ArenaDirector`, `ARENA.lanePressure`)
+- **Heat:** each team keeps a heat per lane (deaths +1, gunfire it hears +0.04 a round, halving every 10 s).
+- **Assignment:** new bots take the lowest (count + 1.2 × heat), with ties at random (14.0 sent ties to the centre).
+- **Relief:** a hot lane with two or more bots gives one up to the coolest, at most every 6 s; a hot empty lane isn't refilled.
+- **Routes:** lane discipline turns the lane into the route.
+- **A/B:** `tdmSim({ pressure: false })`.
+
+### Results (`docs/BENCH-15.0.json`)
+**Docks, bot time per lane** (containers / warehouse / waterfront):
+
+| Version | Containers | Warehouse | Waterfront |
+|---|---|---|---|
+| 14.0 | 13–21% | 60–75% | 11–24% |
+| First rework, five lanes | 38–42% | 24–31% | 28–38% |
+| Three lanes, pressure off | 26–35% | 42–55% | 19–23% |
+| Final (11 matches) | 33–40% | 32–42% | 20–30% |
+
+Target ~30 / 40 / 30: the warehouse is on target, the waterfront a few points short. Warehouse kills fell from 31–41 to 15–28 a match. The container gantry is used (4–6% of time, 10–19 drop-downs a match). The quay gantry and the nest are barely used (≤ 0.8%): bots meet the enemy before they climb.
+
+**Crash Site, bot time per lane** (ridge / wreck / ravine):
+
+| Version | Ridge | Wreck | Ravine |
+|---|---|---|---|
+| Front exits | 9–21% | 46–75% | 16–34% |
+| Side exits, pressure off | 16–22% | 40–61% | 17–45% |
+| Final (5 matches) | 23–32% | 43–51% | 22–33% |
+
+7–12 drop-downs a match.
+
+- **Every match on every map:** 0 stuck, 0 friendly fire (Desert, Firebase and Neon Block rechecked).
+- **World:**
+  - Crash Site: 0 findings standing and crouched (44,810 cells; each team's approach and LZ identical cell counts); stress 0 / 16,000 standing and crouched.
+  - Docks: world 0 and 0, stress 0 and 0, stair gaps 0 drops.
+- **Performance, on mains power (60 FPS on Balanced in every bench view of every map):**
+  - Crash Site: CPU 1.9–2.3 ms, GPU 4.8–6.6 ms.
+  - Docks: CPU 1.9–3.0 ms, GPU 6.4–8.3 ms.
+  - Neon Block, confirmed at 60 FPS now: GPU up to 12.4 ms.
+- **Memory:** `leakcheck` crashsite → docks → neonblock twice: 0 / 48 tagged objects alive after a forced GC.
+- **Tests:** 211.
+
+### Bugs found on the way (lessons L-107…L-112)
+- Five lanes overshot.
+- A gantry reached only from its ends stays empty.
+- Steps of 0.35–0.45 m needed a jump.
+- Smoothstep banks peaked at 27–31°.
+- The terrain noise wasn't mirrored.
+- A giant tree grew on a bridge's approach.
+
 ## Next
 Human playtest:
+- 15.0 items: Crash Site (does the ridge pay for its exposure, is the ravine too dark, do the trenches read, the wreck's interior); the docks rework (does the roofless warehouse feel like a risk, do the gantries and the crane nest matter, do side exits feel natural).
 - 14.0 items: Neon Block in a full match: do the three levels pay off (roofs, landings, the footbridge), are the drop-downs readable and fun, is any spot too dark or too bright, is the koban too big; the operator skins: can you find a bot in the alleys at 20–40 m, do cyan and orange read as teams at a glance, do the accents feel like a giveaway.
 - 13.0 items: the mode-first menu and the name field; picking a gun over the intro and on the respawn timer (is 3 s in the spawn yard enough?); do shotgun bots rushing and rifle bots hanging back read as different players; is the Kitsune too strong as an SMG (27 per bolt against bots); going straight to the next map after a match.
 - 12.0 items: the slide's length and speed (1.2 s, 6 m), sliding into a firefight with ADS, the minimap (does a fading red dot feel fair or like a wallhack), do the bots' flanks and retreats read as players, is the storm-heavy desert fun or exhausting, the rooftop and culvert routes.

@@ -123,6 +123,8 @@ export interface KillRecord {
   dist: number;
   /** 14.0: the killer's feet height (which floor the kill came from). */
   killerY?: number;
+  /** 15.0: where the victim died (lane reports). */
+  victimPos?: [number, number, number];
   /** 13.0: the killer's gun (armory tag: SMG, AR, SG), '-' for a blade or the world. */
   weapon: string;
   /** The killer was more than 90° off where the victim faced (taken from the side or behind). */
@@ -411,6 +413,7 @@ export class TdmRules implements ModeRules {
       dist: by ? +by.pos.distanceTo(v.pos).toFixed(1) : 0,
       weapon: weapon ?? '-',
       killerY: by ? +by.pos.y.toFixed(1) : undefined,
+      victimPos: [+v.pos.x.toFixed(1), +v.pos.y.toFixed(1), +v.pos.z.toFixed(1)],
       flank,
       zone: g.level.data.zoneAt(v.pos.x, v.pos.y, v.pos.z)?.name,
     });
