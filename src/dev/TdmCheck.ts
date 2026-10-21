@@ -10,6 +10,12 @@ import { probe } from './PerfProbe';
      kills happen (flank, pinned, in cover…), stuck bots, friendly fire, scheduler pressure, AI cost.
    - tdmBench: frame cost with all nine bots fighting (spectating, or with the player shooting).
    - friendlyFire: rounds, the player's shots, blades and blasts between teammates do nothing.
+  7.0:
+   - every check takes `ai` ('arena', the default, or 'tactical' for the 6.0 squads);
+   - tdmSim: a whole match stepped headless at a fixed 1/60 s (no rendering, the real loop frozen):
+     match length, kill rate, how much the bots move, crouch and stand, the arena's jumps, vaults,
+     pushes and sight-to-shot times, and the AI cost per step — independent of the window's frame rate;
+   - tdmAB: tdmSim for both AIs, n runs each, side by side.
 */
 
 type Dev = { start(m: string, s?: string): void; god(on?: boolean): void; tp(x: number, y: number, z: number, yaw?: number, pitch?: number): void; lock(): void; look(x: number, y: number, z: number): void; shoot(): void };
@@ -55,20 +61,24 @@ function meter(game: Game) {
   };
 }
 
-function startMatch(game: Game, spectate: boolean, tickets?: number) {
-  const before = TDM.tickets;
+type Ai = 'arena' | 'tactical';
+
+function startMatch(game: Game, spectate: boolean, tickets?: number, ai: Ai = 'arena') {
+  const before = TDM.tickets, beforeAi = TDM.ai;
   if (tickets) TDM.tickets = tickets;
+  TDM.ai = ai;
   game.tdm.spectate = spectate;
   dev().start('tdm', 'desert');
   dev().god(true);
   TDM.tickets = before;
+  TDM.ai = beforeAi;
   const st = game.level.data.tdm!.start;
   dev().tp(st.x, st.y, st.z + 4, 0, 0);
 }
 
-export async function tdmSoak(game: Game, opts: { seconds?: number; timeScale?: number; tickets?: number } = {}) {
+export async function tdmSoak(game: Game, opts: { seconds?: number; timeScale?: number; tickets?: number; ai?: Ai } = {}) {
   const seconds = opts.seconds ?? 120;
-  startMatch(game, true, opts.tickets ?? 999);
+  startMatch(game, true, opts.tickets ?? 999, opts.ai);
   const tdm = game.tdm;
   game.timeScale = opts.timeScale ?? 1;
   const met = meter(game);
@@ -93,7 +103,7 @@ export async function tdmSoak(game: Game, opts: { seconds?: number; timeScale?: 
     await wait(1000);
     if (game.state === 'paused') dev().lock();
     const now = game.elapsed;
-    if (firstContact === null && (tdm.squads.alpha.mode === 'engage' || tdm.squads.omega.mode === 'engage')) firstContact = +(now - t0).toFixed(1);
+    if (firstContact === null && engaged(game)) firstContact = +(now - t0).toFixed(1);
     for (const b of tdm.bots) {
       if (!b.alive) continue;
       if ('heldFire' in b) held.set(b.uid, (b as unknown as { heldFire: number }).heldFire);
@@ -141,8 +151,8 @@ export async function tdmSoak(game: Game, opts: { seconds?: number; timeScale?: 
  * frame, and the frame probe (FPS, CPU, GPU). `withPlayer`: he stands at the centre lane's mouth and
  * shoots the nearest OMEGA bot every 0.6 s (more targets, suppression, hits); otherwise he spectates.
  */
-export async function tdmBench(game: Game, opts: { seconds?: number; settle?: number; withPlayer?: boolean } = {}) {
-  startMatch(game, !opts.withPlayer, 999);
+export async function tdmBench(game: Game, opts: { seconds?: number; settle?: number; withPlayer?: boolean; ai?: Ai } = {}) {
+  startMatch(game, !opts.withPlayer, 999, opts.ai);
   const tdm = game.tdm;
   const met = meter(game);
   let shooter = 0;
@@ -165,12 +175,13 @@ export async function tdmBench(game: Game, opts: { seconds?: number; settle?: nu
   met.reset();
   tdm.sched.resetStats();
   const alive0 = tdm.bots.filter((b) => b.alive).length;
-  const engaged0 = [tdm.squads.alpha.mode, tdm.squads.omega.mode];
+  const engaged0 = tdm.directors ? [tdm.directors.alpha.stance, tdm.directors.omega.stance] : [tdm.squads.alpha.mode, tdm.squads.omega.mode];
   const r = (await probe(game, opts.seconds ?? 8)) as unknown as Record<string, number>;
   clearInterval(shooter);
   met.stop();
   const s = tdm.sched.stats;
   return {
+    ai: tdm.ai,
     withPlayer: !!opts.withPlayer,
     fps: r.fps,
     cpuMs: r.cpuMsPerFrame,
@@ -190,8 +201,146 @@ export async function tdmBench(game: Game, opts: { seconds?: number; settle?: nu
     alive: [alive0, tdm.bots.filter((b) => b.alive).length],
     modes: engaged0,
     drawCalls: r.drawCalls,
+    sensing: tdm.sensing ? { ...tdm.sensing.stats } : null,
     focused: document.hasFocus() && !document.hidden,
   };
+}
+
+/** Someone is fighting: a squad engaged (6.0), or a fresh sighting on an arena board (7.0). */
+function engaged(game: Game) {
+  const tdm = game.tdm;
+  if (tdm.directors) return [tdm.directors.alpha, tdm.directors.omega].some((d) => [...d.contacts.values()].some((c) => game.elapsed - c.seenT < 0.5));
+  return tdm.squads.alpha.mode === 'engage' || tdm.squads.omega.mode === 'engage';
+}
+
+/**
+ * A whole match, headless: the real loop is frozen (time scale 0, so it only redraws), and the match
+ * is stepped here at a fixed `dt` — the rules (all AI), the rounds in flight, the effects — as fast as
+ * the CPU allows, yielding to the browser every `chunk` steps. Bot-vs-bot (the player spectates in
+ * god mode). Stops at the end of the match or after `maxSeconds` of sim time.
+ */
+export async function tdmSim(game: Game, opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number } = {}) {
+  const ai = opts.ai ?? 'arena';
+  const dt = opts.dt ?? 1 / 60;
+  const maxSeconds = opts.maxSeconds ?? 1200;
+  startMatch(game, true, opts.tickets ?? 25, ai);
+  const tdm = game.tdm;
+  const g = game as unknown as { time: { value: number } };
+  const met = meter(game);
+  game.timeScale = 0;
+  const t0 = game.elapsed;
+  let steps = 0, firstContact: number | null = null;
+  // Per bot-step samples: moving (> 1.5 m/s), crouched (> 0.5), standing still (< 0.5 m/s).
+  const smp = { n: 0, moving: 0, crouched: 0, still: 0, speed: 0 };
+  const track = new Map<TacticalEnemy, { x: number; z: number; t: number }>();
+  const stuck: string[] = [];
+  const wall0 = performance.now();
+  while (!tdm.winner && game.elapsed - t0 < maxSeconds) {
+    for (let i = 0; i < (opts.chunk ?? 240) && !tdm.winner; i++) {
+      game.elapsed += dt;
+      g.time.value = game.elapsed;
+      game.ctx.time = game.elapsed;
+      tdm.update(dt);
+      game.projectiles.update(dt, game.player);
+      game.fx.update(dt);
+      steps++;
+      const now = game.elapsed;
+      if (firstContact === null && engaged(game)) firstContact = +(now - t0).toFixed(1);
+      for (const b of tdm.bots) {
+        if (!b.alive) continue;
+        const sp = Math.hypot(b.vel.x, b.vel.z);
+        smp.n++;
+        smp.speed += sp;
+        if (sp > 1.5) smp.moving++;
+        if (sp < 0.5) smp.still++;
+        if (b.crouch > 0.5) smp.crouched++;
+        if (steps % 60 === 0) {
+          const r = track.get(b);
+          if (!r || Math.hypot(b.pos.x - r.x, b.pos.z - r.z) > 1.5) track.set(b, { x: b.pos.x, z: b.pos.z, t: now });
+          else if (now - r.t > 15) {
+            stuck.push(`${b.name} ${b.tac.action}/${b.tac.phase} @${b.pos.x.toFixed(1)},${b.pos.z.toFixed(1)} t${(now - t0).toFixed(0)}`);
+            r.t = now;
+          }
+        }
+      }
+    }
+    await wait(0);
+  }
+  met.stop();
+  game.timeScale = 1;
+  const simT = game.elapsed - t0;
+  const k = tdm.kills;
+  const st = tdm.arenaStats;
+  const pct = (x: number) => +((100 * x) / Math.max(1, smp.n)).toFixed(1);
+  const res = {
+    ai,
+    simSeconds: +simT.toFixed(1),
+    wallSeconds: +((performance.now() - wall0) / 1000).toFixed(1),
+    ended: tdm.winner,
+    tickets: { ...tdm.tickets },
+    firstContact,
+    kills: k.length,
+    killsPerMin: +((k.length / simT) * 60).toFixed(1),
+    byKillerKind: k.reduce<Record<string, number>>((a, x) => ((a[x.killerKind] = (a[x.killerKind] ?? 0) + 1), a), {}),
+    victimDoing: k.reduce<Record<string, number>>((a, x) => ((a[x.victimAction.split('/')[0]] = (a[x.victimAction.split('/')[0]] ?? 0) + 1), a), {}),
+    flankKills: k.filter((x) => x.flank).length,
+    range: { median: q(k.map((x) => x.dist), 0.5), p10: q(k.map((x) => x.dist), 0.1), p90: q(k.map((x) => x.dist), 0.9), melee: k.filter((x) => x.dist < 3).length },
+    movement: { movingPct: pct(smp.moving), crouchedPct: pct(smp.crouched), stillPct: pct(smp.still), avgSpeed: +(smp.speed / Math.max(1, smp.n)).toFixed(2) },
+    arena:
+      tdm.ai === 'arena'
+        ? {
+            jumps: st.jumps,
+            vaults: st.vaults,
+            pushes: st.pushes,
+            pushKills: st.pushKills,
+            breaks: st.breaks,
+            breakPct: +((100 * st.breakT) / Math.max(1e-6, st.aliveT)).toFixed(1),
+            switchesPerMin: +((st.switches / simT) * 60).toFixed(1),
+            switchWhy: st.switchWhy,
+            shots: st.shots,
+            sightToShotMs: { median: +(q(st.reactions, 0.5) * 1000).toFixed(0), p90: +(q(st.reactions, 0.9) * 1000).toFixed(0), n: st.reactions.length },
+            perBot: st.perBot,
+          }
+        : null,
+    stuck,
+    friendly: { damage: tdm.friendlyDamage, roundsPassedThroughTeammates: game.projectiles.passedFriends },
+    sched: { ...tdm.sched.stats, maxLate: +tdm.sched.stats.maxLate.toFixed(3) },
+    sensing: tdm.sensing ? { ...tdm.sensing.stats } : null,
+    ai_ms: { avg: +(met.m.ms.reduce((a, b) => a + b, 0) / Math.max(1, met.m.frames)).toFixed(3), p95: q(met.m.ms, 0.95), p99: q(met.m.ms, 0.99), worst: q(met.m.ms, 1), raysPerStep: +(met.m.rays / Math.max(1, met.m.frames)).toFixed(1) },
+  };
+  (window as unknown as { __tdm: unknown }).__tdm = res;
+  return res;
+}
+
+/** tdmSim for both AIs, `runs` each (alternating), and the medians side by side. */
+export async function tdmAB(game: Game, opts: { runs?: number; tickets?: number } = {}) {
+  const runs = opts.runs ?? 3;
+  const out: Record<Ai, Awaited<ReturnType<typeof tdmSim>>[]> = { arena: [], tactical: [] };
+  for (let i = 0; i < runs; i++) {
+    for (const ai of ['tactical', 'arena'] as const) out[ai].push(await tdmSim(game, { ai, tickets: opts.tickets }));
+  }
+  const med = (a: number[]) => q(a, 0.5);
+  const sum = (ai: Ai) => {
+    const r = out[ai];
+    return {
+      matchSeconds: med(r.map((x) => x.simSeconds)),
+      killsPerMin: med(r.map((x) => x.killsPerMin)),
+      movingPct: med(r.map((x) => x.movement.movingPct)),
+      crouchedPct: med(r.map((x) => x.movement.crouchedPct)),
+      stillPct: med(r.map((x) => x.movement.stillPct)),
+      avgSpeed: med(r.map((x) => x.movement.avgSpeed)),
+      firstContact: med(r.map((x) => x.firstContact ?? 0)),
+      aiMsAvg: med(r.map((x) => x.ai_ms.avg)),
+      aiMsP99: med(r.map((x) => x.ai_ms.p99)),
+      raysPerStep: med(r.map((x) => x.ai_ms.raysPerStep)),
+      stuck: r.reduce((a, x) => a + x.stuck.length, 0),
+      friendlyDamage: r.reduce((a, x) => a + x.friendly.damage, 0),
+      ended: r.map((x) => x.ended),
+    };
+  };
+  const res = { tactical: sum('tactical'), arena: sum('arena'), runs: out };
+  (window as unknown as { __ab: unknown }).__ab = res;
+  return res;
 }
 
 /**

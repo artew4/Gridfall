@@ -118,12 +118,20 @@ export function installDevTools(game: Game) {
       return (await import('./AIBench')).aiBench(game, opts);
     },
     /** TDM played by the bots alone (the player spectates): kills, ranges, stuck bots, friendly fire, AI cost. */
-    async tdmSoak(opts: { seconds?: number; timeScale?: number; tickets?: number } = {}) {
+    async tdmSoak(opts: { seconds?: number; timeScale?: number; tickets?: number; ai?: 'arena' | 'tactical' } = {}) {
       return (await import('./TdmCheck')).tdmSoak(game, opts);
     },
     /** TDM frame cost with nine bots fighting (spectating or with the player shooting). */
-    async tdmBench(opts: { seconds?: number; settle?: number; withPlayer?: boolean } = {}) {
+    async tdmBench(opts: { seconds?: number; settle?: number; withPlayer?: boolean; ai?: 'arena' | 'tactical' } = {}) {
       return (await import('./TdmCheck')).tdmBench(game, opts);
+    },
+    /** 7.0: a whole TDM match stepped headless at a fixed 1/60 s (bot vs bot): length, movement, aggression, AI cost. */
+    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number } = {}) {
+      return (await import('./TdmCheck')).tdmSim(game, opts);
+    },
+    /** 7.0: tdmSim for the arena AI and the 6.0 tactical AI, n runs each, side by side. */
+    async tdmAB(opts: { runs?: number; tickets?: number } = {}) {
+      return (await import('./TdmCheck')).tdmAB(game, opts);
     },
     /** TDM friendly-fire check on frozen bots: rounds, shots, blades, check-fire, rounds at the player. */
     async friendlyFire() {
