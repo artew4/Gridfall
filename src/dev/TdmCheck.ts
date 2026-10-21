@@ -246,6 +246,10 @@ export async function tdmSim(
   const smp = { n: 0, moving: 0, crouched: 0, still: 0, speed: 0, elevated: 0 };
   // 8.0: where the fight happens — bot time per zone (sampled), height above the floor.
   const zoneT: Record<string, number> = {};
+  // 9.0: how often a bot came into each zone (a passage like a culvert is crossed in a second: time
+  // share undersells it).
+  const zoneIn: Record<string, number> = {};
+  const lastZone = new Map<number, string>();
   const zoneOf = (x: number, y: number, z: number) => game.level.data.zoneAt(x, y, z)?.name ?? '-';
   const track = new Map<TacticalEnemy, { x: number; z: number; t: number }>();
   const stuck: string[] = [];
@@ -273,6 +277,10 @@ export async function tdmSim(
         if (steps % 15 === 0) {
           const zn = zoneOf(b.pos.x, b.pos.y, b.pos.z);
           zoneT[zn] = (zoneT[zn] ?? 0) + 1;
+          if (lastZone.get(b.uid) !== zn) {
+            if (lastZone.has(b.uid)) zoneIn[zn] = (zoneIn[zn] ?? 0) + 1;
+            lastZone.set(b.uid, zn);
+          }
         }
         if (steps % 60 === 0) {
           const r = track.get(b);
@@ -312,6 +320,7 @@ export async function tdmSim(
       const tot = Object.values(zoneT).reduce((a, b) => a + b, 0) || 1;
       return Object.fromEntries(Object.entries(zoneT).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, +((100 * n) / tot).toFixed(1)]));
     })(),
+    zoneEntries: Object.fromEntries(Object.entries(zoneIn).sort((a, b) => b[1] - a[1])),
     killsByZone: k.reduce<Record<string, number>>((a, x) => ((a[x.zone ?? '-'] = (a[x.zone ?? '-'] ?? 0) + 1), a), {}),
     arena:
       tdm.ai === 'arena'

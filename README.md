@@ -279,6 +279,15 @@ Side doors, gaps in the stacks, an outside stair to a catwalk door, and the fore
 
 TDM is all rifles now: since 8.0 the two blades on each roster fight with rifles. Survival still has its melee rushers.
 
+### Jungle Team Deathmatch and music (9.0)
+- **Deep Jungle has 5v5 TDM.** ALPHA starts at LZ Alpha (the walled landing zone round the south end of the road, where the assault begins) and OMEGA at LZ North (a helipad yard behind the compound).
+  - The firebase is the middle, with four ways in: the main gate, the north postern, the old west breach, and two new routes: a blown section of the east wall, and a drainage culvert through the south wall west of the gate that skips the gate's kill zone and the wire.
+  - Or go round the compound through the jungle on either side.
+  - Survival plays the same map with its original start and spawns.
+- **Music per place.** The title screen, Tokyo, the desert, the docks and the jungle each have their own track, crossfaded over two seconds, looping, and paused when the tab is hidden.
+  - The game ships synthesised placeholders that follow the fight's intensity.
+  - **Your own music:** drop `menu_theme.mp3`, `tokyo_theme.mp3`, `desert_theme.mp3`, `docks_theme.mp3` or `jungle_theme.mp3` (or .ogg, .m4a, .wav) into `public/audio/music/` and reload. See `public/audio/music/README.md`.
+
 ### Combat polish (8.1)
 - **Kinetic and energy weapons look different.**
   - Rifles and shotguns, yours and the enemy's, fire thin, fast, glowing yellow-orange tracers and throw brass that bounces and settles on the floor, then disappears after a few seconds.
@@ -343,6 +352,7 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - `await __dev.tdmSoak({ seconds: 300, timeScale: 2 })`: the bots play alone (you spectate in god mode, tickets 999): kills per minute, ranges, flank kills, what victims were doing, stuck bots, friendly-fire counters, scheduler pressure, AI cost.
   - `await __dev.tdmBench({ withPlayer: true })`: frame cost at 1x with all nine bots fighting (AI ms, rays, decides per frame, FPS, CPU, GPU).
   - `await __dev.friendlyFire()`: rounds through teammates (each team), your shots through allies, a teammate's blade, check-fire, rounds at you; `ok: true` when nothing hurts a teammate. Compare with `docs/BENCH-6.0.json`.
+- Music (9.0): `__game.debug().music` (current track, file or procedural, live sources, files found); `await __dev.musicSoak({ cycles: 3 })` cycles every level and the title and checks that every music source is disposed (`unaccounted: 0`).
 - Arena bots (7.0), on the desert. Every TDM check takes `ai: 'arena'` (the default) or `ai: 'tactical'` (the 6.0 squads):
   - `await __dev.tdmSim({ ai: 'arena', tickets: 25 })` plays a whole match headless, bot vs bot. It steps a fixed 1/60 s with no rendering, as fast as the CPU allows, so the result doesn't depend on the window's frame rate. It reports:
     - match length, kills per minute, kill ranges;

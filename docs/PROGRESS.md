@@ -464,8 +464,57 @@ Branch `feature/combat-polish-8.1`, based on 8.0 (`0a72f62`). Numbers: `docs/BEN
 - Catwalk time on the docks fell to 2.2–4.2% (8.0: 6.5–7.6%). Faster rounds punish the exposed deck; two matches only.
 - The GPU headroom on the docks is smaller (up to 10 ms on the warehouse views): fine on this machine, worth a look on a weaker GPU.
 
+## 9.0: the music manager and jungle TDM ("Firebase Viper")
+Branch `feature/jungle-tdm-audio-9.0`, based on 8.1 (`fd502eb`). Numbers: `docs/BENCH-9.0.json`.
+
+| Step | Commit | Notes |
+|---|---|---|
+| Phases 1–3 | (first 9.0 commit) | MusicManager, five tracks, jungle TDM: second base, culvert and breach, fog-bound arena AI |
+| Phases 4–5 | (second 9.0 commit) | music soak, tests, benchmark, docs |
+
+**Music** (`audio/music/MusicManager.ts`, `Themes.ts`): one manager, one named track at a time.
+- **Tracks:** `menu_theme` (title, setting cards, loading), `tokyo_theme`, `desert_theme`, `docks_theme`, `jungle_theme`. Each level names its track in `LevelInfo.music`.
+- **Crossfade:** equal-power over 2 s. The outgoing source is disposed when its fade ends: timers cleared, nodes disconnected, the media element emptied.
+- **Files first:** `public/audio/music/<id>.mp3` (or .ogg, .m4a, .wav, or a `manifest.json` entry) is streamed through an `<audio>` element and looped. Nothing is decoded into memory.
+- **Placeholders:** without a file, a procedural theme plays whose layers follow combat intensity. Tokyo keeps its 5.x score; the others are new pattern themes (menu: D minor pads; desert: phrygian toms and oud; docks: distorted grind bass; jungle: tribal toms in 3 against 4).
+- **Focus:** a hidden tab pauses media and stops the schedulers; a game pause ducks the bus.
+- **Removed:** the old MusicDirector and its file backend.
+
+**Jungle TDM** (`levels/jungle/Base.ts`, `Terrain.ts`):
+- **Bases:**
+  - LZ ALPHA is the original spawn on the road, now a walled HESCO yard.
+  - LZ NORTH is new, behind the compound, with a helipad.
+  - Both terrain pads are flat, blended over 16 m so the slope stays walkable.
+- **Flanks:**
+  - a concrete drain culvert through the south wall, west of the gate;
+  - a breach in the east wall.
+- **Lanes:** four per team: west, centre through the compound, east, and a flank (ALPHA via the culvert, OMEGA via the east breach).
+- **Survival** keeps its spawns and its road.
+- **Fog:** the arena AI reads the live fog density from the scene (`ctx.fog`). On the jungle it now sees to the real fog limit; the old `sightRange` was 0.85× of it.
+
+**Fixes found in validation:**
+- **Pad slope:** the first terrain pads blended at 0.78, then 0.50 slope; widening the blend to 16 m fixed it.
+- **Lane points in trees:** five lane points stood in random trees or rocks; they now snap to free ground.
+- **Unused culvert:** bots used the culvert 0% of the time with only three lanes; it took a lane of its own.
+- **Audio on the title:** it never started on a title click; any first pointer or key press now unlocks it.
+- **File probe:** Vite answers HEAD on a public file with index.html, so the probe is a 2-byte range GET.
+
+**Validation:**
+- **Jungle:** `world` 0 findings; `stress` 0 / 64,000; `levelAI` 504/504 runners, 24/24 gunners.
+- **TDM matches:** 185–215 s, 14–15.7 kills/min, winners mixed. Bot time: 39% jungle, 17–22% compound, 13–16% perimeter strip.
+- **Route use per match:** gate 16–21 entries, culvert 4–5, east breach 14–17. 0 friendly fire, 0 barks, 0 rounds past fog sight.
+- **Performance:** jungle `bench(3)` 60 FPS (CPU 0.7–2.2 ms, GPU 5.2–6.1 ms); `tdmBench` 60 FPS, AI 0.31–0.35 ms. Docks regression 60 FPS.
+- **Music:** 60 direct switches with a flat heap (122 → 117 MB); session sources 86 created, 85 disposed, 1 live. `musicSoak` over all levels: 0 unaccounted.
+- **Tests:** 152 unit tests; build ok, no DEV tools in the bundle.
+
+**Watch:**
+- OMEGA's yard is 12 m closer to the compound middle; ALPHA has more entrances. Not decisive in bot matches.
+- One stuck bot in nine matches, location not captured.
+- The heap grows across level reloads (`musicSoak` 100 → 198 MB over 24 loads). The music-only run is flat, so that growth comes from level loading. It was not investigated in 9.0.
+
 ## Next
 Human playtest:
+- 9.0 items: the five themes (does the menu theme set the tone, is the docks bass too heavy, does the jungle groove fit), the crossfades between menu and levels, dropping in a real .mp3; jungle TDM: are LZ North and LZ Alpha fair, are the culvert and the east breach worth taking, is the fog too thick to fight in.
 - 8.1 items: is the docks bright enough now (and still moody), do the kinetic tracers and brass feel right, is TDM fair without callouts, do bots in a sandstorm ever shoot you before you can see them, is 70 m/s too lethal.
 - 8.0 items: Neon Docks in TDM: does each lane have a purpose (stacks close, warehouse mid, quay long), do the catwalks pay off, can you call out "red stacks", is the quay too open, is it bright enough, is a match the right length without the blades.
 - 7.0 items (played: snap + spread felt great; blades fed tickets → removed from TDM in 8.0): a full TDM match against the arena bots: do they feel fast and ruthless or unfair (the first rounds go wide for a third of a second; is that enough?); do the jumps and vaults look natural; does a wounded enemy getting rushed read; do your allies help or just run off; is the match length (about 2–3 minutes bot-only) right; `TDM.ai = 'tactical'` for a side-by-side.

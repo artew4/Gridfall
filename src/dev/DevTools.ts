@@ -133,6 +133,10 @@ export function installDevTools(game: Game) {
     async tdmAB(opts: { runs?: number; tickets?: number } = {}) {
       return (await import('./TdmCheck')).tdmAB(game, opts);
     },
+    /** 9.0: cycle every level and the title, checking the MusicManager for leaked sources. */
+    async musicSoak(opts: { cycles?: number; dwell?: number } = {}) {
+      return (await import('./MusicCheck')).musicSoak(game, opts);
+    },
     /** TDM friendly-fire check on frozen bots: rounds, shots, blades, check-fire, rounds at the player. */
     async friendlyFire() {
       return (await import('./TdmCheck')).friendlyFire(game);
