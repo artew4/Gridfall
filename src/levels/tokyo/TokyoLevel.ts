@@ -38,7 +38,7 @@ export const TOKYO_INFO: LevelInfo = {
   blurb: 'Rain, neon and a vertical district over a metro station. Story and survival.',
   modes: ['story', 'arcade'],
   loading: 'BUILDING THE CITY…',
-  windowTitle: 'NEON RAIN — Tokyo After Midnight',
+  windowTitle: 'Gridfall — Tokyo After Midnight',
   arsenal: { weapon: KITSUNE_9, enemies: NEON_SYNTHS },
   music: 'tokyo_theme',
   tagline: 'ONE NIGHT · ONE CITY · ONE WAY OUT',
@@ -46,8 +46,8 @@ export const TOKYO_INFO: LevelInfo = {
   place: 'SHINJUKU-KU',
   clock: '02:47',
   cine: {
-    story: { t1: 'NEON RAIN', t2: 'ONE NIGHT · ONE CITY · ONE WAY OUT', t3: '新宿区 三丁目 — SANCHŌME, SHINJUKU · 00:24<br/>SECURITY LOCKDOWN IN EFFECT · YOU ARE WANTED' },
-    arcade: { t1: 'NEON RAIN', t2: '東京 · 午前 2:47', t3: 'ARCADE SURVIVAL · ONE STREET. ONE GUN.<br/>RAINFALL 38MM/H · VISIBILITY LOW' },
+    story: { t1: 'GRIDFALL', t2: 'ONE NIGHT · ONE CITY · ONE WAY OUT', t3: '新宿区 三丁目 — SANCHŌME, SHINJUKU · 00:24<br/>SECURITY LOCKDOWN IN EFFECT · YOU ARE WANTED' },
+    arcade: { t1: 'GRIDFALL', t2: '東京 · 午前 2:47', t3: 'ARCADE SURVIVAL · ONE STREET. ONE GUN.<br/>RAINFALL 38MM/H · VISIBILITY LOW' },
   },
 };
 

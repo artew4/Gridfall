@@ -19,7 +19,7 @@ export const DESERT_INFO: LevelInfo = {
   blurb: 'An outpost in open dunes, harsh sun, sandstorms that blind you. Survival or 5v5 Team Deathmatch.',
   modes: ['arcade', 'tdm'],
   loading: 'RAISING THE OUTPOST…',
-  windowTitle: 'NEON RAIN — Desert Outpost',
+  windowTitle: 'Gridfall — Desert Outpost',
   arsenal: { weapon: JACKAL_AR, enemies: DESERT_MERCS },
   music: 'desert_theme',
   tagline: 'HOLD THE OUTPOST · WATCH THE STORM',
@@ -27,8 +27,8 @@ export const DESERT_INFO: LevelInfo = {
   place: 'OUTPOST KESTREL',
   clock: '14:10',
   cine: {
-    arcade: { t1: 'NEON RAIN', t2: '砂漠の前哨基地 · DESERT OUTPOST', t3: 'ARCADE SURVIVAL · HOLD THE OUTPOST<br/>SANDSTORM WARNING · VISIBILITY WILL DROP' },
-    tdm: { t1: 'NEON RAIN', t2: '砂漠の前哨基地 · DESERT OUTPOST', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>25 TICKETS EACH · LAST TEAM STANDING WINS' },
+    arcade: { t1: 'GRIDFALL', t2: '砂漠の前哨基地 · DESERT OUTPOST', t3: 'ARCADE SURVIVAL · HOLD THE OUTPOST<br/>SANDSTORM WARNING · VISIBILITY WILL DROP' },
+    tdm: { t1: 'GRIDFALL', t2: '砂漠の前哨基地 · DESERT OUTPOST', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>25 TICKETS EACH · LAST TEAM STANDING WINS' },
   },
 };
 

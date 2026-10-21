@@ -1,7 +1,8 @@
 {
-  "name": "neon-rain",
+  "name": "gridfall",
+  "description": "Gridfall: a multi-biome 3D shooter for the browser (Three.js, TypeScript): story escape, tactical PvE survival and 5v5 team deathmatch against arena bots.",
   "private": true,
-  "version": "3.0.0-dev",
+  "version": "10.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

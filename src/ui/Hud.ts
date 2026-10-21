@@ -84,7 +84,7 @@ export class Hud {
     this.banner.id = 'banner';
     this.title.id = 'title';
     this.title.innerHTML = `
-      <h1>NEON RAIN</h1>
+      <h1>GRIDFALL</h1>
       <div class="sub"></div>
       <div class="jp"></div>
       <div class="loading">BUILDING THE CITY…</div>
@@ -115,7 +115,7 @@ export class Hud {
     this.pause.innerHTML = '<div class="big">PAUSED</div><div class="hint">CLICK TO RESUME</div>';
     this.death.id = 'death';
     this.cine.id = 'cine';
-    this.cine.innerHTML = `<div class="t1">NEON RAIN</div><div class="t2">東京 · 午前 2:47</div>
+    this.cine.innerHTML = `<div class="t1">GRIDFALL</div><div class="t2">東京 · 午前 2:47</div>
       <div class="t3">新宿区 歌舞伎町 — KABUKICHO, SHINJUKU<br/>RAINFALL 38MM/H · VISIBILITY LOW</div>`;
     this.skip.id = 'skip';
     this.zone.id = 'zone';

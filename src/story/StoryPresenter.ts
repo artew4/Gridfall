@@ -12,11 +12,12 @@ const HINT_FIRST = 50;
 const HINT_EVERY = 60;
 /** Getting this much closer (route metres) counts as progress. */
 const PROGRESS = 6;
-const TIPS_KEY = 'neonrain.tips';
+const TIPS_KEY = 'gridfall.tips';
+const OLD_TIPS_KEY = 'neonrain.tips'; // before 10.0
 
 function loadSeen(): Set<string> {
   try {
-    return new Set(JSON.parse(localStorage.getItem(TIPS_KEY) ?? '[]') as string[]);
+    return new Set(JSON.parse(localStorage.getItem(TIPS_KEY) ?? localStorage.getItem(OLD_TIPS_KEY) ?? '[]') as string[]);
   } catch {
     return new Set();
   }

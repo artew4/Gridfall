@@ -44,7 +44,7 @@ export interface LevelInfo {
   loading: string;
   /** Browser tab title while this setting is loaded. */
   windowTitle: string;
-  /** Title screen lines under NEON RAIN. */
+  /** Title screen lines under GRIDFALL. */
   tagline: string;
   jpLine: string;
   /** HUD corner: place and clock text. */

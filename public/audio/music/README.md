@@ -1,6 +1,6 @@
 # Music tracks (drop-in)
 
-NEON RAIN plays one track per place, crossfading over 2 s when the place changes:
+Gridfall plays one track per place, crossfading over 2 s when the place changes:
 
 | Track id | When |
 |---|---|
@@ -15,6 +15,8 @@ NEON RAIN plays one track per place, crossfading over 2 s when the place changes
 - The file is looped from start to end, so make it loop seamlessly (no silence at either end).
 - It's streamed (not decoded into memory), so long tracks are fine.
 - Tracks without a file keep their procedural placeholder (the game's own synthesised music, which also follows the fight's intensity; a file plays as it is).
+
+**On the live site (GitHub Pages):** commit the file and push to `main`. The build records which files are in this folder and plays only those. A file added after the build isn't seen until the next deploy, and a folder with no music makes no requests at all. Keep files reasonably small (an .mp3 at 128–192 kbps): GitHub Pages serves the whole site, music included, from the repository.
 
 **Other names or levels:** add `manifest.json` here:
 

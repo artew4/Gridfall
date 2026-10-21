@@ -547,6 +547,40 @@ Branch `fix/stair-z-fighting-9.1`, based on 9.0 (`e0ddef3`).
   A 3 cm gap is well under the body radius (0.35 m), so nothing can fall into it.
 - **Tests and build:** 154 unit tests; build ok, no DEV tools in the bundle.
 
+## 10.0: rebranded as Gridfall; GitHub Pages CI/CD
+Branch `feature/rebranding-cicd-10.0`, based on 9.1 (`802125b`). Versions 1.0–9.1 were developed as NEON RAIN; the history below keeps that name.
+
+**Rebrand:**
+- The title screen, the intro cards of every world, the window titles, the end credits, `index.html` (title and description) and `package.json` are all renamed. The package is now `gridfall` 10.0.0.
+- Storage keys are now `gridfall.*`. The old `neonrain.*` keys are still read, so a returning player keeps their settings, last world and seen tips.
+- The development history (`PLAN-*`, this log, the bench files) keeps the old name.
+
+**Build for GitHub Pages** (`vite.config.ts`):
+- `base` is `/Gridfall/` for `vite build` and `vite preview`, and `/` for the dev server. `BASE_PATH` overrides it.
+- `vite preview` runs with command `serve`. A base set only for `build` made the preview serve `/` and answer every `/Gridfall/assets/…` request with index.html, a blank page; it was caught in this check.
+- Every runtime fetch already went through `import.meta.env.BASE_URL` (the music folder). The game has no other runtime assets.
+- **Music probing:** `__MUSIC_FILES__` is the list of files in `public/audio/music/` at build time.
+  - A production build probes only those, so a deploy with no music makes no requests. Before, it made 20 probe requests: 404s in every player's console on Pages.
+  - The dev server still probes, so a dropped-in file plays after a reload.
+
+**CI/CD** (`.github/workflows/deploy.yml`):
+- Triggers on a push to `main`, or manually.
+- **Build job:** `actions/checkout@v4`, `actions/setup-node@v4` (Node 22, npm cache), `npm ci`, `npm test`, `npm run build`, `actions/configure-pages@v5`, `actions/upload-pages-artifact@v3` (`dist/`).
+- **Deploy job:** `actions/deploy-pages@v4` to the `github-pages` environment.
+- Permissions are least-privilege (`contents: read`, `pages: write`, `id-token: write`). One deployment at a time.
+
+**README:** rewritten for the project as it is: the play link and badges, the worlds, the modes, the technical highlights (rendering, the two AI engines, pooled ballistics, audio, testing), the tech stack, controls, local run, deployment. The console tool reference moved to `docs/DEVTOOLS.md`, with the source layout.
+
+**Validation:**
+- 154 unit tests; build ok.
+- The workflow's steps (`npm ci`, `npm test`, `npm run build`) passed on a clean copy of the branch.
+- `vite preview` at `/Gridfall/`:
+  - the title screen shows GRIDFALL;
+  - Neon Docks TDM starts;
+  - with no music files, no music requests;
+  - with a test track in the folder, one probe and the stream, both under `/Gridfall/audio/music/`, and nothing else.
+- The workflow itself has not run: nothing is pushed.
+
 ## Next
 Human playtest:
 - 9.1: the warehouse stairs (and every stair beside a wall) from all angles: any flicker left?

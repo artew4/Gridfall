@@ -2,7 +2,7 @@ import { Instruments, TrackBus } from './Instruments';
 import { mulberry32 } from '../../core/math';
 
 /**
- * NEON RAIN score: one continuous piece (100 BPM, D minor / dorian colour) built from layers that
+ * Tokyo score: one continuous piece (100 BPM, D minor / dorian colour) built from layers that
  * come and go with an intensity value 0..1. Nothing ever switches tracks: the city's quiet pads are
  * always there; suspicion adds a muted pulse; pursuit adds hats and a syncopated bass motif; combat
  * adds controlled drums and a lead motif, with breaks. Layer changes land on bar lines and ramp over a

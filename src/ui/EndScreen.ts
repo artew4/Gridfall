@@ -11,7 +11,7 @@ export interface EscapeStats {
 }
 
 const CREDITS = [
-  ['NEON RAIN 3.2', 'CINEMATIC ESCAPE'],
+  ['GRIDFALL', 'CINEMATIC ESCAPE'],
   ['DESIGN · CODE · SOUND', 'procedural, made in the browser'],
   ['ENGINE', 'three.js · Web Audio · TypeScript · Vite'],
   ['CITY', 'Shinjuku, as remembered in the rain'],
