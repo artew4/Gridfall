@@ -19,7 +19,14 @@ export type BarkKind =
   | 'blown'
   | 'go'
   | 'manDown'
-  | 'moving';
+  | 'moving'
+  // 6.0, Team Deathmatch: a hostile down, and the ALPHA bots fitting round what the human does.
+  | 'kill'
+  | 'withYou'
+  | 'coverYou'
+  | 'flankWhile'
+  | 'otherFlankL'
+  | 'otherFlankR';
 
 export type Voice = 'synth' | 'human';
 
@@ -40,6 +47,12 @@ export const BARK_LINES: Record<Voice, Record<BarkKind, string[]>> = {
     go: ['Go, go, go!', 'Rush him!', 'Now! Get him!'],
     manDown: ['Man down!', 'We lost one!'],
     moving: ['Moving up!', 'Pushing!'],
+    kill: ['Got one!', 'Tango down!', 'He’s down!'],
+    withYou: ['Right behind you!', 'With you, push!', 'Covering your advance!'],
+    coverYou: ['Fall back, I’ve got you!', 'Covering you, move!'],
+    flankWhile: ['Keep firing, I’m going round!', 'Hold them there, flanking!'],
+    otherFlankL: ['You go right, I’ve got left!', 'Taking the left!'],
+    otherFlankR: ['You go left, I’ve got right!', 'Taking the right!'],
   },
   synth: {
     contact: ['TARGET ACQUIRED', 'CONTACT'],
@@ -56,17 +69,25 @@ export const BARK_LINES: Record<Voice, Record<BarkKind, string[]>> = {
     go: ['ENGAGE ENGAGE', 'SWARM'],
     manDown: ['UNIT LOST', 'SIGNAL DROPPED'],
     moving: ['ADVANCING'],
+    kill: ['HOSTILE ELIMINATED'],
+    withYou: ['ESCORTING'],
+    coverYou: ['COVERING RETREAT'],
+    flankWhile: ['FLANKING UNDER COVER'],
+    otherFlankL: ['LEFT VECTOR'],
+    otherFlankR: ['RIGHT VECTOR'],
   },
 };
 
 /** Higher wins the floor (and may cut the global gap). */
 export const BARK_PRIORITY: Record<BarkKind, number> = {
   contact: 3, lost: 3, go: 3, blown: 2, flankL: 2, flankR: 2, reload: 2, pinned: 2, suppress: 1, heard: 2, search: 1, giveup: 1, manDown: 1, moving: 0,
+  kill: 2, withYou: 3, coverYou: 3, flankWhile: 3, otherFlankL: 3, otherFlankR: 3,
 };
 
 /** Seconds before the same kind may be heard again from anyone. */
 export const BARK_KIND_COOLDOWN: Record<BarkKind, number> = {
   contact: 6, lost: 6, go: 5, blown: 3, flankL: 5, flankR: 5, reload: 4, pinned: 4, suppress: 7, heard: 6, search: 10, giveup: 20, manDown: 6, moving: 8,
+  kill: 4, withYou: 8, coverYou: 6, flankWhile: 8, otherFlankL: 8, otherFlankR: 8,
 };
 
 export const BARK_GAP = 1.3;

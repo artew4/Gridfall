@@ -42,9 +42,12 @@ export class BarkView {
     let l = this.labels.find((x) => x.speaker === e.speaker) ?? this.labels.reduce((a, b) => (a.t > b.t ? a : b));
     l.speaker = e.speaker;
     l.t = 0;
-    l.el.textContent = e.text;
+    // TDM: a squadmate's line carries his name (and the team colour).
+    const ally = e.speaker.team === 'alpha';
+    l.el.textContent = ally && e.speaker.name ? `${e.speaker.name}: ${e.text}` : e.text;
     l.el.dataset.kind = e.kind;
     l.el.classList.toggle('synth', e.speaker.look.voice === 'synth');
+    l.el.classList.toggle('ally', ally);
   }
 
   clear() {

@@ -8,6 +8,8 @@ import { mulberry32 } from '../../core/math';
 import type { Zone } from '../Level';
 import { CLIFF, CLIFF_RECESS, DESERT_EXTENT, desertHeight } from './Terrain';
 import * as T from './textures';
+import { buildArena, type ArenaResult } from './Arena';
+import { arenaKeepOut } from './ArenaLayout';
 
 /*
   Desert Outpost "Kestrel" (metres, y up, north = -z). The flat pad (y = 0) holds the compound inside
@@ -50,6 +52,8 @@ export interface OutpostResult {
   zoneAt(x: number, y: number, z: number): Zone | null;
   /** Everything that moves with the wind (flag, tarps): updated each frame. */
   update(t: number, wind: number): void;
+  /** 6.0: the Team Deathmatch arena (bases, spawns, lanes); its cover and nav are already merged in. */
+  arena: ArenaResult;
   /**
    * 4.1: metals that catch the sun (barrels, vehicles, poles, roofing, equipment cases), with their
    * 3.7 and 4.1 surface values, so the level can switch them for the F8 comparison.
@@ -562,45 +566,29 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   // ======================================================================= Dune field
   // Boulders, a burnt-out truck, low ruins: cover out in the storm.
+  // 6.0: scattered in the south half and repeated rotated 180° (the arena is point-symmetric), clear
+  // of the arena's structures.
   const rocks: [number, number, number][] = [];
-  for (let i = 0; i < 80 && rocks.length < 26; i++) {
+  for (let i = 0; i < 120 && rocks.length < 26; i++) {
     const a = rnd() * Math.PI * 2;
     const r = 40 + rnd() * 42;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     const rad = 0.8 + rnd() * 1.6;
-    if (Math.abs(x) < 34 && Math.abs(z) < 31) continue;
-    // Never closer than 2 m to another rock (no body-wide slots between them).
-    if (rocks.some(([rx, rz, rr]) => Math.hypot(rx - x, rz - z) < rr + rad + 2)) continue;
-    rocks.push([x, z, rad]);
-    const y0 = desertHeight(x, z) - 0.6;
     const h = 1.2 + rnd() * 2.2;
-    b.add(boulder(rad, h + 0.6), m.rock, x, y0 + (h + 0.6) / 2, z, 0, rnd() * Math.PI, 0);
-    col.addCylinder(x, z, rad, y0, y0 + h + 0.6, 'concrete');
+    const spin = rnd() * Math.PI;
+    if (z <= 2 || (Math.abs(x) < 34 && Math.abs(z) < 31) || arenaKeepOut(x, z, rad + 2)) continue;
+    // Never closer than 2 m to another rock (no body-wide slots between them), its twin included.
+    if (rocks.some(([rx, rz, rr]) => Math.hypot(rx - x, rz - z) < rr + rad + 2 || Math.hypot(rx + x, rz + z) < rr + rad + 2)) continue;
+    for (const [px, pz] of [[x, z], [-x, -z]]) {
+      rocks.push([px, pz, rad]);
+      const y0 = desertHeight(px, pz) - 0.6;
+      b.add(boulder(rad, h + 0.6), m.rock, px, y0 + (h + 0.6) / 2, pz, 0, spin, 0);
+      col.addCylinder(px, pz, rad, y0, y0 + h + 0.6, 'concrete');
+    }
   }
-  const ruin = (x: number, z: number, w: number, d: number) => {
-    const y = Math.min(desertHeight(x - w / 2, z - d / 2), desertHeight(x + w / 2, z + d / 2), desertHeight(x, z)) - 0.4;
-    solid(x - w / 2, y, z - d / 2, x + w / 2, y + 1.9, z + d / 2, m.mud);
-  };
-  ruin(-52, -44, 6, 0.4);
-  ruin(-49.2, -41.6, 0.4, 5);
-  ruin(56, 38, 0.4, 7);
-  ruin(48, 54, 7, 0.4);
-  ruin(-60, 40, 5, 0.4);
-  {
-    const x = 50, z = -46, y = desertHeight(x, z) - 0.3;
-    solid(x - 1.25, y, z - 3.2, x + 1.25, y + 1.6, z + 3.2, m.rust, 'metal');
-    solid(x - 1.25, y + 1.6, z - 3.2, x + 1.25, y + 2.6, z - 1.2, m.rust, 'metal');
-  }
-  // Salvage dumps out in the dunes: cover on the way in (clear of every rock by 3 m).
+  // (The 3.4 ruins, burnt truck and salvage dumps stood where the arena's hamlet and wadi are now:
+  // their cover is the arena's.)
   const dumps: THREE.Vector3[] = [];
-  for (const [x, z] of [[40, -30], [-45, 30], [36, 42], [-40, -36], [58, 8], [-60, -14]]) {
-    if (rocks.some(([rx, rz, rr]) => Math.hypot(rx - x, rz - z) < rr + 4)) continue;
-    const y = Math.min(desertHeight(x - 1.5, z - 1.5), desertHeight(x + 1.5, z + 1.5), desertHeight(x + 1.5, z - 1.5), desertHeight(x - 1.5, z + 1.5)) - 0.15;
-    scrap(x, z, y);
-    barrels(x + 1.4, z - 0.6, 2, false, y);
-    crate(x - 2.6, y, z - 0.5, x - 1.6, y + 0.6, z + 0.1, crateMats.ammo);
-    dumps.push(new THREE.Vector3(x, desertHeight(x, z + 2.2), z + 2.2), new THREE.Vector3(x - 2.1, desertHeight(x - 2.1, z - 1.6), z - 1.6));
-  }
 
   // Dry brush: crossed alpha-cut cards of twigs (cloth-soft: you brush through them). One merged
   // mesh for all of them; outside the collision world and the static registry.
@@ -611,7 +599,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     const mtx = new THREE.Matrix4();
     for (let i = 0; i < 90; i++) {
       const x = (rnd() - 0.5) * 172, z = (rnd() - 0.5) * 172;
-      if (Math.abs(x) < 32 && Math.abs(z) < 29) continue;
+      if ((Math.abs(x) < 32 && Math.abs(z) < 29) || arenaKeepOut(x, z, 1)) continue;
       const sc = 0.6 + rnd() * 0.9;
       const yaw = rnd() * Math.PI;
       for (let k = 0; k < 3; k++) {
@@ -681,6 +669,12 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   mesaSide('z', 1);
   mesaSide('z', -1);
 
+  const arena = buildArena({
+    b, col, scene, rnd, boulder,
+    mats: { mud: m.mud, hesco: m.hesco, concrete: m.concrete, sandbag: m.sandbag, rock: m.rock, rust: m.rust, darkMetal: m.darkMetal, tent: m.tent, wood: m.wood, crate: crateMats.gear },
+    flag: (c) => T.canvasTexture(c),
+  });
+
   b.build(scene);
   scene.traverse((o) => {
     if (o.userData.staticMerged) {
@@ -706,6 +700,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     if (!col.blocked(p, 0.45)) coverPoints.push(p);
   }
   for (const p of dumps) if (!col.blocked(p, 0.45)) coverPoints.push(p);
+  for (const p of arena.coverPoints) if (!col.blocked(p, 0.45)) coverPoints.push(p);
 
   // Survival spawns: out in the dune field, all round, beyond the barrier.
   const spawns: THREE.Vector3[] = [];
@@ -773,6 +768,12 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // Generator shed.
   const gs = room(-3, -21.4);
   links.push([door(-3, -18.6, -3, -20.6), gs]);
+  // The arena: bases, chicanes, hamlet doorways, pump houses, lanes (hand links where auto ones can't
+  // see round a corner). A node a wall swallowed is dropped (and its links with it).
+  {
+    const idx = arena.nodes.map((p) => (col.blocked(probe.set(p.x, p.y, p.z), 0.45) ? -1 : N(p.x, p.y, p.z)));
+    for (const [i, j] of arena.links) if (idx[i] >= 0 && idx[j] >= 0) links.push([idx[i], idx[j]]);
+  }
 
   // ======================================================================= Zones
   const yard: Zone = { id: 'yard', name: 'OUTPOST YARD', jp: '基地構内', rects: [[-30, -27, 30, 27]] };
@@ -785,8 +786,10 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     return z;
   };
   const inside = [...roofs.map((r) => ({ r, z: zoneFor(r) })), ...interiors.map((r) => ({ r, z: zoneFor(r) }))];
+  for (const a of arena.zones) a.zone.rects.push(a.rect);
   const zoneAt = (x: number, y: number, z: number): Zone | null => {
     for (const { r, z: zn } of inside) if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1 && (r.name.endsWith('ROOF') ? y > r.h - 0.5 : y < r.h)) return zn;
+    for (const a of arena.zones) if (x >= a.rect[0] && x <= a.rect[2] && z >= a.rect[1] && z <= a.rect[3]) return a.zone;
     if (x >= -30 && x <= 30 && z >= -27 && z <= 27) return yard;
     if (Math.abs(x) <= DESERT_EXTENT && Math.abs(z) <= DESERT_EXTENT) return dunes;
     return null;
@@ -805,6 +808,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   });
 
   return {
+    arena,
     gloss,
     interiors,
     roofs,

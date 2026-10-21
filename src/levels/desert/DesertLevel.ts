@@ -10,13 +10,14 @@ import { detailTexture, sandTexture } from './textures';
 import { damp, smoothstep } from '../../core/math';
 import { JACKAL_AR } from '../../entities/weapons/jackal';
 import { DESERT_MERCS } from '../../entities/enemies/mercs';
+import { inBase } from './ArenaLayout';
 
 export const DESERT_INFO: LevelInfo = {
   id: 'desert',
   name: 'DESERT OUTPOST',
   jp: '砂漠の前哨基地',
-  blurb: 'An outpost in open dunes, harsh sun, sandstorms that blind you. Survival.',
-  modes: ['arcade'],
+  blurb: 'An outpost in open dunes, harsh sun, sandstorms that blind you. Survival or 5v5 Team Deathmatch.',
+  modes: ['arcade', 'tdm'],
   loading: 'RAISING THE OUTPOST…',
   windowTitle: 'NEON RAIN — Desert Outpost',
   arsenal: { weapon: JACKAL_AR, enemies: DESERT_MERCS },
@@ -26,6 +27,7 @@ export const DESERT_INFO: LevelInfo = {
   clock: '14:10',
   cine: {
     arcade: { t1: 'NEON RAIN', t2: '砂漠の前哨基地 · DESERT OUTPOST', t3: 'ARCADE SURVIVAL · HOLD THE OUTPOST<br/>SANDSTORM WARNING · VISIBILITY WILL DROP' },
+    tdm: { t1: 'NEON RAIN', t2: '砂漠の前哨基地 · DESERT OUTPOST', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>25 TICKETS EACH · LAST TEAM STANDING WINS' },
   },
 };
 
@@ -137,7 +139,15 @@ export class DesertLevel implements LevelRuntime {
         new THREE.Vector3(-18, 0, 2),
         new THREE.Vector3(20, 0, 2),
         new THREE.Vector3(55, 0, 30).setY(DESERT_TERRAIN.height(55, 30)),
+        ...o.arena.testGoals,
       ],
+      tdm: {
+        // ALPHA (the player's team) holds the south base, OMEGA the north.
+        spawns: { alpha: o.arena.spawns.south, omega: o.arena.spawns.north },
+        lanes: { alpha: o.arena.lanes.south, omega: o.arena.lanes.north },
+        inBase: (team, p) => inBase(p.x, p.z, team === 'alpha' ? 'south' : 'north'),
+        start: { x: 0, z: 63, yaw: 0, y: o.arena.spawns.south[0].y },
+      },
     };
   }
 
@@ -219,11 +229,17 @@ export class DesertLevel implements LevelRuntime {
     cam.lookAt(0, 3, 0);
   }
 
-  createIntro(): IntroLike {
+  createIntro(mode?: string): IntroLike {
     // Clear air for the opening; the first storm rolls in during the first wave.
     this.storm.clock.set('calm', 0.06);
-    const st = this.data.start;
-    return new DesertIntro(new THREE.Vector3(st.x, 1.65, st.z), new THREE.Vector3(st.x - Math.sin(st.yaw) * 10, 1.65, st.z - Math.cos(st.yaw) * 10));
+    const st = mode === 'tdm' && this.data.tdm ? this.data.tdm.start : this.data.start;
+    const ey = (st.y ?? 0) + 1.65;
+    // TDM: over the enemy base, down the west flank and round into ours, looking north at the end.
+    if (mode === 'tdm')
+      return new DesertIntro(new THREE.Vector3(st.x, ey, st.z), new THREE.Vector3(st.x, ey, st.z - 10),
+        [new THREE.Vector3(10, 34, -88), new THREE.Vector3(-30, 22, -40), new THREE.Vector3(-34, 14, 20), new THREE.Vector3(-12, 7, 50), new THREE.Vector3(0, 4.2, 70)],
+        new THREE.Vector3(0, 2, -64), new THREE.Vector3(0, 3, 40));
+    return new DesertIntro(new THREE.Vector3(st.x, ey, st.z), new THREE.Vector3(st.x - Math.sin(st.yaw) * 10, ey, st.z - Math.cos(st.yaw) * 10));
   }
 
   aboard() {

@@ -94,6 +94,7 @@ export class Hud {
         <div class="mm-label">MODE <span class="jp">モード</span></div>
         <button class="pm-btn primary" data-mode="story">STORY ESCAPE<span class="jp">脱出</span></button>
         <button class="pm-btn" data-mode="arcade">ARCADE SURVIVAL<span class="jp">生存</span></button>
+        <button class="pm-btn" data-mode="tdm">TEAM DEATHMATCH 5v5<span class="jp">チーム戦</span></button>
         <div class="mm-note"></div>
         <button class="pm-btn" data-act="settings">SETTINGS<span class="jp">設定</span></button>
         <button class="pm-btn" data-act="controls">CONTROLS<span class="jp">操作</span></button>
@@ -132,7 +133,7 @@ export class Hud {
     row.innerHTML = levels
       .map(
         (l) => `<button class="set-card" data-setting="${l.id}"><b>${l.name}</b><span class="jp">${l.jp}</span>
-        <span class="blurb">${l.blurb}</span><span class="modes">${l.modes.map((m) => (m === 'story' ? 'STORY' : 'SURVIVAL')).join(' · ')}</span></button>`,
+        <span class="blurb">${l.blurb}</span><span class="modes">${l.modes.map((m) => (m === 'story' ? 'STORY' : m === 'tdm' ? '5v5 TDM' : 'SURVIVAL')).join(' · ')}</span></button>`,
       )
       .join('');
   }

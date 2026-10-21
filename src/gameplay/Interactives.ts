@@ -3,6 +3,7 @@ import type { Glows, Glow } from '../world/Glows';
 import type { Effects } from '../combat/Effects';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { EnemyCtx } from '../enemies/Enemy';
+import { unitOf } from '../combat/PlayerUnit';
 import type { Collider } from '../world/Collision';
 import { crossTexture } from '../world/Textures';
 
@@ -208,14 +209,16 @@ export class Interactives {
     this.fx.add.spawn({ x: c.emitter.x, y: c.emitter.y, z: c.emitter.z, r: 2, g: 3, b: 5, size: 2.2, life: 0.12 });
     const dir = new THREE.Vector3();
     let struck = 0;
+    // He set it off: his team's bots are spared (and his kills are his).
+    const by = unitOf(ctx.player);
     for (const e of ctx.enemies) {
-      if (!e.alive) continue;
+      if (!e.alive || e.team === by.team) continue;
       const chest = e.chest.clone();
       if (chest.distanceTo(c.emitter) > RADIUS) continue;
       this.fx.arc(c.emitter, chest);
       dir.subVectors(chest, c.emitter).normalize();
       e.stun = 1.5;
-      if (e.takeHit(90, dir, chest, ctx)) this.onKill();
+      if (e.takeHit(90, dir, chest, ctx, by)) this.onKill();
       struck++;
     }
     // A couple of idle arcs to the ground so it reads even with nobody around.
