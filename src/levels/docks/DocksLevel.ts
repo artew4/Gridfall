@@ -23,6 +23,7 @@ export const DOCKS_INFO: LevelInfo = {
   windowTitle: 'NEON RAIN — Neon Docks',
   // OMEGA are synths (neon visors, plasma bolts) on the docks; ALPHA keeps the garrison look.
   arsenal: { weapon: JACKAL_AR, enemies: NEON_SYNTHS },
+  music: 'docks_theme',
   tagline: 'THREE LANES · ONE HARBOUR',
   jpLine: '第七埠頭 · 午前三時',
   place: 'DOCK 7, KAWASAKI',

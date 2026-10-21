@@ -7,6 +7,7 @@ import type { Player } from '../player/Player';
 import type { Arsenal } from '../entities/types';
 import type { LookGrade } from '../core/Renderer';
 import type { TeamId } from '../combat/Team';
+import type { TrackId } from '../audio/music/MusicManager';
 
 /** What Team Deathmatch needs from a level (6.0): each team's spawn zone, spawns and lanes. */
 export interface TdmData {
@@ -53,6 +54,8 @@ export interface LevelInfo {
   cine: Partial<Record<Mode, { t1: string; t2: string; t3: string }>>;
   /** The player's weapon and the survival enemies of this setting. */
   arsenal: Arsenal;
+  /** 9.0: the setting's music track (MusicManager). */
+  music: TrackId;
 }
 
 /**

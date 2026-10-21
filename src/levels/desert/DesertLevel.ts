@@ -21,6 +21,7 @@ export const DESERT_INFO: LevelInfo = {
   loading: 'RAISING THE OUTPOST…',
   windowTitle: 'NEON RAIN — Desert Outpost',
   arsenal: { weapon: JACKAL_AR, enemies: DESERT_MERCS },
+  music: 'desert_theme',
   tagline: 'HOLD THE OUTPOST · WATCH THE STORM',
   jpLine: '砂漠 · 午後二時十分',
   place: 'OUTPOST KESTREL',

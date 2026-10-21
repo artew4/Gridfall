@@ -8,7 +8,7 @@ import { KEYS } from './Bindings';
 import { clamp, damp, rand } from './math';
 import { disposeScene } from './dispose';
 import { AudioEngine } from '../audio/AudioEngine';
-import { MusicDirector } from '../audio/music/MusicDirector';
+import { MusicManager } from '../audio/music/MusicManager';
 import { CollisionWorld, type RayHit } from '../world/Collision';
 import { Glows } from '../world/Glows';
 import type { Zone } from '../world/Zones';
@@ -79,7 +79,8 @@ export class Game {
   renderer: Renderer;
   input: Input;
   audio = new AudioEngine();
-  music = new MusicDirector();
+  /** 9.0: one named track at a time (menu, then the setting's), crossfaded; files or procedural. */
+  music = new MusicManager(this.audio);
   col = new CollisionWorld();
   glows = new Glows();
   hud: Hud;
@@ -185,12 +186,6 @@ export class Game {
     } catch {
       /* fonts API unavailable: fall back silently */
     }
-    // Optional music files are fetched while the level builds (procedural score otherwise).
-    try {
-      this.music.preload(new OfflineAudioContext(2, 1, 44100));
-    } catch {
-      /* no OfflineAudioContext: procedural only */
-    }
     this.hud.setLevels(LEVEL_ORDER.map((id) => levelEntry(id).info));
     const first = savedSetting();
     this.hud.selectLevel(levelEntry(first).info, true);
@@ -276,8 +271,6 @@ export class Game {
     this.waves.onSpawn = (e, at) => {
       if (e.kind === 'gunner') this.audio.clang(at.clone().setY(at.y + 1.5), 0.7);
     };
-    this.waves.onSniper = () => this.music.accent();
-    this.waves.onLastEnemy = () => this.music.accent();
   }
 
   /**
@@ -367,6 +360,7 @@ export class Game {
       perches: d.perches,
       squad: this.waves.squad,
       damagePlayer: (dmg, f) => this.damagePlayer(dmg, f),
+      fog: this.fog,
     };
     level.attach();
     // Authored spots plus spots round every waist-high solid (dynamic cover needs all sides), once
@@ -451,6 +445,16 @@ export class Game {
   }
 
   private bindUi() {
+    // 9.0: audio (and with it the menu theme) starts on the first press anywhere, not only on a menu
+    // button: browsers need a gesture, any gesture.
+    const unlock = () => {
+      if (this.audio.started || !this.ready) return;
+      this.audio.start();
+      this.applySettings();
+      this.startLevelAudio();
+    };
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
     // Main menu.
     this.hud.title.addEventListener('click', (e) => {
       if (!this.ready || this.state !== 'title') return;
@@ -469,7 +473,6 @@ export class Game {
       const mode: Mode = el.dataset.mode === 'arcade' || el.dataset.mode === 'tdm' ? el.dataset.mode : 'story';
       if (!this.level.info.modes.includes(mode)) return;
       this.mode = mode;
-      this.music.start(this.audio);
       this.hud.show(this.hud.title, false);
       this.input.requestLock();
       this.startIntro();
@@ -868,7 +871,11 @@ export class Game {
 
   private updateMusic(dt: number) {
     const s = this.state === 'paused' ? this.stateBeforePause : this.state;
-    this.music.update(dt, { mode: s === 'play' ? 'play' : s === 'dead' ? 'dead' : 'menu', intensity: this.player ? this.rules.musicIntensity() : 0 });
+    // The menu theme on the title (and while a level loads behind it); the setting's own track from
+    // the intro on. Intensity drives the procedural layers: quiet when dead, flat in the menus.
+    const inLevel = s === 'intro' || s === 'play' || s === 'dead' || s === 'ending';
+    const intensity = s === 'play' && this.player ? this.rules.musicIntensity() : s === 'dead' ? 0.05 : 0.02;
+    this.music.update(dt, inLevel && !this.loading ? this.level.info.music : 'menu_theme', intensity);
   }
 
   /** Location card when the player settles in a new area (debounced so corners don't spam it). */
@@ -1013,7 +1020,7 @@ export class Game {
       wave: this.waves.wave,
       waveState: this.waves.state,
       alive: this.waves.enemies.filter((e) => e.alive).length,
-      music: { state: this.music.state, backend: this.music.kind, tracks: this.music.activeTracks(), ...this.music.debug() },
+      music: this.music.debug(),
       fps: +this.perf.fps.toFixed(1),
       pixelRatio: this.renderer.renderer.getPixelRatio(),
       drawCalls: this.renderer.renderer.info.render.calls,

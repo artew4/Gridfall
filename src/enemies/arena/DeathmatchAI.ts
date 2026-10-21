@@ -8,7 +8,7 @@ import type { BarkKind, Voice } from '../tactics/Barks';
 import { rand } from '../../core/math';
 import { ARENA, type ArenaCtx } from './ArenaCtx';
 import type { Seen, SenseAgent } from './Sensing';
-import { ARENA_SIGHT_SHARE, contrastAt, densityOfSightRange } from '../../world/Visibility';
+import { ARENA_SEE, contrastAt, densityOfSightRange, fogRange } from '../../world/Visibility';
 
 /*
   The deathmatch brain (7.0): one per arena bot. Two rates, like 5.0, but both fast:
@@ -537,15 +537,16 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     let bloom = this.bloom;
     if (this.state === 'push') bloom = Math.min(bloom, ARENA.pushBloomMax);
     // Fog: aim degrades with the contrast lost on the way (and nothing is fired past fog sight).
+    // The scene's own fog density (9.0; 8.1 inferred it from sightRange, which the jungle scales).
     let fog = 0;
-    const sr = ctx.sightRange;
-    if (sr !== undefined) {
+    const rho = ctx.fog?.density ?? (ctx.sightRange !== undefined ? densityOfSightRange(ctx.sightRange) : 0);
+    if (rho > 0) {
       const d = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
-      if (d > sr * ARENA_SIGHT_SHARE) {
+      if (d > fogRange(rho, ARENA_SEE)) {
         A.stats.fogShots++;
         return;
       }
-      fog = ARENA.fogSpread * (1 - contrastAt(densityOfSightRange(sr), d));
+      fog = ARENA.fogSpread * (1 - contrastAt(rho, d));
     }
     const spread = ARENA.spread + bloom + this.jitter + fog + (strafing ? ARENA.strafeSpread : 0) + (me.airborne ? ARENA.airSpread : 0);
     const r = me.fireRound(ctx, _aim, spread);

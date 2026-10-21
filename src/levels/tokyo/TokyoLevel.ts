@@ -40,6 +40,7 @@ export const TOKYO_INFO: LevelInfo = {
   loading: 'BUILDING THE CITY…',
   windowTitle: 'NEON RAIN — Tokyo After Midnight',
   arsenal: { weapon: KITSUNE_9, enemies: NEON_SYNTHS },
+  music: 'tokyo_theme',
   tagline: 'ONE NIGHT · ONE CITY · ONE WAY OUT',
   jpLine: '東京 · 午前零時二十四分',
   place: 'SHINJUKU-KU',

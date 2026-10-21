@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
-import { BASE, buildTerrainMesh, JUNGLE_EXTENT, JUNGLE_TERRAIN, roadX } from './Terrain';
+import { BASE, buildTerrainMesh, JUNGLE_EXTENT, JUNGLE_TERRAIN, TDM_YARD, roadX } from './Terrain';
 import { buildBase, type BaseResult } from './Base';
 import { buildFoliage, type FoliageResult } from './Foliage';
 import { JungleIntro } from './JungleIntro';
@@ -17,17 +17,19 @@ export const JUNGLE_INFO: LevelInfo = {
   id: 'jungle',
   name: 'DEEP JUNGLE',
   jp: '密林基地',
-  blurb: 'A walled firebase under the rainforest canopy. Fight up the road through the jungle, breach the gate, clear the compound. Survival.',
-  modes: ['arcade'],
+  blurb: 'A walled firebase under the rainforest canopy. Survival: fight up the road and breach the gate. 5v5 TDM: LZ Alpha against LZ North, round and through the compound.',
+  modes: ['arcade', 'tdm'],
   loading: 'GROWING THE JUNGLE…',
   windowTitle: 'NEON RAIN — Deep Jungle',
   arsenal: { weapon: BOAR_SHOTGUN, enemies: JUNGLE_GUARDS },
+  music: 'jungle_theme',
   tagline: 'BREACH THE GATE · CLEAR THE COMPOUND',
   jpLine: '密林 · 午前七時四十分',
   place: 'FIREBASE VIPER',
   clock: '07:40',
   cine: {
     arcade: { t1: 'NEON RAIN', t2: '密林基地 · DEEP JUNGLE', t3: 'ARCADE SURVIVAL · FIREBASE VIPER<br/>PUSH UP THE ROAD · BREACH THE GATE · CLEAR THE COMPOUND' },
+    tdm: { t1: 'NEON RAIN', t2: '密林基地 · DEEP JUNGLE', t3: 'TEAM DEATHMATCH 5v5 · LZ ALPHA vs LZ NORTH<br/>THE GATE · THE BREACHES · THE CULVERT · THE JUNGLE' },
   },
 };
 
@@ -161,7 +163,19 @@ export class JungleLevel implements LevelRuntime {
       breakables: r.breakables,
       zoneAt: r.zoneAt,
       testGoals: r.testGoals,
+      // 9.0: Team Deathmatch, LZ ALPHA (south, round the assault's start) against LZ NORTH (behind the
+      // compound). Survival never reads this: its spawns and flow are the 3.7 ones.
+      tdm: {
+        spawns: r.tdm.spawns,
+        lanes: r.tdm.lanes,
+        inBase: (team, p) => {
+          const y = TDM_YARD[team];
+          return p.x > y.x0 && p.x < y.x1 && p.z > y.z0 && p.z < y.z1;
+        },
+        start: { ...r.tdm.start, y: 0 },
+      },
     };
+    if (r.layoutProblems.length) console.warn('[jungle] layout problems', r.layoutProblems);
   }
 
   attach() {
@@ -327,8 +341,8 @@ export class JungleLevel implements LevelRuntime {
     cam.lookAt(0, 2, -14);
   }
 
-  createIntro(): IntroLike {
-    const st = this.data.start;
+  createIntro(mode?: string): IntroLike {
+    const st = mode === 'tdm' && this.data.tdm ? this.data.tdm.start : this.data.start;
     return new JungleIntro(new THREE.Vector3(st.x, 1.65, st.z), new THREE.Vector3(st.x - Math.sin(st.yaw) * 10, 2.6, st.z - Math.cos(st.yaw) * 10), roadX);
   }
 

@@ -22,6 +22,26 @@ export function roadX(z: number) {
   return Math.sin(z * 0.07) * 3 - Math.sin(10 * 0.07) * 3 * Math.max(0, 1 - (z - 10) / 12);
 }
 
+/**
+ * 9.0, Team Deathmatch: the two spawn yards (outer faces of their HESCO walls). ALPHA's is LZ ALPHA,
+ * round the south end of the road where the assault starts; OMEGA's is LZ NORTH, a helipad yard in
+ * the strip behind the compound. Both stand on flattened pads (survival plays on them too: they are
+ * outposts on the map either way).
+ */
+export const TDM_YARD = {
+  alpha: { x0: -12, z0: 42, x1: 12, z1: 58 },
+  omega: { x0: -12, z0: -62, x1: 12, z1: -47 },
+};
+/** The pads are flat this far beyond the yard walls, then blend into the hills over PAD_BLEND (16 m keeps
+ * every slope under the 22° the controller and the AI walk: 7 m gave 38° against the cliff bank). */
+const PAD_FLAT = 2.5;
+const PAD_BLEND = 16;
+
+function rectDist(r: { x0: number; z0: number; x1: number; z1: number }, x: number, z: number) {
+  const dx = Math.max(r.x0 - x, x - r.x1), dz = Math.max(r.z0 - z, z - r.z1);
+  return Math.hypot(Math.max(dx, 0), Math.max(dz, 0));
+}
+
 /** Distance outside the compound's walls (negative inside). */
 export function baseDist(x: number, z: number) {
   const dx = Math.max(BASE.x0 - x, x - BASE.x1), dz = Math.max(BASE.z0 - z, z - BASE.z1);
@@ -57,7 +77,9 @@ export function jungleHeight(x: number, z: number): number {
   const hills = (noise(x * 0.045 + 11, z * 0.045 - 4) - 0.35) * 3.0 + (noise(x * 0.11 - 7, z * 0.11 + 2) - 0.5) * 0.8;
   const edge = Math.max(Math.abs(x), Math.abs(z));
   const bank = smoothstep(CLIFF - 16, CLIFF, edge) * 2;
-  return Math.max(0, hills) * w + bank;
+  // 9.0: flat under the TDM yards, blending back into the forest.
+  const pad = Math.min(rectDist(TDM_YARD.alpha, x, z), rectDist(TDM_YARD.omega, x, z));
+  return (Math.max(0, hills) * w + bank) * smoothstep(PAD_FLAT, PAD_FLAT + PAD_BLEND, pad);
 }
 
 export const JUNGLE_TERRAIN: Terrain = {
