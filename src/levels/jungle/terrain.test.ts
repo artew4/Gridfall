@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BASE, JUNGLE_EXTENT, JUNGLE_TERRAIN, ROAD, STRIP, jungleHeight, roadX } from './Terrain';
+import { BASE, JUNGLE_EXTENT, JUNGLE_TERRAIN, ROAD, STRIP, TDM_YARD, jungleHeight, roadX } from './Terrain';
 
 describe('jungle terrain', () => {
   it('the compound and the cleared strip round its walls are exactly flat', () => {
@@ -34,5 +34,11 @@ describe('jungle terrain', () => {
     }
     expect(worst).toBeLessThan(0.4);
     expect(top).toBeLessThan(JUNGLE_TERRAIN.maxHeight);
+  });
+
+  it('both TDM landing-zone yards are exactly flat (9.0)', () => {
+    for (const y of [TDM_YARD.alpha, TDM_YARD.omega]) {
+      for (let x = y.x0; x <= y.x1; x += 0.5) for (let z = y.z0; z <= y.z1; z += 0.5) expect(jungleHeight(x, z)).toBe(0);
+    }
   });
 });

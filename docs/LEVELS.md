@@ -226,3 +226,24 @@ What is never narrowed:
 
 Those are logged (`[stair] runs into a wall`) and reported by `__dev.world()` as **stair in wall**, along with any wall built after the stair. A support under a raised stair, or a building above an underground one, only touches it and isn't counted.
 
+## Jungle TDM: "Firebase Viper" (9.0)
+The assault map (3.7) is linear: one road, one gate, a compound to take. TDM needs a loop, so 9.0 adds a second base and two flanks without touching the Survival flow (`info.modes = ['arcade', 'tdm']`).
+
+| | ALPHA | OMEGA |
+|---|---|---|
+| Base | LZ ALPHA: the original road spawn, a HESCO yard (`TDM_YARD.alpha`, z 42–58) | LZ NORTH: behind the compound (z −62…−47), with a helipad |
+| Exits | front onto the road, two sides, each behind a blast wall | two sides only (the cliff is behind it) |
+| Nearest way in | the gate (49 m), the drain culvert (61 m) | the postern (39 m), the west breach (60 m) |
+| Flank lane | west exit, the strip, the culvert, the motor pool, out the west breach | east exit, the east breach, the watchtower, the gate, down the road |
+
+How it fits:
+- **Two flows, one map:** `data.tdm` (spawns, lanes, `inBase`) is used only in TDM. Survival keeps `data.spawns`, the road, and the objectives.
+- **Terrain pads:** `jungleHeight` flattens each yard and blends to the hills over 16 m, the shortest blend that keeps the slope under 0.4.
+- **New openings:**
+  - `CULVERT`: a 2.4 m concrete box through the south wall, west of the gate;
+  - `EAST_BREACH`: a gap with fallen slabs and a split coil.
+
+  Both have hand nav nodes, a zone name (DRAIN CULVERT, EAST BREACH), and test goals.
+- **Lane points snap to free ground** (`freeNear`), because random trees can land on them. `layoutProblems` warns about any lane point or nav node inside geometry.
+- **A flank is used only when a lane goes through it.** With three lanes per team the bots never entered the culvert; with a fourth they enter it 4–5 times a match.
+

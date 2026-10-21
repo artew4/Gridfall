@@ -1,0 +1,43 @@
+{
+  "version": "9.0 (feature/jungle-tdm-audio-9.0)",
+  "machine": "Apple M5, Chrome, ANGLE Metal, DPR 2",
+  "preset": "Balanced",
+  "jungle_integrity": {
+    "world": { "findings": 0, "reachableCells": 62087 },
+    "stress": { "stuck": 0, "runs": 64000 },
+    "levelAI": { "runners": "504/504 at both sight ranges", "gunners": "24/24", "graphOk": true }
+  },
+  "jungle_fairness": {
+    "method": "nav path length from each team's yard to the compound middle, and to each entrance",
+    "toCompoundMiddle_m": { "ALPHA": 73.9, "OMEGA": 61.9 },
+    "nearestEntrances_m": {
+      "ALPHA": { "gate": 49.1, "culvert": 61.3, "eastBreach": 77.0 },
+      "OMEGA": { "postern": 38.9, "westBreach": 59.7, "eastBreach": 75.2 }
+    },
+    "note": "OMEGA is 12 m closer to the middle; ALPHA has the wider choice of entrances (gate, culvert). Match winners were mixed."
+  },
+  "jungle_tdm_matches": {
+    "method": "__dev.tdmSim bot-vs-bot, 25 tickets, 9 matches",
+    "durationS": [185, 215],
+    "killsPerMin": [14.0, 15.7],
+    "zoneTimePct": { "jungle": 39, "compound": [17, 22], "perimeter strip": [13, 16] },
+    "entriesPerMatch": { "gate": [16, 21], "DRAIN CULVERT": [4, 5], "EAST BREACH": [14, 17] },
+    "culvert_before_flank_lane": { "timePct": 0, "entries": 0 },
+    "barks": 0,
+    "friendlyDamage": 0,
+    "fogGuard": { "shotsRefused": [0, 12], "roundsBeyondFogSight": 0 },
+    "stuckEvents": "1 in 9 matches (not reproduced)"
+  },
+  "jungle_perf": {
+    "bench3": { "fps": 60, "cpuMs": [0.7, 2.2], "gpuMs": [5.2, 6.1], "drawCalls": [67, 132] },
+    "tdmBench": { "fps": 60, "cpuMs": 2.1, "gpuMs": 5.7, "aiMsAvg": [0.31, 0.35] }
+  },
+  "docks_regression_bench3": { "fps": [59.9, 60], "cpuMs": [2.41, 2.83], "gpuMs": [6.89, 7.65], "drawCalls": [131, 342] },
+  "music": {
+    "crossfade": "equal-power, 2 s; outgoing source disposed ~2.1-2.6 s after the switch",
+    "musicSoak_levels": { "cycles": 3, "created": 26, "disposed": 25, "liveAtEnd": 1, "unaccounted": 0, "heapMB": [100.8, 197.7], "note": "24 level reloads included; the heap growth follows the level loads, not the music (see the music-only run)" },
+    "music_only_soak": { "switches": 60, "everyS": 2.6, "heapMB_every5": [122.3, 121.9, 121.8, 122.8, 122.3, 124.5, 114.4, 114.5, 114.9, 115.5, 116.1, 116.9], "sessionTotals": { "created": 86, "disposed": 85, "live": 1 } },
+    "file_source": "a test .wav dropped in public/audio/music/ was found by the probe, streamed through an <audio> element, looped, paused with the tab hidden"
+  },
+  "tests": 152
+}
