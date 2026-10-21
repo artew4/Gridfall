@@ -74,6 +74,12 @@ export const ARENA = {
   pushers: 2,
   /** Board contacts expire after this (s); a hunt aims this far ahead along the contact's velocity (s). */
   contactTtl: 4,
+  /**
+   * 8.0, lane discipline: a contact further than this is hunted along the bot's own lane, to the
+   * lane waypoint level with it, before crossing over (flanks instead of everyone taking the
+   * shortest path down the middle).
+   */
+  laneLeave: 22,
   huntLead: 0.6,
   /** A new target must beat the current one by this factor (no flicker between equals). */
   switchMargin: 1.15,
