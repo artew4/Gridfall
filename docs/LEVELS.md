@@ -176,3 +176,15 @@ Tokyo's 4.0 additions are module-level uniforms (`WET4`, `CATCHERS` in `Ground.t
 - **Geometric light shafts (`levels/jungle/GodRays.ts`):** additive cones, depthWrite off, never given to the CollisionWorld, tagged `soft`, `raycast` disabled (a unit test holds this). They live in the scene graph, so `disposeScene` frees them with the level.
 - **Mud (`levels/jungle/Mud.ts`):** `applyMud(mat, on, kind)` chains onto a ground material's `onBeforeCompile`. The switch is a per-level uniform object, not a module-level one (Vite HMR can load a module twice and split module-level state).
 - **Cookie flecks:** the jungle builds two sun cookies (3.7 dapple, and 4.2 with a fleck under each shaft) and two environment maps. `setVisual` swaps both, and `dispose()` frees both.
+
+## Team Deathmatch arena (desert, 6.0)
+A level supports Team Deathmatch by listing `'tdm'` in `info.modes` and filling `data.tdm` (`TdmData`): spawns per team, lanes per team (left, centre, right from that team's base, ending short of the other's spawn), `inBase(team, p)` and the player's start. The rules (`src/levels/Tdm.ts`) need nothing else from the level.
+
+Desert Outpost's arena (`src/levels/desert/ArenaLayout.ts`, `Arena.ts`):
+- **Point symmetry:** everything is authored in the south half and built again rotated 180° about the origin; the dunes are the mean of the height field and its rotation (`desertHeight`); the scattered rocks come in rotated pairs. Bases sit on flat pads (y 1.2) blending into the dunes over 18 m.
+- **Bases** (ALPHA south at z ≈ 64, OMEGA north): HESCO walls 2.4 m (taller than eyes), exits north (centre) and on both sides, each behind a concrete blast wall (chicanes), eight spawn points, a command tent, crates, the team flag.
+- **Lanes:** centre through the compound's gates and yard; flanks at |x| ≈ 45–60 through a ruined hamlet (two enterable ruins, a broken enclosure, low walls) on one half and a wadi (berms, rocks, a burnt APC, a sandbag nest) on the other, with a pump house (doors at both ends) at each flank's midpoint.
+- **Centre approach:** a burnt truck, jersey barriers, a sandbag nest facing the compound, two rocks.
+- **Nav:** hand links through every doorway, chicane and the nest; lane waypoints are nodes. Validate with `__dev.levelAI()` after any change (a wrong link is built twice).
+- **Survival** on the desert plays on the same map: its 3.4 ruins and salvage dumps (where the hamlet and wadi are now) were replaced by the arena's cover.
+
