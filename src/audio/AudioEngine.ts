@@ -997,10 +997,19 @@ export class AudioEngine {
     this.burst(o, this.white, 'bandpass', 2000, 0.8, 0.4 * loud, 0.001, 0.08);
   }
 
-  enemyShot(pos: V3, voice: 'synth' | 'human' = 'synth') {
+  /** A bot's shot. 13.0: `gun` (an armory weapon) decides the report; without it, the look's voice does. */
+  enemyShot(pos: V3, voice: 'synth' | 'human' = 'synth', gun?: 'plasma' | 'rifle' | 'shotgun') {
     if (!this.started) return;
-    const o = this.out(pos, 0.7);
-    if (voice === 'human') {
+    const o = this.out(pos, gun === 'shotgun' ? 0.9 : 0.7);
+    if (gun === 'shotgun') {
+      // A twelve-gauge at range: a heavy boom, a wide crack and a long rolling tail.
+      const t = this.now();
+      this.burst(o, this.white, 'highpass', 1600, 0.5, 0.5, 0.0005, 0.04, t);
+      this.burst(o, this.brown, 'lowpass', 420, 0.7, 0.9, 0.002, 0.26, t, 80);
+      this.burst(o, this.pink, 'bandpass', 380, 0.7, 0.2, 0.01, 0.35, t + 0.1);
+      return;
+    }
+    if (gun === 'rifle' || (!gun && voice === 'human')) {
       // A rifle at range: crack, thump and a dry tail.
       const t = this.now();
       this.burst(o, this.white, 'highpass', 2200, 0.6, 0.45, 0.0005, 0.03, t);

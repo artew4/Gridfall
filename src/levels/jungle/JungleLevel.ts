@@ -10,7 +10,6 @@ import { dappleTexture, litterTexture } from './textures';
 import { applyMud } from './Mud';
 import { buildGodRays, type GodRays, type Shaft } from './GodRays';
 import { damp } from '../../core/math';
-import { BOAR_SHOTGUN } from '../../entities/weapons/shotgun';
 import { JUNGLE_GUARDS } from '../../entities/enemies/paramilitary';
 
 export const JUNGLE_INFO: LevelInfo = {
@@ -21,7 +20,7 @@ export const JUNGLE_INFO: LevelInfo = {
   modes: ['arcade', 'tdm'],
   loading: 'GROWING THE JUNGLE…',
   windowTitle: 'Gridfall — Deep Jungle',
-  arsenal: { weapon: BOAR_SHOTGUN, enemies: JUNGLE_GUARDS },
+  enemies: JUNGLE_GUARDS,
   music: 'jungle_theme',
   tagline: 'BREACH THE GATE · CLEAR THE COMPOUND',
   jpLine: '密林 · 午前七時四十分',

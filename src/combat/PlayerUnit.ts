@@ -10,7 +10,8 @@ export class PlayerUnit implements Combatant {
   readonly uid = newUid();
   readonly isPlayer = true;
   readonly team: TeamId;
-  readonly name: string;
+  /** 13.0: the name he typed on the menu (set at the start of each run). */
+  name: string;
   /**
    * Eye of a standing player minus a little (what a perception ray aims at), and where rounds aim.
    * 11.0: they follow the crouch (the body's height scale), so bots see and shoot a crouched player

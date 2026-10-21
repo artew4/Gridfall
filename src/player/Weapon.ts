@@ -101,7 +101,7 @@ export class Weapon {
   }
 
   /**
-   * Swap the weapon (a level's arsenal). The previous model is freed: the viewmodel outlives levels,
+   * Swap the weapon (13.0: the loadout's pick, or the story's own). The previous model is freed: the viewmodel outlives levels,
    * so anything left behind here would leak across every switch.
    */
   setSpec(spec: WeaponSpec) {

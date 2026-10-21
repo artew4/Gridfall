@@ -4,7 +4,8 @@ import type { Breakable, CabinetSpot } from '../gameplay/Interactives';
 import type { IntroFrame } from '../cinematic/Intro';
 import type { Weapon } from '../player/Weapon';
 import type { Player } from '../player/Player';
-import type { Arsenal } from '../entities/types';
+import type { EnemyLook } from '../entities/types';
+import type { WeaponId } from '../entities/weapons/armory';
 import type { LookGrade } from '../core/Renderer';
 import type { TeamId } from '../combat/Team';
 import type { TrackId } from '../audio/music/MusicManager';
@@ -52,8 +53,13 @@ export interface LevelInfo {
   clock: string;
   /** Opening title card per mode. */
   cine: Partial<Record<Mode, { t1: string; t2: string; t3: string }>>;
-  /** The player's weapon and the survival enemies of this setting. */
-  arsenal: Arsenal;
+  /**
+   * The survival enemies of this setting (their look, sound and rounds). 13.0: a level no longer
+   * names the player's weapon (the armory is global, the loadout picks it), except a story's own.
+   */
+  enemies: EnemyLook;
+  /** 13.0: the weapon the story mode hands the player (other modes use the loadout). */
+  storyWeapon?: WeaponId;
   /** 9.0: the setting's music track (MusicManager). */
   music: TrackId;
 }

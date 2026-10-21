@@ -1,4 +1,7 @@
-import type { LevelInfo, Mode } from '../levels/Level';
+import type { LevelInfo, SettingId } from '../levels/Level';
+import { MODE_LABEL, MODE_ORDER, canDeploy, mapsFor, type MenuState } from './MenuFlow';
+import { NAME_MAX } from '../gameplay/PlayerName';
+import { nextMapsHtml } from './TdmHud';
 
 const JP_NUM = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
 export function jpNumber(n: number): string {
@@ -24,6 +27,8 @@ export interface DeathStats {
   kills: number;
   accuracy: number;
   time: number;
+  /** 13.0: survival's next-map choice (every map with the mode, this one first). */
+  next?: { info: LevelInfo; again: boolean }[];
 }
 
 /** Minimal DOM HUD: thin lines, muted cyan, nothing that competes with the scene. */
@@ -44,6 +49,14 @@ export class Hud {
   private dmg = el('div', 'dmgdir');
   private feed = el('div', 'killfeed', '<span class="diamond"></span>NEUTRALIZED');
   private clockEl = el('div', 'clock');
+  /** 13.0: the player's name over the vitals (and his team in TDM). */
+  private callsign = el('div', 'callsign');
+  /** 13.0: the name field on the main menu. */
+  nameInput!: HTMLInputElement;
+  private levels: LevelInfo[] = [];
+  private menuState: MenuState = { screen: 'root', mode: null, map: null };
+  private loaded: LevelInfo | null = null;
+  private loadingLevel = true;
   banner = el('div', 'layer');
   title = el('div', 'layer screen');
   pause = el('div', 'layer screen hidden');
@@ -79,7 +92,7 @@ export class Hud {
     wave.append(wl, row, this.remain);
 
     this.clockEl.innerHTML = 'SHINJUKU-KU · <b>02:47</b>';
-    this.root.append(this.cross, this.hit, this.dmg, this.feed, this.health, this.ammo, wave, this.clockEl);
+    this.root.append(this.cross, this.hit, this.dmg, this.feed, this.callsign, this.health, this.ammo, wave, this.clockEl);
 
     this.banner.id = 'banner';
     this.title.id = 'title';
@@ -89,15 +102,23 @@ export class Hud {
       <div class="jp"></div>
       <div class="loading">BUILDING THE CITY…</div>
       <div class="mainmenu hidden">
-        <div class="mm-label">SETTING <span class="jp">舞台</span></div>
-        <div class="settings-row"></div>
-        <div class="mm-label">MODE <span class="jp">モード</span></div>
-        <button class="pm-btn primary" data-mode="story">STORY ESCAPE<span class="jp">脱出</span></button>
-        <button class="pm-btn" data-mode="arcade">ARCADE SURVIVAL<span class="jp">生存</span></button>
-        <button class="pm-btn" data-mode="tdm">TEAM DEATHMATCH 5v5<span class="jp">チーム戦</span></button>
-        <div class="mm-note"></div>
-        <button class="pm-btn" data-act="settings">SETTINGS<span class="jp">設定</span></button>
-        <button class="pm-btn" data-act="controls">CONTROLS<span class="jp">操作</span></button>
+        <div class="mm-screen" data-screen="root">
+          <div class="mm-label">CALLSIGN <span class="jp">名前</span></div>
+          <input class="mm-name" type="text" maxlength="${NAME_MAX}" spellcheck="false" autocomplete="off" aria-label="Player name" />
+          <div class="mm-label">MODE <span class="jp">モード</span></div>
+          <div class="mm-modes"></div>
+          <button class="pm-btn" data-act="settings">SETTINGS<span class="jp">設定</span></button>
+          <button class="pm-btn" data-act="controls">CONTROLS<span class="jp">操作</span></button>
+        </div>
+        <div class="mm-screen hidden" data-screen="maps">
+          <div class="mm-label mm-mode-title"></div>
+          <div class="settings-row"></div>
+          <div class="mm-note"></div>
+          <div class="mm-actions">
+            <button class="pm-btn" data-act="back">BACK<span class="jp">戻る</span></button>
+            <button class="pm-btn primary" data-act="deploy">DEPLOY<span class="jp">出撃</span></button>
+          </div>
+        </div>
       </div>
       <div class="controlsPanel hidden">
         <div class="cp-grid">
@@ -128,42 +149,70 @@ export class Hud {
     this.title.querySelector('.mainmenu')!.classList.remove('hidden');
   }
 
-  /** The setting cards (one per level), built once from the registry. */
+  /** 13.0: the levels the menu offers (registry order), and the mode buttons with their map counts. */
   setLevels(levels: LevelInfo[]) {
-    const row = this.title.querySelector('.settings-row')!;
-    row.innerHTML = levels
-      .map(
-        (l) => `<button class="set-card" data-setting="${l.id}"><b>${l.name}</b><span class="jp">${l.jp}</span>
-        <span class="blurb">${l.blurb}</span><span class="modes">${l.modes.map((m) => (m === 'story' ? 'STORY' : m === 'tdm' ? '5v5 TDM' : 'SURVIVAL')).join(' · ')}</span></button>`,
-      )
+    this.levels = levels;
+    this.nameInput = this.title.querySelector<HTMLInputElement>('.mm-name')!;
+    this.title.querySelector('.mm-modes')!.innerHTML = MODE_ORDER.filter((m) => mapsFor(m, levels).length)
+      .map((m) => {
+        const L = MODE_LABEL[m], n = mapsFor(m, levels).length;
+        return `<button class="pm-btn mm-mode${m === 'tdm' ? ' primary' : ''}" data-mode="${m}">${L.name}<span class="jp">${L.jp}</span><span class="mm-line">${L.line} · ${n} MAP${n === 1 ? '' : 'S'}</span></button>`;
+      })
       .join('');
   }
 
   /**
-   * The selected setting: highlights its card, puts its lines under the title, enables only the
-   * modes it supports. While `loading`, the mode buttons wait for the level to finish building.
+   * The level built behind the menu: its lines under the title. While `loading`, DEPLOY waits for it
+   * to finish building.
    */
   selectLevel(l: LevelInfo, loading: boolean) {
-    for (const b of Array.from(this.title.querySelectorAll<HTMLElement>('[data-setting]'))) b.classList.toggle('on', b.dataset.setting === l.id);
+    this.loaded = l;
+    this.loadingLevel = loading;
     this.title.querySelector('.sub')!.textContent = l.tagline;
     this.title.querySelector('.jp')!.textContent = l.jpLine;
-    const note = this.title.querySelector<HTMLElement>('.mm-note')!;
-    for (const b of Array.from(this.title.querySelectorAll<HTMLButtonElement>('[data-mode]'))) {
-      const ok = l.modes.includes(b.dataset.mode as Mode);
-      b.disabled = loading || !ok;
-      b.classList.toggle('off', !ok);
-    }
-    // The level's main mode: the story where there is one, else survival, else (an arena) TDM.
-    const primary = l.modes.includes('story') ? 'story' : l.modes.includes('arcade') ? 'arcade' : l.modes[0];
-    for (const b of Array.from(this.title.querySelectorAll<HTMLElement>('[data-mode]'))) b.classList.toggle('primary', b.dataset.mode === primary);
-    note.textContent = loading ? l.loading : l.modes.includes('story') ? '' : l.modes.includes('arcade') ? 'STORY ESCAPE IS SET IN TOKYO NIGHT' : 'AN ARENA BUILT FOR TEAM DEATHMATCH';
-    note.classList.toggle('busy', loading);
+    this.renderMenu(this.menuState);
   }
 
-  /** Main menu: show the controls page or the buttons. */
-  showControls(on: boolean) {
-    this.title.querySelector('.mainmenu')!.classList.toggle('hidden', on);
-    this.title.querySelector('.controlsPanel')!.classList.toggle('hidden', !on);
+  /**
+   * 13.0: draw a menu state (MenuFlow): the root (name, modes), the maps of the picked mode (cards,
+   * the picked one lit; DEPLOY once it is built), or the controls page.
+   */
+  renderMenu(st: MenuState) {
+    this.menuState = st;
+    const t = this.title;
+    t.querySelector('.mainmenu [data-screen="root"]')!.classList.toggle('hidden', st.screen !== 'root');
+    t.querySelector('.mainmenu [data-screen="maps"]')!.classList.toggle('hidden', st.screen !== 'maps');
+    t.querySelector('.controlsPanel')!.classList.toggle('hidden', st.screen !== 'controls');
+    t.querySelector('.mainmenu')!.classList.toggle('on-controls', st.screen === 'controls');
+    if (st.screen !== 'maps' || !st.mode) return;
+    const L = MODE_LABEL[st.mode];
+    t.querySelector('.mm-mode-title')!.innerHTML = `${L.name} · MAP <span class="jp">${L.jp}</span>`;
+    const row = t.querySelector('.settings-row')!;
+    const maps = mapsFor(st.mode, this.levels);
+    const key = maps.map((m) => m.id).join(',');
+    if (row.getAttribute('data-for') !== key) {
+      row.setAttribute('data-for', key);
+      row.innerHTML = maps
+        .map(
+          (l) => `<button class="set-card" data-setting="${l.id}"><b>${l.name}</b><span class="jp">${l.jp}</span>
+        <span class="blurb">${l.blurb}</span><span class="modes">${l.modes.map((m) => (m === 'story' ? 'STORY' : m === 'tdm' ? '5v5 TDM' : 'SURVIVAL')).join(' · ')}</span></button>`,
+        )
+        .join('');
+    }
+    for (const b of Array.from(row.querySelectorAll<HTMLElement>('[data-setting]'))) b.classList.toggle('on', b.dataset.setting === st.map);
+    const loaded = (this.loaded?.id ?? 'tokyo') as SettingId;
+    const busy = this.loadingLevel || st.map !== loaded;
+    const deploy = t.querySelector<HTMLButtonElement>('[data-act="deploy"]')!;
+    deploy.disabled = !canDeploy(st, this.levels, loaded, this.loadingLevel);
+    const note = t.querySelector<HTMLElement>('.mm-note')!;
+    const picked = this.levels.find((l) => l.id === st.map);
+    note.textContent = busy ? (picked?.loading ?? '') : '';
+    note.classList.toggle('busy', busy);
+  }
+
+  /** 13.0: the player's name on the HUD (with his team in Team Deathmatch). */
+  setCallsign(name: string, team: string | null) {
+    this.callsign.innerHTML = `${name}${team ? `<span>${team}</span>` : ''}`;
   }
 
   show(e: HTMLElement, on: boolean) {
@@ -281,7 +330,8 @@ export class Hud {
         <span>ACCURACY</span><span>${Math.round(s.accuracy * 100)}%</span>
         <span>SURVIVED</span><span>${mm}:${String(ss).padStart(2, '0')}</span>
       </div>
-      ${s.story ? '<div class="hint">CLICK TO RETRY FROM THE CHECKPOINT</div><button class="pm-btn death-full" data-act="full">RESTART STORY</button>' : '<div class="hint">CLICK TO RISE AGAIN</div>'}`;
+      ${s.story ? '<div class="hint">CLICK TO RETRY FROM THE CHECKPOINT</div><button class="pm-btn death-full" data-act="full">RESTART STORY</button>' : '<div class="hint">CLICK TO RISE AGAIN</div>'}
+      ${s.next ? nextMapsHtml(s.next) : ''}`;
     this.show(this.death, true);
   }
 

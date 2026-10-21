@@ -3,6 +3,7 @@ import type { Game } from '../core/Game';
 import { TDM } from '../levels/Tdm';
 import { ANY, RANGED_ONLY } from '../enemies/Roster';
 import { ARENA } from '../enemies/arena/ArenaCtx';
+import { ARMORY, type WeaponId } from '../entities/weapons/armory';
 import type { TacticalEnemy } from '../enemies/Enemy';
 import { probe } from './PerfProbe';
 
@@ -247,7 +248,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   const dt = opts.dt ?? 1 / 60;
@@ -256,11 +257,17 @@ export async function tdmSim(
   const roster0 = TDM.roster, lane0 = ARENA.laneLeave;
   if (opts.roster) TDM.roster = opts.roster === 'any' ? ANY : RANGED_ONLY;
   if (opts.laneLeave !== undefined) ARENA.laneLeave = opts.laneLeave;
-  // 11.0 A/B: `ads: false` is the 10.0 shooter (never aims, no extra hip spread).
-  const ads0 = ARENA.ads.enter, exit0 = ARENA.ads.exit, hip0 = ARENA.hipSpread, max0 = ARENA.ads.maxRange;
+  // 13.0: who carries what ('random': the armory deal; one weapon id: everybody, for A/B).
+  const arms0 = TDM.arms;
+  if (opts.arms) TDM.arms = opts.arms;
+  // 11.0 A/B: `ads: false` is the 10.0 shooter (never aims, no extra hip spread). 13.0: on the rifle
+  // (the 10.0 bot's only gun), everybody carrying it.
+  const rifle = ARMORY.ar.bot, rifle0 = { aim: rifle.aim, hip: rifle.hipSpread, max: rifle.maxRange };
   if (opts.ads === false) {
-    ARENA.ads.enter = ARENA.ads.exit = ARENA.ads.maxRange = Infinity;
-    ARENA.hipSpread = 0;
+    TDM.arms = 'ar';
+    rifle.aim = null;
+    rifle.maxRange = Infinity;
+    rifle.hipSpread = 0;
   }
   // 12.0 A/B: `v12: false` is the 11.0 bot (reacts on the frame, ±15% decide jitter, never flanks,
   // retreats or slides). Bots draw their temperament when they spawn, so this is set before.
@@ -336,10 +343,8 @@ export async function tdmSim(
   game.timeScale = 1;
   TDM.roster = roster0;
   ARENA.laneLeave = lane0;
-  ARENA.ads.enter = ads0;
-  ARENA.ads.exit = exit0;
-  ARENA.ads.maxRange = max0;
-  ARENA.hipSpread = hip0;
+  TDM.arms = arms0;
+  Object.assign(rifle, { aim: rifle0.aim, hipSpread: rifle0.hip, maxRange: rifle0.max });
   Object.assign(P, { react: keep12.react, reactClamp: keep12.clamp, jitter: keep12.jitter });
   ARENA.flank.per = keep12.per;
   ARENA.retreat.on = keep12.retreat;
@@ -359,6 +364,15 @@ export async function tdmSim(
     killsPerMin: +((k.length / simT) * 60).toFixed(1),
     byKillerKind: k.reduce<Record<string, number>>((a, x) => ((a[x.killerKind] = (a[x.killerKind] ?? 0) + 1), a), {}),
     victimDoing: k.reduce<Record<string, number>>((a, x) => ((a[x.victimAction.split('/')[0]] = (a[x.victimAction.split('/')[0]] ?? 0) + 1), a), {}),
+    // 13.0: each gun's kills and the range they were made at (does each fight where it should?).
+    byWeapon: (() => {
+      const out: Record<string, { kills: number; median: number; p10: number; p90: number }> = {};
+      for (const w of new Set(k.map((x) => x.weapon))) {
+        const d = k.filter((x) => x.weapon === w).map((x) => x.dist);
+        out[w] = { kills: d.length, median: +q(d, 0.5).toFixed(1), p10: +q(d, 0.1).toFixed(1), p90: +q(d, 0.9).toFixed(1) };
+      }
+      return out;
+    })(),
     flankKills: k.filter((x) => x.flank).length,
     range: { median: q(k.map((x) => x.dist), 0.5), p10: q(k.map((x) => x.dist), 0.1), p90: q(k.map((x) => x.dist), 0.9), melee: k.filter((x) => x.dist < 3).length },
     movement: { movingPct: pct(smp.moving), crouchedPct: pct(smp.crouched), stillPct: pct(smp.still), elevatedPct: pct(smp.elevated), avgSpeed: +(smp.speed / Math.max(1, smp.n)).toFixed(2) },

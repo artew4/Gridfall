@@ -307,7 +307,7 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin: 0 4px; t
 .tdm-score .bar.o i { background: var(--omega); transform-origin: left; box-shadow: 0 0 8px var(--omega); }
 .tdm-score.low-a .side.a b, .tdm-score.low-o .side.o b { color: var(--red); animation: tdmPulse 0.9s ease-in-out infinite; }
 @keyframes tdmPulse { 50% { opacity: 0.45; } }
-.tdm-feed { position: absolute; right: 22px; top: 22px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 11px; letter-spacing: 0.14em; }
+.tdm-feed { position: absolute; right: 22px; top: 52px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 11px; letter-spacing: 0.14em; }
 .tdm-feed .row { background: rgba(0,0,0,0.35); padding: 3px 9px; color: #dfe9ee; }
 .tdm-feed .row i { font-style: normal; margin: 0 8px; color: rgba(255,255,255,0.5); }
 .tdm-feed .a { color: var(--alpha); } .tdm-feed .o { color: var(--omega); } .tdm-feed .you { text-decoration: underline; }
@@ -331,3 +331,39 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin: 0 4px; t
 .bark.ally { color: var(--alpha); border-color: var(--alpha-dim); }
 /* 12.0: the Team Deathmatch minimap (top left; the kill feed has the right). */
 .minimap.tdm-map { left: 22px; right: auto; top: 22px; }
+
+/* 13.0: main menu (mode first, then the map), the name field, the loadout picker, the next-map block. */
+.mm-screen.hidden { display: none; }
+.mainmenu.on-controls { display: none; }
+.mm-name { display: block; width: 100%; margin: 8px 0 4px; padding: 10px 14px; font-family: var(--mono); font-size: 15px; letter-spacing: 0.3em; color: #f2fdff; background: rgba(120, 235, 255, 0.05); border: 1px solid var(--cyan-faint); outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+.mm-name:focus { border-color: var(--cyan); box-shadow: 0 0 14px rgba(34, 232, 255, 0.22); }
+.pm-btn.mm-mode .mm-line { display: block; margin-top: 6px; font-size: 10px; letter-spacing: 0.1em; color: rgba(190, 230, 240, 0.7); }
+.mm-actions { display: flex; gap: 10px; margin-top: 6px; }
+.mm-actions .pm-btn { flex: 1; text-align: center; }
+.callsign { position: absolute; left: 48px; bottom: 118px; font-size: 12px; letter-spacing: 0.35em; color: #e8fbff; text-shadow: 0 0 8px rgba(34, 232, 255, 0.35); }
+.callsign span { margin-left: 12px; font-size: 9px; color: var(--alpha); }
+.tdm-feed .row i.gun { font-size: 9px; letter-spacing: 0.2em; color: rgba(255, 220, 160, 0.85); border: 1px solid rgba(255, 220, 160, 0.3); padding: 0 4px; }
+.tdm-board em.gun { margin-left: 8px; font-style: normal; font-size: 9px; color: rgba(255, 220, 160, 0.75); }
+.tdm-board .col { grid-template-columns: 170px 36px 36px; }
+.loadout { position: absolute; left: 50%; bottom: 17%; transform: translateX(-50%); z-index: 12; width: min(760px, 94vw); text-align: center; font-family: var(--mono); transition: opacity 0.25s; }
+.loadout.hidden { opacity: 0; pointer-events: none; }
+.loadout .lo-head { font-size: 11px; letter-spacing: 0.4em; color: var(--cyan); margin-bottom: 10px; }
+.loadout .lo-head .jp { font-family: var(--jp); letter-spacing: 0.3em; color: var(--cyan-dim); margin: 0 6px; }
+.loadout .lo-row { display: flex; gap: 10px; }
+.lo-card { flex: 1; position: relative; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px 12px 44px; text-align: left; font-family: var(--mono); color: var(--cyan-dim); background: rgba(4, 10, 18, 0.72); border: 1px solid var(--cyan-faint); cursor: pointer; transition: border-color 0.15s, background 0.15s, box-shadow 0.15s; }
+.lo-card kbd { position: absolute; left: 12px; top: 12px; width: 20px; height: 20px; line-height: 20px; text-align: center; font-family: var(--mono); font-size: 11px; color: #f2fdff; border: 1px solid var(--cyan-dim); }
+.lo-card b { font-weight: 400; font-size: 12px; letter-spacing: 0.3em; color: #f2fdff; }
+.lo-card .jp { font-family: var(--jp); font-size: 10px; letter-spacing: 0.3em; }
+.lo-card em { font-style: normal; font-size: 9px; letter-spacing: 0.35em; color: rgba(255, 220, 160, 0.85); }
+.lo-card .blurb { font-size: 10px; line-height: 1.5; letter-spacing: 0.06em; color: rgba(190, 230, 240, 0.72); }
+.lo-card:hover { border-color: var(--cyan-dim); }
+.lo-card.on { border-color: var(--cyan); background: rgba(16, 40, 56, 0.85); box-shadow: 0 0 16px rgba(34, 232, 255, 0.25); }
+.lo-card.on kbd { background: var(--cyan); color: #04121a; }
+.lo-card.held::after { content: 'IN HAND'; position: absolute; right: 10px; top: 10px; font-size: 8px; letter-spacing: 0.3em; color: var(--cyan-dim); }
+@media (max-width: 640px) { .loadout .lo-row { flex-direction: column; } }
+.next-maps { margin-top: 18px; width: min(720px, 92vw); text-align: center; }
+.next-maps .mm-label { font-size: 10px; letter-spacing: 0.45em; color: var(--cyan-dim); }
+.next-maps .mm-label .jp { font-family: var(--jp); margin-left: 10px; letter-spacing: 0.3em; }
+.next-maps .set-card { min-width: 0; }
+.pm-btn.small { width: auto; display: inline-block; margin: 14px auto 0; padding: 7px 16px; font-size: 10px; text-align: center; }
+#death .next-maps { pointer-events: auto; }

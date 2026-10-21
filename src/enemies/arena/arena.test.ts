@@ -8,6 +8,7 @@ import { ArenaDirector } from './ArenaDirector';
 import { Sensing, type Seen, type SenseAgent } from './Sensing';
 import { stepAir, vaultAhead, vaultSpeed } from './Locomotion';
 import { ARENA } from './ArenaCtx';
+import { ARMORY } from '../../entities/weapons/armory';
 import { DeathmatchBrain, drawPersona, flankPoint, focusFor, wantsAim, type ArenaBody, type Persona } from './DeathmatchAI';
 import { newArenaStats } from './ArenaCtx';
 import { ThinkScheduler } from '../tactics/Scheduler';
@@ -354,7 +355,7 @@ function rig(at: THREE.Vector3, opts: { hostiles?: Combatant[]; friends?: Combat
   const nodes: THREE.Vector3[] = [];
   for (let x = -60; x <= 60; x += 4) for (let z = -60; z <= 60; z += 4) nodes.push(v(x, 1, z));
   const me = Object.assign(unit(at, 'alpha'), {
-    kind: 'gunner' as const, speed: 3.3, look: { voice: 'human' as const }, isAiming: false, airborne: false, sliding: false, slides: 0,
+    kind: 'gunner' as const, speed: 3.3, look: { voice: 'human' as const }, arm: ARMORY.ar.bot, isAiming: false, airborne: false, sliding: false, slides: 0,
     steer: () => 0, face: () => {}, jump: () => true, fireRound: () => 'none' as const, strike: () => {}, wallAhead: () => 0, open: () => true, bark: () => {},
     slide() { this.slides++; return true; },
   }) as unknown as ArenaBody & { slides: number; hpFrac: number };

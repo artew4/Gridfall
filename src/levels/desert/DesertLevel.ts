@@ -8,7 +8,6 @@ import { Sandstorm } from './Sandstorm';
 import { DesertIntro } from './DesertIntro';
 import { detailTexture, sandTexture } from './textures';
 import { damp, smoothstep } from '../../core/math';
-import { JACKAL_AR } from '../../entities/weapons/jackal';
 import { DESERT_MERCS } from '../../entities/enemies/mercs';
 import { inBase } from './ArenaLayout';
 
@@ -20,7 +19,7 @@ export const DESERT_INFO: LevelInfo = {
   modes: ['arcade', 'tdm'],
   loading: 'RAISING THE OUTPOST…',
   windowTitle: 'Gridfall — Desert Outpost',
-  arsenal: { weapon: JACKAL_AR, enemies: DESERT_MERCS },
+  enemies: DESERT_MERCS,
   music: 'desert_theme',
   tagline: 'HOLD THE OUTPOST · WATCH THE STORM',
   jpLine: '砂漠 · 午後二時十分',

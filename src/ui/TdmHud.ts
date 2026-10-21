@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Combatant, TeamId } from '../combat/Team';
+import type { LevelInfo } from '../levels/Level';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -60,10 +61,12 @@ export class TdmHud {
     this.score.classList.toggle('low-o', o <= 5);
   }
 
-  kill(killer: Combatant | null, victim: Combatant) {
+  /** One line of the feed. 13.0: with the killer's gun between the names (SMG, AR, SG). */
+  kill(killer: Combatant | null, victim: Combatant, weapon?: string) {
     const row = el('div', 'row');
     const name = (c: Combatant) => `<span class="${c.team === 'alpha' ? 'a' : 'o'}${c.isPlayer ? ' you' : ''}">${c.name}</span>`;
-    row.innerHTML = killer ? `${name(killer)}<i>▸</i>${name(victim)}` : `${name(victim)}<i>✕</i>`;
+    const how = weapon ? `<i class="gun">${weapon}</i>` : '<i>▸</i>';
+    row.innerHTML = killer ? `${name(killer)}${how}${name(victim)}` : `${name(victim)}<i>✕</i>`;
     this.feed.prepend(row);
     this.feedRows.unshift({ el: row, t: 0 });
     while (this.feedRows.length > FEED_MAX) this.feedRows.pop()!.el.remove();
@@ -136,12 +139,18 @@ export interface TdmLine {
   you: boolean;
   kills: number;
   deaths: number;
+  /** 13.0: the gun of its last life (armory tag). */
+  weapon?: string;
 }
 
-/** Victory or defeat: the tickets, the scoreboard, rematch / menu. */
+/**
+ * Victory or defeat: the tickets, the scoreboard, then what next. 13.0: no detour through the root
+ * menu: the next map (every Team Deathmatch map, this one first as the rematch) loads straight from
+ * here; MAIN MENU stays as the small way out.
+ */
 export class TdmScreen {
   root = el('div', 'layer screen hidden');
-  onRematch: () => void = () => {};
+  onNextMap: (id: LevelInfo['id']) => void = () => {};
   onMenu: () => void = () => {};
 
   constructor(parent: HTMLElement) {
@@ -150,13 +159,13 @@ export class TdmScreen {
     for (const ev of ['mousedown', 'click']) this.root.addEventListener(ev, (e) => e.stopPropagation());
   }
 
-  show(won: boolean, tickets: Record<TeamId, number>, lines: TdmLine[], time: number) {
+  show(won: boolean, tickets: Record<TeamId, number>, lines: TdmLine[], time: number, next: { info: LevelInfo; again: boolean }[]) {
     const mm = Math.floor(time / 60), ss = String(Math.floor(time % 60)).padStart(2, '0');
     const team = (t: TeamId) =>
       lines
         .filter((l) => l.team === t)
         .sort((a, b) => b.kills - a.kills || a.deaths - b.deaths)
-        .map((l) => `<span class="${l.you ? 'you' : ''}">${l.name}</span><span>${l.kills}</span><span>${l.deaths}</span>`)
+        .map((l) => `<span class="${l.you ? 'you' : ''}">${l.name}${l.weapon ? `<em class="gun">${l.weapon}</em>` : ''}</span><span>${l.kills}</span><span>${l.deaths}</span>`)
         .join('');
     this.root.innerHTML = `
       <div class="end-title ${won ? 'win' : 'lose'}">${won ? 'VICTORY' : 'DEFEAT'}<span class="jp">${won ? '勝利' : '敗北'}</span></div>
@@ -165,16 +174,40 @@ export class TdmScreen {
         <div class="col a"><div class="hd"><b>ALPHA</b><span>K</span><span>D</span></div>${team('alpha')}</div>
         <div class="col o"><div class="hd"><b>OMEGA</b><span>K</span><span>D</span></div>${team('omega')}</div>
       </div>
-      <div class="end-buttons">
-        <button class="pm-btn primary" data-act="rematch">REMATCH<span class="jp">再戦</span></button>
-        <button class="pm-btn" data-act="menu">MAIN MENU<span class="jp">メニュー</span></button>
-      </div>`;
-    this.root.querySelector('[data-act="rematch"]')!.addEventListener('click', () => this.onRematch());
-    this.root.querySelector('[data-act="menu"]')!.addEventListener('click', () => this.onMenu());
+      ${nextMapsHtml(next)}`;
+    bindNextMaps(this.root, (id) => this.onNextMap(id), () => this.onMenu());
+    this.root.classList.remove('hidden');
+  }
+
+  /** 13.0: between the click and the new map: the board gives way to a deploy note while it builds. */
+  deploying(info: LevelInfo) {
+    this.root.innerHTML = `<div class="end-title">DEPLOYING<span class="jp">展開</span></div><div class="end-sub">${info.name} · ${info.loading}</div>`;
+    // Survival comes here from the death screen, with this screen still hidden.
     this.root.classList.remove('hidden');
   }
 
   hide() {
     this.root.classList.add('hidden');
   }
+}
+
+/**
+ * 13.0, the "choose next map" block of a result screen (TDM's board, survival's death screen): one
+ * card per map of the mode, the one just played first as REMATCH, and a small MAIN MENU.
+ */
+export function nextMapsHtml(next: { info: LevelInfo; again: boolean }[]) {
+  return `<div class="next-maps">
+    <div class="mm-label">CHOOSE NEXT MAP <span class="jp">次の舞台</span></div>
+    <div class="settings-row">${next
+      .map(
+        ({ info, again }) => `<button class="set-card${again ? ' on' : ''}" data-map="${info.id}"><b>${again ? 'REMATCH · ' : ''}${info.name}</b><span class="jp">${info.jp}</span><span class="blurb">${info.blurb}</span></button>`,
+      )
+      .join('')}</div>
+    <button class="pm-btn small" data-act="menu">MAIN MENU<span class="jp">メニュー</span></button>
+  </div>`;
+}
+
+export function bindNextMaps(root: HTMLElement, pick: (id: LevelInfo['id']) => void, menu: () => void) {
+  for (const b of Array.from(root.querySelectorAll<HTMLElement>('[data-map]'))) b.addEventListener('click', () => pick(b.dataset.map as LevelInfo['id']));
+  root.querySelector('.next-maps [data-act="menu"]')?.addEventListener('click', () => menu());
 }

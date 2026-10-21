@@ -752,8 +752,64 @@ Branch `feature/mobility-desert-12.0`, based on `main` (11.0, `8e697f7`, which i
 - Retreating bots still die in about 30% of retreats.
 - **Not felt by a human yet:** the slide, the minimap, the new desert and the storm's pace.
 
+## 13.0: the main menu, loadouts, bot identity, map to map
+
+Branch `feature/loadouts-ui-13.0` (12.0 deployed first: `main` fast-forwarded to `da9092f` and pushed).
+
+### Menu and post-match flow
+- **Mode first, then the map** (`ui/MenuFlow.ts`, a pure state machine, rendered by `Hud.renderMenu`).
+  - **Root screen:** the name field, the modes (each with its map count), settings, controls.
+  - **Maps screen:** the maps that have the mode. Picking one builds it behind the menu, and DEPLOY lights once it's built. Back keeps the mode.
+- **The player's name** (default *Artem*, kept per browser, cleaned to plain text, 14 characters):
+  - the HUD callsign over the vitals (with ALPHA in TDM);
+  - under the arrow on the minimap;
+  - the kill feed, KILLED BY and the scoreboard.
+
+  Keys typed into the field no longer reach the game.
+- **Choose next map:** TDM's VICTORY/DEFEAT screen and survival's death screen list every map with the same mode. The current map comes first as REMATCH (a restart), and MAIN MENU is a small button.
+  - Another map goes through `Game.nextMap`: a new `loading` state, the outgoing mode's teardown, a full unload and build, then the intro.
+  - `unloadLevel` now also calls `tdm.dropLevel()`: the minimap, the team contexts (whose prototype was the old enemy context), and the match arrays.
+
+### Bot identity
+A pool of 30 mercenary callsigns (`enemies/Callsigns.ts`). Every match deals ten different ones to both teams, never the player's name. The Russian names and the fixed animal squad are gone.
+
+### The loadout system
+- **Unified armory** (`entities/weapons/armory.ts`): Kitsune-9 (plasma SMG), Jackal AR, Boar M12 shotgun, on every map.
+  - `LevelInfo.arsenal` became `enemies` (the survival look) plus `storyWeapon` (Tokyo's story keeps the Kitsune).
+  - Each entry is the player's `WeaponSpec` and a bot profile (`BotArm`): damage share, pellets, magazine and bursts, strafe band, aim ranges, effective range, push range, the round's look, and the rig gun's proportions.
+- **The player's pick** (`gameplay/Loadout.ts`, `ui/LoadoutView.ts`, keys 1–3 or a click):
+  - over the match intro (the keys don't skip it) and the first 3 s of play: swaps at once;
+  - on TDM's respawn timer: queued for the next life, applied at the respawn;
+  - remembered per browser.
+- **Bots:** a gun dealt at every spawn, at most two of one gun on a team. The brain reads all its fire and range numbers from the gun (the rifle profile is exactly 7.0–12.0's `ARENA` rifle).
+  - Shotgun shells fire eight pellets with one report and one casing.
+  - The feed shows the killer's gun (SMG / AR / SG), and the scoreboard shows each player's last gun.
+- **Ranges tuned from kill distances (L-103):** the shotgun's effective range is 12 m (it had been 18 m: a 13–16 m median kill), and the SMG's 25 m (32 m had it out-ranging the rifle on the desert).
+
+### Validation
+- **Tests:** 202 (16 new: armory, loadout, name, callsigns, bot aim by gun, the menu state machine). The build is OK, and the DEV tools stay out of the bundle.
+- **Browser:**
+  - real clicks: root → TDM → Docks → DEPLOY;
+  - key 3 over the intro picks the shotgun without skipping it;
+  - a death, key 1, respawn with the SMG (4.0 s);
+  - the HUD, minimap and feed show the name and the guns;
+  - a survival death → Jungle (the deploy note, no death screen left);
+  - a TDM rematch (fresh tickets, new names, the picker).
+- **Memory (`node scripts/leakcheck.mjs 2`):** desert → docks → jungle twice through the result screen's real cards, a forced full GC at every map, every left level tagged.
+  - **0 of 48 tagged objects alive.**
+  - Heap after GC: 13.3–16.0 MB on lap 1, 15.6–16.5 MB on lap 2, then 16.0 MB.
+  - Scene objects and DOM nodes are identical lap over lap.
+  - Geometries +16/+8 once (the shared shape cache warming), then flat. One minimap at all times.
+  - In-page WeakRefs alone reported false leaks (L-101).
+- **Weapon ranges:** `tdmSim` on three maps, three matches each. Median kill: shotgun 7–10.6 m, SMG 9–18 m, rifle 12–32 m. 0 stuck, 0 friendly damage, sight-to-shot medians 0.1–0.42 s.
+- **Performance** (`docs/BENCH-13.0.json`): this session ran on battery at 16%, and Chrome's Energy Saver held every page at 30 Hz (a bare rAF loop: 30.1 Hz), so FPS reads 30 everywhere.
+  - Work per frame: `bench(3)` on the docks 1.7–4.2 ms CPU + 3.5–4.8 ms GPU.
+  - `tdmBench` on the desert with the player: 3.2 ms CPU + 4.2 ms GPU (random guns), 3.0 + 4.7 ms (all shotguns). That is under half the 16.7 ms budget.
+  - **To do on mains power:** re-run `bench(3)` for the 60 FPS figure.
+
 ## Next
 Human playtest:
+- 13.0 items: the mode-first menu and the name field; picking a gun over the intro and on the respawn timer (is 3 s in the spawn yard enough?); do shotgun bots rushing and rifle bots hanging back read as different players; is the Kitsune too strong as an SMG (27 per bolt against bots); going straight to the next map after a match.
 - 12.0 items: the slide's length and speed (1.2 s, 6 m), sliding into a firefight with ADS, the minimap (does a fading red dot feel fair or like a wallhack), do the bots' flanks and retreats read as players, is the storm-heavy desert fun or exhausting, the rooftop and culvert routes.
 - 11.0 items: ADS feel (the 0.2 s raise, the zoom per weapon, the red dot, recoil with the sights up), crouch (toggle vs hold, speed), can you read a bot raising its rifle at 20–40 m and does that warning feel fair, is the desert's 35–40 m fighting fun, are the jungle fights too slow.
 - 9.1: the warehouse stairs (and every stair beside a wall) from all angles: any flicker left?

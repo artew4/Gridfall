@@ -10,6 +10,7 @@ import { ARENA, type ArenaCtx } from './ArenaCtx';
 import type { Seen, SenseAgent } from './Sensing';
 import type { ArenaContact } from './ArenaDirector';
 import { ARENA_SEE, contrastAt, densityOfSightRange, fogRange } from '../../world/Visibility';
+import { ARMORY, type BotArm } from '../../entities/weapons/armory';
 
 /*
   The deathmatch brain (7.0): one per arena bot. Two rates, like 5.0, but both fast:
@@ -101,6 +102,8 @@ export function flankPoint(c: { x: number; z: number }, from: { x: number; z: nu
 export interface ArenaBody extends Combatant {
   readonly kind: 'gunner' | 'runner';
   readonly speed: number;
+  /** 13.0: the armory gun it carries this life: fire rates, magazine, and the ranges it fights at. */
+  readonly arm: BotArm;
   readonly look: { voice: Voice };
   yaw: number;
   crouch: number;
@@ -130,17 +133,18 @@ export interface ArenaBody extends Combatant {
 
 /**
  * 11.0: aim at this range? Over `enter` m starts an aimed shot; once aiming it holds down to `exit`
- * (hysteresis, no flicker at the border); never beyond `maxRange` (it moves up instead).
+ * (hysteresis, no flicker at the border); never beyond `maxRange` (it moves up instead). 13.0: the
+ * ranges are the gun's (the rifle's are 11.0's); a gun without sights (the shotgun) never aims.
  */
-export function wantsAim(d: number, aiming: boolean) {
-  const a = ARENA.ads;
-  return d > (aiming ? a.exit : a.enter) && d <= a.maxRange;
+export function wantsAim(d: number, aiming: boolean, arm: BotArm = ARMORY.ar.bot) {
+  const a = arm.aim;
+  return !!a && d > (aiming ? a.exit : a.enter) && d <= arm.maxRange;
 }
 
 /** 11.0: how long an aimed shot takes to settle at range `d` (s): longer further out, capped. */
-export function focusFor(d: number) {
+export function focusFor(d: number, arm: BotArm = ARMORY.ar.bot) {
   const a = ARENA.ads;
-  return Math.min(a.focus[1], a.focus[0] + Math.max(0, d - a.enter) * a.focusPerM);
+  return Math.min(a.focus[1], a.focus[0] + Math.max(0, d - (arm.aim?.enter ?? a.enter)) * a.focusPerM);
 }
 
 const _aim = new THREE.Vector3();
@@ -159,10 +163,10 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   /** Where it aims (the target's chest, led by its velocity over the bolt's flight). */
   readonly aimPoint = new THREE.Vector3();
   bloom = ARENA.bloom;
-  ammo = ARENA.mag;
+  ammo: number;
   /** > 0: reloading, seconds left. */
   reloadT = 0;
-  private burstLeft = ARENA.burst;
+  private burstLeft: number;
   private shotT = 0;
   private strafeDir = 1;
   private flipT = 0;
@@ -205,6 +209,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
 
   constructor(readonly self: ArenaBody, persona?: Persona) {
     this.persona = persona ?? drawPersona();
+    this.ammo = self.arm.mag;
+    this.burstLeft = self.arm.burst;
   }
 
   /**
@@ -398,7 +404,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       // A blade has one way to fight, close in; a claimed rush on someone hurt is a push (it counts,
       // it barks, two at most). A gunner pushes only what it can see.
       // 11.0: a gunner rushes only what is within pushRange; further out it keeps aiming.
-      const reach = !gunner || dT <= ARENA.pushRange;
+      const reach = !gunner || dT <= me.arm.pushRange;
       if (!pushing && hurt && reach && (tv || !gunner) && dir.claimPush(me.uid, T.uid, now, !gunner)) {
         this.pushUntil = now + ARENA.pushMax;
         pushing = true;
@@ -747,7 +753,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const sprint = me.speed * (gunner ? ARENA.sprint : 1.05);
     if (this.swing) {
       this.melee(dt, ctx, desired);
-    } else if (this.state === 'engage' && gunner && T && Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > ARENA.ads.maxRange) {
+    } else if (this.state === 'engage' && gunner && T && Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > me.arm.maxRange) {
       // Out of effective range: sprint up (no shots, see gun()) until it is in range.
       me.steer(T.pos, sprint, ctx, dt, desired);
     } else if (this.state === 'engage' && gunner && T) {
@@ -856,7 +862,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.strafeDir = -this.strafeDir;
       this.flipT = rand(ARENA.flip[0], ARENA.flip[1]);
     }
-    const [lo, hi] = ARENA.band;
+    const [lo, hi] = me.arm.band;
     // 12.0: a bold bot keeps a closer band, a careful one a longer one.
     const ag = this.persona.aggro;
     const radial = away ? -0.7 : me.kind === 'runner' ? 1 : d < lo / ag ? -0.6 : d > hi / ag ? 0.6 : Math.sin(ctx.time * 0.9 + this.seed) * 0.25;
@@ -866,17 +872,18 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
 
   private gun(dt: number, ctx: EnemyCtx, A: ArenaCtx, T: Combatant | null, strafing: boolean) {
     const me = this.self;
+    const arm = me.arm;
     if (this.reloadT > 0) {
       this.reloadT -= dt;
       if (this.reloadT <= 0) {
-        this.ammo = ARENA.mag;
-        this.burstLeft = ARENA.burst;
+        this.ammo = arm.mag;
+        this.burstLeft = arm.burst;
         this.urgent = true;
       }
       return;
     }
     if (this.ammo <= 0) {
-      this.reloadT = ARENA.reload;
+      this.reloadT = arm.reload;
       this.urgent = true;
       return;
     }
@@ -888,7 +895,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (err > ARENA.fireCone) return;
     // Aimed: nothing leaves the barrel until it has settled on the target; nothing beyond effective range.
     if (this.aiming && this.focusT < this.focusNeed) return;
-    if (Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > ARENA.ads.maxRange) return;
+    if (Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > arm.maxRange) return;
     let bloom = this.bloom;
     if (this.state === 'push') bloom = Math.min(bloom, ARENA.pushBloomMax);
     // Fog: aim degrades with the contrast lost on the way (and nothing is fired past fog sight).
@@ -906,11 +913,11 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // Aimed: pinpoint (no bloom; a walking strafe adds a touch). Hip: the 7.0 cone, wider by hipSpread.
     const spread = this.aiming
       ? ARENA.ads.spread + this.jitter + fog + (strafing ? ARENA.strafeSpread * 0.3 : 0)
-      : ARENA.spread + ARENA.hipSpread + bloom + this.jitter + fog + (strafing ? ARENA.strafeSpread : 0) + (me.airborne ? ARENA.airSpread : 0) + (me.sliding ? ARENA.slide.spread : 0);
+      : ARENA.spread + arm.hipSpread + bloom + this.jitter + fog + (strafing ? ARENA.strafeSpread : 0) + (me.airborne ? ARENA.airSpread : 0) + (me.sliding ? ARENA.slide.spread : 0);
     const range = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
     const r = me.fireRound(ctx, _aim, spread, { aimed: this.aiming, range });
     if (r === 'friend') {
-      this.shotT = ARENA.burstGap;
+      this.shotT = Math.min(ARENA.burstGap, arm.burstGap);
       return;
     }
     if (r !== 'fired') return;
@@ -930,10 +937,10 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     }
     this.ammo--;
     // Aimed: short controlled bursts with a longer rest; hip: the long 7.0 bursts.
-    if (--this.burstLeft > 0) this.shotT = ARENA.burstGap;
+    if (--this.burstLeft > 0) this.shotT = arm.burstGap;
     else {
-      this.burstLeft = this.aiming ? ARENA.ads.burst : ARENA.burst;
-      this.shotT = this.aiming ? ARENA.ads.burstRest : ARENA.burstRest;
+      this.burstLeft = this.aiming && arm.aim ? arm.aim.burst : arm.burst;
+      this.shotT = this.aiming && arm.aim ? arm.aim.burstRest : arm.burstRest;
     }
   }
 
@@ -952,13 +959,13 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (can && tv) {
       this.lostT = 0;
       const d = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
-      const far = wantsAim(d, this.aiming);
+      const far = wantsAim(d, this.aiming, me.arm);
       if (far && !this.aiming) {
         this.aiming = true;
         // Back on the same face after a moment's break: the focus it had stands.
         if (this.droppedOn !== T || now - this.droppedAt > a.keep) this.focusT = 0;
-        this.focusNeed = focusFor(d) * this.persona.patience;
-        this.burstLeft = Math.min(this.burstLeft, a.burst);
+        this.focusNeed = focusFor(d, me.arm) * this.persona.patience;
+        this.burstLeft = Math.min(this.burstLeft, me.arm.aim?.burst ?? a.burst);
       } else if (!far && this.aiming) this.lower(now);
     } else if (can && this.aiming && st === 'engage') {
       // It holds the angle a moment after the target ducks out of view (not while it runs a hunt).

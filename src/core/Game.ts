@@ -38,10 +38,17 @@ import { nearMissDose } from '../enemies/tactics/Squad';
 import { buildCoverSpots } from '../enemies/tactics/CoverSpots';
 import { PlayerUnit, registerUnit } from '../combat/PlayerUnit';
 import type { Combatant } from '../combat/Team';
+import { ARMORY, armoryByKey, type WeaponId } from '../entities/weapons/armory';
+import { Loadout } from '../gameplay/Loadout';
+import { LoadoutView } from '../ui/LoadoutView';
+import { cleanName, loadName, saveName } from '../gameplay/PlayerName';
+import { menuStep, nextMaps, type MenuEvent, type MenuState } from '../ui/MenuFlow';
+import { TDM } from '../levels/Tdm';
 
 export type { Mode };
 
-type State = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending';
+/** 13.0: 'loading' is a map change from a result screen (the old level going, the next one building). */
+type State = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending' | 'loading';
 
 /** Something the player can use with E when close and facing it. */
 export type { Interactable };
@@ -98,6 +105,14 @@ export class Game {
   tdm = new TdmRules(this);
   tdmHud: TdmHud;
   tdmScreen: TdmScreen;
+  /** 13.0: the weapon he carries and the one he asked for next (every mode but the story), and its picker. */
+  loadout = new Loadout();
+  loadoutView: LoadoutView;
+  private loadoutKey = '';
+  /** 13.0: his name (main menu), on the HUD, the minimap, the feed and the scoreboard. */
+  playerName = loadName();
+  /** 13.0: the main menu's state (MenuFlow): root, the maps of a mode, controls. */
+  private menuState: MenuState = { screen: 'root', mode: null, map: null };
   /** The player is dead and the mode will respawn him (no death screen). */
   private respawning = false;
   private stateBeforePause: State = 'play';
@@ -168,6 +183,9 @@ export class Game {
         this.audio.callout(e.speaker.pos.clone().setY(e.speaker.pos.y + 1.6), e.speaker.look.voice, e.text.split(/\s+/).length, e.kind === 'go' || e.kind === 'contact');
       };
     this.storyHud.show(false);
+    this.loadoutView = new LoadoutView(document.body);
+    this.loadoutView.onPick = (id) => this.pickWeapon(id);
+    this.tdm.playerArm = () => this.loadout.entry.bot;
     this.endScreen = new EndScreen(document.body);
     this.settings = loadSettings();
     this.menu = new PauseMenu(document.body, this.settings);
@@ -188,6 +206,7 @@ export class Game {
       /* fonts API unavailable: fall back silently */
     }
     this.hud.setLevels(LEVEL_ORDER.map((id) => levelEntry(id).info));
+    this.hud.nameInput.value = this.playerName;
     const first = savedSetting();
     this.hud.selectLevel(levelEntry(first).info, true);
     // Let the title paint before the heavy procedural build.
@@ -310,7 +329,7 @@ export class Game {
 
     this.player = new Player(this.col, this.audio);
     this.player.reset(d.start.x, d.start.z, d.start.yaw, d.start.y ?? 0);
-    this.playerUnit = new PlayerUnit(this.player);
+    this.playerUnit = new PlayerUnit(this.player, { name: this.playerName });
     this.playerUnit.onHurt = (dmg, from, by) => this.damagePlayer(dmg, from, by);
     this.playerUnit.isReloading = () => this.weapon.reloading;
     registerUnit(this.player, this.playerUnit);
@@ -322,12 +341,11 @@ export class Game {
       aboard: (p) => level.aboard(p),
     });
     this.safety.reset(this.player.pos);
-    // The setting's arsenal: the player's weapon, the enemies' look (and their rounds).
-    const arsenal = level.info.arsenal;
-    this.weapon.setSpec(arsenal.weapon);
-    this.hud.setWeapon(arsenal.weapon.name, arsenal.weapon.jp, arsenal.weapon.mag, this.weapon.lowAmmo);
-    this.waves.look = arsenal.enemies;
-    this.projectiles = new Projectiles(s, this.col, this.fx, this.audio, arsenal.enemies);
+    // 13.0: the weapon is the player's (the loadout; the story's own in story mode), not the level's;
+    // the level gives the survival enemies' look (and their rounds).
+    this.armPlayer();
+    this.waves.look = level.info.enemies;
+    this.projectiles = new Projectiles(s, this.col, this.fx, this.audio, level.info.enemies);
     this.projectiles.onPlayerHit = (dmg, from, by) => {
       this.waves.squad.player.pressureT = this.playerUnit.pressureT = this.elapsed;
       this.damagePlayer(dmg, from, by);
@@ -384,6 +402,8 @@ export class Game {
   private unloadLevel() {
     this.intro?.dispose();
     this.intro = null;
+    // 13.0: TDM's per-level things (the minimap's plan, the team contexts on the old world).
+    this.tdm.dropLevel();
     this.waves.reset(this.scene);
     this.barkView.clear();
     this.projectiles.clear();
@@ -416,12 +436,69 @@ export class Game {
       this.loading = false;
     }
     this.hud.selectLevel(this.level.info, false);
+    this.rememberSetting(id);
+  }
+
+  private rememberSetting(id: SettingId) {
     try {
       localStorage.setItem(SETTING_KEY, id);
     } catch {
       /* storage blocked: the choice lasts this session */
     }
-    if (!this.level.info.modes.includes(this.mode)) this.mode = this.level.info.modes[0];
+  }
+
+  /** 13.0: a main-menu event through the state machine; builds the picked map behind the menu. */
+  private menuEvent(e: MenuEvent) {
+    this.menuState = menuStep(this.menuState, e, LEVEL_ORDER.map((id) => levelEntry(id).info), this.setting);
+    this.hud.renderMenu(this.menuState);
+    const want = this.menuState.map;
+    if (this.menuState.screen === 'maps' && want && want !== this.setting) void this.selectSetting(want);
+  }
+
+  // ------------------------------------------------------------------ loadout (13.0)
+  /** The weapon for the mode about to be played: the story's own, else the loadout's. */
+  private armPlayer() {
+    const story = this.mode === 'story' ? this.level.info.storyWeapon : undefined;
+    if (!story) this.loadout.commit();
+    const spec = ARMORY[story ?? this.loadout.current].spec;
+    this.weapon.setSpec(spec);
+    this.hud.setWeapon(spec.name, spec.jp, spec.mag, this.weapon.lowAmmo);
+  }
+
+  /**
+   * When the picker is up: 'swap' (the match intro, the first seconds in the spawn yard: a pick
+   * changes the gun at once) or 'queue' (TDM, waiting to respawn: for the next life); else null.
+   */
+  private loadoutPhase(): 'swap' | 'queue' | null {
+    if (this.mode === 'story' || this.loading) return null;
+    if (this.state === 'intro') return 'swap';
+    if (this.state === 'play' && this.player.alive && this.elapsed - this.stats.start < TDM.loadoutGrace && !this.stats.shots) return 'swap';
+    if (this.state === 'dead' && this.respawning && this.rules === this.tdm && !this.tdm.winner) return 'queue';
+    return null;
+  }
+
+  private pickWeapon(id: WeaponId) {
+    const phase = this.loadoutPhase();
+    if (!phase) return;
+    if (this.loadout.queue(id) || phase === 'swap') this.audio.uiBlip();
+    if (phase === 'swap' && this.loadout.commit()) {
+      this.armPlayer();
+      this.weapon.reset();
+      this.weapon.raiseTarget = this.state === 'play' ? 1 : this.weapon.raiseTarget;
+    }
+  }
+
+  /** Keys 1–3 while the picker is up; the picker shown or hidden (DOM touched only on a change). */
+  private updateLoadout() {
+    const phase = this.loadoutPhase();
+    if (phase) for (const code of this.input.pressed) {
+      const e = armoryByKey(code);
+      if (e) this.pickWeapon(e.id);
+    }
+    const key = phase ? `${phase}:${this.loadout.queued}:${this.loadout.current}` : '';
+    if (key === this.loadoutKey) return;
+    this.loadoutKey = key;
+    this.loadoutView.show(!!phase, this.loadout.queued, this.loadout.current, phase === 'queue');
   }
 
   /** Switch mode rules; the outgoing mode cleans up what it set up (TDM's bots, its HUD). */
@@ -457,6 +534,7 @@ export class Game {
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
     // Main menu.
+    // 13.0: mode first, then the map (ui/MenuFlow.ts), then DEPLOY.
     this.hud.title.addEventListener('click', (e) => {
       if (!this.ready || this.state !== 'title') return;
       const el = (e.target as HTMLElement).closest<HTMLElement>('[data-mode],[data-act],[data-setting]');
@@ -465,23 +543,38 @@ export class Game {
       this.applySettings();
       this.startLevelAudio();
       this.audio.uiBlip();
-      if (el.dataset.setting) return void this.selectSetting(el.dataset.setting as SettingId);
+      if (el.dataset.mode) return this.menuEvent({ type: 'mode', mode: el.dataset.mode as Mode });
+      if (el.dataset.setting) return this.menuEvent({ type: 'map', id: el.dataset.setting as SettingId });
       const act = el.dataset.act;
       if (act === 'settings') return this.menu.show(true, 'settings');
-      if (act === 'controls') return this.hud.showControls(true);
-      if (act === 'back') return this.hud.showControls(false);
-      if (this.loading) return;
-      const mode: Mode = el.dataset.mode === 'arcade' || el.dataset.mode === 'tdm' ? el.dataset.mode : 'story';
-      if (!this.level.info.modes.includes(mode)) return;
-      this.mode = mode;
+      if (act === 'controls') return this.menuEvent({ type: 'controls' });
+      if (act === 'back') return this.menuEvent({ type: 'back' });
+      if (act !== 'deploy' || this.loading) return;
+      const st = this.menuState;
+      if (!st.mode || st.map !== this.setting || !this.level.info.modes.includes(st.mode)) return;
+      this.mode = st.mode;
       this.hud.show(this.hud.title, false);
       this.input.requestLock();
       this.startIntro();
     });
+    const name = this.hud.nameInput;
+    name.addEventListener('input', () => {
+      this.playerName = cleanName(name.value);
+      saveName(this.playerName);
+    });
+    name.addEventListener('change', () => (name.value = this.playerName));
+    name.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === 'Escape') name.blur();
+    });
     this.hud.death.addEventListener('click', (e) => {
       if (this.state !== 'dead' || this.deadT <= 1.2) return;
+      const t = e.target as HTMLElement;
+      // 13.0: survival's next-map block (the map just played is a restart).
+      const map = t.closest<HTMLElement>('[data-map]');
+      if (map) return void this.nextMap(map.dataset.map as SettingId);
+      if (t.closest('.next-maps [data-act="menu"]')) return void this.toTitle();
       // Story: retry from the checkpoint (the RESTART STORY button starts over).
-      const full = (e.target as HTMLElement).closest('[data-act="full"]');
+      const full = t.closest('[data-act="full"]');
       this.restart(this.mode === 'story' && !full);
     });
     this.renderer.canvas.addEventListener('click', () => {
@@ -502,10 +595,7 @@ export class Game {
       this.restart(false);
     };
     this.endScreen.onMenu = () => void this.toTitle();
-    this.tdmScreen.onRematch = () => {
-      this.tdmScreen.hide();
-      this.restart(false);
-    };
+    this.tdmScreen.onNextMap = (id) => void this.nextMap(id);
     this.tdmScreen.onMenu = () => void this.toTitle();
     this.menu.onChange = (s) => {
       this.applySettings();
@@ -519,7 +609,10 @@ export class Game {
       if (!locked && (this.state === 'play' || this.state === 'intro')) this.pause();
       else if (locked && this.state === 'paused') this.resume();
     };
-    this.input.onAnyKey = () => this.skipIntro();
+    // 13.0: 1–3 pick a gun over the intro; they don't skip it.
+    this.input.onAnyKey = (code) => {
+      if (!armoryByKey(code)) this.skipIntro();
+    };
     window.addEventListener('mousedown', () => this.skipIntro());
   }
 
@@ -569,6 +662,13 @@ export class Game {
     this.hud.show(this.hud.root, true);
     this.hud.root.classList.toggle('story', this.mode === 'story');
     if (!fromCheckpoint) this.stats = { shots: 0, hits: 0, start: this.elapsed };
+    // 13.0: his name and his gun for this run (the story hands him its own).
+    this.playerUnit.name = this.playerName;
+    this.hud.setCallsign(this.playerName, this.mode === 'tdm' ? 'ALPHA' : null);
+    if (!fromCheckpoint) {
+      this.armPlayer();
+      this.weapon.reset();
+    }
     this.zone = null;
     this.interaction.reset();
     this.rules.begin(fromCheckpoint);
@@ -834,6 +934,8 @@ export class Game {
             kills: d.kills,
             accuracy: this.stats.shots ? this.stats.hits / this.stats.shots : 0,
             time: this.elapsed - this.stats.start,
+            // 13.0: survival goes on to any survival map from here.
+            next: this.mode === 'arcade' ? nextMaps('arcade', this.setting, LEVEL_ORDER.map((id) => levelEntry(id).info)) : undefined,
           });
         }
       }
@@ -850,6 +952,7 @@ export class Game {
       this.hud.setAim(this.player.ads);
     }
 
+    if (this.ready) this.updateLoadout();
     if (!paused) this.updateWorld(dt, rawDt);
     this.updateMusic(dt);
     this.hud.update(rawDt);
@@ -870,6 +973,8 @@ export class Game {
   revive(at: THREE.Vector3, yaw: number) {
     this.player.reset(at.x, at.z, yaw, at.y);
     this.safety.reset(this.player.pos);
+    // 13.0: the gun he queued while he was down.
+    this.armPlayer();
     this.weapon.reset();
     this.weapon.raiseTarget = 1;
     this.weapon.setHolstered(false, true);
@@ -892,14 +997,68 @@ export class Game {
     if (document.pointerLockElement) document.exitPointerLock();
     this.hud.show(this.hud.root, false);
     this.tdmHud.show(false);
-    this.tdmScreen.show(won, tickets, lines, time);
+    this.tdmScreen.show(won, tickets, lines, time, nextMaps('tdm', this.setting, LEVEL_ORDER.map((id) => levelEntry(id).info)));
+  }
+
+  /**
+   * 13.0: straight from a result screen into another map of the same mode (the one just played is a
+   * rematch: a restart, no rebuild). The outgoing mode cleans up first (its bots, HUD and per-level
+   * state), then the level is freed and the new one built as a menu switch would, then the intro
+   * runs (with the loadout picker). Nothing of the old map may survive: __dev.mapCycle() checks.
+   */
+  async nextMap(id: SettingId) {
+    if (this.loading || !LEVELS[id] || !levelEntry(id).info.modes.includes(this.mode)) return;
+    if (id === this.setting) {
+      this.tdmScreen.hide();
+      this.restart(false);
+      return;
+    }
+    this.loading = true;
+    // Its own state: nothing of the run's frame logic (the death screen, the slow motion) runs on.
+    this.state = 'loading';
+    this.tdmScreen.deploying(levelEntry(id).info);
+    this.hud.show(this.hud.death, false);
+    this.hud.show(this.hud.root, false);
+    this.respawning = false;
+    this.rules.toTitle();
+    this.rules = this.arcade;
+    this.renderer.grade.uniforms.uFade.value = 1;
+    // Let the note paint before the synchronous build.
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 20)));
+    try {
+      this.loadLevel(id);
+    } finally {
+      this.loading = false;
+    }
+    this.rememberSetting(id);
+    this.hud.selectLevel(this.level.info, false);
+    this.resetRun();
+    this.tdmScreen.hide();
+    this.input.requestLock();
+    this.startIntro();
+  }
+
+  /** What a run leaves on the engine (shared by the menu and a map change). */
+  private resetRun() {
+    this.weapon.reset();
+    this.weapon.setHolstered(false, true);
+    this.weapon.raiseTarget = 0;
+    this.timeScale = 1;
+    this.damageFx = 0;
+    this.failReason = '';
+    this.zone = this.zoneCandidate = null;
+    this.interaction.reset();
+    const g = this.renderer.grade.uniforms;
+    g.uLetterbox.value = 0;
+    g.uDamage.value = 0;
+    g.uFlash.value = 0;
   }
 
   private updateMusic(dt: number) {
     const s = this.state === 'paused' ? this.stateBeforePause : this.state;
     // The menu theme on the title (and while a level loads behind it); the setting's own track from
     // the intro on. Intensity drives the procedural layers: quiet when dead, flat in the menus.
-    const inLevel = s === 'intro' || s === 'play' || s === 'dead' || s === 'ending';
+    const inLevel = s === 'intro' || s === 'play' || s === 'dead' || s === 'ending' || s === 'loading';
     const intensity = s === 'play' && this.player ? this.rules.musicIntensity() : s === 'dead' ? 0.05 : 0.02;
     this.music.update(dt, inLevel && !this.loading ? this.level.info.music : 'menu_theme', intensity);
   }
@@ -967,14 +1126,8 @@ export class Game {
     } finally {
       this.loading = false;
     }
-    this.weapon.reset();
-    this.weapon.setHolstered(false, true);
-    this.weapon.raiseTarget = 0;
-    this.timeScale = 1;
-    this.damageFx = 0;
-    this.failReason = '';
-    this.zone = this.zoneCandidate = null;
-    this.interaction.reset();
+    this.resetRun();
+    this.menuState = { ...this.menuState, screen: this.menuState.mode ? 'maps' : 'root', map: this.setting };
     this.hud.selectLevel(this.level.info, false);
   }
 

@@ -27,7 +27,7 @@ export const PRESETS: Record<QualityPreset, PresetSpec> = {
 
 export const FPS_CAPS: FpsCap[] = [30, 60, 90, 120];
 
-export type LoopState = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending' | 'endcard';
+export type LoopState = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending' | 'endcard' | 'loading';
 
 /**
  * How often to draw in each state. Menus and the title don't need the full rate; a paused game

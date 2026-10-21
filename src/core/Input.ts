@@ -13,14 +13,16 @@ export class Input {
   onLockChange: (locked: boolean) => void = () => {};
   /** The browser refused pointer lock (e.g. re-locking too soon after Esc). */
   onLockError: () => void = () => {};
-  onAnyKey: () => void = () => {};
+  onAnyKey: (code: string) => void = () => {};
 
   constructor(private element: HTMLElement) {
     window.addEventListener('keydown', (e) => {
+      // 13.0: typing in a menu field (the player's name) is not play.
+      if (isTyping(e.target)) return;
       if (CAPTURED.has(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);
-      this.onAnyKey();
+      this.onAnyKey(e.code);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => {
@@ -78,4 +80,9 @@ export class Input {
     this.mouseDY = 0;
     this.mouseClicked = false;
   }
+}
+
+function isTyping(t: EventTarget | null) {
+  const el = t as HTMLElement | null;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Gunner, Runner, type EnemyCtx } from '../Enemy';
 import type { EnemyLook } from '../../entities/types';
+import { ARMORY, type BotArm } from '../../entities/weapons/armory';
 import type { Combatant } from '../../combat/Team';
 import type { BarkKind } from '../tactics/Barks';
 import { damp, lerp, rand } from '../../core/math';
@@ -19,6 +20,9 @@ import { newSlip, openAt, startSlip, stepAir, stepSlip, vaultAhead, type Air } f
 */
 
 const _d = new THREE.Vector3();
+const _aimDir = new THREE.Vector3();
+const _side = new THREE.Vector3();
+const _up = new THREE.Vector3();
 
 /** 12.0: a slide ends at this share of the body's base speed (its crouch walk). */
 const SLIDE_END = 0.55;
@@ -66,10 +70,15 @@ export class ArenaGunner extends Gunner implements ArenaBody {
   private slipK = 0;
   private made = Infinity;
 
-  constructor(spawn: THREE.Vector3, difficulty: number, scene: THREE.Scene, look: EnemyLook) {
+  /**
+   * 13.0: `arm` is the armory gun dealt to it for this life (how it fires, how hard, at what ranges);
+   * the rig's gun is stretched to read as it (a stubby SMG, a long rifle, a bulky shotgun).
+   */
+  constructor(spawn: THREE.Vector3, difficulty: number, scene: THREE.Scene, look: EnemyLook, readonly arm: BotArm = ARMORY.ar.bot) {
     super(spawn, difficulty, scene, null, look);
     this.brain = new DeathmatchBrain(this);
-    this.tac.ammo = ARENA.mag;
+    this.tac.ammo = arm.mag;
+    this.rig.weapon?.scale.set(arm.model.bulk, arm.model.bulk, arm.model.length);
   }
 
   get airborne() {
@@ -162,14 +171,26 @@ export class ArenaGunner extends Gunner implements ArenaBody {
       this.heldFire++;
       return 'friend';
     }
-    const dir = aim.clone().sub(muzzle).normalize();
-    dir.x += rand(-spread, spread);
-    dir.y += rand(-spread, spread) * 0.66;
-    dir.z += rand(-spread, spread);
-    dir.normalize();
-    ctx.projectiles.fire(muzzle, dir, ARENA.boltSpeed, this, tag);
-    ctx.audio.enemyShot(muzzle, this.look.voice);
-    ctx.fx.add.spawn({ x: muzzle.x, y: muzzle.y, z: muzzle.z, r: 5, g: 2.5, b: 0.6, size: 0.45, life: 0.06 });
+    const arm = this.arm;
+    const aimDir = _aimDir.copy(aim).sub(muzzle).normalize();
+    aimDir.x += rand(-spread, spread);
+    aimDir.y += rand(-spread, spread) * 0.66;
+    aimDir.z += rand(-spread, spread);
+    aimDir.normalize();
+    // 13.0: a shell's pellets spread round the aimed line (uniform over the cone's disc); one report.
+    for (let i = 0; i < arm.pellets; i++) {
+      const dir = aimDir.clone();
+      if (arm.pellets > 1) {
+        const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * arm.pelletSpread;
+        _side.set(-dir.z, 0, dir.x).normalize();
+        _up.crossVectors(_side, dir);
+        dir.addScaledVector(_side, Math.cos(a) * r).addScaledVector(_up, Math.sin(a) * r).normalize();
+      }
+      ctx.projectiles.fire(muzzle, dir, ARENA.boltSpeed, this, { tag, round: arm, quiet: i > 0 });
+    }
+    ctx.audio.enemyShot(muzzle, this.look.voice, arm.sound);
+    const [cr, cg, cb] = arm.bolt.core;
+    ctx.fx.add.spawn({ x: muzzle.x, y: muzzle.y, z: muzzle.z, r: cr * 1.2, g: cg * 1.2, b: cb * 1.2, size: arm.pellets > 1 ? 0.65 : 0.45, life: 0.06 });
     this.leanX.impulse(-1.2);
     this.tac.ammo = this.brain.ammo - 1;
     return 'fired';
@@ -194,6 +215,8 @@ export class ArenaRunner extends Runner implements ArenaBody {
   private made = Infinity;
   /** A blade never aims. */
   isAiming = false;
+  /** A blade has no gun; the brain reads the rifle's numbers for it (it never fires). */
+  readonly arm: BotArm = ARMORY.ar.bot;
 
   constructor(spawn: THREE.Vector3, difficulty: number, look: EnemyLook) {
     super(spawn, difficulty, look);

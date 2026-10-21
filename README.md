@@ -32,11 +32,23 @@ No install and no plugin. Open the link, click, play. Desktop browser with a mou
 
 ## The modes
 
+The main menu asks for the mode first, then shows the maps that have it. Type your name on the menu (it starts as *Artem*): it shows on your HUD, under your arrow on the minimap, in the kill feed and on the scoreboard. After a match, the result screen lists the next maps for the same mode, so you can go straight into another map (or a rematch) without the main menu.
+
 - **Story Escape** (Tokyo): you are Arashi Kaito, framed for a bombing, and every patrol in the district has your description. Four acts across the streets, the rooftops and the Sakura Line metro, ending on the last express out. Stealth comes first: keep your weapon holstered and stay out of view cones. If you're seen, break line of sight and lose the search.
 - **Arcade Survival** (Tokyo, Desert, Jungle): wave after wave of enemies who fight as a squad.
-- **Team Deathmatch 5v5** (Desert, Jungle, Docks): you and four allied bots against five, 25 tickets a team, respawns in 3–5 s. You don't command your squad: the bots read what you're doing and play around you.
+- **Team Deathmatch 5v5** (Desert, Jungle, Docks): you and four allied bots against five, 25 tickets a team, respawns in 3–5 s. You don't command your squad: the bots read what you're doing and play around you. Every match deals the ten bots different callsigns (Jax, Nova, Kuro, Viper…) and each bot a gun from the armory at every spawn.
 
 ## Gunplay
+
+- **The armory (13.0):** every gun works on every map. Pick one with **1 / 2 / 3** while a match starts, in the first seconds in your spawn yard, or (in TDM) while you wait to respawn, for your next life:
+
+  | Key | Gun | How it plays |
+  |---|---|---|
+  | 1 | Kitsune-9, plasma SMG | fast, hard-hitting bolts; mid range; quick reload |
+  | 2 | Jackal AR | steady automatic fire; holds every range |
+  | 3 | Boar M12, pump shotgun | eight pellets a shell; lethal up close, useless far |
+
+  The bots carry the same three: a shotgun bot rushes in, a rifle bot hangs back and aims. The story keeps its own gun (the Kitsune).
 
 - **Aim down sights (right mouse):** the view narrows by 15–28% (by weapon), and the gun comes up until its real sights line up with the centre of the screen: the rifle's red dot, the pistol's notch and post, the shotgun's bead.
   - **Steadier:** about half the base spread, a quarter of the movement spread, and less than half the recoil.
@@ -130,6 +142,7 @@ One runtime dependency: `three`.
 | C (tap or hold) | Crouch: a tap toggles, a hold crouches while held. Quieter steps, tighter hip fire, a smaller target; slower. While sprinting: slide |
 | Space | Jump; vault low railings mid-jump |
 | Tab (hold) | Objective overview |
+| 1 / 2 / 3 | Pick your gun: as a match starts, in the first seconds in spawn, or while waiting to respawn (TDM) |
 | Esc | Pause: resume, restart, volume, graphics, quit to menu |
 
 `?setting=tokyo|desert|jungle|docks` in the URL opens a world directly.

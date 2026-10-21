@@ -10,7 +10,6 @@ import { ReflectionCatchers } from '../../world/ReflectionCatchers';
 import { WET4, createStreak, updateStreaks } from '../../world/Ground';
 import { damp } from '../../core/math';
 import { fogRange } from '../../world/Visibility';
-import { JACKAL_AR } from '../../entities/weapons/jackal';
 import { NEON_SYNTHS } from '../../entities/enemies/neon';
 
 export const DOCKS_INFO: LevelInfo = {
@@ -22,7 +21,7 @@ export const DOCKS_INFO: LevelInfo = {
   loading: 'LIGHTING THE DOCKS…',
   windowTitle: 'Gridfall — Neon Docks',
   // OMEGA are synths (neon visors, plasma bolts) on the docks; ALPHA keeps the garrison look.
-  arsenal: { weapon: JACKAL_AR, enemies: NEON_SYNTHS },
+  enemies: NEON_SYNTHS,
   music: 'docks_theme',
   tagline: 'THREE LANES · ONE HARBOUR',
   jpLine: '第七埠頭 · 午前三時',

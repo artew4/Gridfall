@@ -39,7 +39,7 @@ per frame: player → rules.update() → projectiles, interactives → level.upd
 
 ## Entities per setting (3.5)
 
-Each `LevelInfo` carries an `arsenal`: `{ weapon: WeaponSpec, enemies: EnemyLook }` (`src/entities/`).
+Until 12.0 each `LevelInfo` carried an `arsenal`: `{ weapon: WeaponSpec, enemies: EnemyLook }` (`src/entities/`). **13.0:** a level carries only `enemies: EnemyLook` (plus an optional `storyWeapon` for its story mode). The weapons below are now a global armory (`src/entities/weapons/armory.ts`): the player picks one with the loadout (keys 1–3 over the intro, the first seconds in spawn and the TDM respawn timer), and arena bots are dealt one at each spawn. The table records which gun each setting shipped with.
 
 | Setting | Weapon | Enemies |
 |---|---|---|

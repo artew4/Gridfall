@@ -3,12 +3,12 @@ import { ANY, RANGED_ONLY, allows, filterRoster, type Slot } from './Roster';
 import { TDM } from '../levels/Tdm';
 import wavesSrc from './Waves.ts?raw';
 
-const slots: Slot[] = [['MAXIM', 'gunner'], ['ILYA', 'runner'], ['KITE', 'runner']];
+const slots: Slot[] = [['JAX', 'gunner'], ['NOVA', 'runner'], ['KURO', 'runner']];
 
 describe('Roster filtering', () => {
   it('ranged only: every slot kept, blades become gunners, names and count unchanged', () => {
     const r = filterRoster(slots, RANGED_ONLY);
-    expect(r).toEqual([['MAXIM', 'gunner'], ['ILYA', 'gunner'], ['KITE', 'gunner']]);
+    expect(r).toEqual([['JAX', 'gunner'], ['NOVA', 'gunner'], ['KURO', 'gunner']]);
     expect(allows(RANGED_ONLY, 'runner')).toBe(false);
   });
 

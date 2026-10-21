@@ -94,9 +94,3 @@ export interface EnemyLook {
   /** Plasma whine and screech, or rifle crack and shouts. */
   voice: 'synth' | 'human';
 }
-
-/** A setting's entities. */
-export interface Arsenal {
-  weapon: WeaponSpec;
-  enemies: EnemyLook;
-}

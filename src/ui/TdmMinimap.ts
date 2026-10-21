@@ -93,7 +93,7 @@ export class TdmMinimap {
    * One frame: the player at `p` looking along `yaw` (the Player's: -z at 0), allies and spotted
    * hostiles. Cheap: a blit and a few arcs.
    */
-  draw(p: THREE.Vector3, yaw: number, allies: readonly MapDot[], hostiles: readonly MapDot[]) {
+  draw(p: THREE.Vector3, yaw: number, allies: readonly MapDot[], hostiles: readonly MapDot[], name = '') {
     const g = this.g;
     g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     g.clearRect(0, 0, SIZE, SIZE);
@@ -147,6 +147,16 @@ export class TdmMinimap {
     g.lineTo(SIZE / 2 - 5, SIZE / 2 + 5);
     g.closePath();
     g.fill();
+    // 13.0: his name under his arrow.
+    if (name) {
+      g.font = '600 9px ui-monospace, monospace';
+      g.textAlign = 'center';
+      g.textBaseline = 'top';
+      g.fillStyle = 'rgba(0,0,0,0.55)';
+      g.fillText(name, SIZE / 2 + 0.8, SIZE / 2 + 9.8);
+      g.fillStyle = '#e8fbff';
+      g.fillText(name, SIZE / 2, SIZE / 2 + 9);
+    }
   }
 }
 

@@ -1,0 +1,42 @@
+{
+  "version": "13.0",
+  "machine": "Apple M5 laptop, Chrome, Balanced preset",
+  "caveat": "Measured on battery at 16%: Chrome's Energy Saver held requestAnimationFrame at 30 Hz for every page (a bare rAF loop measured 30.1 Hz), and the CPU likely ran down-clocked. FPS could not show 60 in this session; the per-frame CPU and GPU cost is the budget measure (16.7 ms at 60 FPS). Re-run __dev.bench(3) on mains power.",
+  "bench3_docks": {
+    "views": {
+      "alphaYard": { "cpuMs": 2.25, "gpuMs": 3.53 },
+      "stacks": { "cpuMs": 2.83, "gpuMs": 4.57 },
+      "stacksTop": { "cpuMs": 1.65, "gpuMs": 4.36 },
+      "warehouseFloor": { "cpuMs": 3.2, "gpuMs": 4.82 },
+      "catwalk": { "cpuMs": 4.2, "gpuMs": 4.82 },
+      "quay": { "cpuMs": 3.84, "gpuMs": 4.22 },
+      "crane": { "cpuMs": 1.74, "gpuMs": 3.95 },
+      "firefight": { "cpuMs": 3.48, "gpuMs": 4.36 }
+    },
+    "fps": 30,
+    "allValid": true
+  },
+  "tdmBench_desert_withPlayer_20s": {
+    "randomArms": { "cpuMs": 3.24, "gpuMs": 4.15, "aiMsAvg": 1.024, "aiMsP99": 4.6, "aiMsWorst": 8.6, "raysPerFrame": 37.5, "minimapMs": 0.209, "drawCalls": 264, "fps": 30 },
+    "allShotguns_8_pellets": { "cpuMs": 3.02, "gpuMs": 4.72, "aiMsAvg": 0.985, "aiMsP99": 5.0, "aiMsWorst": 7.5, "raysPerFrame": 38.7, "drawCalls": 205, "fps": 30 }
+  },
+  "weaponRanges_tdmSim_3_matches_per_map": {
+    "note": "median kill range (m) per gun, min..max over 3 matches; 0 stuck, 0 friendly damage in all 9",
+    "desert": { "SG": [7.8, 10.6], "SMG": [13.2, 17.8], "AR": [24.6, 32.2], "matchS": [164.3, 171.2] },
+    "docks": { "SG": [7.0, 9.6], "SMG": [9.3, 12.6], "AR": [12.0, 17.5], "matchS": [158.9, 169.8] },
+    "jungle": { "SG": [9.3, 9.8], "SMG": [11.0, 13.7], "AR": [11.6, 16.0], "matchS": [181.4, 182.9] },
+    "beforeRangeTuning": { "desert": { "SG": 15.7, "SMG": 27.4, "AR": 21.7 }, "docks": { "SG": 12.8, "SMG": 14.0, "AR": 16.4 } }
+  },
+  "leakcheck_cdp_forcedGC": {
+    "loop": "desert -> docks -> jungle, 2 laps, through the result screen's next-map cards",
+    "heapMBAfterForcedGC": { "lap0": [13.3, 14.6, 16.0], "lap1": [15.6, 16.3, 16.5], "end": 16.0 },
+    "geometries": { "lap0": [168, 230, 219], "lap1": [184, 238, 219], "end": 184 },
+    "textures": { "lap0": [44, 43, 53], "lap1": [45, 44, 53] },
+    "sceneObjects": { "lap0": [448, 486, 475], "lap1": [448, 486, 475] },
+    "domNodes": { "lap0": [299, 302, 302], "lap1": [302, 302, 302] },
+    "minimaps": 1,
+    "taggedObjectsFromLeftLevels": 48,
+    "aliveAfterForcedGC": 0,
+    "buildMsClickToLevel": [201, 916]
+  }
+}

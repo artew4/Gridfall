@@ -17,6 +17,8 @@ import { ARENA_SEE, fogRange } from '../world/Visibility';
 import { RANGED_ONLY, filterRoster, type RosterRequest, type Slot as RosterSlot, type UnitKind } from '../enemies/Roster';
 import { otherTeam, TEAMS, type Combatant, type TeamId } from '../combat/Team';
 import { DESERT_GARRISON } from '../entities/enemies/mercs';
+import { ARMORY, dealArm, type BotArm, type WeaponId } from '../entities/weapons/armory';
+import { dealCallsigns } from '../enemies/Callsigns';
 import { rand } from '../core/math';
 import type { TdmLine } from '../ui/TdmHud';
 
@@ -65,6 +67,14 @@ export const TDM = {
   barks: false,
   /** 12.0: shared team spotting for the human (his eyes in the sensing pass) and the minimap. Off: the 11.0 callout rays (perf A/B). */
   spotting: true,
+  /**
+   * 13.0: the guns the arena bots are dealt at each spawn: 'random' (the armory, at most `armCap` of
+   * one gun on a team at once, so a squad is never five shotguns), or one weapon for everyone (A/B).
+   */
+  arms: 'random' as 'random' | WeaponId,
+  armCap: 2,
+  /** 13.0: the loadout picker stays up (and a pick swaps at once) this long into a match (s). */
+  loadoutGrace: 3,
 };
 
 /** The 5.0 scheduler defaults (the tactical path restores them). */
@@ -78,15 +88,18 @@ interface Slot {
   respawnAt: number;
   kills: number;
   deaths: number;
+  /** 13.0: the gun it was dealt for its current (or last) life. */
+  arm: BotArm | null;
 }
 
 /**
- * Callsigns and the kind each was designed as (6.0). What actually spawns is this filtered through
- * `TDM.roster` (8.0: Ilya and Kite fight with rifles). Two of the player's squadmates are Maxim and Anatoly.
+ * The kind each slot was designed as (6.0). What actually spawns is this filtered through
+ * `TDM.roster` (8.0: the blades fight with rifles). 13.0: the names are no longer fixed: every match
+ * deals ten different callsigns from one pool to both teams (enemies/Callsigns.ts).
  */
 const ROSTER: Record<TeamId, RosterSlot[]> = {
-  alpha: [['MAXIM', 'gunner'], ['ANATOLY', 'gunner'], ['KOSTYA', 'gunner'], ['ILYA', 'runner']],
-  omega: [['VULTURE', 'gunner'], ['JACKAL', 'gunner'], ['HYENA', 'gunner'], ['ADDER', 'gunner'], ['KITE', 'runner']],
+  alpha: [['', 'gunner'], ['', 'gunner'], ['', 'gunner'], ['', 'runner']],
+  omega: [['', 'gunner'], ['', 'gunner'], ['', 'gunner'], ['', 'gunner'], ['', 'runner']],
 };
 
 /** One kill, for the report and the checks. */
@@ -101,6 +114,8 @@ export interface KillRecord {
   victimKind: string;
   victimAction: string;
   dist: number;
+  /** 13.0: the killer's gun (armory tag: SMG, AR, SG), '-' for a blade or the world. */
+  weapon: string;
   /** The killer was more than 90° off where the victim faced (taken from the side or behind). */
   flank: boolean;
   /** 8.0: the level zone the victim died in (match-flow reports). */
@@ -125,6 +140,8 @@ export class TdmRules implements ModeRules {
   private friends: Record<TeamId, Combatant[]> = { alpha: [], omega: [] };
   private spotT = 0;
   kills: KillRecord[] = [];
+  /** 13.0: the player's gun per life, for the kill feed and the record. */
+  playerArm: () => BotArm = () => ARMORY.ar.bot;
   /** Damage dealt between teammates (must stay 0: friendly fire is off by construction). */
   friendlyDamage = 0;
   /**
@@ -225,7 +242,9 @@ export class TdmRules implements ModeRules {
     g.tdmHud.show(true);
     g.hud.root.classList.add('tdm');
     this.slots = [];
-    for (const team of TEAMS) for (const [name, kind] of filterRoster(ROSTER[team], TDM.roster)) this.slots.push({ team, name, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0 });
+    const n = TEAMS.reduce((k, t) => k + ROSTER[t].length, 0);
+    const names = dealCallsigns(n, [g.playerUnit.name]);
+    for (const team of TEAMS) for (const [, kind] of filterRoster(ROSTER[team], TDM.roster)) this.slots.push({ team, name: names.shift()!, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0, arm: null });
     for (const s of this.slots) this.spawn(s);
     g.hud.bannerShow('TEAM DEATHMATCH', 'チームデスマッチ · 5v5', 2.6);
   }
@@ -282,12 +301,14 @@ export class TdmRules implements ModeRules {
   private spawn(s: Slot) {
     const g = this.game;
     const at = this.spawnPoint(s.team);
-    const look = s.team === 'alpha' ? DESERT_GARRISON : g.level.info.arsenal.enemies;
+    const look = s.team === 'alpha' ? DESERT_GARRISON : g.level.info.enemies;
     const arena = this.ai === 'arena';
+    // 13.0: a gun from the armory for this life (the 6.0 tactical bodies keep their own rifle).
+    s.arm = arena && s.kind === 'gunner' ? this.dealArm(s.team) : null;
     const e: TacticalEnemy =
       s.kind === 'runner'
         ? arena ? new ArenaRunner(at, TDM.difficulty, look) : new Runner(at, TDM.difficulty, look)
-        : arena ? new ArenaGunner(at, TDM.difficulty, g.scene, look) : new Gunner(at, TDM.difficulty, g.scene, null, look);
+        : arena ? new ArenaGunner(at, TDM.difficulty, g.scene, look, s.arm!) : new Gunner(at, TDM.difficulty, g.scene, null, look);
     e.team = s.team;
     e.name = s.name;
     e.invulnUntil = this.now + TDM.protect;
@@ -296,6 +317,17 @@ export class TdmRules implements ModeRules {
     g.scene.add(e.rig.root);
     this.bots.push(e);
     s.bot = e;
+  }
+
+  /**
+   * 13.0: a gun for a bot spawning on `team`: uniform over the armory, but never a third of one gun
+   * on a team at once (a squad of all shotguns, or all rifles, is no firefight to read).
+   */
+  private dealArm(team: TeamId): BotArm {
+    if (TDM.arms !== 'random') return ARMORY[TDM.arms].bot;
+    const held: WeaponId[] = [];
+    for (const s of this.slots) if (s.team === team && s.bot && s.arm) held.push(s.arm.id);
+    return dealArm(held, TDM.armCap);
   }
 
   /** The base spawn furthest from every hostile, not on top of a body. */
@@ -326,12 +358,19 @@ export class TdmRules implements ModeRules {
     return this.slots.find((s) => s.bot === c) ?? null;
   }
 
+  /** 13.0: the gun a combatant fights with (the player's loadout, a bot's dealt arm), or null (a blade). */
+  private armOf(c: Combatant): BotArm | null {
+    if (c.isPlayer) return this.playerArm();
+    return isArenaBot(c) && c.kind === 'gunner' ? c.arm : null;
+  }
+
   /** Someone died: a ticket off their team, the feed, kill credit, their respawn, maybe the end. */
   private onDeath(v: Combatant, by: Combatant | null) {
     const g = this.game;
     if (this.winner) return;
     this.tickets[v.team] = Math.max(0, this.tickets[v.team] - 1);
-    g.tdmHud.kill(by, v);
+    const weapon = by ? this.armOf(by)?.tag : undefined;
+    g.tdmHud.kill(by, v, weapon);
     const vs = this.slotOf(v);
     if (vs) {
       vs.deaths++;
@@ -361,6 +400,7 @@ export class TdmRules implements ModeRules {
       victimKind: v.isPlayer ? 'player' : (vb.kind ?? '?'),
       victimAction: vb.tac ? `${vb.tac.action}/${vb.tac.phase}` : '-',
       dist: by ? +by.pos.distanceTo(v.pos).toFixed(1) : 0,
+      weapon: weapon ?? '-',
       flank,
       zone: g.level.data.zoneAt(v.pos.x, v.pos.y, v.pos.z)?.name,
     });
@@ -443,7 +483,7 @@ export class TdmRules implements ModeRules {
     allies.length = hostiles.length = 0;
     for (const b of this.bots) if (b.alive && b.team === 'alpha') allies.push({ x: b.pos.x, y: b.pos.y, z: b.pos.z, a: 1 });
     for (const s of this.directors!.alpha.spotted(now, this.spots)) hostiles.push({ x: s.pos.x, y: s.pos.y, z: s.pos.z, a: spotAlpha(s.age, ARENA.spot.fade) });
-    this.minimap!.draw(g.player.pos, g.player.yaw, allies, hostiles);
+    this.minimap!.draw(g.player.pos, g.player.yaw, allies, hostiles, g.playerUnit.name);
   }
 
   /**
@@ -521,8 +561,8 @@ export class TdmRules implements ModeRules {
   private finish() {
     const g = this.game;
     const lines: TdmLine[] = [
-      { name: 'YOU', team: 'alpha', you: true, kills: this.player.kills, deaths: this.player.deaths },
-      ...this.slots.map((s) => ({ name: s.name, team: s.team, you: false, kills: s.kills, deaths: s.deaths })),
+      { name: g.playerUnit.name, team: 'alpha', you: true, kills: this.player.kills, deaths: this.player.deaths, weapon: this.playerArm().tag },
+      ...this.slots.map((s) => ({ name: s.name, team: s.team, you: false, kills: s.kills, deaths: s.deaths, weapon: s.arm?.tag ?? '' })),
     ];
     g.finishTdm(this.winner === 'alpha', { ...this.tickets }, lines, this.endT - this.startT);
   }
@@ -566,7 +606,28 @@ export class TdmRules implements ModeRules {
     for (const t of TEAMS) this.squads[t].reset();
     this.directors = null;
     this.sensing = null;
+    // 13.0: nothing of the match may hold on to its bodies or the player (a map change frees the level).
+    this.playerSense = null;
+    this.brains.length = this.viewers.length = this.spots.length = 0;
+    this.allyDots.length = this.hostileDots.length = 0;
+    for (const t of TEAMS) this.hostiles[t].length = this.friends[t].length = 0;
     this.game.tdmHud.clear();
+  }
+
+  /**
+   * 13.0: the level is being freed (a map change, back to the menu): drop everything built on it —
+   * the minimap (its floor plan canvas and DOM), the team contexts (they inherit the old enemy
+   * context: its scene, collision world and nav graph).
+   */
+  dropLevel() {
+    this.reset();
+    this.slots = [];
+    this.kills = [];
+    this.minimap?.dispose();
+    this.minimap = null;
+    this.mapLevel = null;
+    this.ctxs = undefined as unknown as Record<TeamId, EnemyCtx>;
+    this.arenaStats = newArenaStats();
   }
 
   toTitle() {

@@ -130,8 +130,16 @@ export function installDevTools(game: Game) {
       return (await import('./TdmCheck')).tdmBench(game, opts);
     },
     /** 7.0: a whole TDM match stepped headless at a fixed 1/60 s (bot vs bot): length, movement, aggression, AI cost. */
-    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean } = {}) {
+    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | 'smg' | 'ar' | 'shotgun' } = {}) {
       return (await import('./TdmCheck')).tdmSim(game, opts);
+    },
+    /**
+     * 13.0: the map-to-map teardown check: TDM through the result screen's next-map cards round
+     * `maps` (default desert, docks, jungle), `laps` times; GPU, scene, DOM and heap per map, and
+     * WeakRefs to everything each left level built (alive after a forced GC = leaked).
+     */
+    async mapCycle(opts: { maps?: SettingId[]; laps?: number; play?: number } = {}) {
+      return (await import('./MapCycle')).mapCycle(game, opts);
     },
     /** 7.0: tdmSim for the arena AI and the 6.0 tactical AI, n runs each, side by side. */
     async tdmAB(opts: { runs?: number; tickets?: number } = {}) {
