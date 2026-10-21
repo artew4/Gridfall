@@ -16,6 +16,9 @@ export interface NavLayout {
 /** Probe height above the floor for walkability rays, plus a knee-high ray for low obstacles. */
 const BODY = 1;
 const KNEE = 0.4;
+/** 7.0: a wall an arena bot vaults is at most this tall (floor to top), and its rays fly over it here. */
+export const VAULT_MAX = 1.35;
+const OVER = 1.5;
 
 /**
  * Hand-placed waypoint graph over both walkable levels. Nodes on the same level are linked
@@ -24,10 +27,19 @@ const KNEE = 0.4;
 export class Nav {
   nodes: THREE.Vector3[] = [];
   edges: number[][] = [];
+  /**
+   * 7.0: the edges plus links across low walls marked vaultable (arena bots only; built on first
+   * request). Survival routes never see them.
+   */
+  vaultEdges: number[][] | null = null;
   private a = new THREE.Vector3();
   private b = new THREE.Vector3();
+  private d = new THREE.Vector3();
+
+  private slope: number;
 
   constructor(private col: CollisionWorld, layout: NavLayout) {
+    this.slope = layout.slope ?? 0;
     // Stored at body height so LOS checks start from the chest of a standing enemy.
     this.nodes = layout.nodes.map((p) => new THREE.Vector3(p.x, p.y + BODY, p.z));
     this.edges = this.nodes.map(() => []);
@@ -56,6 +68,69 @@ export class Nav {
       this.col.lineOfSight(this.a.copy(a).sub(side), this.b.copy(b).sub(side)) &&
       this.col.lineOfSight(this.a.set(a.x, a.y - drop, a.z), this.b.set(b.x, b.y - drop, b.z))
     );
+  }
+
+  /**
+   * 7.0: a body can cross from a to b by vaulting: the corridor is clear above the low walls (three
+   * rays at 1.5 m), and whatever stops the knee and body rays is a vaultable wall no taller than
+   * VAULT_MAX. Rocks, ruins and trucks still block.
+   */
+  clearVault(a: THREE.Vector3, b: THREE.Vector3) {
+    const side = new THREE.Vector3(b.z - a.z, 0, a.x - b.x).normalize().multiplyScalar(0.35);
+    const up = OVER - BODY;
+    const ok =
+      this.col.lineOfSight(this.a.set(a.x, a.y + up, a.z), this.b.set(b.x, b.y + up, b.z)) &&
+      this.col.lineOfSight(this.a.set(a.x + side.x, a.y + up, a.z + side.z), this.b.set(b.x + side.x, b.y + up, b.z + side.z)) &&
+      this.col.lineOfSight(this.a.set(a.x - side.x, a.y + up, a.z - side.z), this.b.set(b.x - side.x, b.y + up, b.z - side.z));
+    return ok && this.onlyVaults(a, b, KNEE - BODY) && this.onlyVaults(a, b, 0);
+  }
+
+  /** Every hit along a→b (lowered by `dy`) is a vaultable wall low enough to vault. */
+  private onlyVaults(a: THREE.Vector3, b: THREE.Vector3, dy: number) {
+    const o = this.a.set(a.x, a.y + dy, a.z);
+    const dir = this.d.set(b.x - a.x, b.y - a.y, b.z - a.z);
+    let left = dir.length();
+    dir.divideScalar(left || 1);
+    for (let k = 0; k < 6 && left > 0.05; k++) {
+      const hit = this.col.raycast(o, dir, left);
+      if (!hit) return true;
+      const c = hit.collider;
+      if (!c || !c.vault || c.max.y - (a.y - BODY) > VAULT_MAX) return false;
+      // Carry on from the far side of this wall.
+      const step = hit.dist + 0.05;
+      const exit = this.exitDist(c, o, dir);
+      o.addScaledVector(dir, Math.max(step, exit + 0.05));
+      left -= Math.max(step, exit + 0.05);
+    }
+    return left <= 0.05;
+  }
+
+  /** Distance along a ray to where it leaves a box collider (XZ slab test). */
+  private exitDist(c: { min: THREE.Vector3; max: THREE.Vector3 }, o: THREE.Vector3, d: THREE.Vector3) {
+    let t = Infinity;
+    if (Math.abs(d.x) > 1e-6) t = Math.min(t, Math.max((c.min.x - o.x) / d.x, (c.max.x - o.x) / d.x));
+    if (Math.abs(d.z) > 1e-6) t = Math.min(t, Math.max((c.min.z - o.z) / d.z, (c.max.z - o.z) / d.z));
+    return t === Infinity ? 0 : Math.max(0, t);
+  }
+
+  /** 7.0: build the vault links once (arena levels call it at match start, outside any frame budget). */
+  ensureVaultLinks(slope = this.slope) {
+    if (this.vaultEdges) return this.vaultEdges;
+    const ve = this.edges.map((e) => e.slice());
+    for (let i = 0; i < this.nodes.length; i++) {
+      for (let j = i + 1; j < this.nodes.length; j++) {
+        if (ve[i].includes(j)) continue;
+        const ni = this.nodes[i], nj = this.nodes[j];
+        const rise = 0.5 + slope * Math.hypot(ni.x - nj.x, ni.z - nj.z);
+        if (Math.abs(ni.y - nj.y) > rise || ni.distanceTo(nj) >= 14) continue;
+        if (this.clearVault(ni, nj) && this.walkable(ni, nj)) {
+          ve[i].push(j);
+          ve[j].push(i);
+        }
+      }
+    }
+    this.vaultEdges = ve;
+    return ve;
   }
 
   /**
@@ -135,14 +210,17 @@ export class Nav {
    * for the same field over and over. The memo is dropped whenever links change.
    */
   private fields = new Map<number, { dist: Float64Array; next: Int32Array }>();
+  private vaultFields = new Map<number, { dist: Float64Array; next: Int32Array }>();
   /** Fields computed vs served from the memo (DEV counters). */
   stats = { computed: 0, cached: 0 };
-  private toward(goal: number) {
-    const hit = this.fields.get(goal);
+  private toward(goal: number, vault = false) {
+    const memo = vault ? this.vaultFields : this.fields;
+    const edges = vault ? this.vaultEdges! : this.edges;
+    const hit = memo.get(goal);
     if (hit) {
       // Refresh its place in the (insertion-ordered) memo.
-      this.fields.delete(goal);
-      this.fields.set(goal, hit);
+      memo.delete(goal);
+      memo.set(goal, hit);
       this.stats.cached++;
       return hit;
     }
@@ -193,7 +271,7 @@ export class Nav {
       done[u] = 1;
       const du = dist[u];
       const nu = this.nodes[u];
-      for (const v of this.edges[u]) {
+      for (const v of edges[u]) {
         if (done[v]) continue;
         const nd = du + nu.distanceTo(this.nodes[v]);
         if (nd < dist[v]) {
@@ -204,8 +282,8 @@ export class Nav {
       }
     }
     const f = { dist, next };
-    this.fields.set(goal, f);
-    if (this.fields.size > 32) this.fields.delete(this.fields.keys().next().value!);
+    memo.set(goal, f);
+    if (memo.size > 32) memo.delete(memo.keys().next().value!);
     return f;
   }
 
@@ -214,10 +292,11 @@ export class Nav {
    * the lowest (distance to it + remaining distance to the goal), so an agent never walks back to a
    * node behind it just because that node happens to be the closest.
    */
-  route(from: THREE.Vector3, to: THREE.Vector3): number[] {
+  route(from: THREE.Vector3, to: THREE.Vector3, opts: { vault?: boolean; tries?: number } = {}): number[] {
+    const vault = !!opts.vault && !!this.vaultEdges;
     const b = this.nearestVisible(to);
     if (b < 0) return [];
-    const { dist, next } = this.toward(b);
+    const { dist, next } = this.toward(b, vault);
     const cand: { i: number; s: number }[] = [];
     for (let i = 0; i < this.nodes.length; i++) {
       if (dist[i] === Infinity) continue;
@@ -227,9 +306,12 @@ export class Nav {
       cand.push({ i, s: d + dist[i] });
     }
     cand.sort((x, y) => x.s - y.s);
-    for (const c of cand) {
+    // 7.0: a caller may cap the entry search (rays); the best few entries are almost always it.
+    const tries = opts.tries ?? Infinity;
+    for (let k = 0; k < cand.length && k < tries; k++) {
+      const c = cand[k];
       const n = this.nodes[c.i];
-      if (!this.clear(from, n) || !this.walkable(from, n)) continue;
+      if (!(this.clear(from, n) || (vault && from.distanceTo(n) < 14 && this.clearVault(from, n))) || !this.walkable(from, n)) continue;
       const out: number[] = [];
       for (let v = c.i; v >= 0 && out.length < 200; v = next[v]) out.push(v);
       return out;
@@ -240,6 +322,8 @@ export class Nav {
   /** Opens or closes hand links (e.g. a shuttered stairwell). */
   setLinks(pairs: [number, number][], open: boolean) {
     this.fields.clear();
+    this.vaultFields.clear();
+    this.vaultEdges = null;
     for (const [i, j] of pairs) {
       this.edges[i] = this.edges[i].filter((v) => v !== j);
       this.edges[j] = this.edges[j].filter((v) => v !== i);

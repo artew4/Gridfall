@@ -4,6 +4,11 @@ import type { ModeRules, TdmData } from './Level';
 import { Gunner, Runner, type EnemyCtx, type TacticalEnemy } from '../enemies/Enemy';
 import { Squad } from '../enemies/tactics/Squad';
 import { ThinkScheduler } from '../enemies/tactics/Scheduler';
+import { ArenaGunner, ArenaRunner, isArenaBot } from '../enemies/arena/ArenaBots';
+import { ArenaDirector } from '../enemies/arena/ArenaDirector';
+import { Sensing } from '../enemies/arena/Sensing';
+import { ARENA, newArenaStats, type ArenaCtx, type ArenaStats } from '../enemies/arena/ArenaCtx';
+import type { DeathmatchBrain } from '../enemies/arena/DeathmatchAI';
 import { otherTeam, TEAMS, type Combatant, type TeamId } from '../combat/Team';
 import { DESERT_GARRISON } from '../entities/enemies/mercs';
 import { rand } from '../core/math';
@@ -18,6 +23,10 @@ import type { TdmLine } from '../ui/TdmHud';
   cover searches and path re-plans for all nine bots, picked most-overdue-first across both teams.
   Each bot runs with its own team's context (squad, hostiles, friends, lanes): the same 5.0 brain,
   pointed at a different set of hostiles.
+
+  7.0: by default the bots run the arena AI instead (enemies/arena: a deathmatch brain per bot, an
+  arena director per team, attention-driven sensing; the same bodies). `TDM.ai = 'tactical'` brings
+  back the 6.0 path exactly, for comparisons. The match rules are the same either way.
 */
 
 export const TDM = {
@@ -31,7 +40,12 @@ export const TDM = {
   botDamage: 20,
   /** Bots' difficulty (speed, damage step): wave 3 of survival. */
   difficulty: 2,
+  /** 7.0: which brain the bots run — the arena AI, or the 6.0 tactical squads (A/B checks). */
+  ai: 'arena' as 'arena' | 'tactical',
 };
+
+/** The 5.0 scheduler defaults (the tactical path restores them). */
+const TACTICAL_SCHED = { maxPerFrame: 3, rayBudget: 30, routesPerFrame: 2 };
 
 interface Slot {
   team: TeamId;
@@ -90,6 +104,12 @@ export class TdmRules implements ModeRules {
    * his deaths (there are none: checks run him in god mode) wouldn't count.
    */
   spectate = false;
+  /** The brain this match runs (TDM.ai at its start). */
+  ai: 'arena' | 'tactical' = TDM.ai;
+  directors: Record<TeamId, ArenaDirector> | null = null;
+  sensing: Sensing | null = null;
+  arenaStats: ArenaStats = newArenaStats();
+  private brains: DeathmatchBrain[] = [];
 
   constructor(private game: Game) {}
 
@@ -115,8 +135,16 @@ export class TdmRules implements ModeRules {
     this.playerRespawnAt = Infinity;
     this.startT = this.now;
     for (const t of TEAMS) this.squads[t].reset();
-    this.squads.alpha.human = this.spectate ? null : g.playerUnit;
+    this.squads.alpha.human = this.spectate || TDM.ai === 'arena' ? null : g.playerUnit;
+    this.ai = TDM.ai;
+    Object.assign(this.sched, this.ai === 'arena' ? ARENA.sched : TACTICAL_SCHED);
     this.sched.resetStats();
+    if (this.ai === 'arena') this.beginArena();
+    else {
+      // Back to the 6.0 path (an A/B after an arena match): nothing of the arena may linger.
+      this.directors = null;
+      this.sensing = null;
+    }
     g.ctx.difficulty = TDM.difficulty;
     g.ctx.enemies = this.bots;
     this.ctxs = { alpha: this.makeCtx('alpha'), omega: this.makeCtx('omega') };
@@ -126,13 +154,16 @@ export class TdmRules implements ModeRules {
       damage: TDM.botDamage,
       hit: (e, dmg, dir, point, by) => {
         if (by && by.team === e.team) this.friendlyDamage += dmg;
+        if (isArenaBot(by) && e.alive) by.brain.onDealt(e, dmg, this.now);
         e.takeHit(dmg, dir, point, this.ctxs[e.team], by);
       },
-      nearMiss: (e, dose) => e.suppress(dose, this.ctxs[e.team]),
+      nearMiss: (e, dose, by) => (isArenaBot(e) ? e.brain.onNearMiss(this.ctxs[e.team], by) : e.suppress(dose, this.ctxs[e.team])),
     };
     // The other team hears every shot.
     g.projectiles.onFire = (from, by) => {
-      if (by) this.squads[otherTeam(by.team)].hearShot(from, by);
+      if (!by) return;
+      if (this.directors) this.directors[otherTeam(by.team)].heard(from, by, this.now, this.friends[otherTeam(by.team)]);
+      else this.squads[otherTeam(by.team)].hearShot(from, by);
     };
     const st = this.data.start;
     g.player.reset(st.x, st.z, st.yaw, st.y);
@@ -152,6 +183,29 @@ export class TdmRules implements ModeRules {
     g.hud.bannerShow('TEAM DEATHMATCH', 'チームデスマッチ · 5v5', 2.6);
   }
 
+  /** 7.0: a director per team, the shared sensing pass, vault links on the graph (once per level). */
+  private beginArena() {
+    const g = this.game;
+    const d = this.data;
+    const centre = (ps: THREE.Vector3[]) => ps.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(Math.max(1, ps.length));
+    const base = { alpha: centre(d.spawns.alpha), omega: centre(d.spawns.omega) };
+    this.directors = {
+      alpha: new ArenaDirector('alpha', base.alpha, base.omega, d.lanes.alpha),
+      omega: new ArenaDirector('omega', base.omega, base.alpha, d.lanes.omega),
+    };
+    const conceal = g.ctx.concealment;
+    this.sensing = new Sensing(
+      (a, b) => {
+        this.sched.spend(1);
+        return g.col.lineOfSight(a, b);
+      },
+      conceal ? (a, b) => conceal(a, b) < 0.35 : undefined,
+    );
+    this.arenaStats = newArenaStats();
+    this.brains = [];
+    g.nav.ensureVaultLinks();
+  }
+
   /** A team context: the game's (read live through the prototype: time, sight, cover…) plus the team's own. */
   private makeCtx(team: TeamId): EnemyCtx {
     const g = this.game;
@@ -167,6 +221,7 @@ export class TdmRules implements ModeRules {
       avoid: (p: THREE.Vector3) => this.data.inBase(other, p),
       onDeath: (v: Combatant, by: Combatant | null) => this.onDeath(v, by),
     } satisfies Partial<EnemyCtx>);
+    c.arena = this.directors && this.sensing ? ({ director: this.directors[team], sensing: this.sensing, sched: this.sched, stats: this.arenaStats } satisfies ArenaCtx) : undefined;
     return c;
   }
 
@@ -174,7 +229,11 @@ export class TdmRules implements ModeRules {
     const g = this.game;
     const at = this.spawnPoint(s.team);
     const look = s.team === 'alpha' ? DESERT_GARRISON : g.level.info.arsenal.enemies;
-    const e: TacticalEnemy = s.kind === 'runner' ? new Runner(at, TDM.difficulty, look) : new Gunner(at, TDM.difficulty, g.scene, null, look);
+    const arena = this.ai === 'arena';
+    const e: TacticalEnemy =
+      s.kind === 'runner'
+        ? arena ? new ArenaRunner(at, TDM.difficulty, look) : new Runner(at, TDM.difficulty, look)
+        : arena ? new ArenaGunner(at, TDM.difficulty, g.scene, look) : new Gunner(at, TDM.difficulty, g.scene, null, look);
     e.team = s.team;
     e.name = s.name;
     e.invulnUntil = this.now + TDM.protect;
@@ -250,7 +309,15 @@ export class TdmRules implements ModeRules {
       dist: by ? +by.pos.distanceTo(v.pos).toFixed(1) : 0,
       flank,
     });
-    this.squads[otherTeam(v.team)].hostileDied(v, by && !by.isPlayer ? (by as TacticalEnemy) : null);
+    if (this.directors) {
+      this.directors[otherTeam(v.team)].hostileDied(v, this.now);
+      this.directors[v.team].friendDied(v, this.now);
+      this.sensing?.forget(v.uid);
+      if (isArenaBot(by)) {
+        if (by.brain.state === 'push' && by.brain.target === v) this.arenaStats.pushKills++;
+        by.bark('kill', this.ctxs[by.team]);
+      }
+    } else this.squads[otherTeam(v.team)].hostileDied(v, by && !by.isPlayer ? (by as TacticalEnemy) : null);
     if (this.tickets[v.team] <= 0) this.end(otherTeam(v.team));
   }
 
@@ -283,10 +350,12 @@ export class TdmRules implements ModeRules {
       for (const b of this.bots) if (b.alive) (b.team === t ? f : h).push(b);
       if (!this.spectate) (t === 'alpha' ? f : h).push(g.playerUnit);
     }
-    Squad.updateAll(this.sched, [
-      { squad: this.squads.alpha, ctx: this.ctxs.alpha, agents: this.bots.filter((b) => b.team === 'alpha') },
-      { squad: this.squads.omega, ctx: this.ctxs.omega, agents: this.bots.filter((b) => b.team === 'omega') },
-    ]);
+    if (this.directors) this.arenaFrame(now);
+    else
+      Squad.updateAll(this.sched, [
+        { squad: this.squads.alpha, ctx: this.ctxs.alpha, agents: this.bots.filter((b) => b.team === 'alpha') },
+        { squad: this.squads.omega, ctx: this.ctxs.omega, agents: this.bots.filter((b) => b.team === 'omega') },
+      ]);
     for (const b of this.bots) b.update(dt, this.ctxs[b.team]);
     for (let i = this.bots.length - 1; i >= 0; i--) {
       if (this.bots[i].dead) {
@@ -302,6 +371,34 @@ export class TdmRules implements ModeRules {
     g.tdmHud.setTickets(this.tickets.alpha, this.tickets.omega);
     g.tdmHud.setRespawn(g.state === 'dead' && !this.winner ? this.playerRespawnAt - now : null, this.killerName);
     g.tdmHud.update(dt, g.camera, this.friends.alpha);
+  }
+
+  /**
+   * 7.0, the arena AI's heavy half: sensing (every due sightline, most important first, one ray
+   * budget), the board, both directors, then the decides the scheduler hands out — urgent first (a
+   * hostile just came into view, a hit), so a sighting is acted on the frame it is made.
+   */
+  private arenaFrame(now: number) {
+    const dirs = this.directors!;
+    const brains = this.brains;
+    brains.length = 0;
+    for (const b of this.bots) if (b.alive && isArenaBot(b)) brains.push(b.brain);
+    this.sensing!.update(
+      now,
+      brains,
+      (a) => this.hostiles[a.self.team],
+      (a, h) => dirs[a.self.team].isHot(h.uid, now),
+      this.game.ctx.sightRange,
+    );
+    // What anyone sees goes on the team's board.
+    for (const br of brains) {
+      for (const h of this.hostiles[br.self.team]) if (h.alive && br.seen.get(h.uid)?.vis) dirs[br.self.team].sighting(h, now);
+    }
+    for (const t of TEAMS) {
+      const enemyAlive = this.hostiles[t].filter((h) => h.alive).length;
+      dirs[t].update(now, this.friends[t], enemyAlive, { own: this.tickets[t], theirs: this.tickets[otherTeam(t)] });
+    }
+    for (const br of this.sched.pick(brains, now)) br.decide(this.ctxs[br.self.team]);
   }
 
   /**
@@ -325,7 +422,9 @@ export class TdmRules implements ModeRules {
       const d = head.distanceTo(eye);
       if (d > range || fwd.dot(head.clone().sub(eye).divideScalar(d)) < 0.57) continue;
       rays++;
-      if (g.col.lineOfSight(eye, head)) this.squads.alpha.sighting(null, b.pos, b.vel, b);
+      if (!g.col.lineOfSight(eye, head)) continue;
+      if (this.directors) this.directors.alpha.sighting(b, this.now, 'callout');
+      else this.squads.alpha.sighting(null, b.pos, b.vel, b);
     }
   }
 
@@ -355,12 +454,21 @@ export class TdmRules implements ModeRules {
   onGunshot() {
     const g = this.game;
     if (this.spectate) return;
+    if (this.directors) {
+      this.directors.omega.heard(g.player.pos, g.playerUnit, this.now, this.friends.omega);
+      return;
+    }
     this.squads.omega.hearShot(g.player.pos, g.playerUnit);
     this.squads.alpha.humanObs.shot(this.now);
   }
 
   musicIntensity(): number {
     if (this.winner) return 0.2;
+    if (this.directors) {
+      const now = this.now;
+      const hot = TEAMS.some((t) => [...this.directors![t].contacts.values()].some((c) => now - c.seenT < 2));
+      return hot ? 0.8 : 0.45;
+    }
     const fight = this.squads.alpha.mode === 'engage' || this.squads.omega.mode === 'engage';
     return fight ? 0.8 : 0.45;
   }
@@ -375,6 +483,8 @@ export class TdmRules implements ModeRules {
   reset() {
     this.clearBots();
     for (const t of TEAMS) this.squads[t].reset();
+    this.directors = null;
+    this.sensing = null;
     this.game.tdmHud.clear();
   }
 
@@ -401,7 +511,10 @@ export class TdmRules implements ModeRules {
       tickets: { ...this.tickets },
       winner: this.winner,
       alive: { alpha: this.bots.filter((b) => b.alive && b.team === 'alpha').length, omega: this.bots.filter((b) => b.alive && b.team === 'omega').length },
-      modes: { alpha: this.squads.alpha.mode, omega: this.squads.omega.mode },
+      ai: this.ai,
+      modes: this.directors ? { alpha: this.directors.alpha.stance, omega: this.directors.omega.stance } : { alpha: this.squads.alpha.mode, omega: this.squads.omega.mode },
+      momentum: this.directors ? { alpha: +this.directors.alpha.momentum.toFixed(2), omega: +this.directors.omega.momentum.toFixed(2) } : null,
+      sensing: this.sensing ? { ...this.sensing.stats } : null,
       human: this.squads.alpha.humanStyle,
       humanRates: this.squads.alpha.humanObs.rates,
       sched: { ...this.sched.stats },

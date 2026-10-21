@@ -14,6 +14,7 @@ import { newUid, segmentDistance, type Combatant, type TeamId } from '../combat/
 import { unitOf } from '../combat/PlayerUnit';
 import { choose, type Option } from './tactics/Utility';
 import { evaluateCover, isProtected } from './tactics/Cover';
+import type { ArenaCtx } from './arena/ArenaCtx';
 
 export interface EnemyCtx {
   scene: THREE.Scene;
@@ -45,6 +46,8 @@ export interface EnemyCtx {
    */
   concealment?: (a: THREE.Vector3, b: THREE.Vector3) => number;
   damagePlayer(dmg: number, from: THREE.Vector3): void;
+  /** 7.0, TDM: the arena AI (director, sensing, scheduler) when the mode runs it; absent otherwise. */
+  arena?: ArenaCtx;
   /** 6.0: the team of the agents this context drives (absent: OMEGA, survival). */
   team?: TeamId;
   /** Who they fight (absent: the player alone). */
@@ -335,7 +338,7 @@ export abstract class Enemy implements Combatant {
     if (this.forcePathT <= 0 && Math.abs(to.y - from.y) < 1) {
       this.directT -= dt;
       if (this.directT <= 0 || from.distanceToSquared(this.directFrom) > 1 || to.distanceToSquared(this.directTo) > 1) {
-        this.directOk = ctx.nav.clear(from, to);
+        this.directOk = this.directClear(ctx, from, to);
         this.directT = 0.2;
         this.directFrom.copy(from);
         this.directTo.copy(to);
@@ -352,7 +355,7 @@ export abstract class Enemy implements Combatant {
     // an unreachable goal must not ask the graph every frame).
     if ((this.pathT <= 0 || (this.path.length === 0 && !this.noRoute)) && (!ctx.squad || ctx.squad.sched.tryRoute(ctx.time))) {
       this.pathT = 0.6 + Math.random() * 0.3;
-      this.path = ctx.nav.route(from, to);
+      this.path = this.routeTo(ctx, from, to);
       this.noRoute = this.path.length === 0;
     }
     // Skip waypoints we can already see past (never across levels, or we'd cut under a walkway);
@@ -361,7 +364,7 @@ export abstract class Enemy implements Combatant {
     this.skipT -= dt;
     if (this.skipT <= 0) {
       this.skipT = 0.2;
-      while (this.path.length > 1 && level(ctx.nav.nodes[this.path[1]]) && ctx.nav.clear(from, ctx.nav.nodes[this.path[1]])) this.path.shift();
+      while (this.path.length > 1 && level(ctx.nav.nodes[this.path[1]]) && this.directClear(ctx, from, ctx.nav.nodes[this.path[1]])) this.path.shift();
     }
     if (this.path.length) {
       const n = ctx.nav.nodes[this.path[0]];
@@ -369,6 +372,24 @@ export abstract class Enemy implements Combatant {
       return n;
     }
     return goal;
+  }
+
+  /** Can it walk straight from `from` to `to` (body height)? Arena bots (7.0) also count low walls they vault. */
+  protected directClear(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {
+    return ctx.nav.clear(from, to);
+  }
+
+  /** A graph route (7.0: arena bots may take the links over low walls). */
+  protected routeTo(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {
+    return ctx.nav.route(from, to);
+  }
+
+  /** Mid-vault or mid-jump (7.0, arena bots): low walls marked vaultable don't block. Always false in survival. */
+  protected vaulting = false;
+
+  /** Feet to the floor each frame (arena bots override it to fly a jump). */
+  protected ground(ctx: EnemyCtx, dt: number) {
+    this.followGround(ctx, dt);
   }
 
   /** Follows stairs and walkways; recovers if anything ever pushes us off the map. */
@@ -416,8 +437,8 @@ export abstract class Enemy implements Combatant {
     this.vel.z = damp(this.vel.z, desired.z, accel, dt);
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;
-    ctx.col.resolveCircle(this.pos, this.radius, 1.8);
-    this.followGround(ctx, dt);
+    ctx.col.resolveCircle(this.pos, this.radius, 1.8, 0.3, this.vaulting);
+    this.ground(ctx, dt);
     // Never overlap the player.
     const p = ctx.player.pos;
     const dx = this.pos.x - p.x;
@@ -1100,10 +1121,10 @@ export class Gunner extends TacticalEnemy {
   private burst = 3;
   private popDelay = 1;
   private strafe = 1;
-  private laser: THREE.Mesh;
+  protected laser: THREE.Mesh;
   private laserMat: THREE.MeshBasicMaterial;
   private aimPoint = new THREE.Vector3();
-  private aimAt = new THREE.Vector3();
+  protected aimAt = new THREE.Vector3();
   /** Bursts called off because the muzzle was behind its own cover (DEV counter). */
   blockedShots = 0;
   /** Bursts cut short because a teammate stood in the line of fire (DEV counter, TDM). */
@@ -1247,7 +1268,7 @@ export class Gunner extends TacticalEnemy {
   }
 
   /** A teammate's body within 0.8 m of the line from the muzzle to the aim point (and nearer than it). */
-  private friendInLine(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {
+  protected friendInLine(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {
     if (!ctx.friends) return false;
     for (const f of ctx.friends) {
       if (f === this || !f.alive) continue;
@@ -1259,7 +1280,7 @@ export class Gunner extends TacticalEnemy {
   }
 
   /** The muzzle now (its matrices refreshed: off-screen and headless rigs aren't updated by a render). */
-  private muzzleWorld() {
+  protected muzzleWorld() {
     const m = this.rig.muzzle!;
     m.updateWorldMatrix(true, false);
     return m.getWorldPosition(new THREE.Vector3());

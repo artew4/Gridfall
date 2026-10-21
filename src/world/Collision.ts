@@ -32,7 +32,7 @@ export interface Collider {
   cx?: number;
   cz?: number;
   r?: number;
-  /** A railing the player can jump over mid-jump (NPCs never vault). */
+  /** A railing the player can jump over mid-jump (survival NPCs never vault; 7.0 arena bots do). */
   vault?: boolean;
   /** Called when a player bullet hits this collider. */
   onHit?: (hit: RayHit) => void;
