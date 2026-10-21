@@ -512,8 +512,44 @@ Branch `feature/jungle-tdm-audio-9.0`, based on 8.1 (`fd502eb`). Numbers: `docs/
 - One stuck bot in nine matches, location not captured.
 - The heap grows across level reloads (`musicSoak` 100 → 198 MB over 24 loads). The music-only run is flat, so that growth comes from level loading. It was not investigated in 9.0.
 
+## 9.1: stair z-fighting hotfix
+Branch `fix/stair-z-fighting-9.1`, based on 9.0 (`e0ddef3`).
+
+**Reported:** a flickering, jagged pattern on the side of the warehouse stairs on Neon Docks (screenshot).
+
+**Root cause:** reproduced on the warehouse stair, seen from the floor. It was not the wall.
+- Every steel side plate overlapped the treads. Its outer face lay in the same plane as each step box's side face, facing the same way, so the two fought over the depth buffer across the whole side.
+- The desert's stairs had the same overlap, between their railing plate and the treads.
+- A face flush against a wall faces the opposite way and is culled, so it can't flicker. Those were still made clear of the walls, since the brief asked for it and one flush wall hid a real overlap (Tokyo's weapon cabinet).
+
+**Fix:**
+- **Treads:** in every stair builder with plates (docks, jungle, desert), the treads stop `STAIR_GAP` (3 cm) short of a plated side. The plate's face is now 3 cm in front of the step faces it covers.
+- **Walls:** `fitStairWidth`, shared by all four levels, keeps every stair side `STAIR_GAP` clear of a wall beside it. A wall that touches a side, or that the stair was narrowed to, moves the side 3 cm clear.
+- **Desert:** its stair builder now uses `fitStairWidth`. It never had in 8.1.
+- **Build order:**
+  - The docks' catwalk columns are built before the stairs, so the fit sees them. They were flush against the warehouse stairs.
+  - Tokyo's tech-deck weapon cabinet moved 11 cm off stair S7. Its back was flush with the stair, and its top cap overhung 7.5 cm into the steps.
+- **New world-check finding**, `stair flush with wall`, with a unit test. It found the four columns and the cabinet before the fixes.
+
+**Validation:**
+- **Visual:** the warehouse stair from the floor and from under the catwalk, the quay stair and a container stair. No flicker; before the fix the side was a checkerboard.
+- **`__dev.world()`:** 0 findings on all four levels.
+- **`__dev.stress()`:** 0 failures in 64,000 runs on the docks, jungle, Tokyo and desert.
+- **`__dev.stairGaps()` (new):** every stair side with a wall beside it has exactly 3 cm. A body pressed against the wall over the gap, or dropped into it, keeps its floor:
+
+  | Level | Stair–wall pairs | Probes | Drops |
+  |---|---|---|---|
+  | Docks | 6 | 156 | 0 |
+  | Jungle | 1 | 26 | 0 |
+  | Tokyo | 21 | 506 | 0 |
+  | Desert | 3 | 78 | 0 |
+
+  A 3 cm gap is well under the body radius (0.35 m), so nothing can fall into it.
+- **Tests and build:** 154 unit tests; build ok, no DEV tools in the bundle.
+
 ## Next
 Human playtest:
+- 9.1: the warehouse stairs (and every stair beside a wall) from all angles: any flicker left?
 - 9.0 items: the five themes (does the menu theme set the tone, is the docks bass too heavy, does the jungle groove fit), the crossfades between menu and levels, dropping in a real .mp3; jungle TDM: are LZ North and LZ Alpha fair, are the culvert and the east breach worth taking, is the fog too thick to fight in.
 - 8.1 items: is the docks bright enough now (and still moody), do the kinetic tracers and brass feel right, is TDM fair without callouts, do bots in a sandstorm ever shoot you before you can see them, is 70 m/s too lethal.
 - 8.0 items: Neon Docks in TDM: does each lane have a purpose (stacks close, warehouse mid, quay long), do the catwalks pay off, can you call out "red stacks", is the quay too open, is it bright enough, is a match the right length without the blades.

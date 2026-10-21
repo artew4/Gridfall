@@ -676,7 +676,8 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   const cabinets: CabinetSpot[] = [
     { pos: new THREE.Vector3(-14.75, 0, -10.2), face: 'e', collider: kit.cabinet(-14.75, -10.2, 'e') },
     { pos: new THREE.Vector3(-30, 0, -2.25), face: 'n', collider: kit.cabinet(-30, -2.25, 'n') },
-    { pos: new THREE.Vector3(27.5, DECK, -2.75), face: 's', collider: kit.cabinet(27.5, -2.75, 's', DECK) },
+    // 9.1: clear of stair S7 behind it (was flush with its side, the top cap 7.5 cm into the steps).
+    { pos: new THREE.Vector3(27.5, DECK, -2.64), face: 's', collider: kit.cabinet(27.5, -2.64, 's', DECK) },
   ];
   const medkits = [new THREE.Vector3(-43.8, 0, -2.6), new THREE.Vector3(30.2, DECK, -2.6)];
 

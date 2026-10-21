@@ -6,6 +6,7 @@ import type { Glows } from '../../world/Glows';
 import type { Breakable, CabinetSpot } from '../../gameplay/Interactives';
 import { mulberry32 } from '../../core/math';
 import type { Zone } from '../Level';
+import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import { CLIFF, CLIFF_RECESS, DESERT_EXTENT, desertHeight } from './Terrain';
 import * as T from './textures';
 import { buildArena, type ArenaResult } from './Arena';
@@ -187,18 +188,25 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
    * Stair = visual steps over a smooth ramp (3.3 rules): stepped fill underneath for bullets and so
    * nobody walks under it, a railing collider on the open side.
    */
-  const stair = (x0: number, z0: number, x1: number, z1: number, axis: 'x' | 'z', rise: 1 | -1, top: number, openSide: Side | null) => {
+  const stair = (sx0: number, sz0: number, sx1: number, sz1: number, axis: 'x' | 'z', rise: 1 | -1, top: number, openSide: Side | null) => {
+    // 9.1: fitted like every other stair (StairFit): never into a wall, never flush with one.
+    const fit = fitStairWidth(col.colliders, { x0: sx0, z0: sz0, x1: sx1, z1: sz1 }, axis, 0, top);
+    if (fit.blocked.length) console.warn('[stair] runs into a wall', [sx0, sz0, sx1, sz1]);
+    const { x0, z0, x1, z1 } = fit.rect;
     const along = axis === 'x';
     const L = along ? x1 - x0 : z1 - z0;
     const steps = Math.round(top / 0.25);
     const run = L / steps;
+    // The treads stop STAIR_GAP short of the railing plate (an overlapping plate z-fought with them).
+    const w0 = (along ? z0 : x0) + (openSide === (along ? 'n' : 'w') ? STAIR_GAP : 0);
+    const w1 = (along ? z1 : x1) - (openSide === (along ? 's' : 'e') ? STAIR_GAP : 0);
     for (let i = 0; i < steps; i++) {
       const hTop = ((i + 1) * top) / steps;
       const a = rise > 0 ? i * run : L - (i + 1) * run;
       const p0 = (along ? x0 : z0) + a;
       // Each tread is a block to the floor: seen as a solid stair, collides only as the ramp below.
-      if (along) b.add(worldBox(run, hTop, z1 - z0, 1), m.concrete, p0 + run / 2, hTop / 2, (z0 + z1) / 2);
-      else b.add(worldBox(x1 - x0, hTop, run, 1), m.concrete, (x0 + x1) / 2, hTop / 2, p0 + run / 2);
+      if (along) b.add(worldBox(run, hTop, w1 - w0, 1), m.concrete, p0 + run / 2, hTop / 2, (w0 + w1) / 2);
+      else b.add(worldBox(w1 - w0, hTop, run, 1), m.concrete, (w0 + w1) / 2, hTop / 2, p0 + run / 2);
     }
     col.addRamp(x0, z0, x1, z1, axis, rise > 0 ? 0 : top, rise > 0 ? top : 0);
     const seg = 8;

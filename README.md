@@ -352,6 +352,7 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - `await __dev.tdmSoak({ seconds: 300, timeScale: 2 })`: the bots play alone (you spectate in god mode, tickets 999): kills per minute, ranges, flank kills, what victims were doing, stuck bots, friendly-fire counters, scheduler pressure, AI cost.
   - `await __dev.tdmBench({ withPlayer: true })`: frame cost at 1x with all nine bots fighting (AI ms, rays, decides per frame, FPS, CPU, GPU).
   - `await __dev.friendlyFire()`: rounds through teammates (each team), your shots through allies, a teammate's blade, check-fire, rounds at you; `ok: true` when nothing hurts a teammate. Compare with `docs/BENCH-6.0.json`.
+- Stairs (9.1): `__dev.world()` also reports a stair flush with a wall (`stair flush with wall`); `await __dev.stairGaps()` lists every stair-to-wall gap (3 cm) and presses a body into each one to check it keeps its floor (`drops: 0`).
 - Music (9.0): `__game.debug().music` (current track, file or procedural, live sources, files found); `await __dev.musicSoak({ cycles: 3 })` cycles every level and the title and checks that every music source is disposed (`unaccounted: 0`).
 - Arena bots (7.0), on the desert. Every TDM check takes `ai: 'arena'` (the default) or `ai: 'tactical'` (the 6.0 squads):
   - `await __dev.tdmSim({ ai: 'arena', tickets: 25 })` plays a whole match headless, bot vs bot. It steps a fixed 1/60 s with no rendering, as fast as the CPU allows, so the result doesn't depend on the window's frame rate. It reports:

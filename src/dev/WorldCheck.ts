@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { stairWallOverlaps } from '../world/StairFit';
+import { stairWallFlush, stairWallOverlaps } from '../world/StairFit';
 import type { Game } from '../core/Game';
 import type { Collider } from '../world/Collision';
 import { StaticBuilder, type VisualPiece } from '../world/Builder';
@@ -390,6 +390,11 @@ export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: bool
     const w = h.wall;
     clusters.push({ kind: 'stair in wall: steps drawn through a solid', cells: 1, min: [h.stair.x0, h.yLo, h.stair.z0], max: [h.stair.x1, h.yHi, h.stair.z1], zone: zoneAt((h.stair.x0 + h.stair.x1) / 2, h.yHi, (h.stair.z0 + h.stair.z1) / 2)?.name ?? '(no zone)', detail: `wall [${w.min.toArray().map((q) => q.toFixed(2))}]→[${w.max.toArray().map((q) => q.toFixed(2))}]` });
   }
+  // 9.1: stairs flush with a wall beside them (coplanar faces z-fight).
+  for (const h of stairWallFlush(game.col.colliders)) {
+    const w = h.wall;
+    clusters.push({ kind: 'stair flush with wall: coplanar faces', cells: 1, min: [h.stair.x0, 0, h.stair.z0], max: [h.stair.x1, 0, h.stair.z1], zone: zoneAt((h.stair.x0 + h.stair.x1) / 2, 0, (h.stair.z0 + h.stair.z1) / 2)?.name ?? '(no zone)', detail: `gap ${h.gap} m to wall [${w.min.toArray().map((q) => q.toFixed(2))}]→[${w.max.toArray().map((q) => q.toFixed(2))}]` });
+  }
   clusters.sort((p, q) => q.cells - p.cells);
 
   // ------------------------------------------------------------------ coverage per region
@@ -465,6 +470,54 @@ function crossesSolid(game: Game, a: THREE.Vector3, b: THREE.Vector3, feetY: num
  * `fps`: the frame-time profiles to run. A number is a fixed rate; 'spiky' alternates 120 FPS frames
  * with hitches (the game clamps any frame to 1/20 s), seeded so failures reproduce.
  */
+/**
+ * 9.1: the gap between a stair and a wall beside it. For every stair side with a wall within 10 cm
+ * (along the stretch the wall covers, above the wall's foot), a body is pressed against the wall
+ * over the gap and dropped into it, resolved with the real controller's circle, and must keep a floor
+ * within a step of the tread. Reports each gap width seen (STAIR_GAP after the fix; 0 = flush).
+ */
+export function stairGapProbe(game: Game) {
+  const col = game.col;
+  const r0 = game.player.radius;
+  const ramps = col.colliders.filter((c) => c.kind === 'ramp');
+  const walls = col.colliders.filter((c) => c.kind === 'box' && c.solid && c.floor !== false && c.max.y - c.min.y >= 1 && c.max.x - c.min.x >= 0.15 && c.max.z - c.min.z >= 0.15);
+  const gaps = new Set<number>();
+  const bad: { x: number; z: number; tread: number; floor: number }[] = [];
+  let pairs = 0, probes = 0, drops = 0;
+  const pos = new THREE.Vector3();
+  for (const r of ramps) {
+    const along = r.axis === 'x';
+    const yLo = Math.min(r.h0!, r.h1!), yHi = Math.max(r.h0!, r.h1!);
+    const rl = along ? r.min.x : r.min.z, rh = along ? r.max.x : r.max.z;
+    for (const side of ['lo', 'hi'] as const) {
+      const face = side === 'lo' ? (along ? r.min.z : r.min.x) : along ? r.max.z : r.max.x;
+      for (const c of walls) {
+        const a0 = Math.max(rl, along ? c.min.x : c.min.z), a1 = Math.min(rh, along ? c.max.x : c.max.z);
+        const yOv = Math.min(yHi, c.max.y) - Math.max(yLo, c.min.y);
+        const gap = side === 'lo' ? face - (along ? c.max.z : c.max.x) : (along ? c.min.z : c.min.x) - face;
+        if (!(a1 - a0 > 0.02 && yOv > 0.05 && gap > -0.01 && gap < 0.1)) continue;
+        pairs++;
+        gaps.add(+gap.toFixed(3));
+        for (let k = 0; k <= 12; k++) {
+          const ra = a0 + ((a1 - a0) * k) / 12;
+          const h = r.h0! + ((r.h1! - r.h0!) * (ra - rl)) / (rh - rl);
+          if (h < c.min.y) continue;
+          for (const off of [0.015, -r0 + 0.02]) {
+            const w = side === 'lo' ? face - off : face + off;
+            pos.set(along ? ra : w, h, along ? w : ra);
+            col.resolveCircle(pos, r0, 1.7, 0.3);
+            const floor = col.groundHeightAt(pos.x, pos.z, r0 * 0.6, h + 0.05);
+            probes++;
+            if (floor >= h - 0.31) continue;
+            if (drops++ < 10) bad.push({ x: +pos.x.toFixed(2), z: +pos.z.toFixed(2), tread: +h.toFixed(2), floor: +floor.toFixed(2) });
+          }
+        }
+      }
+    }
+  }
+  return { stairs: ramps.length, wallSides: pairs, gaps: [...gaps].sort(), probes, drops, bad };
+}
+
 export function stressController(game: Game, opts: { samples?: number; seconds?: number; fps?: (number | 'spiky')[] } = {}) {
   const t0 = performance.now();
   const world = checkWorld(game, { stationOpen: true });

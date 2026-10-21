@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { CASING_LIFE, Casings } from './Casings';
 import { ARENA_SEE, ARENA_SIGHT_SHARE, contrastAt, densityOfSightRange, fogRange } from '../world/Visibility';
-import { fitStairWidth, stairWallOverlaps } from '../world/StairFit';
+import { STAIR_GAP, fitStairWidth, stairWallFlush, stairWallOverlaps } from '../world/StairFit';
 import { CollisionWorld } from '../world/Collision';
 
 const step = (c: Casings, seconds: number, dt = 1 / 60) => {
@@ -72,11 +72,36 @@ describe('Stair fit (8.1)', () => {
     const col = new CollisionWorld();
     col.add(0, 0, 0, 0.6, 4, 10); // a wall along z, 0.6 thick, overlapping the stair's west 0.3 m
     const fit = fitStairWidth(col.colliders, { x0: 0.3, z0: 2, x1: 2.7, z1: 8 }, 'z', 0, 4.5);
-    expect(fit.rect.x0).toBeCloseTo(0.6);
-    expect(fit.clipped).toEqual([{ side: 'lo', by: 0.3 }]);
+    expect(fit.rect.x0).toBeCloseTo(0.6 + STAIR_GAP);
+    expect(fit.clipped).toEqual([{ side: 'lo', by: 0.33 }]);
     const block = new CollisionWorld();
     block.add(0, 0, 4, 3, 3, 4.6); // straight across the run
     expect(fitStairWidth(block.colliders, { x0: 0.3, z0: 2, x1: 2.7, z1: 8 }, 'z', 0, 4.5).blocked.length).toBe(1);
+  });
+
+  it('9.1: a stair flush with a wall (or nearly) is moved STAIR_GAP clear of it; one already clear is untouched', () => {
+    const col = new CollisionWorld();
+    col.add(0, 0, 0, 0.6, 4, 10); // west wall, face at x = 0.6
+    col.add(3.29, 0, 0, 3.6, 4, 10); // east wall, face 1 cm from the stair
+    const fit = fitStairWidth(col.colliders, { x0: 0.6, z0: 2, x1: 3.3, z1: 8 }, 'z', 0, 4.5);
+    expect(fit.rect.x0).toBeCloseTo(0.6 + STAIR_GAP);
+    expect(fit.rect.x1).toBeCloseTo(3.29 - STAIR_GAP);
+    expect(fit.blocked).toEqual([]);
+    const clear = fitStairWidth(col.colliders, { x0: 0.7, z0: 2, x1: 3.1, z1: 8 }, 'z', 0, 4.5);
+    expect(clear.rect).toEqual({ x0: 0.7, z0: 2, x1: 3.1, z1: 8 });
+    expect(clear.clipped).toEqual([]);
+  });
+
+  it('9.1: the world check finds a stair flush with a wall, and not one with the gap', () => {
+    const col = new CollisionWorld();
+    col.add(0, 0, 0, 0.6, 4, 10);
+    col.addRamp(0.6, 2, 3, 8, 'z', 0, 4.5);
+    expect(stairWallFlush(col.colliders).length).toBe(1);
+    const ok = new CollisionWorld();
+    ok.add(0, 0, 0, 0.6, 4, 10);
+    ok.addRamp(0.6 + STAIR_GAP, 2, 3, 8, 'z', 0, 4.5);
+    expect(stairWallFlush(ok.colliders)).toEqual([]);
+    expect(stairWallOverlaps(ok.colliders)).toEqual([]);
   });
 
   it('a support under a raised stair, or a building above an underground one, only touches: no finding', () => {

@@ -226,6 +226,13 @@ What is never narrowed:
 
 Those are logged (`[stair] runs into a wall`) and reported by `__dev.world()` as **stair in wall**, along with any wall built after the stair. A support under a raised stair, or a building above an underground one, only touches it and isn't counted.
 
+### 9.1: and never flush with one
+Coplanar faces that face the same way z-fight. Two rules keep a stair's faces off any other plane:
+- **Plates stand in front of the treads.** A side plate (docks, jungle) or a railing plate (desert) overlaps the stair's width, so the treads stop `STAIR_GAP` (3 cm) short of it. Before 9.1 the plate's outer face shared the treads' side plane and flickered.
+- **Walls keep their distance.** `fitStairWidth` moves a side `STAIR_GAP` clear of any wall touching it, or of a wall it was narrowed to. `__dev.world()` reports any stair still flush (**stair flush with wall**).
+- **Build order:** the fit only sees what already exists, so solids beside a stair (columns, cabinets) are built before it.
+- **Checking:** `__dev.stairGaps()` checks every gap: 3 cm, and a body pressed into it keeps its floor.
+
 ## Jungle TDM: "Firebase Viper" (9.0)
 The assault map (3.7) is linear: one road, one gate, a compound to take. TDM needs a loop, so 9.0 adds a second base and two flanks without touching the Survival flow (`info.modes = ['arcade', 'tdm']`).
 

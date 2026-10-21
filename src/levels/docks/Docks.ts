@@ -5,7 +5,7 @@ import type { Glow, Glows } from '../../world/Glows';
 import type { BuildCtx, Mats } from '../../world/City';
 import { addSign, type SignSpec } from '../../world/Signs';
 import { applyWet } from '../../world/Ground';
-import { fitStairWidth } from '../../world/StairFit';
+import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import type { RainAreas } from '../../world/Rain';
 import { chainLinkTexture, concreteTexture as pavedTexture, perforatedTexture } from '../../world/Textures';
 import { concreteTexture, steelTexture } from '../jungle/textures';
@@ -120,7 +120,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
    * side plates 1.05 m above the treads on the `rails` sides ('lo'/'hi': the -/+ side across the run).
    */
   const stair = (sx0: number, sz0: number, sx1: number, sz1: number, axis: 'x' | 'z', rise: 1 | -1, base: number, top: number, mat: THREE.Material, rails: ('lo' | 'hi')[] = []) => {
-    // 8.1: never into a wall (StairFit): narrowed to the face of a wall intruding into its width.
+    // 8.1: never into a wall (StairFit): narrowed to the face of a wall intruding into its width;
+    // 9.1: and never flush with one (STAIR_GAP clear of any wall beside it).
     const fit = fitStairWidth(col.colliders, { x0: sx0, z0: sz0, x1: sx1, z1: sz1 }, axis, base, top);
     if (fit.blocked.length) console.warn('[stair] runs into a wall', [sx0, sz0, sx1, sz1]);
     const { x0, z0, x1, z1 } = fit.rect;
@@ -129,12 +130,16 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     const H = top - base;
     const steps = Math.max(2, Math.round(H / 0.25));
     const run = L / steps;
+    // 9.1: the treads stop STAIR_GAP short of a side plate. A plate overlapping the steps put its outer
+    // face in the plane of every step's side face, facing the same way: they z-fought across the side.
+    const w0 = (along ? z0 : x0) + (rails.includes('lo') ? STAIR_GAP : 0);
+    const w1 = (along ? z1 : x1) - (rails.includes('hi') ? STAIR_GAP : 0);
     for (let i = 0; i < steps; i++) {
       const hTop = ((i + 1) * H) / steps;
       const a = rise > 0 ? i * run : L - (i + 1) * run;
       const p0 = (along ? x0 : z0) + a;
-      if (along) b.add(worldBox(run, hTop, z1 - z0, 1), mat, p0 + run / 2, base + hTop / 2, (z0 + z1) / 2);
-      else b.add(worldBox(x1 - x0, hTop, run, 1), mat, (x0 + x1) / 2, base + hTop / 2, p0 + run / 2);
+      if (along) b.add(worldBox(run, hTop, w1 - w0, 1), mat, p0 + run / 2, base + hTop / 2, (w0 + w1) / 2);
+      else b.add(worldBox(w1 - w0, hTop, run, 1), mat, (w0 + w1) / 2, base + hTop / 2, p0 + run / 2);
     }
     col.addRamp(x0, z0, x1, z1, axis, rise > 0 ? base : top, rise > 0 ? top : base);
     const seg = 8;
@@ -309,6 +314,9 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     rail2(rx0, 13.6, rx1, 24, DECK);
     const [ox0, ox1] = X(-8.28, -8.2);
     rail2(ox0, 24, ox1, WH.z1 - T, DECK);
+    // Columns under the catwalk edge (before the stair: it fits itself STAIR_GAP clear of them, 9.1).
+    const [kx0, kx1] = X(-10.9, -10.6);
+    for (const z of [6, 18]) solid2(kx0, 0, z - 0.15, kx1, DT, z + 0.15, m.darkMetal, 'metal', 1);
     // Stairs from just inside the end doors up towards the middle, onto a small landing that joins
     // the catwalk sideways: walking in at a main door leads straight up (8.0: with the stairs rising
     // the other way, bots heading for the catwalk crossed half the floor first and never got there).
@@ -320,9 +328,6 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     const [px0, px1] = X(-8.28, -8.2);
     rail2(px0, 11.2, px1, 13.6, DECK);
     rail2(sx0, 11.2, sx1, 11.28, DECK);
-    // Columns under the catwalk edge.
-    const [kx0, kx1] = X(-10.9, -10.6);
-    for (const z of [6, 18]) solid2(kx0, 0, z - 0.15, kx1, DT, z + 0.15, m.darkMetal, 'metal', 1);
   }
   solid(-10.6, DT, -1.5, 10.6, DECK, 1.5, m.deck, 'metal', 1);
   solid(-10.6, DECK, -1.5, 10.6, DECK + 1.05, -1.42, m.paint, 'metal', 1);

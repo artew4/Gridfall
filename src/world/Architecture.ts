@@ -158,7 +158,8 @@ export class Architecture {
     const { builder: b, col } = this.ctx;
     const top = spec.top ?? DECK;
     const bot = spec.bottom ?? 0;
-    // 8.1: never into a wall (StairFit): narrowed to the face of a wall intruding into its width.
+    // 8.1: never into a wall (StairFit): narrowed to the face of a wall intruding into its width;
+    // 9.1: and never flush with one (STAIR_GAP clear of any wall beside it).
     const fit = fitStairWidth(col.colliders, spec, spec.axis, Math.min(bot, top), Math.max(bot, top));
     if (fit.blocked.length) console.warn('[stair] runs into a wall', [spec.x0, spec.z0, spec.x1, spec.z1], fit.blocked.map((c) => [c.min.toArray(), c.max.toArray()]));
     const s: StairSpec = { ...spec, ...fit.rect };

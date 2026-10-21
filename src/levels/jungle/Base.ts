@@ -4,7 +4,7 @@ import type { Collider, CollisionWorld } from '../../world/Collision';
 import type { Glows } from '../../world/Glows';
 import type { Breakable, CabinetSpot } from '../../gameplay/Interactives';
 import { mulberry32 } from '../../core/math';
-import { fitStairWidth } from '../../world/StairFit';
+import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import type { Zone } from '../Level';
 import { BASE, CLIFF, CLIFF_RECESS, JUNGLE_EXTENT, ROAD, STRIP, TDM_YARD, baseDist, jungleHeight, roadX } from './Terrain';
 import * as T from './textures';
@@ -185,7 +185,8 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
    * sides (each segment 1.05 m above its highest tread: not vaultable, it's a fall).
    */
   const stair = (sx0: number, sz0: number, sx1: number, sz1: number, axis: 'x' | 'z', rise: 1 | -1, base: number, top: number, mat: THREE.Material, rails: Side[] = []) => {
-    // 8.1: never into a wall (StairFit): narrowed to the face of a wall intruding into its width.
+    // 8.1: never into a wall (StairFit): narrowed to the face of a wall intruding into its width;
+    // 9.1: and never flush with one (STAIR_GAP clear of any wall beside it).
     const fit = fitStairWidth(col.colliders, { x0: sx0, z0: sz0, x1: sx1, z1: sz1 }, axis, base, top);
     if (fit.blocked.length) console.warn('[stair] runs into a wall', [sx0, sz0, sx1, sz1]);
     const { x0, z0, x1, z1 } = fit.rect;
@@ -194,12 +195,16 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     const H = top - base;
     const steps = Math.round(H / 0.25);
     const run = L / steps;
+    // 9.1: the treads stop STAIR_GAP short of a side plate. A plate overlapping the steps put its outer
+    // face in the plane of every step's side face, facing the same way: they z-fought across the side.
+    const w0 = (along ? z0 : x0) + (rails.includes(along ? 'n' : 'w') ? STAIR_GAP : 0);
+    const w1 = (along ? z1 : x1) - (rails.includes(along ? 's' : 'e') ? STAIR_GAP : 0);
     for (let i = 0; i < steps; i++) {
       const hTop = ((i + 1) * H) / steps;
       const a = rise > 0 ? i * run : L - (i + 1) * run;
       const p0 = (along ? x0 : z0) + a;
-      if (along) b.add(worldBox(run, hTop, z1 - z0, 1), mat, p0 + run / 2, base + hTop / 2, (z0 + z1) / 2);
-      else b.add(worldBox(x1 - x0, hTop, run, 1), mat, (x0 + x1) / 2, base + hTop / 2, p0 + run / 2);
+      if (along) b.add(worldBox(run, hTop, w1 - w0, 1), mat, p0 + run / 2, base + hTop / 2, (w0 + w1) / 2);
+      else b.add(worldBox(w1 - w0, hTop, run, 1), mat, (w0 + w1) / 2, base + hTop / 2, p0 + run / 2);
     }
     col.addRamp(x0, z0, x1, z1, axis, rise > 0 ? base : top, rise > 0 ? top : base);
     const seg = 8;
