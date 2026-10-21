@@ -53,6 +53,7 @@ export async function bench(game: Game, seconds = 3, opts: { pipelines?: Pipelin
   };
   if (game.setting === 'desert') return benchDesert(game, dev, m, out);
   if (game.setting === 'jungle') return benchJungle(game, dev, m, out);
+  if (game.setting === 'docks') return benchDocks(game, dev, m, out);
   dev.start('story');
   dev.god();
   dev.noGuards();
@@ -181,5 +182,46 @@ async function benchJungle(game: Game, dev: Dev, m: (name: string) => Promise<vo
   await m('fight');
   game.waves.reset(game.scene);
   game.waves.state = 'idle';
+  return out;
+}
+
+/**
+ * Neon Docks (8.0, a TDM arena): every view with the match running (nine bots, the player in god
+ * mode), because that is the only way the level is played. The three lanes at eye level, the views
+ * from the container tops and the catwalk, the crane, then a firefight from the forecourt.
+ */
+async function benchDocks(game: Game, dev: Dev, m: (name: string) => Promise<void>, out: Record<string, unknown>) {
+  dev.start('tdm', 'docks');
+  dev.god();
+  const views: [string, [number, number, number], [number, number, number]][] = [
+    ['alphaYard', [0, 0, 72], [0, 2, 40]],
+    ['stacks', [-37, 0, 16], [-37, 1.5, -20]],
+    ['stacksTop', [-33, 2.6, 20], [-45, 1, -10]],
+    ['warehouseFloor', [0, 0, 22], [0, 3, -20]],
+    ['catwalk', [-12.1, 4.5, 20], [8, 2, -10]],
+    ['quay', [33, 0, 48], [30, 2, -40]],
+    ['crane', [30, 0, 8], [40, 12, -6]],
+  ];
+  for (const [name, p, l] of views) {
+    dev.tp(p[0], p[1], p[2], 0, 0);
+    dev.look(l[0], l[1], l[2]);
+    await m(name);
+  }
+  // Firefight: from the forecourt, at the nearest OMEGA bot, every 0.6 s.
+  dev.tp(0, 0, 40, 0, 0);
+  const tdm = game.tdm;
+  const shooter = window.setInterval(() => {
+    let best: { x: number; y: number; z: number } | null = null, bd = 60;
+    for (const b of tdm.bots) if (b.alive && b.team === 'omega' && b.pos.distanceTo(game.player.pos) < bd) {
+      bd = b.pos.distanceTo(game.player.pos);
+      best = b.pos;
+    }
+    if (!best) return;
+    dev.look(best.x, best.y + 1.2, best.z);
+    dev.shoot();
+  }, 600);
+  await new Promise((r) => setTimeout(r, 4000));
+  await m('firefight');
+  clearInterval(shooter);
   return out;
 }
