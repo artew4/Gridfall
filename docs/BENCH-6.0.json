@@ -1,0 +1,35 @@
+{
+  "version": "6.0 (feature/tdm-factions-6.0)",
+  "machine": "Apple M5, Chrome, ANGLE Metal, 120 Hz display, DPR 2",
+  "preset": "Balanced (saved settings: balanced, 60 FPS cap; unchanged)",
+  "tdmBench": {
+    "method": "__dev.tdmBench(): Team Deathmatch on Desert Outpost at 1x, nine bots, tickets 999, god mode; 30 s settle, 8 s measured with the frame probe. aiMs = wall time inside TdmRules.update (both directors, every decide, every bot's act, respawns); rays = raycast + lineOfSight calls made inside it (steering, perception, cover, muzzle checks). spectate: the player watches (pure bot vs bot); withPlayer: he stands at the centre lane and shoots the nearest OMEGA bot every 0.6 s.",
+    "columns": ["fps", "cpuMsPerFrame", "gpuMsPerFrame", "frameMsP99", "aiMsAvg", "aiMsP95", "aiMsP99", "aiMsWorst", "raysPerFrame", "decidesPerFrame", "maxDecidesInAFrame", "maxSquadRaysInAFrame", "coverSearchesDeferred", "rePlansDeferred", "maxDecideLateS", "drawCalls"],
+    "spectate": [60, 2.27, 5.57, 18.7, 0.452, 1.0, 1.6, 2.8, 22.5, 0.56, 3, 18, 0, 0, 0.018, 339],
+    "withPlayer": [60, 2.24, 5.63, 19.0, 0.449, 1.1, 2.1, 3.7, 15.4, 0.54, 3, 24, 0, 0, 0.028, 232],
+    "for_scale_5.0_survival_desert_10_enemies_aiMsAvg": [0.30, 0.37]
+  },
+  "dev_bench_desert": {
+    "method": "__dev.bench(3) on the expanded desert (survival scenarios), after the mode-switch clean-up fix (L-072). An earlier run measured 278 draw calls in dunesStorm with nine TDM bots left in the scene by the dev start path.",
+    "columns": ["fps", "cpuMsPerFrame", "gpuMsPerFrame", "frameMsP95", "drawCalls", "valid"],
+    "6.0": { "yardCalm": [59.3, 2.67, 5.9, 24.5, 90, true], "towerView": [59.3, 2.72, 6.06, 24.0, 94, true], "yardStorm": [60, 2.59, 5.74, 23.8, 92, true], "interiorStorm": [60, 2.35, 6.22, 23.6, 76, true], "dunesStorm": [59.3, 2.79, 6.13, 23.5, 101, true], "fightStorm": [60, 2.25, 5.25, 24.0, 140, true] },
+    "6.0_first_run_with_leftover_bots": { "yardCalm": [60.3, 1.94, 5.26, 23.3, 111, true], "towerView": [60, 2.51, 6.21, 23.1, 130, true], "yardStorm": [60, 2.69, 5.53, 23.7, 113, true], "interiorStorm": [60, 2.49, 5.77, 23.8, 178, true], "dunesStorm": [60, 2.59, 5.54, 24.1, 278, true], "fightStorm": [60, 2.72, 5.14, 23.9, 140, true] },
+    "5.0_reference": { "yardCalm": [59.9, 2.03, 5.19, 24.0, 89], "towerView": [60, 2.35, 6.14, 23.7, 93], "yardStorm": [60, 2.12, 5.34, 23.8, 91], "interiorStorm": [60.3, 2.04, 5.8, 24.0, 74], "dunesStorm": [60, 2.4, 6.03, 23.1, 100], "fightStorm": [60, 2.48, 5.41, 23.8, 133] },
+    "note": "P95 ~23-24 ms is frame pacing of a 60 cap on a 120 Hz display (known since 4.x), not slow frames."
+  },
+  "tdmSoak": {
+    "method": "__dev.tdmSoak({ timeScale: 2 }): bots only (5 OMEGA vs 4 ALPHA; the player spectates in god mode), tickets 999, sim time as listed. Soak 1 before the melee tuning and the door fix; soak 2 after them; soak 3 after the goal-progress watchdog (L-073).",
+    "soak1": { "simSeconds": 481, "kills": 80, "killsPerMin": 10.0, "firstContact": 10, "byTeam": { "omega": 45, "alpha": 35 }, "byKillerRole": { "suppressor": 39, "flanker": 17, "rusher": 24 }, "victimPinned": 26, "flankKills": 9, "range": { "median": 6.5, "p10": 0.9, "p90": 19.5, "within3m": 27 }, "stuck15s": 1, "friendly": { "damage": 0, "passedThroughTeammates": 19, "burstsHeld": 37 }, "ai": { "msAvg": 0.481, "msP95": 1.1, "msP99": 1.8, "msWorst": 7.7 }, "sched": { "maxThinks": 3, "maxRays": 31, "deferred": 30, "deferredRoutes": 39, "maxLate": 0.083 } },
+    "soak2": { "simSeconds": 720, "kills": 112, "killsPerMin": 9.3, "firstContact": 18, "byTeam": { "omega": 64, "alpha": 48 }, "byKillerRole": { "suppressor": 59, "flanker": 23, "rusher": 30 }, "victimPinned": 37, "flankKills": 21, "range": { "median": 6.9, "p10": 0.9, "p90": 16.2, "within3m": 38 }, "stuck15s": 1, "friendly": { "damage": 0, "passedThroughTeammates": 36, "burstsHeld": 48 }, "ai": { "msAvg": 0.437, "msP95": 1.1, "msP99": 1.7, "msWorst": 6.8 }, "sched": { "frames": 21609, "thinks": 25115, "maxThinks": 3, "maxRays": 31, "deferred": 49, "deferredRoutes": 127, "maxLate": 0.097 } },
+    "soak3": { "simSeconds": 960, "kills": 145, "killsPerMin": 9.1, "firstContact": 14, "byTeam": { "omega": 84, "alpha": 61 }, "byKillerRole": { "suppressor": 71, "flanker": 39, "rusher": 35 }, "victimPinned": 43, "flankKills": 18, "range": { "median": 7.4, "p10": 0.9, "p90": 17.7, "within3m": 51 }, "stuck15s": 2, "friendly": { "damage": 0, "passedThroughTeammates": 41, "burstsHeld": 87 }, "ai": { "msAvg": 0.485, "msP95": 1.2, "msP99": 1.9, "msWorst": 16.1 }, "sched": { "frames": 28782, "thinks": 33157, "maxThinks": 3, "maxRays": 32, "deferred": 42, "deferredRoutes": 177, "maxLate": 0.122 }, "worstFrameNote": "one 16.1 ms AI frame in 28,782 at 2x sim speed; not explained: a respawn measured ~1 ms, a search plan 0.2-2.2 ms; at 1x the worst AI frame was 2.8-3.7 ms" }
+  },
+  "humanRoles": {
+    "method": "Live TDM, god mode; after first contact the player is moved to his squad, then scripted for 4-6 s per phase; samples every 0.1 s of (inferred style, ALPHA gunner roles: s = suppressor, f = flanker, L/R side).",
+    "shoot (steady fire, standing)": { "suppressing fLfRfR": 50, "pushing (teleport into the window) fLss/fRss": 9 },
+    "push (closing at 4 m/s)": { "pushing fRss": 36, "suppressing fLfRfR (before confirmation)": 14 },
+    "hold (standing, not firing)": { "holding fLfRs": 23, "pushing fRss (window)": 17 },
+    "flank (circling the enemy)": { "flanking fLfRs": 28, "pushing fLss": 19, "holding fLfRs": 13 },
+    "back (falling back)": { "retreating fLss": 26, "pushing fLss": 10, "holding fLfRs": 4 },
+    "barks": ["KOSTYA: Taking the right!", "KOSTYA: Covering your advance!", "MAXIM: Hold them there, flanking!", "MAXIM: Taking the left!", "KOSTYA: Covering your advance!"]
+  }
+}

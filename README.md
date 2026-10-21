@@ -1,4 +1,4 @@
-# NEON RAIN 4.1: Three Settings (Tokyo and Desert visual overhaul)
+# NEON RAIN 6.0: Three Settings, Tactical AI, 5v5 Team Deathmatch
 
 One night in Shinjuku. One gun you'd rather keep holstered. One last train. Or an outpost in the dunes, and a sandstorm coming. Or a walled firebase deep in the rainforest, and a road up to its gate.
 
@@ -91,6 +91,7 @@ The opening (about 50 s, skippable) shows the populated city, the manhunt on the
   - Act IV, **The Last Train**: get down to Platform 1 and board the last express before its doors close.
   - Each act starts at a checkpoint. After a death you can retry from it or restart the story.
 - **Arcade Survival**: the original wave mode on the same district (six designed waves, then endless escalation).
+- **Team Deathmatch 5v5** (Desert Outpost, 6.0): you and four allied bots (ALPHA, blue) against five bots (OMEGA, red). Each team has 25 tickets; every death costs one; the dead respawn at their base after 3–5 s while their team has tickets; the first team to run out loses. Details below.
 - **Settings**:
   - volume (master, music, SFX, mute);
   - graphics preset and frame rate;
@@ -252,6 +253,13 @@ The world renders through one post chain: scene → viewmodel → UnrealBloom �
 - **Wet leaves:** foliage is glossier, so it catches the canopy light.
 - **Light shafts:** five shafts of sun break through the canopy onto the watchtower, the middle of the yard, the flag and two giant trees by the cleared strip. Each lands on a matching sun fleck on the ground. They are light only: you, enemies and bullets pass straight through them.
 
+### Team Deathmatch (6.0)
+- **The arena:** Desert Outpost becomes a symmetric battlefield. ALPHA holds the south base, OMEGA the north: walled yards you can't be shot into, with three exits each behind a blast wall. Three lanes join them: the centre through the outpost (open yard, roofs and windows over it: the short, dangerous way) and two flanks out in the dunes, each running through a ruined hamlet on one half and a dry wadi (sand berms, rocks, a burnt APC) on the other, with a pump house at the midpoint. Everything is mirrored 180° about the flagpole, the dunes included, so neither side has better ground.
+- **Your squad:** Maxim, Anatoly and Kostya (riflemen) and Ilya (a blade), with their names and health over their heads, blue-grey kit and cool-white tracers. Their callouts carry their names.
+- **They play round you.** The squad can't order you, so it reads what you do: lay down steady fire and they flank ("Hold them there, flanking!"); push and an extra rifle covers you ("Covering your advance!"); work round one side and they take the other; fall back and they cover you. Enemies you can see are called out to them.
+- **Friendly fire is off:** your rounds and theirs pass through teammates, and a rifleman won't fire with a teammate in his line.
+- **HUD:** tickets at the top, a kill feed on the right, a respawn countdown with your killer's name. Spawns are protected for 2 s.
+
 ### Survival tactics (5.0)
 The survival enemies fight as a squad, in every setting:
 - **They take real cover.** A rifleman hunkers where the obstacle actually hides him from where you are, then pops up or leans out, fires a burst after a short laser warning, and ducks again. Walk round his cover and he notices within a fraction of a second ("He's flanking!") and moves.
@@ -304,6 +312,10 @@ In `npm run dev`, these commands work in the browser console (they don't exist i
   - `await __dev.tactics(true)`: overlay with roles, actions, cover lines (green while the cover hides the hunkered body from you, red once blown), peek spots, rush slots, the LKP and the search points.
   - `await __dev.survival({ setting, seconds, startWave })`: a bot plays Arcade Survival (moves, aims, fires); reports kills, damage events, enemy shots, action shares, callouts and integrity.
   - `await __dev.aiBench()`: 10 enemies per setting; AI milliseconds per frame (average, P95, P99, worst) and rays per frame. Compare with `docs/BENCH-5.0.json`.
+- Team Deathmatch (6.0), on the desert:
+  - `await __dev.tdmSoak({ seconds: 300, timeScale: 2 })`: the bots play alone (you spectate in god mode, tickets 999): kills per minute, ranges, flank kills, what victims were doing, stuck bots, friendly-fire counters, scheduler pressure, AI cost.
+  - `await __dev.tdmBench({ withPlayer: true })`: frame cost at 1x with all nine bots fighting (AI ms, rays, decides per frame, FPS, CPU, GPU).
+  - `await __dev.friendlyFire()`: rounds through teammates (each team), your shots through allies, a teammate's blade, check-fire, rounds at you; `ok: true` when nothing hurts a teammate. Compare with `docs/BENCH-6.0.json`.
 - `__dev.start('story' | 'arcade')`, `__dev.tp(x, y, z, yaw?, pitch?)`, `__dev.look(x, y, z)`, `__dev.god()`, `__dev.noGuards()`, `__dev.record(fn)`.
 
 ## Structure

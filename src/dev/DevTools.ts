@@ -10,7 +10,7 @@ export function installDevTools(game: Game) {
      * Skip title and intro and play immediately (pointer lock is faked: automation can't hold it).
      * `setting` loads another level first (synchronously).
      */
-    start(mode: 'story' | 'arcade' = 'story', setting?: SettingId) {
+    start(mode: 'story' | 'arcade' | 'tdm' = 'story', setting?: SettingId) {
       if (setting && setting !== game.setting) game.loadLevel(setting);
       if (!game.level.info.modes.includes(mode)) throw new Error(`${game.setting} has no ${mode} mode`);
       game.mode = mode;
@@ -116,6 +116,18 @@ export function installDevTools(game: Game) {
     /** Survival AI under load on each level: frame cost, AI wall time, rays per frame. */
     async aiBench(opts: { levels?: SettingId[]; seconds?: number; settle?: number } = {}) {
       return (await import('./AIBench')).aiBench(game, opts);
+    },
+    /** TDM played by the bots alone (the player spectates): kills, ranges, stuck bots, friendly fire, AI cost. */
+    async tdmSoak(opts: { seconds?: number; timeScale?: number; tickets?: number } = {}) {
+      return (await import('./TdmCheck')).tdmSoak(game, opts);
+    },
+    /** TDM frame cost with nine bots fighting (spectating or with the player shooting). */
+    async tdmBench(opts: { seconds?: number; settle?: number; withPlayer?: boolean } = {}) {
+      return (await import('./TdmCheck')).tdmBench(game, opts);
+    },
+    /** TDM friendly-fire check on frozen bots: rounds, shots, blades, check-fire, rounds at the player. */
+    async friendlyFire() {
+      return (await import('./TdmCheck')).friendlyFire(game);
     },
     /** Render pipeline for comparisons (the F8 cycle): 'v4', 'raw' (no composer) or 'v37'. */
     pipeline(p?: 'v4' | 'raw' | 'v37') {
