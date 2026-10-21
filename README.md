@@ -36,6 +36,16 @@ No install and no plugin. Open the link, click, play. Desktop browser with a mou
 - **Arcade Survival** (Tokyo, Desert, Jungle): wave after wave of enemies who fight as a squad.
 - **Team Deathmatch 5v5** (Desert, Jungle, Docks): you and four allied bots against five, 25 tickets a team, respawns in 3–5 s. You don't command your squad: the bots read what you're doing and play around you.
 
+## Gunplay
+
+- **Aim down sights (right mouse):** the view narrows by 15–28% (by weapon), and the gun comes up until its real sights line up with the centre of the screen: the rifle's red dot, the pistol's notch and post, the shotgun's bead.
+  - **Steadier:** about half the base spread, a quarter of the movement spread, and less than half the recoil.
+  - **The cost:** you move at 62% speed, and the mouse turns 30% slower.
+- **Crouch (C):** a lower eye and a 1.2 m body. You fit under what a standing body can't, and enemies have less of you to see and hit.
+  - **Steadier:** hip fire is about 30% tighter and steps are quiet.
+  - **The cost:** you move at 55% speed.
+  - **Standing up:** sprinting or jumping stands you up, if there's room overhead.
+
 ## Technical highlights
 
 ### Rendering: one engine, a distinct look per world
@@ -53,11 +63,16 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 |---|---|---|
 | Goal | be a readable, fair threat to one player | be a convincing player among peers |
 | Decisions | utility scoring per enemy, a squad director handing out roles | a state machine per bot, an arena director per team |
-| In a fight | real cover against the threat's position, pop-and-shoot after a laser warning, suppression pins | snap-targeting the moment it sees you, strafing while firing, jumps and vaults, the Push on a wounded target |
+| In a fight | real cover against the threat's position, pop-and-shoot after a laser warning, suppression pins | snap-targeting the moment it sees you; hip fire on the move up close, an aimed shot at range; jumps and vaults; the Push on a wounded target |
 | Team play | suppressors pin you while flankers work round your sides; melee rushes are slotted and timed | a shared contact board, push / hold / regroup from momentum, lane discipline, push claims |
 | Information | no wallhacks: last known position, then a widening search | sight plus heard gunfire, bounded by fog contrast |
 
 - **Snap + spread:** an arena bot fires on the frame it confirms sight. There's no reaction delay; instead its first rounds at a new target bloom wide and tighten within 0.3 s. Fast, but fair.
+- **It picks its shot like a player:**
+  - **Under ~12 m:** it hip-fires at full speed, strafing and jumping, with a wider cone.
+  - **Further out:** it plants its feet, raises the rifle to its eye (you can see it coming), settles for a quarter to half a second, then fires short, tight bursts while it walks.
+  - **Beyond 40 m:** it moves up instead of plinking.
+  - **Measured:** aimed rounds hit 2–4× as often as hip fire at the same range.
 - **Attention-driven sensing:** line-of-sight checks are prioritised (current target, a new attacker, contacts in front, everyone else round-robin). A shared ray budget, plus a symmetric pair cache so one ray answers for both bots.
 - **Time-sliced:** every brain runs on a scheduler with per-frame budgets. Nine arena bots cost about 0.3–0.4 ms of CPU per frame.
 - **Fog is fair:** in a sandstorm or the jungle mist, bots see only as far as a player could pick a figure out of the haze, contrast exp(−(ρd)²), and their aim degrades with distance.
@@ -74,7 +89,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **154 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director, timetables, terrain, collision, pools and stair fitting.
+- **165 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director and its range heuristics, timetables, terrain, collision, pools, stair fitting, and frame-rate independence of the ADS and crouch blends.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;
@@ -104,10 +119,12 @@ One runtime dependency: `three`.
 | WASD | Move |
 | Mouse | Look |
 | Left mouse (hold) | Fire |
+| Right mouse (hold) | Aim down sights: tighter spread, less recoil, a 15–28% zoom; you move slower |
 | R | Reload |
 | X | Holster / draw (a drawn weapon gets you noticed) |
 | E (tap or hold) | Interact: talk, read, cut the relay |
 | Shift | Sprint |
+| C (tap or hold) | Crouch: a tap toggles, a hold crouches while held. Quieter steps, tighter hip fire, a smaller target; slower |
 | Space | Jump; vault low railings mid-jump |
 | Tab (hold) | Objective overview |
 | Esc | Pause: resume, restart, volume, graphics, quit to menu |

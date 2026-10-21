@@ -581,8 +581,94 @@ Branch `feature/rebranding-cicd-10.0`, based on 9.1 (`802125b`). Versions 1.0–
   - with a test track in the folder, one probe and the stream, both under `/Gridfall/audio/music/`, and nothing else.
 - The workflow itself has not run: nothing is pushed.
 
+## 11.0: aim down sights, crouch, and bots that choose their shot
+Branch `feature/ads-crouch-11.0`, based on `main` (10.0, `7cb947a`). Numbers: `docs/BENCH-11.0.json`.
+
+| Step | Commit | Notes |
+|---|---|---|
+| Phases 1–3 | `7e0f586` | ADS and crouch, arena aim by range, crouched perception and hit volume, crouch-aware checks |
+| Phases 4–5 | (second 11.0 commit) | benchmark, docs |
+
+**Aim down sights (hold RMB):**
+- **The blend:** one clock `adsT` runs linearly, 0 → 1 in 0.2 s (down in 0.16 s). `ads = smoothstep(adsT)` drives everything: the world FOV (× the weapon's `ads.zoom`: rifle 0.72, pistol 0.8, shotgun 0.85), the viewmodel pose, sway, bob, kick, sensitivity, speed and the crosshair fade.
+  - It's frame-rate independent and lands exactly, with no exponential tail. A unit test checks it at 30, 60, 120 and 150 FPS.
+- **Sights on the crosshair:** each weapon names the gun-space point the eye looks through (`ads.sight`). With the sights up the viewmodel root is unrotated at (−sight.x, −sight.y, ads.z), which puts that point on the camera axis. Measured: the rifle's dot projects within 1 px of screen centre.
+- **The rifle's red dot** was a solid box that would have filled the middle of the screen. It is now an open tube, with a faint lens and the dot on it.
+- **Handling:**
+  - base spread −50%, movement spread −75%, bloom −60%;
+  - camera recoil × 0.45, viewmodel kick × 0.4;
+  - speed × 0.62, sensitivity × 0.7.
+- **Viewmodel lens and muzzle:** the viewmodel FOV narrows 12% with the sights up. The muzzle and ejection port follow the gun to the centre (`camPoint`).
+- **Fixed on the way:** the camera FOV was damped with a fixed 1/60 s. Its speed depended on the frame rate. It now uses the real frame time.
+
+**Crouch (C; a tap toggles, a hold crouches while held):**
+- **Body:** 1.8 → 1.2 m (exponential, rate 12, exact for any step), eye 1.65 → 1.08 m.
+- **Standing up needs room:** under a low ceiling the body rises only as far as it allows. Sprinting or Space stands you up if there's room.
+- **Handling:**
+  - speed × 0.55;
+  - hip movement spread and bloom −30%, base −15%;
+  - recoil × 0.85;
+  - footsteps at 35%.
+- **The bots see you crouched:**
+  - `PlayerUnit.headY` and `chestY`, the rounds' hit volume and the stealth guards' body samples all scale with the body's height.
+  - A crouched player is a lower, smaller target; the bots aim at where he is.
+
+**Arena bots choose their shot by range (`ARENA.ads`):**
+- **Under ~12 m:** hip fire as in 7.0: full-speed strafing, jumps, the bloom of a fresh target, and 0.012 more spread.
+- **13–40 m:**
+  - it plants its feet (12% of run speed) and raises the rifle to its eye;
+  - it focuses 0.24 s at 13 m, +8 ms per metre, at most 0.45 s;
+  - then it fires 3-round bursts with 0.3 s between, at spread 0.006 plus fog and jitter, no bloom, walking its strafe at 32% of run speed.
+- **Hysteresis:** 13 m in, 11 m out.
+- **Back to the hip:** a push, a break, a jump, a reload or losing sight (after 0.6 s) drops the rifle.
+- **Keeping focus:** back on the same target within 0.5 s, the focus stands. Aiming, a hit makes it flinch rather than jump.
+- **Over 40 m:** it sprints up and doesn't fire.
+- **Pushes:** a gunner pushes only a target within 25 m.
+- **Visible:** `isAiming` raises the rifle to the cheek (pivot and arms blended, about 0.15 s), on every gunner look. Survival gunners raise it in their aim and fire phases too, as a visual change only; their decisions are untouched.
+- **Tuning, measured on the way:**
+  - **No range cap:** pushes and the frames before a decide kept most long-range fire at the hip.
+  - **Then aiming at any range:** the desert became a 50 m standoff.
+  - **The 40 m effective range** fixed both.
+
+**Results** (A/B in one session, 3 + 3 matches per level, aiming vs the 10.0 hip-only shooter):
+
+| | Match (s) | Kills/min | Kill range median | Moving |
+|---|---|---|---|---|
+| Docks | 170–187 vs 200–220 | 14.4–15.6 vs 13.4–14.4 | 16.6–26.2 vs 12.5–13.3 m | 82–85% vs 95–96% |
+| Jungle | 190–220 vs 204–207 | 13.1–14.8 vs 13.8–14.1 | 8.9–13.2 vs 10.5–13.5 m | 82–86% vs 96% |
+| Desert | 155–161 vs 190–217 | 17.5–18.5 vs 13.3–13.9 | 35–36.5 vs 26 m | 77–78% vs 96% |
+
+- **Aimed vs hip at the same range:**
+  - 12–25 m: 51–57% hits aimed, 15–22% from the hip;
+  - 25–40 m: 11–32% aimed (lowest in the jungle fog), 5–7% from the hip.
+- **Share of rounds aimed:** 59–80%.
+- **Sight to first shot:** median 0.25–0.45 s with focus (hip: 0–20 ms).
+- 0 friendly fire, 0 stuck.
+
+**Validation:**
+- **`world()`:** 0 findings on all four levels, standing and crouched.
+  - Crouched reach is identical, except 2 cells in Tokyo: a metro stair, 0.25 m closer to its wall, under the street railing.
+- **`stress()` standing:** 0 failures in 64,000 runs on all four levels.
+- **`stress({ crouch: true })`:** 0 failures in 64,000 on the docks, jungle and desert; 1 on Tokyo (see Watch).
+  - **Harness fix 1:** the solid-crossing detector assumed a 1.8 m body, giving 11 false reports of a crouch-jump in the culvert.
+  - **Harness fix 2:** a landing could fall on the single idle frame; there are now two.
+- **ADS transition:** FOV 74° → 53.3° in 0.2 s, rising evenly. Frame pacing toggling ADS every 0.35 s matches not toggling (P99 24.8 vs 25.1 ms).
+- **`bench(3)`:** 59.6–60.3 FPS on every view of all four levels.
+- **`tdmBench`:** 60 FPS, AI 0.40 ms.
+- **`aiBench`, survival, alternated with 10.0:** within noise (Tokyo AI 0.25 vs 0.25 ms).
+- **Survival `tactical()`:** Tokyo passes, 0 rounds into its own cover.
+- **Tests and build:** 165 unit tests; build ok.
+
+**Watch:**
+- **Jungle survival `tactical()`:** flank and suppress fail ("never took cover"). This also happens on 10.0 `main`: it is pre-existing, not 11.0. Not yet investigated.
+- **Tokyo crouched stress:** one run in 64,000 ended overlapping a vaultable parapet while standing again. It's the standing controller's landing-frame overlap on vault colliders, and it resolves in the next frames.
+- **Jungle pace:** matches are about the same length or slightly longer. In the fog aimed bursts hit only 11% at 25–40 m.
+- **The desert fights at 35–40 m now.** The kill range clusters just under the 40 m cap.
+- **Not felt by a human yet:** the ADS feel, the crouch, and whether a raised rifle reads at 30 m.
+
 ## Next
 Human playtest:
+- 11.0 items: ADS feel (the 0.2 s raise, the zoom per weapon, the red dot, recoil with the sights up), crouch (toggle vs hold, speed), can you read a bot raising its rifle at 20–40 m and does that warning feel fair, is the desert's 35–40 m fighting fun, are the jungle fights too slow.
 - 9.1: the warehouse stairs (and every stair beside a wall) from all angles: any flicker left?
 - 9.0 items: the five themes (does the menu theme set the tone, is the docks bass too heavy, does the jungle groove fit), the crossfades between menu and levels, dropping in a real .mp3; jungle TDM: are LZ North and LZ Alpha fair, are the culvert and the east breach worth taking, is the fog too thick to fight in.
 - 8.1 items: is the docks bright enough now (and still moody), do the kinetic tracers and brass feel right, is TDM fair without callouts, do bots in a sandstorm ever shoot you before you can see them, is 70 m/s too lethal.

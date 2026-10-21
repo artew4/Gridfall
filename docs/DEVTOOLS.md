@@ -46,6 +46,14 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
   - `await __dev.tdmSoak({ seconds: 300, timeScale: 2 })`: the bots play alone (you spectate in god mode, tickets 999): kills per minute, ranges, flank kills, what victims were doing, stuck bots, friendly-fire counters, scheduler pressure, AI cost.
   - `await __dev.tdmBench({ withPlayer: true })`: frame cost at 1x with all nine bots fighting (AI ms, rays, decides per frame, FPS, CPU, GPU).
   - `await __dev.friendlyFire()`: rounds through teammates (each team), your shots through allies, a teammate's blade, check-fire, rounds at you; `ok: true` when nothing hurts a teammate. Compare with `docs/BENCH-6.0.json`.
+- ADS and crouch (11.0):
+  - `await __dev.world({ bodyHeight: 1.2 })` scans with a crouched body (compare `perZone` with a standing scan to find crouch-only spaces).
+  - `await __dev.stress({ crouch: true })` starts from every crouched-reachable cell and runs crouch-walks, and crouch-then-sprint-jumps (standing up under low ceilings included).
+  - `__game.player.ads` / `.crouch` / `.height` read the blends; `__dev.colliders(true)` draws the head ring at the current height.
+- Arena aiming (11.0):
+  - `tdmSim` reports `arena.aim`: aimed vs hip rounds, the hit rate of each per range band (`hitPctByRange`; every round carries its own mode and range), and the share of time aiming.
+  - `tdmSim({ ads: false })` is the 10.0 shooter for an A/B.
+  - Each gunner exposes `isAiming` and `aimRaise`.
 - Stairs (9.1): `__dev.world()` also reports a stair flush with a wall (`stair flush with wall`); `await __dev.stairGaps()` lists every stair-to-wall gap (3 cm) and presses a body into each one to check it keeps its floor (`drops: 0`).
 - Music (9.0): `__game.debug().music` (current track, file or procedural, live sources, files found); `await __dev.musicSoak({ cycles: 3 })` cycles every level and the title and checks that every music source is disposed (`unaccounted: 0`).
 - Arena bots (7.0), on the desert. Every TDM check takes `ai: 'arena'` (the default) or `ai: 'tactical'` (the 6.0 squads):
