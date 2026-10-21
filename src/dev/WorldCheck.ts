@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { stairWallOverlaps } from '../world/StairFit';
 import type { Game } from '../core/Game';
 import type { Collider } from '../world/Collision';
 import { StaticBuilder, type VisualPiece } from '../world/Builder';
@@ -383,6 +384,12 @@ export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: bool
       clusters.push({ kind, cells: ns.length, min: mn, max: mx, zone: zoneAt(mid.x, mid.h, mid.z)?.name ?? '(no zone)', detail: list[group[0]].detail });
     }
   }
+  // 8.1: stairs a wall still intrudes into at their own heights (steps drawn through the wall).
+  const stairHits = stairWallOverlaps(game.col.colliders);
+  for (const h of stairHits) {
+    const w = h.wall;
+    clusters.push({ kind: 'stair in wall: steps drawn through a solid', cells: 1, min: [h.stair.x0, h.yLo, h.stair.z0], max: [h.stair.x1, h.yHi, h.stair.z1], zone: zoneAt((h.stair.x0 + h.stair.x1) / 2, h.yHi, (h.stair.z0 + h.stair.z1) / 2)?.name ?? '(no zone)', detail: `wall [${w.min.toArray().map((q) => q.toFixed(2))}]→[${w.max.toArray().map((q) => q.toFixed(2))}]` });
+  }
   clusters.sort((p, q) => q.cells - p.cells);
 
   // ------------------------------------------------------------------ coverage per region
@@ -402,7 +409,7 @@ export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: bool
     reachableNodes: reachable,
     visuals: visuals.length,
     perZone,
-    counts: Object.fromEntries([...byKind].map(([k, l]) => [k, l.length])),
+    counts: Object.fromEntries([...[...byKind].map(([k, l]) => [k, l.length] as [string, number]), ...(stairHits.length ? [['stair in wall: steps drawn through a solid', stairHits.length] as [string, number]] : [])]),
     clusters,
     entries,
     /** Every reachable cell (x, floor height, z) for controller stress tests. */

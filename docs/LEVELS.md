@@ -217,3 +217,12 @@ Rules learned building it:
 - **The water edge:** a fence that beats every jump from what stands near it: 1.6 m, chain link, not vaultable (props within 6 m are ≤ 1 m tall), plus a drown volume behind it.
 - **Survival-only data:** `data.spawns` holds both teams' spawns and the lane points, so `levelAI` has somewhere to start (the level has no survival).
 
+## Stairs never run into walls (8.1)
+`world/StairFit.ts`. Every stair builder (`Architecture.stair` in Tokyo, the jungle's and the docks' `stair`) calls `fitStairWidth` first. If a solid wall intrudes into the stair's width at its own heights, by less than half the width, the stair is narrowed to the wall's face. Steps, ramp, fill and rails all stay out of the wall.
+
+What is never narrowed:
+- an intrusion into the run (it would change the slope);
+- an intrusion covering most of the width.
+
+Those are logged (`[stair] runs into a wall`) and reported by `__dev.world()` as **stair in wall**, along with any wall built after the stair. A support under a raised stair, or a building above an underground one, only touches it and isn't counted.
+

@@ -402,8 +402,71 @@ Branch `feature/neon-docks-arena-8.0`, based on 7.0 (`08e55d1`). Plan: `docs/PLA
   So the blades shortened matches by dying, which is the "feeding tickets" of the playtest, and lane discipline is neutral there. Whether rifle-only TDM is now too long is a playtest question; tickets or respawn time are the knobs.
 - **Not human-tested:** the docks, the lanes' balance with a human, whether the colour callouts read in a fight, and the lighting on other displays.
 
+## 8.1: combat polish, ballistics, docks lighting
+Branch `feature/combat-polish-8.1`, based on 8.0 (`0a72f62`). Numbers: `docs/BENCH-8.1.json`.
+
+| Step | Commit | Notes |
+|---|---|---|
+| Phases 1–3 | `c1ddea3` | docks lighting, stair fit, kinetic tracers and pooled casings, silent TDM, fog-bound arena AI |
+| Phases 4–5 | (second 8.1 commit) | world-check finding for stairs in walls, benchmark, docs |
+
+**Docks lighting:**
+- 17 → 28 point lights, warm amber and yellow, all over the play space:
+  - six work lights over the maze's crossings, with the west-wall floods turned warm;
+  - two more sodium masts on the quay's warehouse side, and a light under the crane's load;
+  - a mast in each forecourt;
+  - four warehouse lamps lit instead of two.
+- Exposure 1.0 → 1.12. The sky, the water and the far distance stay dark.
+- Measured as illuminance at chest height on every floor nav node:
+  - lane zones averaged 0.26–2.3 before, 3.2–4.1 now;
+  - the darkest 10% went from 0–0.83 to 1.25–2.41 (the forecourts were at 0).
+- Cost: GPU 5.8–6.5 → 6.5–10.2 ms, still 60 FPS.
+
+**Stairs:** none of the stair builders drew outside their footprint. But nothing stopped a stair from being *placed* into a wall, and a wall that intrudes into a stair's width has the steps drawn through it.
+- `world/StairFit.ts` narrows every stair (Tokyo, jungle, docks) to the face of a wall that intrudes into its width at its own heights.
+- The world check now reports any stair a wall still runs into.
+- Tokyo had one: a metro stair 0.2 m into an underground wall. 0 now on all levels.
+
+**Ballistics:**
+- `WeaponSpec.ballistic` and `EnemyLook.ballistic`: kinetic or energy.
+- **Bot rounds:** two InstancedMeshes from a free-list pool, with no allocation in the per-frame loop.
+  - Kinetic (mercs, jungle guards, the garrison): thin additive streaks, 1/20 s of flight long.
+  - Energy (synths, Tokyo guards): the neon blaster.
+- **The player's kinetic tracers:** thinner, hotter and faster (520 m/s).
+- **TDM rounds:** 70 m/s for both teams (7.0: 40). A per-look speed would have been unfair on the docks (rifles against plasma). Survival keeps its dodgeable rounds.
+
+**Casings:** `combat/Casings.ts` is a 256-slot instanced ring in typed arrays.
+- **Who ejects:** kinetic weapons only, the player's and the bots' near the camera.
+- **Landing:** the floor where the arc lands is predicted at ejection, with one more lookup at rest.
+- **Life:** up to 3 bounces, then rest, then it shrinks away at 4 s.
+- **Cost:** 11–17 µs per frame, worst frame 0.1 ms, 0 KB heap growth over 600 frames.
+
+**TDM:** barks off (`TDM.barks = false`, `BarkGate.enabled`): no text, no voice, both brains. Survival keeps them.
+
+**Fog and the arena AI** (`world/Visibility.ts`): FogExp2 leaves `exp(−(ρd)²)` of a target's contrast.
+- **Sight:** the arena sees until 18% is left (0.866 × the level's 90% fog distance).
+- **Aim:** it gets `0.06 × (1 − contrast)` more spread.
+- **Docks:** the sight range now comes from the fog density.
+- **Measured in a desert storm at peak** (sight 21.3 m): kills median 9.4 m (p90 15.6), 0 rounds fired past fog sight.
+
+**Fixes found in validation:**
+- **Casings under the sand:** they landed 4–5 cm under the dunes. The floor had been taken under the ejection port, and a casing lands ~2.5 m away, on higher ground. The landing floor is now predicted, and casings rest at +6 mm.
+- **Allocation in the draw loop:** a two-element array was allocated every frame; removed.
+
+**Validation:**
+- **World:** `__dev.world()` 0 findings on all four levels. `__dev.stress()` 0 / 64,000 on Tokyo and the docks.
+- **`bench(3)`, 60 FPS everywhere:** docks 59.9–60.2 (GPU 6.5–10.2 ms), desert 60, jungle 59.6–60.3, Tokyo 59.9–60.3. Docks `tdmBench` with the player shooting: 60.1 FPS, AI 0.39 ms.
+- **Pools under load:** 1,404 rounds fired, 0 dropped (pool 128, peak 38); 465 casings ejected (peak 55 alive).
+- **TDM pace at 70 m/s:** docks 172–191 s, desert 173–177 s.
+- **Tests:** 149 unit tests; build ok.
+
+**Watch:**
+- Catwalk time on the docks fell to 2.2–4.2% (8.0: 6.5–7.6%). Faster rounds punish the exposed deck; two matches only.
+- The GPU headroom on the docks is smaller (up to 10 ms on the warehouse views): fine on this machine, worth a look on a weaker GPU.
+
 ## Next
 Human playtest:
+- 8.1 items: is the docks bright enough now (and still moody), do the kinetic tracers and brass feel right, is TDM fair without callouts, do bots in a sandstorm ever shoot you before you can see them, is 70 m/s too lethal.
 - 8.0 items: Neon Docks in TDM: does each lane have a purpose (stacks close, warehouse mid, quay long), do the catwalks pay off, can you call out "red stacks", is the quay too open, is it bright enough, is a match the right length without the blades.
 - 7.0 items (played: snap + spread felt great; blades fed tickets → removed from TDM in 8.0): a full TDM match against the arena bots: do they feel fast and ruthless or unfair (the first rounds go wide for a third of a second; is that enough?); do the jumps and vaults look natural; does a wounded enemy getting rushed read; do your allies help or just run off; is the match length (about 2–3 minutes bot-only) right; `TDM.ai = 'tactical'` for a side-by-side.
 - 6.0 items: a full TDM match: do Maxim, Anatoly, Kostya and Ilya help, do they flank when you lay down fire and cover you when you push or fall back, is the respawn pace right, does either base feel favoured, are the name tags readable, are the blades too strong.
