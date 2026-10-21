@@ -39,6 +39,9 @@ interface Bolt {
   by: Combatant | null;
   /** Bots this round already suppressed (one dose per round per bot). */
   dosed: Set<Enemy>;
+  /** 11.0 (stats): fired aimed or from the hip, at what range (m); NaN when untagged. */
+  aimed: boolean;
+  range: number;
 }
 
 /**
@@ -114,7 +117,7 @@ export class Projectiles {
       scene.add(m);
     }
     for (let i = 0; i < N; i++) {
-      this.bolts.push({ i, look, kinetic: false, color: new THREE.Color(), travel: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, whizzed: false, active: false, team: 'omega', by: null, dosed: new Set() });
+      this.bolts.push({ i, look, kinetic: false, color: new THREE.Color(), travel: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, whizzed: false, active: false, team: 'omega', by: null, dosed: new Set(), aimed: false, range: NaN });
       this.free.push(N - 1 - i);
     }
     this.light = new THREE.PointLight(0xffa040, 0, 9, 2);
@@ -126,7 +129,10 @@ export class Projectiles {
     this.look = look;
   }
 
-  fire(from: THREE.Vector3, dir: THREE.Vector3, speed: number, by: Combatant | null = null) {
+  /** 11.0 (DEV stats): a tagged round hit someone (the player or a bot): how it was fired, from how far. */
+  onTaggedHit: ((by: Combatant | null, aimed: boolean, range: number) => void) | null = null;
+
+  fire(from: THREE.Vector3, dir: THREE.Vector3, speed: number, by: Combatant | null = null, tag?: { aimed: boolean; range: number }) {
     const slot = this.free.pop();
     if (slot === undefined) {
       this.stats.dropped++;
@@ -148,6 +154,8 @@ export class Projectiles {
     b.vel.copy(dir).multiplyScalar(speed);
     b.life = 3;
     b.whizzed = false;
+    b.aimed = tag?.aimed ?? false;
+    b.range = tag?.range ?? NaN;
     this.stats.fired++;
     const inFlight = this.bolts.length - this.free.length;
     if (inFlight > this.stats.maxInFlight) this.stats.maxInFlight = inFlight;
@@ -170,7 +178,9 @@ export class Projectiles {
   update(dt: number, player: Player) {
     let lightAt: THREE.Vector3 | null = null;
     this.view.copy(player.pos);
-    const chest = this.tmp.set(player.pos.x, player.pos.y + 1.2, player.pos.z);
+    // 11.0: the hit volume shrinks with a crouch (the body's height scale).
+    const k = player.heightScale;
+    const chest = this.tmp.set(player.pos.x, player.pos.y + 1.2 * k, player.pos.z);
     for (const b of this.bolts) {
       if (!b.active) continue;
       b.life -= dt;
@@ -191,8 +201,9 @@ export class Projectiles {
       const dxz = Math.hypot(closest.x - chest.x, closest.z - chest.z);
       const dy = Math.abs(closest.y - chest.y);
       const forPlayer = b.team !== this.playerTeam;
-      if (player.alive && forPlayer && dxz < 0.45 && dy < 0.75) {
+      if (player.alive && forPlayer && dxz < 0.45 && dy < 0.75 * k) {
         this.onPlayerHit(10, this.prev.clone(), b.by);
+        if (!Number.isNaN(b.range)) this.onTaggedHit?.(b.by, b.aimed, b.range);
         this.fx.sparks(closest.clone(), seg.clone().normalize().negate(), 10, new THREE.Color(1, 0.6, 0.2), 4);
         this.deactivate(b);
         continue;
@@ -299,6 +310,7 @@ export class Projectiles {
     }
     if (!best || !point) return false;
     tg.hit(best, tg.damage * mult, dir.clone(), point, b.by);
+    if (!Number.isNaN(b.range)) this.onTaggedHit?.(b.by, b.aimed, b.range);
     this.deactivate(b);
     return true;
   }

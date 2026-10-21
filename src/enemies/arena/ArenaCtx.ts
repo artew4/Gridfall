@@ -40,6 +40,40 @@ export const ARENA = {
    * clear air, +0.06 at the edge of sight in a sandstorm (world/Visibility.ts).
    */
   fogSpread: 0.06,
+  /**
+   * 11.0, human-like shot choice by range (see DeathmatchAI `wantAim`):
+   *  - close (under `exit` m, or under `enter` m if not already aiming): hip fire on the move, full
+   *    speed strafing, `hipSpread` wider than before (and the bloom of a fresh target);
+   *  - long range (over `enter` m): it slows to `walk` of its run speed (standing still while it
+   *    focuses), raises the rifle to the eye, takes `focus` seconds to settle on the target (longer
+   *    the further it is), then fires short `burst`s with `spread` (no bloom) and `burstRest` between.
+   *  Hysteresis between `exit` and `enter` (12 m ± 1) stops it flicking between the two at the border.
+   *  Beyond `maxRange` it closes in instead of shooting.
+   */
+  ads: {
+    enter: 13,
+    exit: 11,
+    /** Focus time (s): `focus[0]` at `enter`, + `focusPerM` per metre beyond, at most `focus[1]`. */
+    focus: [0.24, 0.45] as [number, number],
+    focusPerM: 0.008,
+    /** While focusing it all but stops; aiming, it walks (share of its run speed). */
+    focusMove: 0.12,
+    walk: 0.32,
+    spread: 0.006,
+    burst: 3,
+    burstRest: 0.3,
+    /**
+     * Effective range (m): beyond it a rifleman doesn't plink, he moves up (at a run, not firing)
+     * until he is in range, then plants and aims. Without it the desert became a 50 m standoff.
+     */
+    maxRange: 40,
+    /** Holds an angle this long after losing sight before lowering the rifle (s). */
+    hold: 0.6,
+    /** Back on the same target within this long (a jump, a moment out of the cone): its focus stands (s). */
+    keep: 0.5,
+  },
+  /** 11.0: extra spread firing from the hip at close range (rushing, strafing at full speed). */
+  hipSpread: 0.012,
   /** A push fires on the move at most this bloom (it closes in on someone it already hit). */
   pushBloomMax: 0.05,
   /** Continuous fire: rounds per burst, between rounds, between bursts, magazine, reload (s). */
@@ -79,6 +113,11 @@ export const ARENA = {
   pushHp: 0.4,
   runnerPushHp: 0.6,
   pushMax: 4,
+  /**
+   * 11.0: a gunner pushes only a target within this range (m). Further out it finishes the wounded
+   * with aimed fire instead of sprinting 40 m at it spraying from the hip, as a player would.
+   */
+  pushRange: 25,
   /** At most this many bots push one wounded hostile. */
   pushers: 2,
   /** Board contacts expire after this (s); a hunt aims this far ahead along the contact's velocity (s). */
@@ -133,6 +172,17 @@ export interface ArenaStats {
   /** Why it switched: the old target died or vanished, the new one shot at it, or a bigger threat. */
   switchWhy: { lost: number; shotAt: number; threat: number };
   shots: number;
+  /**
+   * 11.0: rounds fired aimed (long range, rifle raised) and from the hip; seconds aiming (all bots);
+   * the firing range of every round and of every round that hit (each round carries its own tag).
+   */
+  aimedShots: number;
+  hipShots: number;
+  aimT: number;
+  aimedRange: number[];
+  hipRange: number[];
+  aimedHitRange: number[];
+  hipHitRange: number[];
   /** 8.1: rounds fired at a target beyond the fog sight range (must stay 0). */
   fogShots: number;
   /** Seconds from a hostile becoming visible to the first round at it (one per acquisition). */
@@ -148,7 +198,7 @@ export interface ArenaStats {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {} };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {} };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

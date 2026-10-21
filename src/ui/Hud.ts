@@ -103,6 +103,7 @@ export class Hud {
         <div class="cp-grid">
           <b>W A S D</b><span>MOVE</span><b>MOUSE</b><span>LOOK</span>
           <b>LMB</b><span>FIRE (WEAPON DRAWN)</span><b>R</b><span>RELOAD</span>
+          <b>RMB</b><span>AIM DOWN SIGHTS (HOLD)</span><b>C</b><span>CROUCH (TAP · HOLD)</span>
           <b>X</b><span>HOLSTER / DRAW</span><b>E</b><span>INTERACT (HOLD FOR SOME)</span>
           <b>SHIFT</b><span>SPRINT</span><b>SPACE</b><span>JUMP · VAULT LOW RAILINGS</span>
           <b>TAB</b><span>OBJECTIVE OVERVIEW (HOLD)</span><b>ESC</b><span>PAUSE · SETTINGS</span>
@@ -218,6 +219,13 @@ export class Hud {
     b.style.transform = `translateY(${px}px)`;
     l.style.transform = `translateX(${-px}px)`;
     r.style.transform = `translateX(${px}px)`;
+  }
+
+  /** 11.0: the crosshair fades as the sights come up (0 hip … 1 aimed). */
+  setAim(ads: number) {
+    // A variable on the lines, not the element's opacity: the holstered dimming (CSS) multiplies with it.
+    const o = ads.toFixed(2);
+    if (this.cross.style.getPropertyValue('--aim') !== o) this.cross.style.setProperty('--aim', o);
   }
 
   hitmarker(kill: boolean) {

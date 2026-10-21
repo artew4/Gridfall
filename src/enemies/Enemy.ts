@@ -1135,6 +1135,14 @@ export class Gunner extends TacticalEnemy {
   blockedShots = 0;
   /** Bursts cut short because a teammate stood in the line of fire (DEV counter, TDM). */
   heldFire = 0;
+  /**
+   * 11.0: an aimed shot: the rifle comes up to the eye, so others can read that it is taking a
+   * precise shot. Survival gunners aim in their telegraphed aim and fire phases; the arena brain sets
+   * it by range. `aimRaise` is the animated blend (0 hip … 1 at the eye).
+   */
+  isAiming = false;
+  aimRaise = 0;
+  private gunPose: { hip: THREE.Vector3; eye: THREE.Vector3; armsHip: number[]; armsEye: number[] } | null = null;
 
   constructor(spawn: THREE.Vector3, difficulty: number, scene: THREE.Scene, perch: THREE.Vector3 | null = null, look: EnemyLook = NEON_SYNTHS) {
     super(look.buildGunner(), 150, spawn, 'gunner', look);
@@ -1149,6 +1157,19 @@ export class Gunner extends TacticalEnemy {
     this.laser.visible = false;
     this.laser.frustumCulled = false;
     scene.add(this.laser);
+    // 11.0: the hip pose the builder set, and the raised one: the rifle on the right cheek, just under
+    // the head (its top 3 cm below the chin), arms lifted to hold it there. Measured from this rig's
+    // head, so every look's gunner gets its own.
+    const r = this.rig;
+    if (r.weapon) {
+      const h = r.head.position;
+      this.gunPose = {
+        hip: r.weapon.position.clone(),
+        eye: new THREE.Vector3(-0.07, h.y - 0.11, h.z + 0.34),
+        armsHip: [r.armL.rotation.x, r.foreL.rotation.x, r.armR.rotation.x, r.foreR.rotation.x],
+        armsEye: [r.armL.rotation.x - 0.55, r.foreL.rotation.x + 0.25, r.armR.rotation.x - 0.65, r.foreR.rotation.x + 0.15],
+      };
+    }
     if (perch) {
       this.tac.coverPos = perch;
       this.tac.peekPos = perch;
@@ -1577,6 +1598,23 @@ export class Gunner extends TacticalEnemy {
       r.body.rotation.x += 0.12 * c;
     }
     if (this.state === 'emerge') r.body.rotation.x = 0.5 - this.stateT * 0.6;
+    // 11.0: raise or lower the rifle (≈0.15 s to 90%).
+    if (!this.isArena) this.isAiming = aiming;
+    this.aimRaise = damp(this.aimRaise, this.isAiming ? 1 : 0, 15, dt);
+    const gp = this.gunPose;
+    if (gp && r.weapon) {
+      const e = this.aimRaise;
+      r.weapon.position.lerpVectors(gp.hip, gp.eye, e);
+      r.armL.rotation.x = gp.armsHip[0] + (gp.armsEye[0] - gp.armsHip[0]) * e;
+      r.foreL.rotation.x = gp.armsHip[1] + (gp.armsEye[1] - gp.armsHip[1]) * e;
+      r.armR.rotation.x = gp.armsHip[2] + (gp.armsEye[2] - gp.armsHip[2]) * e;
+      r.foreR.rotation.x = gp.armsHip[3] + (gp.armsEye[3] - gp.armsHip[3]) * e;
+    }
+  }
+
+  /** False for survival gunners (they aim in their aim and fire phases); the arena body overrides it. */
+  protected get isArena() {
+    return false;
   }
 
   dispose(scene: THREE.Scene) {

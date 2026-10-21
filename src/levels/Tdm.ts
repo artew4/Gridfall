@@ -179,6 +179,8 @@ export class TdmRules implements ModeRules {
       },
       nearMiss: (e, dose, by) => (isArenaBot(e) ? e.brain.onNearMiss(this.ctxs[e.team], by) : e.suppress(dose, this.ctxs[e.team])),
     };
+    // 11.0 (stats): every tagged round that lands, by how it was fired and from how far.
+    g.projectiles.onTaggedHit = (_by, aimed, range) => (aimed ? this.arenaStats.aimedHitRange : this.arenaStats.hipHitRange).push(range);
     // The other team hears every shot.
     g.projectiles.onFire = (from, by) => {
       if (!by) return;
@@ -519,6 +521,7 @@ export class TdmRules implements ModeRules {
     if (g.projectiles) {
       g.projectiles.targets = null;
       g.projectiles.onFire = () => {};
+      g.projectiles.onTaggedHit = null;
     }
     g.ctx.enemies = g.waves.enemies;
   }

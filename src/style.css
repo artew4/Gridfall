@@ -21,6 +21,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .crosshair .t { top: -14px; } .crosshair .b { top: 6px; }
 .crosshair .l { left: -14px; } .crosshair .r { left: 6px; }
 .crosshair .dot { position: absolute; width: 2px; height: 2px; left: -1px; top: -1px; background: rgba(255,255,255,0.9); border-radius: 50%; }
+/* 11.0: fades as the sights come up (--aim 0..1, set per frame by the HUD). */
+.crosshair i, .crosshair .dot { opacity: calc(1 - var(--aim, 0)); }
 .hitmarker { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; opacity: 0; transform: rotate(45deg) scale(0.8); }
 .hitmarker::before, .hitmarker::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 6px rgba(255,255,255,0.8); }
 .hitmarker::before { left: 12px; top: 0; width: 2px; height: 26px; clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%, 0 65%, 100% 65%, 100% 100%, 0 100%); }

@@ -174,14 +174,15 @@ export class Guard extends Enemy {
     if (p.alive) {
       const dx = p.pos.x - eye.x, dz = p.pos.z - eye.z;
       const dh = Math.hypot(dx, dz);
-      const dy = p.pos.y + 1.1 - eye.y;
+      const k = p.heightScale; // 11.0: a crouched body is a smaller, lower target
+      const dy = p.pos.y + 1.1 * k - eye.y;
       dist = Math.hypot(dh, dy);
       // Cheap tests first (range, cone); rays only for a target that could be seen.
       if (dist <= this.range + 0.5) {
         const look = this.lookYaw;
         const cosH = dh > 1e-3 ? (Math.sin(look) * dx + Math.cos(look) * dz) / dh : 1;
         zone = sightZone(cosH, dy, dh, this.range, ri.engaged);
-        if (zone) for (const h of VISION.samples) if (this.sec.sightLine(eye, _sample.set(p.pos.x, p.pos.y + h, p.pos.z))) visible++;
+        if (zone) for (const h of VISION.samples) if (this.sec.sightLine(eye, _sample.set(p.pos.x, p.pos.y + h * k, p.pos.z))) visible++;
       }
     }
     const rate = suspicionRate({ ...ri, dist, zone, visible, sprinting: p.sprinting, light: zone && visible ? this.sec.lightAt(p.pos) : 0 });

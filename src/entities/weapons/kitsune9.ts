@@ -19,6 +19,8 @@ export const KITSUNE_9: WeaponSpec = {
   kick: { z: 2.4, rot: 14, rotJitter: 2, side: 3, slide: 0.032 },
   camera: { climb: 0.007, yaw: 0.002, pitchKick: 5, yawKick: 1.5, roll: 1, fov: 1.6, trauma: 0.08 },
   rest: [0.15, -0.145, -0.36],
+  // Rear notch (top 0.0465) to front dot (0.048), held out at arm's length.
+  ads: { sight: [0, 0.0475, -0.098], z: -0.3, zoom: 0.8 },
   muzzle: [0.15, -0.1, -0.55],
   shell: [0.18, -0.08, -0.35],
   flash: { color: [6, 4.2, 2.6], size: 1, at: [0, 0.02, -0.15], light: 0xffa860 },

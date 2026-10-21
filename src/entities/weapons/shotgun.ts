@@ -48,6 +48,8 @@ export const BOAR_SHOTGUN: WeaponSpec = {
   kick: { z: 4.2, rot: 22, rotJitter: 3, side: 3.5, slide: 0 },
   camera: { climb: 0.022, yaw: 0.006, pitchKick: 11, yawKick: 2.5, roll: 2.2, fov: 3.2, trauma: 0.2 },
   rest: [0.17, -0.2, -0.36],
+  // Down the vent rib (top 0.049) to the brass bead (0.052), cheek on the stock.
+  ads: { sight: [0, 0.053, -0.655], z: -0.12, zoom: 0.85 },
   muzzle: [0.15, -0.17, -1.0],
   shell: [0.2, -0.17, -0.42],
   flash: { color: [8, 5, 1.8], size: 2.1, at: [0, 0.028, -0.66], light: 0xffb050 },

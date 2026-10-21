@@ -8,6 +8,7 @@ import { ArenaDirector } from './ArenaDirector';
 import { Sensing, type Seen, type SenseAgent } from './Sensing';
 import { stepAir, vaultAhead, vaultSpeed } from './Locomotion';
 import { ARENA } from './ArenaCtx';
+import { focusFor, wantsAim } from './DeathmatchAI';
 import { CollisionWorld } from '../../world/Collision';
 import { Nav } from '../Nav';
 import type { Combatant, TeamId } from '../../combat/Team';
@@ -250,3 +251,25 @@ describe('Survival keeps the 5.0 brain', () => {
     expect([s.maxPerFrame, s.rayBudget, s.coverPerFrame, s.routesPerFrame]).toEqual([3, 30, 1, 2]);
   });
 });
+
+describe('11.0: hip fire or an aimed shot, by range', () => {
+  it('hip fire up close, an aimed shot at range, with hysteresis round 12 m', () => {
+    expect(wantsAim(8, false)).toBe(false);
+    expect(wantsAim(12, false)).toBe(false); // not yet: it starts aiming over 13 m
+    expect(wantsAim(14, false)).toBe(true);
+    expect(wantsAim(12, true)).toBe(true); // already aiming: it holds down to 11 m
+    expect(wantsAim(10.5, true)).toBe(false);
+  });
+
+  it('beyond its effective range it does not aim (it moves up)', () => {
+    expect(wantsAim(ARENA.ads.maxRange - 1, false)).toBe(true);
+    expect(wantsAim(ARENA.ads.maxRange + 1, true)).toBe(false);
+  });
+
+  it('focus takes longer further out, within its bounds', () => {
+    expect(focusFor(ARENA.ads.enter)).toBeCloseTo(ARENA.ads.focus[0]);
+    expect(focusFor(30)).toBeGreaterThan(focusFor(15));
+    expect(focusFor(1000)).toBe(ARENA.ads.focus[1]);
+  });
+});
+

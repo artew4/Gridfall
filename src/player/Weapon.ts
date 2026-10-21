@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Spring, damp, clamp, easeInOut, easeOut, rand } from '../core/math';
+import { Spring, damp, clamp, easeInOut, easeOut, lerp, rand } from '../core/math';
 import { flashTexture, makeAmmoDisplay } from '../world/Textures';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { Player } from './Player';
@@ -171,6 +171,21 @@ export class Weapon {
   /** The gun can be seen by others (drawn, or still coming up). */
   get visible() {
     return !this.holstered && this.raise > 0.35;
+  }
+
+  /** 11.0: the sights can come up (drawn, ready, not reloading). */
+  get canAim() {
+    return !this.holstered && !this.reloading && this.raise > 0.5;
+  }
+
+  /**
+   * A camera-space point of the gun (the muzzle, the ejection port) now: the spec gives it at the hip;
+   * with the sights up the whole gun has moved by (ADS pose − hip rest), blended by `ads`.
+   */
+  camPoint(p: readonly [number, number, number], ads: number, out: THREE.Vector3) {
+    const [rx, ry, rz] = this.spec.rest;
+    const a = this.spec.ads;
+    return out.set(p[0] + (-a.sight[0] - rx) * ads, p[1] + (-a.sight[1] - ry) * ads, p[2] + (a.z - rz) * ads);
   }
 
   /** 0 = put away, 1 = ready. */
@@ -363,19 +378,31 @@ export class Weapon {
     const idle = Math.sin(time * 1.3) * 0.002;
     const lowered = 1 - this.raise;
 
+    // 11.0, ADS: blend the hip pose (rest, sprint, reload tilt, lowering) towards the sight pose by
+    // `player.ads` (already eased: smoothstep of a linear clock). At e = 1 the root is unrotated and
+    // sits at (−sight.x, −sight.y, ads.z), so the sight is on the camera axis. Sway, bob and idle are
+    // added on top and mostly fade out (a steadied gun still drifts a little behind the mouse); the
+    // kick springs are scaled down so the sight doesn't jump off the target.
+    const e = player.ads;
+    const loose = 1 - 0.85 * e;
     const [rx, ry, rz] = this.spec.rest;
+    const a = this.spec.ads;
+    const hx = rx + this.sprintBlend * -0.02;
+    const hy = ry - lowered * 0.32 - this.sprintBlend * 0.04 - rTilt * 0.03;
+    const hz = rz + this.sprintBlend * 0.03;
     this.root.position.set(
-      rx + this.swayX + bx + this.sprintBlend * -0.02,
-      ry + this.swayY + by + idle - lowered * 0.32 - this.sprintBlend * 0.04 - rTilt * 0.03 + player.landDip.value * 0.05,
-      rz + this.sprintBlend * 0.03,
+      lerp(hx, -a.sight[0], e) + (this.swayX + bx) * loose,
+      lerp(hy, -a.sight[1], e) + (this.swayY + by + idle + player.landDip.value * 0.05) * loose,
+      lerp(hz, a.z, e),
     );
     this.root.rotation.set(
-      lowered * -0.9 + this.sprintBlend * -0.35 + rTilt * 0.3 + this.swayY * 2,
-      0.07 + this.sprintBlend * 0.5 + this.swayX * 3,
-      rTilt * 0.55 + this.sprintBlend * 0.2 + this.swayX * 2,
+      lerp(lowered * -0.9 + this.sprintBlend * -0.35 + rTilt * 0.3, 0, e) + this.swayY * 2 * loose,
+      lerp(0.07 + this.sprintBlend * 0.5, 0, e) + this.swayX * 3 * loose,
+      lerp(rTilt * 0.55 + this.sprintBlend * 0.2, 0, e) + this.swayX * 2 * loose,
     );
-    this.gun.position.set(this.kickSide.value * 0.001, this.kickRot.value * 0.0006, this.kickZ.value * 0.025);
-    this.gun.rotation.set(this.kickRot.value * 0.02, this.kickSide.value * 0.01, this.kickSide.value * 0.015);
+    const kick = lerp(1, 0.4, e);
+    this.gun.position.set(this.kickSide.value * 0.001 * kick, this.kickRot.value * 0.0006 * kick, this.kickZ.value * 0.025 * kick);
+    this.gun.rotation.set(this.kickRot.value * 0.02 * kick, this.kickSide.value * 0.01 * kick, this.kickSide.value * 0.015 * kick);
 
     // Strip glow tracks remaining ammo, flashing red when low.
     if (!this.spec.ammoGlow) return;

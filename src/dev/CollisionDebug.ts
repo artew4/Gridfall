@@ -88,7 +88,7 @@ export class CollisionDebug {
     // The player's cylinder and ground contact.
     const pl = g.player;
     this.circle(pl.pos.x, pl.pos.y + 0.02, pl.pos.z, pl.radius, [1, 1, 0.2]);
-    this.circle(pl.pos.x, pl.pos.y + 1.8, pl.pos.z, pl.radius, [1, 1, 0.2]);
+    this.circle(pl.pos.x, pl.pos.y + pl.height, pl.pos.z, pl.radius, [1, 1, 0.2]); // the head ring (11.0: follows the crouch)
     const gh = g.col.groundHeightAt(pl.pos.x, pl.pos.z, pl.radius * 0.6, pl.pos.y);
     this.seg(pl.pos.x - 0.3, gh, pl.pos.z, pl.pos.x + 0.3, gh, pl.pos.z, [0.2, 1, 1]);
     this.seg(pl.pos.x, gh, pl.pos.z - 0.3, pl.pos.x, gh, pl.pos.z + 0.3, [0.2, 1, 1]);
