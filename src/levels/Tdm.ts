@@ -9,6 +9,7 @@ import { ArenaDirector } from '../enemies/arena/ArenaDirector';
 import { Sensing } from '../enemies/arena/Sensing';
 import { ARENA, newArenaStats, type ArenaCtx, type ArenaStats } from '../enemies/arena/ArenaCtx';
 import type { DeathmatchBrain } from '../enemies/arena/DeathmatchAI';
+import { RANGED_ONLY, filterRoster, type RosterRequest, type Slot as RosterSlot, type UnitKind } from '../enemies/Roster';
 import { otherTeam, TEAMS, type Combatant, type TeamId } from '../combat/Team';
 import { DESERT_GARRISON } from '../entities/enemies/mercs';
 import { rand } from '../core/math';
@@ -42,6 +43,11 @@ export const TDM = {
   difficulty: 2,
   /** 7.0: which brain the bots run — the arena AI, or the 6.0 tactical squads (A/B checks). */
   ai: 'arena' as 'arena' | 'tactical',
+  /**
+   * 8.0: the units this mode asks for. Ranged only: in the 7.0 playtest the blades just fed tickets
+   * to the other team in a firefight. Survival keeps its own compositions (runners and gunners).
+   */
+  roster: RANGED_ONLY as RosterRequest,
 };
 
 /** The 5.0 scheduler defaults (the tactical path restores them). */
@@ -50,15 +56,18 @@ const TACTICAL_SCHED = { maxPerFrame: 3, rayBudget: 30, routesPerFrame: 2 };
 interface Slot {
   team: TeamId;
   name: string;
-  kind: 'gunner' | 'runner';
+  kind: UnitKind;
   bot: TacticalEnemy | null;
   respawnAt: number;
   kills: number;
   deaths: number;
 }
 
-/** Callsigns. Two of the player's squadmates are Maxim and Anatoly. */
-const ROSTER: Record<TeamId, [string, 'gunner' | 'runner'][]> = {
+/**
+ * Callsigns and the kind each was designed as (6.0). What actually spawns is this filtered through
+ * `TDM.roster` (8.0: Ilya and Kite fight with rifles). Two of the player's squadmates are Maxim and Anatoly.
+ */
+const ROSTER: Record<TeamId, RosterSlot[]> = {
   alpha: [['MAXIM', 'gunner'], ['ANATOLY', 'gunner'], ['KOSTYA', 'gunner'], ['ILYA', 'runner']],
   omega: [['VULTURE', 'gunner'], ['JACKAL', 'gunner'], ['HYENA', 'gunner'], ['ADDER', 'gunner'], ['KITE', 'runner']],
 };
@@ -77,6 +86,8 @@ export interface KillRecord {
   dist: number;
   /** The killer was more than 90° off where the victim faced (taken from the side or behind). */
   flank: boolean;
+  /** 8.0: the level zone the victim died in (match-flow reports). */
+  zone?: string;
 }
 
 export class TdmRules implements ModeRules {
@@ -178,7 +189,7 @@ export class TdmRules implements ModeRules {
     g.tdmHud.show(true);
     g.hud.root.classList.add('tdm');
     this.slots = [];
-    for (const team of TEAMS) for (const [name, kind] of ROSTER[team]) this.slots.push({ team, name, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0 });
+    for (const team of TEAMS) for (const [name, kind] of filterRoster(ROSTER[team], TDM.roster)) this.slots.push({ team, name, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0 });
     for (const s of this.slots) this.spawn(s);
     g.hud.bannerShow('TEAM DEATHMATCH', 'チームデスマッチ · 5v5', 2.6);
   }
@@ -308,6 +319,7 @@ export class TdmRules implements ModeRules {
       victimAction: vb.tac ? `${vb.tac.action}/${vb.tac.phase}` : '-',
       dist: by ? +by.pos.distanceTo(v.pos).toFixed(1) : 0,
       flank,
+      zone: g.level.data.zoneAt(v.pos.x, v.pos.y, v.pos.z)?.name,
     });
     if (this.directors) {
       this.directors[otherTeam(v.team)].hostileDied(v, this.now);

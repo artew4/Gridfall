@@ -3,6 +3,7 @@ import type { LevelInfo, LevelRuntime, SettingId } from './Level';
 import { TOKYO_INFO, TokyoLevel } from './tokyo/TokyoLevel';
 import { DESERT_INFO, DesertLevel } from './desert/DesertLevel';
 import { JUNGLE_INFO, JungleLevel } from './jungle/JungleLevel';
+import { DOCKS_INFO, DocksLevel } from './docks/DocksLevel';
 
 export interface LevelEntry {
   info: LevelInfo;
@@ -15,9 +16,10 @@ export const LEVELS: Partial<Record<SettingId, LevelEntry>> & { tokyo: LevelEntr
   tokyo: { info: TOKYO_INFO, create: (g) => new TokyoLevel(g) },
   desert: { info: DESERT_INFO, create: (g) => new DesertLevel(g) },
   jungle: { info: JUNGLE_INFO, create: (g) => new JungleLevel(g) },
+  docks: { info: DOCKS_INFO, create: (g) => new DocksLevel(g) },
 };
 
-export const LEVEL_ORDER: SettingId[] = (['tokyo', 'desert', 'jungle'] as SettingId[]).filter((id) => LEVELS[id]);
+export const LEVEL_ORDER: SettingId[] = (['tokyo', 'desert', 'jungle', 'docks'] as SettingId[]).filter((id) => LEVELS[id]);
 
 /** The registry entry of a setting the menu offers. */
 export function levelEntry(id: SettingId): LevelEntry {

@@ -152,9 +152,10 @@ export class Hud {
       b.disabled = loading || !ok;
       b.classList.toggle('off', !ok);
     }
-    const primary = l.modes.includes('story') ? 'story' : 'arcade';
+    // The level's main mode: the story where there is one, else survival, else (an arena) TDM.
+    const primary = l.modes.includes('story') ? 'story' : l.modes.includes('arcade') ? 'arcade' : l.modes[0];
     for (const b of Array.from(this.title.querySelectorAll<HTMLElement>('[data-mode]'))) b.classList.toggle('primary', b.dataset.mode === primary);
-    note.textContent = loading ? l.loading : l.modes.includes('story') ? '' : 'STORY ESCAPE IS SET IN TOKYO NIGHT';
+    note.textContent = loading ? l.loading : l.modes.includes('story') ? '' : l.modes.includes('arcade') ? 'STORY ESCAPE IS SET IN TOKYO NIGHT' : 'AN ARENA BUILT FOR TEAM DEATHMATCH';
     note.classList.toggle('busy', loading);
   }
 

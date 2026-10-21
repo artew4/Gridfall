@@ -266,8 +266,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // ---- Goals.
     if (next === 'break' && !this.goal && T) this.goal = this.breakSpot(ctx, A, T);
     else if (next === 'hunt' && contact) {
-      this.goal = _v.copy(contact.pos).addScaledVector(contact.vel, ARENA.huntLead).clone();
-      this.goal.y = contact.pos.y;
+      this.goal = this.laneGoal(ctx, A, contact.pos) ?? _v.copy(contact.pos).addScaledVector(contact.vel, ARENA.huntLead).clone();
+      if (!this.laneTo) this.goal.y = contact.pos.y;
     } else if (next === 'hunt' && T && !contact) this.goal = T.pos.clone();
     else if (next === 'advance') this.planLane(ctx, A);
 
@@ -276,6 +276,40 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
 
     const iv = tv && dT < ARENA.decide.closeDist ? ARENA.decide.close : T ? ARENA.decide.far : ARENA.decide.calm;
     this.nextThink = now + iv * (0.85 + 0.3 * Math.random());
+  }
+
+  /** The current hunt goal is a lane waypoint (not the contact itself). */
+  private laneTo = false;
+
+  /**
+   * Lane discipline (8.0): a far contact is approached along the bot's own lane, to the waypoint
+   * level with it (by progress along the base-to-base axis); within ARENA.laneLeave of it, or once
+   * at that waypoint, the bot crosses over to it directly. A raised waypoint (a catwalk on the lane)
+   * is taken at any distance: an unseen contact is hunted from the high ground when the lane has it.
+   * Null: go straight at the contact.
+   */
+  private laneGoal(ctx: EnemyCtx, A: ArenaCtx, at: THREE.Vector3): THREE.Vector3 | null {
+    this.laneTo = false;
+    const L = ctx.lanes;
+    const me = this.self;
+    if (!L || !L.length) return null;
+    const far = Math.hypot(at.x - me.pos.x, at.z - me.pos.z) >= ARENA.laneLeave;
+    const W = L[A.director.laneFor(me.uid, me.pos)];
+    const pc = A.director.progress(at);
+    let best = 0, bd = Infinity;
+    W.forEach((w, i) => {
+      const d = Math.abs(A.director.progress(w) - pc);
+      if (d < bd) {
+        bd = d;
+        best = i;
+      }
+    });
+    const w = W[best];
+    if (!far && w.y <= 1) return null;
+    if (Math.hypot(w.x - me.pos.x, w.z - me.pos.z) < 5 && Math.abs(w.y - me.pos.y) < 1.5) return null;
+    this.laneTo = true;
+    const off = w.y > 0.5 ? 0.4 : 1.2;
+    return new THREE.Vector3(w.x + Math.cos(this.seed) * off, w.y, w.z + Math.sin(this.seed) * off);
   }
 
   /** No contact: walk the lane towards the director's front, then patrol a step either side of it. */
@@ -304,7 +338,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.laneIdx = bi;
     }
     const at = W[this.laneIdx];
-    const arrived = Math.hypot(at.x - me.pos.x, at.z - me.pos.z) < 3;
+    // Arrived means on its level too: a catwalk waypoint isn't reached from the floor below it.
+    const arrived = Math.hypot(at.x - me.pos.x, at.z - me.pos.z) < 3 && Math.abs(at.y - me.pos.y) < 1.5;
     if (arrived) {
       if (this.laneIdx < want) this.laneIdx++;
       else if (this.laneIdx > want) this.laneIdx--;
@@ -315,7 +350,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       }
     }
     const w = W[this.laneIdx];
-    this.goal = new THREE.Vector3(w.x + Math.cos(this.seed) * 1.6, w.y, w.z + Math.sin(this.seed) * 1.6);
+    // Spread a lane so it isn't walked single file (less on a raised deck: it's 3 m wide).
+    const off = w.y > 0.5 ? 0.4 : 1.6;
+    this.goal = new THREE.Vector3(w.x + Math.cos(this.seed) * off, w.y, w.z + Math.sin(this.seed) * off);
   }
 
   /** The nearest spot within 7 m the threat can't see (one ray each, two tries), else null (it strafes out). */
@@ -407,7 +444,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       }
     } else if ((this.state === 'hunt' || this.state === 'advance') && this.goal) {
       const d = me.steer(this.goal, sprint, ctx, dt, desired);
-      if (d < 2) {
+      if (d < 2 && Math.abs(this.goal.y - me.pos.y) < 1.5) {
         if (this.state === 'hunt' && T) A.director.cleared(T.uid, now);
         this.goal = null;
         this.urgent = true;
