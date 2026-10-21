@@ -54,6 +54,7 @@ export async function bench(game: Game, seconds = 3, opts: { pipelines?: Pipelin
   if (game.setting === 'desert') return benchDesert(game, dev, m, out);
   if (game.setting === 'jungle') return benchJungle(game, dev, m, out);
   if (game.setting === 'docks') return benchDocks(game, dev, m, out);
+  if (game.setting === 'neonblock') return benchNeonBlock(game, dev, m, out);
   dev.start('story');
   dev.god();
   dev.noGuards();
@@ -182,6 +183,48 @@ async function benchJungle(game: Game, dev: Dev, m: (name: string) => Promise<vo
   await m('fight');
   game.waves.reset(game.scene);
   game.waves.state = 'idle';
+  return out;
+}
+
+/**
+ * Tokyo: Neon Block (14.0, a TDM arena): the match running (nine bots, the player in god mode), the
+ * three lanes at eye level, the roofs, the footbridge, the worst view (the whole block from Block W's
+ * roof: every facade, sign and light in frame), then a firefight from the street.
+ */
+async function benchNeonBlock(game: Game, dev: Dev, m: (name: string) => Promise<void>, out: Record<string, unknown>) {
+  dev.start('tdm', 'neonblock');
+  dev.god();
+  const views: [string, [number, number, number], [number, number, number]][] = [
+    ['alphaYard', [0, 0, 61], [0, 2, 30]],
+    ['mainStreet', [0, 0, 44], [0, 2, -40]],
+    ['lanternAlley', [-35, 0, 44], [-35, 2, -30]],
+    ['fireEscape', [-32.4, 4.5, 31], [-24, 7, 10]],
+    ['westRoofs', [-22, 7.2, 40], [-20, 6, -40]],
+    ['footbridge', [0, 4.5, 14], [0, 3, -30]],
+    ['eastRoofs', [22, 4.5, 40], [24, 4, -30]],
+    ['serviceAlley', [34.5, 0, 44], [34, 2, -30]],
+    ['wholeBlock', [-28, 7.2, 44], [10, 0, -30]],
+  ];
+  for (const [name, p, l] of views) {
+    dev.tp(p[0], p[1], p[2], 0, 0);
+    dev.look(l[0], l[1], l[2]);
+    await m(name);
+  }
+  dev.tp(0, 0, 30, 0, 0);
+  const tdm = game.tdm;
+  const shooter = window.setInterval(() => {
+    let best: { x: number; y: number; z: number } | null = null, bd = 60;
+    for (const b of tdm.bots) if (b.alive && b.team === 'omega' && b.pos.distanceTo(game.player.pos) < bd) {
+      bd = b.pos.distanceTo(game.player.pos);
+      best = b.pos;
+    }
+    if (!best) return;
+    dev.look(best.x, best.y + 1.2, best.z);
+    dev.shoot();
+  }, 600);
+  await new Promise((r) => setTimeout(r, 4000));
+  await m('firefight');
+  clearInterval(shooter);
   return out;
 }
 

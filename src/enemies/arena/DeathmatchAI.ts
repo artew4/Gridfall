@@ -569,7 +569,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const prefer = Math.hypot(pa.x - me.pos.x, pa.z - me.pos.z) <= Math.hypot(pb.x - me.pos.x, pb.z - me.pos.z) ? 1 : -1;
     const side = A.director.claimFlank(me.uid, T.uid, now, prefer);
     if (!side) return false;
-    const goal = this.snapGoal(ctx, side > 0 ? pa : pb, c.pos.y);
+    const goal = this.snapGoal(ctx, side > 0 ? pa : pb, c.pos.y, ARENA.vantage.on);
     if (!goal) {
       A.director.releaseFlank(me.uid);
       return false;
@@ -577,18 +577,27 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     this.flankGoal = goal;
     this.flankedOn = T.uid;
     A.stats.flanks++;
+    if (goal.y > c.pos.y + 2.5) A.stats.flankHigh++;
     return true;
   }
 
-  /** The nav node nearest a point (within 8 m, on about the level `y`, never in their base): its floor. */
-  private snapGoal(ctx: EnemyCtx, p: THREE.Vector3, y: number): THREE.Vector3 | null {
-    let best: THREE.Vector3 | null = null, bs = 64;
+  /**
+   * The nav node nearest `p` (XZ, within 8 m) on the level `y`. 14.0, `high`: a floor up to
+   * ARENA.vantage.up above it also qualifies, each metre of height counting as `perM` m nearer (a
+   * flank onto a landing or a roof edge over the contact rather than round it on the street).
+   */
+  private snapGoal(ctx: EnemyCtx, p: THREE.Vector3, y: number, high = false): THREE.Vector3 | null {
+    const V = ARENA.vantage;
+    let best: THREE.Vector3 | null = null, bs = Infinity;
     for (const n of ctx.nav.nodes) {
       const fy = n.y - 1;
-      if (Math.abs(fy - y) > 2.5) continue;
-      const d = (n.x - p.x) ** 2 + (n.z - p.z) ** 2;
-      if (d >= bs || ctx.avoid?.(n)) continue;
-      bs = d;
+      const up = fy - y;
+      if (up < -2.5 || up > (high ? V.up : 2.5)) continue;
+      const d = Math.hypot(n.x - p.x, n.z - p.z);
+      if (d >= (high ? V.reach : 8)) continue;
+      const s = d - (high ? Math.max(0, up) * V.perM : 0);
+      if (s >= bs || ctx.avoid?.(n)) continue;
+      bs = s;
       best = n;
     }
     return best ? new THREE.Vector3(best.x, best.y - 1, best.z) : null;

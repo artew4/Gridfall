@@ -17,6 +17,7 @@ import { ARENA_SEE, fogRange } from '../world/Visibility';
 import { RANGED_ONLY, filterRoster, type RosterRequest, type Slot as RosterSlot, type UnitKind } from '../enemies/Roster';
 import { otherTeam, TEAMS, type Combatant, type TeamId } from '../combat/Team';
 import { DESERT_GARRISON } from '../entities/enemies/mercs';
+import { OPERATORS } from '../entities/enemies/operators';
 import { ARMORY, dealArm, type BotArm, type WeaponId } from '../entities/weapons/armory';
 import { dealCallsigns } from '../enemies/Callsigns';
 import { rand } from '../core/math';
@@ -73,6 +74,12 @@ export const TDM = {
    */
   arms: 'random' as 'random' | WeaponId,
   armCap: 2,
+  /**
+   * 14.0: what the bots wear. 'operators': matte gear with team-coloured accents (visor, shoulder
+   * patches, spine) on every map; 'legacy': 6.0–13.0 (ALPHA the desert garrison, OMEGA the level's
+   * survival enemies: the docks' glowing synths), for side-by-side checks.
+   */
+  skins: 'operators' as 'operators' | 'legacy',
   /** 13.0: the loadout picker stays up (and a pick swaps at once) this long into a match (s). */
   loadoutGrace: 3,
 };
@@ -114,6 +121,8 @@ export interface KillRecord {
   victimKind: string;
   victimAction: string;
   dist: number;
+  /** 14.0: the killer's feet height (which floor the kill came from). */
+  killerY?: number;
   /** 13.0: the killer's gun (armory tag: SMG, AR, SG), '-' for a blade or the world. */
   weapon: string;
   /** The killer was more than 90° off where the victim faced (taken from the side or behind). */
@@ -301,7 +310,7 @@ export class TdmRules implements ModeRules {
   private spawn(s: Slot) {
     const g = this.game;
     const at = this.spawnPoint(s.team);
-    const look = s.team === 'alpha' ? DESERT_GARRISON : g.level.info.enemies;
+    const look = TDM.skins === 'operators' ? OPERATORS[s.team] : s.team === 'alpha' ? DESERT_GARRISON : g.level.info.enemies;
     const arena = this.ai === 'arena';
     // 13.0: a gun from the armory for this life (the 6.0 tactical bodies keep their own rifle).
     s.arm = arena && s.kind === 'gunner' ? this.dealArm(s.team) : null;
@@ -401,6 +410,7 @@ export class TdmRules implements ModeRules {
       victimAction: vb.tac ? `${vb.tac.action}/${vb.tac.phase}` : '-',
       dist: by ? +by.pos.distanceTo(v.pos).toFixed(1) : 0,
       weapon: weapon ?? '-',
+      killerY: by ? +by.pos.y.toFixed(1) : undefined,
       flank,
       zone: g.level.data.zoneAt(v.pos.x, v.pos.y, v.pos.z)?.name,
     });

@@ -807,8 +807,58 @@ A pool of 30 mercenary callsigns (`enemies/Callsigns.ts`). Every match deals ten
   - `tdmBench` on the desert with the player: 3.2 ms CPU + 4.2 ms GPU (random guns), 3.0 + 4.7 ms (all shotguns). That is under half the 16.7 ms budget.
   - **To do on mains power:** re-run `bench(3)` for the 60 FPS figure.
 
+## 14.0: Tokyo: Neon Block, readable operators, vertical bots
+
+Branch `feature/tokyo-tdm-14.0`. 13.0 was deployed first: `main` was fast-forwarded to `6a9bc08` and pushed.
+
+### The map (`src/levels/neonblock/`, TDM only; the story district untouched)
+- **Layout:** a Shinjuku block mirrored about the crossing, three lanes on three levels.
+  - **West:** Lantern Alley (vending machines, lanterns), with a fire escape up Block W to a landing (4.5 m) and its roofs (7.2 m). The two halves' roofs are joined over the crossing by a skybridge.
+  - **Centre:** Main Street under a footbridge (4.5 m). Its arms land on Block W's street landing (with a stair to the roof) and on Block E's roofs.
+  - **East:** Block E's low roofs (4.5 m) joined across the Noodle Gap and over the crossing by bridges, with the Service Alley below.
+  - **Street-level links:** the arcade through Block W, the Noodle Gap through Block E, the crossing, and the forecourts.
+  - **Six drop-downs per half,** one-way, through gaps in the parapets and rails.
+  - **Spawn yards** walled in, with three exits behind blast walls.
+- **The 4.0 pipeline:**
+  - wet asphalt with puddles, reflection catchers and neon streaks;
+  - rain lit by the glows, a baked environment map, the teal/orange grade;
+  - the facades' lit windows at about half the story district's brightness.
+- **Lighting for reading people:** 31 warm or cold-white point lights placed over lanes, stairs, landings and roofs; the neon signs are callouts. The Service Alley got a third lamp per half after a body at the Noodle Gap's mouth read as nothing at 20 m.
+- **Instanced props:** vending machines, roof and wall AC units, lanterns and rubbish bags; 152 instances in 11 InstancedMeshes.
+
+### The operator skins (`src/entities/enemies/operators.ts`, every TDM map)
+- **Gear:** matte, near-black cloth and graphite plates with a low environment response, so the wet neon doesn't mirror off them.
+- **Accents:** small emissive pieces in the team colour (ALPHA cyan, OMEGA orange): a visor strip, shoulder patches and a segmented spine light.
+- **Accent size:** the first cut's 2 cm strips disappeared at 20 m. They're now 3.5 cm and about 4% of the body.
+- **Comparison:** `TDM.skins = 'legacy'` brings back the 6.0–13.0 looks.
+
+### AI: vertical navigation and drop-downs
+- **One-way drops:** `NavLayout.drops` are directed edges. The arena bots' route search walks them in reverse; survival routes never take them. A bot walks off the edge and falls under the existing gravity.
+- **Measured drop:** sent from Block W's roof to Lantern Alley, a bot dropped roof → landing → alley and arrived in 3.8 s.
+- **High ground (`ARENA.vantage`):** a flank's spot may be a floor up to 8 m above the contact, each metre counting as 0.8 m nearer. 34–51% of flanks on Neon Block now go up.
+
+### Findings and fixes
+- **Main Street drew the whole match:** 42–47% of bot time, 94% of kills from street level. It was a straight 92 m corridor with nothing at eye height. Fix: a police box at the crossing, a box truck and a bus shelter per half, and the plain street lane replaced by a Service Alley lane.
+- **Stress test:** stall counters 0.4–0.6 m off a wall (stepping off into the slot ended inside geometry), and vaultable dumpsters against the boundary (a vault pushed bodies into the wall). They're now flush and not vaultable.
+- **`__dev.world()` didn't see instanced meshes:** it reported 32 "invisible walls". It now reads them per instance.
+- **A street-lamp pole ran up through the street stair:** caught by the nav check ("node inside geometry").
+
+### Results
+- **World:** 0 findings standing and crouched (34,418 cells); stress 0/16,000 standing and crouched; stair gaps 0 drops. Docks, Desert, Jungle and Tokyo still report 0 with the instanced-aware check.
+- **Six bot matches** (25 tickets):
+  - 164–207 s; first contact at 7.4–11.7 s;
+  - bot time: street 64–73%, mid 21–28%, top 6–11%;
+  - 2–11 drop-downs a match; about 49% of kills from above street level;
+  - 0 stuck, 0 friendly fire, AI 0.06 ms per step.
+  - The first cut: street 86–91%, top 1.6–2.9%, about 6% of kills from above.
+- **Memory:** `node scripts/leakcheck.mjs 2 neonblock,docks,desert` left 0 of 48 tagged objects from the left levels alive after a forced GC. Geometries, textures, scene objects and DOM nodes are flat lap over lap. Neon Block's heap after GC read 14.0, 15.7 and 16.5 MB on its three visits (watch item: no level object retained).
+- **Rare stuck bot:** one in 22 matches over the session (a hunter in ALPHA's yard corner), not reproduced by placing bots there.
+- **Performance** (`docs/BENCH-14.0.json`): on battery at 11%, Chrome held every page at 30 Hz. Neon Block's ten views cost 4.5–5.9 ms CPU and 6.5–8.7 ms GPU per frame, inside the 16.7 ms budget. The 60 FPS figure needs a re-run on mains power.
+- **Tests:** 203, including drop-down routing.
+
 ## Next
 Human playtest:
+- 14.0 items: Neon Block in a full match: do the three levels pay off (roofs, landings, the footbridge), are the drop-downs readable and fun, is any spot too dark or too bright, is the koban too big; the operator skins: can you find a bot in the alleys at 20–40 m, do cyan and orange read as teams at a glance, do the accents feel like a giveaway.
 - 13.0 items: the mode-first menu and the name field; picking a gun over the intro and on the respawn timer (is 3 s in the spawn yard enough?); do shotgun bots rushing and rifle bots hanging back read as different players; is the Kitsune too strong as an SMG (27 per bolt against bots); going straight to the next map after a match.
 - 12.0 items: the slide's length and speed (1.2 s, 6 m), sliding into a firefight with ADS, the minimap (does a fading red dot feel fair or like a wallhack), do the bots' flanks and retreats read as players, is the storm-heavy desert fun or exhausting, the rooftop and culvert routes.
 - 11.0 items: ADS feel (the 0.2 s raise, the zoom per weapon, the red dot, recoil with the sights up), crouch (toggle vs hold, speed), can you read a bot raising its rifle at 20–40 m and does that warning feel fair, is the desert's 35–40 m fighting fun, are the jungle fights too slow.

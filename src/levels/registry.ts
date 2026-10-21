@@ -4,6 +4,7 @@ import { TOKYO_INFO, TokyoLevel } from './tokyo/TokyoLevel';
 import { DESERT_INFO, DesertLevel } from './desert/DesertLevel';
 import { JUNGLE_INFO, JungleLevel } from './jungle/JungleLevel';
 import { DOCKS_INFO, DocksLevel } from './docks/DocksLevel';
+import { NEONBLOCK_INFO, NeonBlockLevel } from './neonblock/NeonBlockLevel';
 
 export interface LevelEntry {
   info: LevelInfo;
@@ -17,9 +18,11 @@ export const LEVELS: Partial<Record<SettingId, LevelEntry>> & { tokyo: LevelEntr
   desert: { info: DESERT_INFO, create: (g) => new DesertLevel(g) },
   jungle: { info: JUNGLE_INFO, create: (g) => new JungleLevel(g) },
   docks: { info: DOCKS_INFO, create: (g) => new DocksLevel(g) },
+  // 14.0: Tokyo's biome as a TDM arena (the story district above is untouched).
+  neonblock: { info: NEONBLOCK_INFO, create: (g) => new NeonBlockLevel(g) },
 };
 
-export const LEVEL_ORDER: SettingId[] = (['tokyo', 'desert', 'jungle', 'docks'] as SettingId[]).filter((id) => LEVELS[id]);
+export const LEVEL_ORDER: SettingId[] = (['tokyo', 'neonblock', 'desert', 'jungle', 'docks'] as SettingId[]).filter((id) => LEVELS[id]);
 
 /** The registry entry of a setting the menu offers. */
 export function levelEntry(id: SettingId): LevelEntry {

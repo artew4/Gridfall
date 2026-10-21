@@ -11,6 +11,11 @@ export interface NavLayout {
    * checked along the link, so a roof never links to the ground below it. Default 0 (flat levels).
    */
   slope?: number;
+  /**
+   * 14.0: one-way drop-downs, [from, to]: a roof or landing edge to the floor below it (walk off the
+   * edge, fall). Only the arena bots' routes take them (the vault graph); survival never does.
+   */
+  drops?: [number, number][];
 }
 
 /** Probe height above the floor for walkability rays, plus a knee-high ray for low obstacles. */
@@ -32,6 +37,9 @@ export class Nav {
    * request). Survival routes never see them.
    */
   vaultEdges: number[][] | null = null;
+  /** 14.0: drop-downs out of each node, and into each node (the reverse search walks these). */
+  dropsOut: number[][] = [];
+  dropsIn: number[][] = [];
   private a = new THREE.Vector3();
   private b = new THREE.Vector3();
   private d = new THREE.Vector3();
@@ -56,6 +64,12 @@ export class Nav {
       }
     }
     for (const [i, j] of layout.links) link(i, j);
+    this.dropsOut = this.nodes.map(() => []);
+    this.dropsIn = this.nodes.map(() => []);
+    for (const [i, j] of layout.drops ?? []) {
+      this.dropsOut[i].push(j);
+      this.dropsIn[j].push(i);
+    }
   }
 
   /** Walkable corridor between two body-height points: three parallel rays plus one at knee height. */
@@ -271,15 +285,18 @@ export class Nav {
       done[u] = 1;
       const du = dist[u];
       const nu = this.nodes[u];
-      for (const v of edges[u]) {
-        if (done[v]) continue;
+      const relax = (v: number) => {
+        if (done[v]) return;
         const nd = du + nu.distanceTo(this.nodes[v]);
         if (nd < dist[v]) {
           dist[v] = nd;
           next[v] = u;
           push(nd, v);
         }
-      }
+      };
+      for (const v of edges[u]) relax(v);
+      // The field is searched backwards from the goal: a drop v → u is taken from v, so it relaxes v.
+      if (vault) for (const v of this.dropsIn[u]) relax(v);
     }
     const f = { dist, next };
     memo.set(goal, f);
@@ -334,13 +351,13 @@ export class Nav {
     }
   }
 
-  /** Indices reachable from a node (connectivity check for the dev route test). */
-  reachable(from: number): Set<number> {
+  /** Indices reachable from a node (connectivity check for the dev route test). `drops`: count the one-way drops too. */
+  reachable(from: number, drops = false): Set<number> {
     const seen = new Set<number>([from]);
     const stack = [from];
     while (stack.length) {
       const u = stack.pop()!;
-      for (const v of this.edges[u]) {
+      for (const v of drops ? [...this.edges[u], ...this.dropsOut[u]] : this.edges[u]) {
         if (!seen.has(v)) {
           seen.add(v);
           stack.push(v);

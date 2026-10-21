@@ -28,6 +28,7 @@ No install and no plugin. Open the link, click, play. Desktop browser with a mou
 | **Tokyo Night** | A vertical neon district in the rain: streets, walkways, rooftops 8.5 m up, and a metro station 6 m under the street with trains on a real timetable. | Story Escape, Arcade Survival |
 | **Desert Outpost** | A HESCO-walled outpost in open dunes under a harsh sun, where the sandstorm is the normal state and clear air lasts seconds. The compound is in three levels: rooftops joined by bridges and a skybridge, the yard, and a culvert under it. It's mirrored into an arena for TDM. | Arcade Survival, Team Deathmatch |
 | **Deep Jungle: Firebase Viper** | A walled paramilitary compound in the rainforest, in mist and dappled light. Built as a linear assault map, then turned into a loop for TDM: two landing zones, the gate, two breaches and a drain culvert. | Arcade Survival, Team Deathmatch |
+| **Tokyo: Neon Block** | Tokyo Night's rain and neon as a 5v5 arena, separate from the story district: a mirrored Shinjuku block on three levels. Lantern Alley, Main Street with its footbridge, and the service alley at street level; fire escapes, landings and the footbridge in the middle; rooftops joined by a skybridge and a plank bridge on top. Drop down from a roof or a landing to flank, or take the stairs back up. | Team Deathmatch |
 | **Neon Docks** | A harbour at night, built for 5v5: a container maze (close range), a warehouse with catwalks (mid range) and an open quay under a crane (long range). | Team Deathmatch |
 
 ## The modes
@@ -36,7 +37,7 @@ The main menu asks for the mode first, then shows the maps that have it. Type yo
 
 - **Story Escape** (Tokyo): you are Arashi Kaito, framed for a bombing, and every patrol in the district has your description. Four acts across the streets, the rooftops and the Sakura Line metro, ending on the last express out. Stealth comes first: keep your weapon holstered and stay out of view cones. If you're seen, break line of sight and lose the search.
 - **Arcade Survival** (Tokyo, Desert, Jungle): wave after wave of enemies who fight as a squad.
-- **Team Deathmatch 5v5** (Desert, Jungle, Docks): you and four allied bots against five, 25 tickets a team, respawns in 3–5 s. You don't command your squad: the bots read what you're doing and play around you. Every match deals the ten bots different callsigns (Jax, Nova, Kuro, Viper…) and each bot a gun from the armory at every spawn.
+- **Team Deathmatch 5v5** (Neon Block, Desert, Jungle, Docks): you and four allied bots against five, 25 tickets a team, respawns in 3–5 s. You don't command your squad: the bots read what you're doing and play around you. Every match deals the ten bots different callsigns (Jax, Nova, Kuro, Viper…) and each bot a gun from the armory at every spawn. They wear matte tactical gear with small glowing accents in their team colour (a visor strip, shoulder patches, a spine light): cyan for ALPHA, orange for OMEGA.
 
 ## Gunplay
 

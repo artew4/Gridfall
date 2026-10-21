@@ -64,6 +64,16 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
   - `await __dev.mapCycle({ maps, laps, play })`: TDM through the result screen's real next-map cards round the maps (default desert → docks → jungle, two laps). Per map it records geometries, textures, programs, scene objects, DOM nodes, minimaps, name tags, the heap and the build time, and compares lap 2 with lap 1. Its WeakRef check can't force a GC, so a level it lists as alive may only be uncollected yet.
   - `node scripts/leakcheck.mjs [laps] [maps]` (Node 22+, Google Chrome; `URL=` to point at another server): the definitive check. Headless Chrome over the DevTools protocol does the same loop, forces a full GC at every map (heap per map), tags everything each left level built, and prints the strong retainer path of anything still alive from a heap snapshot. Exit code 1 if anything leaked. Run it against a server nobody is editing (hot reload restarts the page).
   - `__game.loadout` (`current`, `queued`), `__game.playerName`, `__game.tdm.slots[i].arm`.
+- Tokyo: Neon Block, skins and vertical AI (14.0):
+  - `?setting=neonblock`. `bench(3)` has a Neon Block set: nine views and a firefight, with the match running.
+  - `tdmSim` reports `vertical`:
+    - bot time on the street, the mid level (2.5–6 m) and the top (> 6 m);
+    - drop-downs taken, and where from;
+    - kills by the killer's floor.
+
+    It also reports `arena.flank.high` (flank spots above the contact). `tdmSim({ vantage: false })` is the 13.0 flank for an A/B.
+  - `TDM.skins = 'legacy'` brings back the 6.0–13.0 looks (garrison vs the level's survival enemies) for side-by-side screenshots.
+  - `__dev.world()` now counts instanced props as drawn (per instance), and skips per-frame instanced meshes (rounds, brass).
 - Stairs (9.1): `__dev.world()` also reports a stair flush with a wall (`stair flush with wall`); `await __dev.stairGaps()` lists every stair-to-wall gap (3 cm) and presses a body into each one to check it keeps its floor (`drops: 0`).
 - Music (9.0): `__game.debug().music` (current track, file or procedural, live sources, files found); `await __dev.musicSoak({ cycles: 3 })` cycles every level and the title and checks that every music source is disposed (`unaccounted: 0`).
 - Arena bots (7.0), on the desert. Every TDM check takes `ai: 'arena'` (the default) or `ai: 'tactical'` (the 6.0 squads):

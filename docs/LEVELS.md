@@ -254,3 +254,12 @@ How it fits:
 - **Lane points snap to free ground** (`freeNear`), because random trees can land on them. `layoutProblems` warns about any lane point or nav node inside geometry.
 - **A flank is used only when a lane goes through it.** With three lanes per team the bots never entered the culvert; with a fourth they enter it 4–5 times a match.
 
+## Tokyo: Neon Block (14.0)
+
+`src/levels/neonblock/`: `NeonBlockLayout.ts` (the plan, lanes and zones), `NeonBlock.ts` (the builder), `NeonBlockLevel.ts` (the runtime). TDM only. The story district (`tokyo/`) is untouched.
+
+- **Mirrored about z = 0**, three lanes on three levels: street (0 m), mid (4.5 m: fire-escape landings, the footbridge, Block E's roofs, the plank bridge) and top (7.2 m: Block W's roofs and the skybridge).
+- **Every raised floor has stairs back down.** The nav graph's one-way **drops** (`NavLayout.drops`) let arena bots walk off a roof or a landing through gaps in the parapets and rails.
+- **The boundary is 14 m buildings on every side**, over twice the highest reachable floor.
+- **Repeated props are `InstancedMesh`**: vending machines, AC units, lanterns and rubbish bags (`Instancer` in `NeonBlock.ts`). `__dev.world()` reads instanced meshes since 14.0.
+

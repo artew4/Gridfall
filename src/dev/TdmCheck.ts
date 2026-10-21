@@ -248,7 +248,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   const dt = opts.dt ?? 1 / 60;
@@ -257,6 +257,9 @@ export async function tdmSim(
   const roster0 = TDM.roster, lane0 = ARENA.laneLeave;
   if (opts.roster) TDM.roster = opts.roster === 'any' ? ANY : RANGED_ONLY;
   if (opts.laneLeave !== undefined) ARENA.laneLeave = opts.laneLeave;
+  // 14.0 A/B: `vantage: false` keeps flank spots on the contact's level (12.0–13.0).
+  const vantage0 = ARENA.vantage.on;
+  if (opts.vantage !== undefined) ARENA.vantage.on = opts.vantage;
   // 13.0: who carries what ('random': the armory deal; one weapon id: everybody, for A/B).
   const arms0 = TDM.arms;
   if (opts.arms) TDM.arms = opts.arms;
@@ -288,7 +291,11 @@ export async function tdmSim(
   const t0 = game.elapsed;
   let steps = 0, firstContact: number | null = null;
   // Per bot-step samples: moving (> 1.5 m/s), crouched (> 0.5), standing still (< 0.5 m/s).
-  const smp = { n: 0, moving: 0, crouched: 0, still: 0, speed: 0, elevated: 0 };
+  const smp = { n: 0, moving: 0, crouched: 0, still: 0, speed: 0, elevated: 0, mid: 0, top: 0 };
+  // 14.0: drop-downs (a bot falling fast: walked off a roof or a landing; stairs never build fall speed).
+  const falling = new Set<number>();
+  let drops = 0;
+  const dropFrom: Record<string, number> = {};
   // 8.0: where the fight happens — bot time per zone (sampled), height above the floor.
   const zoneT: Record<string, number> = {};
   // 9.0: how often a bot came into each zone (a passage like a culvert is crossed in a second: time
@@ -319,6 +326,16 @@ export async function tdmSim(
         if (sp < 0.5) smp.still++;
         if (b.crouch > 0.5) smp.crouched++;
         if (b.pos.y > 1) smp.elevated++;
+        // 14.0: which floor: the street, the mid level (2.5–6 m: landings, footbridge, low roofs) or the top.
+        if (b.pos.y > 6) smp.top++;
+        else if (b.pos.y > 2.5) smp.mid++;
+        const fv = (b as unknown as { fallV: number }).fallV;
+        if (fv < -5 && !falling.has(b.uid)) {
+          falling.add(b.uid);
+          drops++;
+          const zn = zoneOf(b.pos.x, b.pos.y + 1.5, b.pos.z);
+          dropFrom[zn] = (dropFrom[zn] ?? 0) + 1;
+        } else if (fv > -1) falling.delete(b.uid);
         if (steps % 15 === 0) {
           const zn = zoneOf(b.pos.x, b.pos.y, b.pos.z);
           zoneT[zn] = (zoneT[zn] ?? 0) + 1;
@@ -344,6 +361,7 @@ export async function tdmSim(
   TDM.roster = roster0;
   ARENA.laneLeave = lane0;
   TDM.arms = arms0;
+  ARENA.vantage.on = vantage0;
   Object.assign(rifle, { aim: rifle0.aim, hipSpread: rifle0.hip, maxRange: rifle0.max });
   Object.assign(P, { react: keep12.react, reactClamp: keep12.clamp, jitter: keep12.jitter });
   ARENA.flank.per = keep12.per;
@@ -376,6 +394,16 @@ export async function tdmSim(
     flankKills: k.filter((x) => x.flank).length,
     range: { median: q(k.map((x) => x.dist), 0.5), p10: q(k.map((x) => x.dist), 0.1), p90: q(k.map((x) => x.dist), 0.9), melee: k.filter((x) => x.dist < 3).length },
     movement: { movingPct: pct(smp.moving), crouchedPct: pct(smp.crouched), stillPct: pct(smp.still), elevatedPct: pct(smp.elevated), avgSpeed: +(smp.speed / Math.max(1, smp.n)).toFixed(2) },
+    // 14.0: vertical flow: bot time per floor, drop-downs taken (and where from), kills by the killer's floor.
+    vertical: {
+      streetPct: pct(smp.n - smp.mid - smp.top),
+      midPct: pct(smp.mid),
+      topPct: pct(smp.top),
+      drops,
+      dropsPerMin: +((drops / simT) * 60).toFixed(1),
+      dropFrom,
+      killsFrom: k.reduce<Record<string, number>>((a, x) => ((a[x.killerY === undefined ? '?' : x.killerY > 6 ? 'top' : x.killerY > 2.5 ? 'mid' : 'street'] = (a[x.killerY === undefined ? '?' : x.killerY > 6 ? 'top' : x.killerY > 2.5 ? 'mid' : 'street'] ?? 0) + 1), a), {}),
+    },
     zoneTimePct: (() => {
       const tot = Object.values(zoneT).reduce((a, b) => a + b, 0) || 1;
       return Object.fromEntries(Object.entries(zoneT).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, +((100 * n) / tot).toFixed(1)]));
@@ -409,7 +437,7 @@ export async function tdmSim(
             },
             perBot: st.perBot,
             // 12.0: flanks off the shared spotting, retreats, slides.
-            flank: { started: st.flanks, arrived: st.flankArrive, engagedFromFlank: st.flankEngage, kills: st.flankKills },
+            flank: { started: st.flanks, high: st.flankHigh, arrived: st.flankArrive, engagedFromFlank: st.flankEngage, kills: st.flankKills },
             retreat: { n: st.retreats, why: st.retreatWhy, lived: st.retreatLived, diedRetreating: st.retreatDeaths },
             slides: { n: st.slides, why: st.slideWhy, perMin: +((st.slides / simT) * 60).toFixed(1) },
           }

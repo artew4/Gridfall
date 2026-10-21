@@ -21,7 +21,7 @@ export interface TdmData {
   start: { x: number; z: number; yaw: number; y: number };
 }
 
-export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks';
+export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock';
 export type Mode = 'story' | 'arcade' | 'tdm';
 
 /** A named area of a level (the zone toast reads these). Rects are x0, z0, x1, z1. */

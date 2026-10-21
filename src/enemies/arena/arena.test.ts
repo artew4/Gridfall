@@ -239,6 +239,30 @@ describe('Arena locomotion', () => {
     expect(nav.route(v(0, 1, -6), v(0, 1, 6))).toEqual([]);
     expect(nav.route(v(0, 1, -6), v(0, 1, 6), { vault: true }).length).toBeGreaterThan(0);
   });
+  it('14.0: drop-downs are one-way and only arena routes take them; the roof still has its stair', () => {
+    const col = new CollisionWorld();
+    // A 4.5 m building (x 0–10, z -10–10) with a stair (ramp) up to its east edge at z 2–4.
+    col.add(0, 0, -10, 10, 4.5, 10);
+    col.addRamp(10, 2, 19, 4, 'x', 4.5, 0);
+    // Nodes: roof edge (0), street below the edge (1), stair foot (2), roof at the stair top (3), street (4).
+    const nodes = [v(9, 4.5, -6), v(13.5, 0, -6), v(19.5, 0, 3), v(9, 4.5, 3), v(19.5, 0, -6)];
+    const nav = new Nav(col, { nodes, links: [[2, 3]], drops: [[0, 1]] });
+    nav.ensureVaultLinks();
+    expect(nav.edges[0].includes(1)).toBe(false);
+    const roof = v(8, 5.5, -6), street = v(13.5, 1, -6);
+    // Down: the arena route walks off the edge (roof → street node), survival takes the stair.
+    const down = nav.route(roof, street, { vault: true });
+    expect(down.slice(-2)).toEqual([0, 1]);
+    const slow = nav.route(roof, street);
+    expect(slow).toContain(2);
+    expect(slow).not.toEqual([0, 1]);
+    // Up: a drop is never climbed back; the route goes by the stair.
+    const up = nav.route(street, roof, { vault: true });
+    expect(up).toContain(2);
+    expect(up).toContain(3);
+    expect(nav.reachable(1).has(0)).toBe(true);
+    expect(nav.reachable(0, true).has(1)).toBe(true);
+  });
 });
 
 describe('Survival keeps the 5.0 brain', () => {

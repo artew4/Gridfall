@@ -167,6 +167,12 @@ export const ARENA = {
    */
   flank: { fresh: 1, spotterGap: 8, min: 14, max: 55, dist: 11, angle: (105 * Math.PI) / 180, per: 2, maxT: 9, cooldown: 6, arrive: 3 },
   /**
+   * 14.0, high ground: a flank's spot may be a floor up to `up` m above the contact (a landing, a
+   * roof's edge), each metre of height worth `perM` m of distance, within `reach` m of the flank point.
+   * Off (A/B): flank spots on the contact's own level, as 12.0.
+   */
+  vantage: { on: true, up: 8, perM: 0.8, reach: 8 },
+  /**
    * 12.0, retreat and regroup instead of fighting to the death: it took `unseenDmg` (health share)
    * within `window` s from someone it can't see, or it sees at least `outSeen` hostiles, `outnumbered`
    * more than it has friends within `friendR` m (and is under `outHp` health). It breaks line of sight and sprints to
@@ -241,13 +247,15 @@ export interface ArenaStats {
   retreatWhy: { unseen: number; outnumbered: number };
   retreatLived: number;
   retreatDeaths: number;
+  /** 14.0: flanks whose spot was above the contact (high ground). */
+  flankHigh: number;
   /** 12.0: slides (by why). */
   slides: number;
   slideWhy: { push: number; dive: number; exposed: number };
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, flanks: 0, flankArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0 } };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, flanks: 0, flankHigh: 0, flankArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0 } };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

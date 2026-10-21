@@ -1,0 +1,33 @@
+{
+  "version": "14.0",
+  "machine": "Apple M5 laptop, Chrome, Balanced preset",
+  "caveat": "Measured on battery at 11%: Chrome's Energy Saver held requestAnimationFrame at 30 Hz (a bare rAF loop: 30.1 Hz), so every view reads 30 FPS. The budget measure is the per-frame CPU and GPU time against 16.7 ms. Re-run __dev.bench(3) on mains power for the 60 FPS figure.",
+  "neonblock_bench3_31_lights": {
+    "views_cpuMs_gpuMs_drawCalls": {
+      "alphaYard": [5.86, 8.04, 397],
+      "mainStreet": [5.41, 8.26, 311],
+      "lanternAlley": [5.0, 8.05, 308],
+      "fireEscape": [4.48, 7.9, 364],
+      "westRoofs": [5.17, 7.49, 317],
+      "footbridge": [4.79, 8.74, 196],
+      "eastRoofs": [4.66, 6.54, 287],
+      "serviceAlley": [4.79, 7.32, 264],
+      "wholeBlock": [5.31, 7.43, 347],
+      "firefight": [5.05, 7.77, 282]
+    },
+    "earlier_run_29_lights": { "cpuMs": [2.72, 5.11], "gpuMs": [6.31, 8.34] },
+    "pointLights": 31,
+    "instanced": { "acRoof": 20, "acRoofGrille": 20, "vend-red": 6, "vendFront-red": 6, "vend-white": 6, "vendFront-white": 6, "acWall": 40, "lanterns": 38, "bag": 10 }
+  },
+  "world": { "standing": 0, "crouched": 0, "reachableCells": 34418, "stressStanding": "0/16000", "stressCrouched": "0/16000", "stairGaps": { "stairs": 10, "probes": 104, "drops": 0 }, "otherLevelsWithInstancedCheck": { "docks": 0, "desert": 0, "jungle": 0, "tokyo": 0 } },
+  "verticalFlow_tdmSim": {
+    "firstCut_3_matches": { "streetPct": [86.3, 91.4], "midPct": [7.0, 10.8], "topPct": [1.6, 2.9], "drops": [1, 4], "killsFromAbovePct": 6, "mainStreetTimePct": [42.2, 47.3] },
+    "afterSightlineBreakers_3_matches": { "streetPct": [78.7, 79.6], "midPct": [16.2, 19.6], "topPct": [1.8, 4.3], "drops": [1, 5] },
+    "vantageOn_vs_Off_4_each": { "on": { "street": 69.7, "mid": 23.2, "top": 7.1, "killsFromAbovePct": 43, "drops": 5.5 }, "off": { "street": 74.3, "mid": 20.7, "top": 5.0, "killsFromAbovePct": 32, "drops": 5.25 } },
+    "final_6_matches": { "matchS": [164.3, 206.8], "firstContactS": [7.4, 11.7], "streetPct": [64.2, 73.3], "midPct": [20.8, 28.3], "topPct": [5.9, 10.8], "drops": [2, 11], "killsFromAbovePct": 49, "highFlankSharePct": [34, 51], "stuck": 0, "friendlyDamage": 0, "aiMsAvg": [0.062, 0.067], "aiMsP99": 0.5, "movingPct": [89.4, 92.3] },
+    "stuckSeen": "1 in 22 matches over the session (a hunting bot in ALPHA's yard corner, t=100 s); not reproduced by placing bots there",
+    "otherMaps_2_each_after_vantage": { "docks": { "stuck": 0, "ff": 0, "highFlanks": "25/70, 25/61" }, "desert": { "stuck": 0, "ff": 0, "highFlanks": "20/68, 20/67" }, "jungle": { "stuck": 0, "ff": 0, "highFlanks": "3/67, 6/60" } }
+  },
+  "leakcheck_forcedGC": { "loop": "neonblock -> docks -> desert, 2 laps", "aliveAfterGC": "0/48", "heapMB_neonblock_visits": [14.0, 15.7, 16.5], "geometries_neonblock": [229, 230, 230], "sceneObjects_neonblock": [554, 554, 554] },
+  "dropDownCheck": "a bot on Block W's roof (7.2 m) sent to Lantern Alley: route roof edge -> fire-escape landing -> alley (two drops), arrived in 3.8 s"
+}

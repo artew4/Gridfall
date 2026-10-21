@@ -81,10 +81,28 @@ export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: bool
   game.scene.updateMatrixWorld(true);
   game.scene.traverse((o) => {
     const m = o as THREE.Mesh;
-    if (!m.isMesh || m.userData.staticMerged || (m as unknown as THREE.InstancedMesh).isInstancedMesh) return;
+    if (!m.isMesh || m.userData.staticMerged) return;
     if (!m.visible || !m.geometry) return;
-    // Skip dynamic actors (guards, crowd rigs, trains, effects) by ancestry flags.
+    // Skip dynamic actors (guards, crowd rigs, trains, effects) and soft things (foliage) by ancestry flags.
     for (let a: THREE.Object3D | null = m; a; a = a.parent) if (a.userData.dynamic || a.userData.soft) return;
+    // 14.0: instanced street furniture: every instance is a piece of its own (instance matrix × geometry bounds).
+    const im = m as unknown as THREE.InstancedMesh;
+    if (im.isInstancedMesh) {
+      // Rounds, rain, brass: rewritten every frame, not the world.
+      if (im.instanceMatrix.usage === THREE.DynamicDrawUsage) return;
+      const imat = Array.isArray(im.material) ? im.material[0] : im.material;
+      if (!im.geometry.boundingBox) im.geometry.computeBoundingBox();
+      const pa = im.geometry.attributes.position;
+      const exact = (pa && (pa.count === 24 || pa.count === 4 || pa.count === 36 || pa.count === 6)) || im.geometry.type === 'BoxGeometry' || im.geometry.type === 'PlaneGeometry';
+      const mi = new THREE.Matrix4();
+      for (let i = 0; i < im.count; i++) {
+        im.getMatrixAt(i, mi);
+        const box = im.geometry.boundingBox!.clone().applyMatrix4(mi.premultiply(im.matrixWorld));
+        if ((imat as THREE.MeshBasicMaterial).blending !== THREE.AdditiveBlending) seenPieces.push({ box, mat: imat });
+        if (isOpaqueSolidLooking(imat) && exact) visuals.push({ box, mat: imat });
+      }
+      return;
+    }
     const mat = Array.isArray(m.material) ? m.material[0] : m.material;
     if (!mat) return;
     const box = new THREE.Box3().setFromObject(m);
