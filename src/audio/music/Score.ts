@@ -69,8 +69,12 @@ export class Score {
   private rnd = mulberry32(2024);
   private padFilter: BiquadFilterNode;
 
-  constructor(private ctx: AudioContext, out: AudioNode) {
-    this.I = new Instruments(ctx);
+  /**
+   * `shared` (9.0, MusicManager): one Instruments (noise buffer) and one reverb (impulse buffer) for
+   * every procedural track, instead of new buffers each time a track starts.
+   */
+  constructor(private ctx: AudioContext, out: AudioNode, shared?: { I: Instruments; reverb: AudioNode }) {
+    this.I = shared?.I ?? new Instruments(ctx);
     this.limiter = ctx.createDynamicsCompressor();
     this.limiter.threshold.value = -16;
     this.limiter.knee.value = 8;
@@ -84,7 +88,7 @@ export class Score {
     this.mix = ctx.createGain();
     this.mix.gain.value = 0.85;
     this.mix.connect(this.limiter).connect(this.duckFilter).connect(this.duckGain).connect(out);
-    const reverb = this.I.makeReverb(this.mix);
+    const reverb = shared?.reverb ?? this.I.makeReverb(this.mix);
     this.bus = new TrackBus(ctx, this.mix, reverb, BPM);
     this.bus.out.gain.value = 1;
     this.padFilter = ctx.createBiquadFilter();
@@ -258,8 +262,17 @@ export class Score {
     }
   }
 
+  /** Stops the scheduler and disconnects everything it built (9.0: tracks come and go). */
   dispose() {
     clearInterval(this.timer);
+    this.started = false;
+    for (const l of Object.values(this.layers) as Layer[]) l.gain.disconnect();
+    this.padFilter.disconnect();
+    this.bus.disconnect();
+    this.mix.disconnect();
+    this.limiter.disconnect();
+    this.duckFilter.disconnect();
+    this.duckGain.disconnect();
   }
 }
 

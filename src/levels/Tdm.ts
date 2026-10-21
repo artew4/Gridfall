@@ -9,7 +9,7 @@ import { ArenaDirector } from '../enemies/arena/ArenaDirector';
 import { Sensing } from '../enemies/arena/Sensing';
 import { ARENA, newArenaStats, type ArenaCtx, type ArenaStats } from '../enemies/arena/ArenaCtx';
 import type { DeathmatchBrain } from '../enemies/arena/DeathmatchAI';
-import { ARENA_SIGHT_SHARE } from '../world/Visibility';
+import { ARENA_SEE, fogRange } from '../world/Visibility';
 import { RANGED_ONLY, filterRoster, type RosterRequest, type Slot as RosterSlot, type UnitKind } from '../enemies/Roster';
 import { otherTeam, TEAMS, type Combatant, type TeamId } from '../combat/Team';
 import { DESERT_GARRISON } from '../entities/enemies/mercs';
@@ -409,8 +409,8 @@ export class TdmRules implements ModeRules {
       brains,
       (a) => this.hostiles[a.self.team],
       (a, h) => dirs[a.self.team].isHot(h.uid, now),
-      // 8.1: the arena sees only what a player could pick out of the fog (world/Visibility.ts).
-      this.game.ctx.sightRange !== undefined ? this.game.ctx.sightRange * ARENA_SIGHT_SHARE : undefined,
+      // The arena sees only what a player could pick out of the scene's fog (world/Visibility.ts).
+      this.game.fog.density > 0 ? fogRange(this.game.fog.density, ARENA_SEE) : undefined,
     );
     // What anyone sees goes on the team's board.
     for (const br of brains) {

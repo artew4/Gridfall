@@ -6,7 +6,7 @@ import type { Breakable, CabinetSpot } from '../../gameplay/Interactives';
 import { mulberry32 } from '../../core/math';
 import { fitStairWidth } from '../../world/StairFit';
 import type { Zone } from '../Level';
-import { BASE, CLIFF, CLIFF_RECESS, JUNGLE_EXTENT, ROAD, STRIP, baseDist, jungleHeight, roadX } from './Terrain';
+import { BASE, CLIFF, CLIFF_RECESS, JUNGLE_EXTENT, ROAD, STRIP, TDM_YARD, baseDist, jungleHeight, roadX } from './Terrain';
 import * as T from './textures';
 import { crateTexture, hescoTexture, rubberTexture, sandbagTexture, stencilTexture } from '../desert/textures';
 
@@ -73,6 +73,10 @@ export interface BaseResult {
   zoneAt(x: number, y: number, z: number): Zone | null;
   /** Points the DEV AI check sends enemies to. */
   testGoals: THREE.Vector3[];
+  /** 9.0, Team Deathmatch: spawns in each yard, lanes per team (as it faces), and where the player starts. */
+  tdm: { spawns: { alpha: THREE.Vector3[]; omega: THREE.Vector3[] }; lanes: { alpha: THREE.Vector3[][]; omega: THREE.Vector3[][] }; start: { x: number; z: number; yaw: number } };
+  /** Lane points or nav nodes found inside geometry when built (must be empty). */
+  layoutProblems: string[];
   /** The flag ripples. */
   update(t: number): void;
 }
@@ -86,6 +90,11 @@ const SLAB = 0.12;
 const DOOR_H = 2.3;
 const WIN_Y0 = 1.15;
 const WIN_Y1 = 2.0;
+/** 9.0: the drainage culvert through the south wall (x span, clear height, length outside the wall). */
+const CULVERT = { x0: -21.2, x1: -18.8, h: 2.2, len: 3.4 };
+/** 9.0: the blown section of the east wall (z span). */
+const EAST_BREACH = { z0: -8.5, z1: -5 };
+
 /** Comms center roof top and the watchtower platform. */
 export const COMMS_ROOF = 3.65;
 export const TOWER_TOP = 4.5;
@@ -294,10 +303,13 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   const runX = (z0: number, z1: number, spans: [number, number][]) => { for (const [a, c] of spans) solid(a, 0, z0, c, WALL_H, z1, m.twall, 'concrete', WALL_H); };
   const runZ = (x0: number, x1: number, spans: [number, number][]) => { for (const [a, c] of spans) solid(x0, 0, a, x1, WALL_H, c, m.twall, 'concrete', WALL_H); };
   const GATE = 3.5, TOWER = 7.5;
-  runX(BZ1 - WALL_T, BZ1, [[BX0, -TOWER], [TOWER, BX1]]);
+  // 9.0: the south wall west of the gate is pierced by a drainage culvert (CULVERT), and the east
+  // wall has a blown section (EAST_BREACH): two more ways in that don't go through the gate.
+  runX(BZ1 - WALL_T, BZ1, [[BX0, CULVERT.x0], [CULVERT.x1, -TOWER], [TOWER, BX1]]);
+  solid(CULVERT.x0, CULVERT.h, BZ1 - WALL_T, CULVERT.x1, WALL_H, BZ1, m.twall, 'concrete', WALL_H);
   runX(BZ0, BZ0 + WALL_T, [[BX0, -3.2], [-0.8, BX1]]);
   runZ(BX0, BX0 + WALL_T, [[BZ0 + WALL_T, -24], [-20.5, BZ1 - WALL_T]]);
-  runZ(BX1 - WALL_T, BX1, [[BZ0 + WALL_T, BZ1 - WALL_T]]);
+  runZ(BX1 - WALL_T, BX1, [[BZ0 + WALL_T, EAST_BREACH.z0], [EAST_BREACH.z1, BZ1 - WALL_T]]);
   clear(BX0, BZ0, BX1, BZ1, STRIP - 1.5);
 
   // Concertina along the top of every wall run: rings of razor wire on a coil (InstancedMesh, opaque,
@@ -320,7 +332,8 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   coil(-0.8, BZ0 + 0.3, BX1, BZ0 + 0.3, top);
   coil(BX0 + 0.3, BZ0, BX0 + 0.3, -24, top);
   coil(BX0 + 0.3, -20.5, BX0 + 0.3, BZ1, top);
-  coil(BX1 - 0.3, BZ0, BX1 - 0.3, BZ1, top);
+  coil(BX1 - 0.3, BZ0, BX1 - 0.3, EAST_BREACH.z0, top);
+  coil(BX1 - 0.3, EAST_BREACH.z1, BX1 - 0.3, BZ1, top);
   // Ground runs of wire across the south strip, either side of the gate approach: a frontal
   // assault funnels to the gate. Tall enough not to be stepped on, solid (you go round).
   const wireRun = (x0: number, x1: number, z: number) => {
@@ -678,6 +691,72 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   solid(BX0 - 1.6, 0, -20.5, BX0, 0.5, -18.8, m.twall, 'concrete', 1);
   clear(BX0 - 4, -26.5, BX0 + 1, -18, 0.5);
 
+  // 9.0, east breach: the same blown look, its slabs outside.
+  solid(BX1, 0, EAST_BREACH.z0 - 2.0, BX1 + 2.2, 0.7, EAST_BREACH.z0, m.twall, 'concrete', 1);
+  solid(BX1, 0, EAST_BREACH.z1, BX1 + 1.6, 0.5, EAST_BREACH.z1 + 1.7, m.twall, 'concrete', 1);
+  clear(BX1 - 1, EAST_BREACH.z0 - 2.5, BX1 + 4, EAST_BREACH.z1 + 2.2, 0.5);
+
+  // 9.0, drainage culvert: a concrete box culvert through the south wall west of the gate, its mouth
+  // between the wall and the wire. A flank that skips the gate's kill zone (and the wire) entirely.
+  {
+    const { x0, x1, h, len } = CULVERT;
+    const z0 = BZ1, z1 = BZ1 + len;
+    solid(x0 - 0.4, 0, z0, x0, h + 0.4, z1, m.bunker, 'concrete', 1.5);
+    solid(x1, 0, z0, x1 + 0.4, h + 0.4, z1, m.bunker, 'concrete', 1.5);
+    solid(x0, h, z0, x1, h + 0.4, z1, m.bunker, 'concrete', 1.5);
+    // A rusted grate frame at the mouth (above head height: decoration).
+    solid(x0, h - 0.15, z1 - 0.12, x1, h, z1, m.rust, 'metal', 1);
+    clear(x0 - 1, z0, x1 + 1, z1 + 1, 0.3);
+  }
+
+  // ======================================================================= TDM yards (9.0)
+  // HESCO bastions 2.4 m high (well above jump reach), one exit per lane, each behind a blast wall:
+  // nobody shoots into a spawn. LZ ALPHA (south, round the road's end) has three exits; LZ NORTH
+  // (behind the compound, much nearer its postern) has only the two side exits, so the way from either
+  // yard to the compound's middle is about as long (see the 9.0 notes).
+  const YH = 2.4, YT = 0.8;
+  const hescoWall = (x0: number, z0: number, x1: number, z1: number) => solid(x0, 0, z0, x1, YH, z1, m.hesco, 'sand', 1.2);
+  const blast = (x0: number, z0: number, x1: number, z1: number) => solid(x0, 0, z0, x1, 2.6, z1, m.twall, 'concrete', 1.3);
+  const lzYard = (r: { x0: number; z0: number; x1: number; z1: number }, frontZ: number, frontExit: number | null, sideZ: number) => {
+    const back = frontZ === r.z0 ? r.z1 : r.z0;
+    const fz0 = frontZ === r.z0 ? r.z0 : r.z1 - YT, bz0 = back === r.z1 ? r.z1 - YT : r.z0;
+    // Front wall (towards the compound), with or without an exit.
+    if (frontExit === null) hescoWall(r.x0, fz0, r.x1, fz0 + YT);
+    else {
+      hescoWall(r.x0, fz0, frontExit - 2, fz0 + YT);
+      hescoWall(frontExit + 2, fz0, r.x1, fz0 + YT);
+      const bz = frontZ === r.z0 ? fz0 - 3.8 : fz0 + YT + 3.2;
+      blast(frontExit - 3.5, bz, frontExit + 3.5, bz + 0.6);
+    }
+    hescoWall(r.x0, bz0, r.x1, bz0 + YT);
+    // Side walls with an exit each, blast walls outside them.
+    const iz0 = Math.min(fz0, bz0) + YT, iz1 = Math.max(fz0, bz0);
+    for (const [wx0, wx1, bx0] of [[r.x0, r.x0 + YT, r.x0 - 3.6], [r.x1 - YT, r.x1, r.x1 + 3.0]] as const) {
+      solid(wx0, 0, iz0, wx1, YH, sideZ - 2, m.hesco, 'sand', 1.2);
+      solid(wx0, 0, sideZ + 2, wx1, YH, iz1, m.hesco, 'sand', 1.2);
+      blast(bx0, sideZ - 3.5, bx0 + 0.6, sideZ + 3.5);
+    }
+    clear(r.x0 - 4.5, r.z0 - 4.5, r.x1 + 4.5, r.z1 + 4.5, 0.5);
+  };
+  const A = TDM_YARD.alpha, Bn = TDM_YARD.omega;
+  const exitA = roadX(A.z0);
+  lzYard(A, A.z0, exitA, 50);
+  lzYard(Bn, Bn.z1, null, -54.5);
+  // Cover inside the yards (against the side walls: never in front of an exit).
+  crate(-10.8, 0, 44.2, -9.6, 1.2, 45.4, crates.ammo);
+  crate(9.6, 0, 55.4, 10.8, 1.2, 56.6, crates.rifle);
+  crate(-10.8, 0, -49.2, -9.6, 1.2, -48.0, crates.ammo);
+  crate(9.6, 0, -60.2, 10.8, 1.2, -59.0, crates.med);
+  {
+    // LZ NORTH is a helipad: the H in the middle of the yard.
+    const h = new THREE.Mesh(new THREE.PlaneGeometry(9, 9), new THREE.MeshStandardMaterial({ map: T.helipadTexture(), roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    h.rotation.x = -Math.PI / 2;
+    h.position.set(0, 0.02, (Bn.z0 + Bn.z1) / 2);
+    h.receiveShadow = true;
+    h.userData.soft = true;
+    scene.add(h);
+  }
+
   // ======================================================================= Forest
   /** Obstacles so far for spacing (XZ circles). */
   const taken: [number, number, number][] = [];
@@ -912,6 +991,39 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     if (!col.blocked(p, 0.6)) spawns.push(p);
   }
 
+  // ======================================================================= TDM (9.0)
+  const tdmSpawns = {
+    alpha: [[-8, 49], [-3, 54], [4, 49], [8, 54], [-8, 54], [-3, 49.5], [4, 54], [8, 49.5]].map(([x, z]) => v(x, 0, z)),
+    omega: [[-8, -57.5], [-3, -51.5], [4, -57.5], [8, -51.5], [-8, -51.5], [-3, -57.5], [4, -51.5], [8, -57.5]].map(([x, z]) => v(x, 0, z)),
+  };
+  // Lane points through the forest snap to the nearest open ground (trees and rocks are scattered).
+  const P = (x: number, z: number) => freeNear(x, z);
+  const lane = (pts: [number, number][]) => pts.map(([x, z]) => P(x, z));
+  // ALPHA's lanes as it faces north (left = west); OMEGA's as it faces south (left = east). LZ NORTH
+  // has no front exit: its centre lane goes out of the west exit and round to the postern.
+  const westA: [number, number][] = [[-13.6, 50], [-18, 45], [-30, 40], [-42, 24], [-46, 4], [-44, -18], [-40, -38], [-26, -50]];
+  const eastA: [number, number][] = westA.map(([x, z]) => [-x, z]);
+  // Each team also has a fourth lane, a flank through a way in the other team doesn't start next to:
+  // ALPHA's goes out of its west exit, along the strip behind the wire and in by the drainage culvert,
+  // across the motor pool and out of the west breach; OMEGA's goes out of its east exit and in by the
+  // east breach, past the watchtower and out of the gate. (With three lanes and shortest-path hunting
+  // the bots never used the culvert: 0% of their time in the first matches.)
+  const culX = (CULVERT.x0 + CULVERT.x1) / 2, ebz = (EAST_BREACH.z0 + EAST_BREACH.z1) / 2;
+  const tdmLanes = {
+    alpha: [
+      lane(westA),
+      lane([[-13.6, 50], [-18, 45], [-29, 30], [-29, BZ1 + CULVERT.len + 0.9], [culX, BZ1 + CULVERT.len + 0.9], [culX, 6.5], [-20, -9], [-25.4, -22.25], [BX0 - 3, -22.25], [-36, -40], [-24, -48]]),
+      lane([[exitA, 40.4], [0, 30], [0, 21], [0, 14], [0, 6.5], [0, -4], [-4.5, -26], [-2, BZ0 + 2.2], [-2, BZ0 - 2.6], [-2, -43.4]]),
+      lane(eastA),
+    ],
+    omega: [
+      lane([[13.6, -54.5], [26, -50], [40, -38], [44, -18], [46, 4], [42, 24], [30, 38]]),
+      lane([[13.6, -54.5], [26, -48], [36, -28], [BX1 + 3, ebz], [BX1 - 2.6, ebz], [20.5, -3], [12, 0], [0, 6.5], [0, 14], [0, 21], [0, 32]]),
+      lane([[-13.6, -54.5], [-14, -45], [-6, -42.6], [-2, BZ0 - 2.6], [-2, BZ0 + 2.2], [-4.5, -26], [0, -4], [0, 6.5], [0, 14], [0, 21], [0, 32]]),
+      lane([[-13.6, -54.5], [-26, -50], [-40, -38], [-44, -18], [-46, 4], [-42, 24], [-30, 38]]),
+    ],
+  };
+
   // ======================================================================= Navigation
   const nodes: THREE.Vector3[] = [];
   const links: [number, number][] = [];
@@ -938,7 +1050,17 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   for (const [x, z] of [[0, 6.5], [0, 10], [0, 14], [-9.5, 14], [9.5, 14], [-9.5, 17.5], [9.5, 17.5], [0, 21], [-2.4, 25], [3, 20], [-6.5, 15.5],
     [BX0 + 2.6, -22.25], [BX0 - 3, -22.25], [-2, BZ0 + 2.2], [-2, BZ0 - 2.6],
     [-4.5, -26], [-4.5, -31], [-4.5, -36], [5.5, -27], [6.4, -31], [24.8, -24], [8.6, -24.0], [15.4, -24.0], [25.2, -30], [25.2, -36], [-26, -24.5], [-16, -25.2], [-26, -36],
-    [-9, -16], [-9.4, -22.5], [7, -16], [17.8, -16], [24.8, -12], [-26.2, -15], [-20, -9], [12, 0], [12, 8], [21.5, 7], [20.5, -3], [-12, 8], [-26, 6], [7, -10]]) {
+    [-9, -16], [-9.4, -22.5], [7, -16], [17.8, -16], [24.8, -12], [-26.2, -15], [-20, -9], [12, 0], [12, 8], [21.5, 7], [20.5, -3], [-12, 8], [-26, 6], [7, -10],
+    // 9.0: the east breach, the culvert (inside, in it, its mouth, along the strip to the wire's end),
+    // and every TDM yard exit (inside, between wall and blast wall, round the blast wall's ends).
+    [BX1 - 2.6, (EAST_BREACH.z0 + EAST_BREACH.z1) / 2], [BX1 + 3, (EAST_BREACH.z0 + EAST_BREACH.z1) / 2],
+    [(CULVERT.x0 + CULVERT.x1) / 2, 6.5], [(CULVERT.x0 + CULVERT.x1) / 2, BZ1 + CULVERT.len / 2], [(CULVERT.x0 + CULVERT.x1) / 2, BZ1 + CULVERT.len + 0.9], [-24.5, BZ1 + CULVERT.len + 0.9], [-29, BZ1 + CULVERT.len + 0.9],
+    [exitA, 44.6], [exitA, 40.4], [exitA - 5, 38.9], [exitA + 5, 38.9],
+    [-9.5, 50], [-13.6, 50], [-13.6, 45.4], [-13.6, 54.6], [-17.2, 45.4], [-17.2, 54.6],
+    [9.5, 50], [13.6, 50], [13.6, 45.4], [13.6, 54.6], [17.2, 45.4], [17.2, 54.6],
+    [-9.5, -54.5], [-13.6, -54.5], [-13.6, -50], [-13.6, -59], [-17.2, -50], [-17.2, -59],
+    [9.5, -54.5], [13.6, -54.5], [13.6, -50], [13.6, -59], [17.2, -50], [17.2, -59],
+    ...tdmLanes.alpha.flat().map((p) => [p.x, p.z]), ...tdmLanes.omega.flat().map((p) => [p.x, p.z])]) {
     const y = jungleHeight(x, z);
     if (!col.blocked(probe.set(x, y, z), 0.5)) N(x, y, z);
   }
@@ -978,6 +1100,10 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   const zDepot = zone('depot', 'SUPPLY DEPOT', '補給所', [[8, -22.5, BX1, -11.5]]);
   const zPad = zone('helipad', 'HELIPAD', 'ヘリポート', [[BX0, -8, -12, 8]]);
   const zYard = zone('compound', 'FIREBASE VIPER', '基地構内', [[BX0, BZ0, BX1, BZ1]]);
+  const zLzA = zone('lz-alpha', 'LZ ALPHA', 'アルファ降着地', [[TDM_YARD.alpha.x0, TDM_YARD.alpha.z0, TDM_YARD.alpha.x1, TDM_YARD.alpha.z1]]);
+  const zLzN = zone('lz-north', 'LZ NORTH', '北ヘリポート', [[TDM_YARD.omega.x0, TDM_YARD.omega.z0, TDM_YARD.omega.x1, TDM_YARD.omega.z1]]);
+  const zCulvert = zone('culvert', 'DRAIN CULVERT', '排水暗渠', [[CULVERT.x0, BZ1 - 1, CULVERT.x1, BZ1 + CULVERT.len]]);
+  const zEastBreach = zone('east-breach', 'EAST BREACH', '東の破口', [[BX1 - 3, EAST_BREACH.z0 - 2, BX1 + 4, EAST_BREACH.z1 + 2]]);
   const zStrip = zone('perimeter', 'PERIMETER', '外周', []);
   const zRoad = zone('road', 'APPROACH ROAD', '進入路', []);
   const zForest = zone('forest', 'DEEP JUNGLE', '密林', [[-JUNGLE_EXTENT, -JUNGLE_EXTENT, JUNGLE_EXTENT, JUNGLE_EXTENT]]);
@@ -987,11 +1113,15 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     if (inRect(zComms.rects[0], x, z) && y < 3.4) return zComms;
     if (inRect(zRoof.rects[0], x, z) && y > COMMS_ROOF - 0.5) return zRoof;
     if (inRect(zTower.rects[0], x, z) && y > TOWER_TOP - 0.5) return zTower;
+    if (inRect(zCulvert.rects[0], x, z)) return zCulvert;
+    if (inRect(zEastBreach.rects[0], x, z)) return zEastBreach;
     if (inRect(zGate.rects[0], x, z)) return zGate;
     if (inRect(zMotor.rects[0], x, z)) return zMotor;
     if (inRect(zDepot.rects[0], x, z)) return zDepot;
     if (inRect(zPad.rects[0], x, z)) return zPad;
     if (inRect(zYard.rects[0], x, z)) return zYard;
+    if (inRect(zLzA.rects[0], x, z)) return zLzA;
+    if (inRect(zLzN.rects[0], x, z)) return zLzN;
     if (z > ROAD.z0 && Math.abs(x - roadX(z)) < ROAD.half + 1.5) return zRoad;
     if (baseDist(x, z) < STRIP) return zStrip;
     if (Math.abs(x) <= JUNGLE_EXTENT && Math.abs(z) <= JUNGLE_EXTENT) return zForest;
@@ -1014,7 +1144,17 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     v(-17.3, SLAB, -29.0), v(-10.2, SLAB, -31), v(18.6, SLAB, -31.6), v(11.2, SLAB, -32.4), v(15.5, COMMS_ROOF, -29.5), v(17.4, TOWER_TOP, 3.0),
     v(-17.9, 0, -9.5), v(17.8, 0, -13.2), v(0, 0, -11), v(0, 0, 10), v(-2, 0, BZ0 - 2.6), v(BX0 - 3, 0, -22.25), v(-6.6, 0, -24.5),
     ...[[40, -20], [-35, 30], [-20, -50], [30, 50], [0, 52]].map(([x, z]) => freeNear(x, z)),
+    // 9.0: into LZ NORTH, through the culvert, through the east breach.
+    v(0, 0, -55), v((CULVERT.x0 + CULVERT.x1) / 2, 0, 6.5), v(BX1 - 2.6, 0, (EAST_BREACH.z0 + EAST_BREACH.z1) / 2),
   ];
+
+  // Every lane point on open ground, no nav node inside geometry.
+  const layoutProblems: string[] = [];
+  for (const [t, L] of Object.entries(tdmLanes)) for (const p of L.flat()) if (col.blocked(p, 0.6)) layoutProblems.push(`${t} lane ${p.x.toFixed(1)},${p.z.toFixed(1)}`);
+  for (const [t, S] of Object.entries(tdmSpawns)) for (const p of S) if (col.blocked(p, 0.6)) layoutProblems.push(`${t} spawn ${p.x},${p.z}`);
+  nodes.forEach((p, i) => {
+    if (col.blocked(v(p.x, p.y, p.z), 0.35)) layoutProblems.push(`node ${i} @${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}`);
+  });
 
   const sx = roadX(53);
   return {
@@ -1033,6 +1173,8 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     nav: { nodes, links, slope: 0.42 },
     zoneAt,
     testGoals,
+    tdm: { spawns: tdmSpawns, lanes: tdmLanes, start: { x: 0, z: 52, yaw: 0 } },
+    layoutProblems,
     update(t: number) {
       const pos = flag.geometry.attributes.position as THREE.BufferAttribute;
       for (let i = 0; i < pos.count; i++) {

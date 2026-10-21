@@ -46,6 +46,12 @@ export interface EnemyCtx {
    */
   concealment?: (a: THREE.Vector3, b: THREE.Vector3) => number;
   damagePlayer(dmg: number, from: THREE.Vector3): void;
+  /**
+   * 9.0: the scene's fog (live: a storm changes its density every frame). The arena AI derives its
+   * sight and aim from it (world/Visibility.ts) instead of from `sightRange`, whose meaning varies
+   * by level (the jungle's is already cut to 85% for the survival AI).
+   */
+  fog?: THREE.FogExp2;
   /** 7.0, TDM: the arena AI (director, sensing, scheduler) when the mode runs it; absent otherwise. */
   arena?: ArenaCtx;
   /** 6.0: the team of the agents this context drives (absent: OMEGA, survival). */
