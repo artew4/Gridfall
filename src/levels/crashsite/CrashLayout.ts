@@ -50,7 +50,16 @@ export const RIDGE = { x0: -48, x1: -30, z: 34, top: 3.6, ramp: { x0: -44, x1: -
 /** The ravine: carved floor between rock rims; ramps out at both ends. */
 /** Rim tops, trunk decks and the hull's deck are all ≤ 0.3 m: a box is walked onto only up to that (more must be jumped). */
 export const STEP = 0.28;
-export const RAVINE = { x0: 24, x1: 33, z: 40, end: 51, floor: -4, rim: 1.5, rimTop: STEP };
+export const RAVINE = { x0: 24, x1: 33, z: 40, end: 51, floor: -4, rim: 1.5, rimTop: STEP, rampRim: 0.6 };
+/*
+  33.1, `rampRim`: the corridor test's lowest ray runs Nav.KNEE (0.4 m) over each end's feet. A rim lower
+  than that over the bank, beside a floor more than a step below its top, is a ledge the rays pass over
+  and a body can't climb: 15.0–33.0 the rims along the ravine's end ramps (0.28 m) were one, and runners
+  pressed into them (levelAI). Along the ramps (|z| > RAVINE.z) they stand `rampRim` over the bank: a
+  wall, not a ledge, from either side and from the low rim beside them (over a step, over the knee ray,
+  over the world check's walk-up of 0.5 m: at 0.5 it called the rim a level a body couldn't reach). The
+  ramps come out level with the ground at the ravine's ends.
+*/
 /**
  * 33.0, THE OUTPOST (replaces 19.0's temple, wreck and shrine): an abandoned research lab raised on
  * stilts over the clearing. Three levels and a fourth below:

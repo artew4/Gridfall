@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { KNEE as NAV_KNEE } from '../../enemies/Nav';
 import { BASE, COURT, OUTPOST, RAVINE, STEP, TRENCH, TRENCHES, TUNNEL, X_OUT, Z_END, crashHeight, crashSurface, inBase, laneOf, lanesOf, pitFloor, ravineFloor, spawnsOf, trenchDist, tunnelDist, tunnelRects, tunnelRoofs, tunnelWalls, zoneAt } from './CrashLayout';
 
 describe('Jungle: Crash Site layout', () => {
@@ -32,6 +33,20 @@ describe('Jungle: Crash Site layout', () => {
     expect(ravineFloor(0)).toBe(RAVINE.floor);
     expect(ravineFloor(RAVINE.end)).toBe(0);
     expect(ravineFloor(-45)).toBeCloseTo(ravineFloor(45));
+  });
+
+  it('33.1, the ravine\'s end ramps: rims a wall above the knee ray beside them; the ramps level with the ground at the ends', () => {
+    // A rim lower than the knee ray over the bank, beside a floor more than a step under it, was a ledge.
+    expect(RAVINE.rampRim).toBeGreaterThan(NAV_KNEE + 0.05);
+    // Not a step up from the low rims either (a body steps 0.3 m), nor a level the world check walks up to (0.5 m).
+    expect(RAVINE.rampRim - RAVINE.rimTop).toBeGreaterThan(0.3);
+    expect(RAVINE.rampRim).toBeGreaterThan(0.5);
+    expect(RAVINE.rampRim - ravineFloor(RAVINE.end - 0.5)).toBeGreaterThan(0.3);
+    // The way out: level with the ground at the end, and beyond it.
+    for (const sz of [1, -1]) {
+      expect(crashHeight(28.5, sz * RAVINE.end)).toBeCloseTo(0, 5);
+      for (const x of [RAVINE.x0 + 0.5, 28.5, RAVINE.x1 - 0.5]) expect(Math.abs(crashHeight(x, sz * (RAVINE.end + 0.5)))).toBeLessThan(0.02);
+    }
   });
 
   it('trenches are 1.4 m down along their lines and fade out at their ends (no step out of them)', () => {

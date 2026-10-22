@@ -1,0 +1,145 @@
+{
+  "version": "33.1 (Deep Jungle hotfix: the rims along the ravine's end ramps a wall over the corridor test's knee ray)",
+  "branch": "feature/deep-jungle-33.1 from main @ 04c55e3",
+  "machine": "Apple M5, Chrome, Balanced",
+  "levelAI": {
+    "33.0": "runners 189, 190, 191 of 192 (three runs): the east-bank goal (40, 0, 10) from the far spawns, stalls at the end ramps",
+    "33.1": "runners 192/192 ×3, graph ok, gunners 8/8",
+    "rejected": {
+      "smoothing the lip (a 6 m band where the ramp is under 1 m deep)": "a 0.9 m drop along the line where the rims stopped (the slope test); a sideways slope out of a 20° ramp can be at most 10°",
+      "rims at 0.5 m": "levelAI 192/192 ×3 but world: 40 'narrow gap' cells (the rims' tops at the world check's walk-up)"
+    }
+  },
+  "world": "clean",
+  "stress": {
+    "runs": 16000,
+    "failures": 0
+  },
+  "selfPlay": {
+    "method": "tdmSim 7v7, 4 matches",
+    "33.0": {
+      "matches": 4,
+      "kpm": 24.5,
+      "quietPct": 15.55,
+      "wallPressEvents": 17,
+      "wallPressSeconds": 12.4,
+      "stuck": 0,
+      "lanes": {
+        "ridge": 13.05,
+        "outpost": 56.3,
+        "ravine": 21.25,
+        "tunnels": 9.4
+      }
+    },
+    "33.1": {
+      "matches": 4,
+      "kpm": 25.4,
+      "quietPct": 16.48,
+      "wallPressEvents": 11,
+      "wallPressSeconds": 8.7,
+      "stuck": 0,
+      "lanes": {
+        "ridge": 12.05,
+        "outpost": 55.33,
+        "ravine": 17.15,
+        "tunnels": 15.48
+      }
+    }
+  },
+  "perf": {
+    "bench3 crashsite [fps, cpu, gpu, drawCalls]": {
+      "alphaLZ": [
+        60.3,
+        2.53,
+        6.4,
+        278
+      ],
+      "ridge": [
+        60,
+        2.82,
+        6.55,
+        195
+      ],
+      "westTrench": [
+        60,
+        2.59,
+        6.4,
+        282
+      ],
+      "outpostFront": [
+        60,
+        2.41,
+        6.62,
+        282
+      ],
+      "underLab": [
+        60,
+        2.55,
+        6.33,
+        179
+      ],
+      "labInside": [
+        60,
+        2.53,
+        6.22,
+        177
+      ],
+      "labRoof": [
+        60.2,
+        2.24,
+        6.19,
+        139
+      ],
+      "tunnelHub": [
+        60,
+        3.36,
+        6.28,
+        177
+      ],
+      "tunnelRun": [
+        60,
+        3.6,
+        6.46,
+        197
+      ],
+      "pit": [
+        60,
+        3,
+        6.14,
+        260
+      ],
+      "ravine": [
+        60,
+        2.48,
+        6.5,
+        301
+      ],
+      "eastBank": [
+        60,
+        2.71,
+        6.35,
+        136
+      ],
+      "wholeMap": [
+        60,
+        2.52,
+        6.56,
+        320
+      ],
+      "firefight": [
+        59.9,
+        2.68,
+        6.59,
+        183
+      ]
+    },
+    "note": "a run before saw CPU 4-5 ms from mid-run on (transient); this one 2.2-3.6"
+  },
+  "leaks": {
+    "leakcheck": {
+      "command": "node scripts/leakcheck.mjs 2 crashsite,maglev",
+      "aliveAfterGC": 0
+    }
+  },
+  "tests": 385
+}

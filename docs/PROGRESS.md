@@ -1718,7 +1718,7 @@ Branch `feature/deep-jungle-33.0`, from `main` @ `dd27bc5` (32.0, merged). Full 
 - `directRise` 0.5 on the new map: the same pace as Infinity (22.4 kills a minute), the tunnels used more (1.6× the time). (23.0's A/B, where it cost pace, was on the old temple's terraces.)
 
 ### Checks
-- `levelAI`: every node reachable from every spawn; gunners 8 of 8; runners 189–191 of 192 over three runs (32.0's map: 176 of 176, three runs). Every failure is one goal on the east bank, (40, 0, 10), from the far spawns: survival runners out of the tunnels into the ravine stall at its end ramps, where the ramp lies up to 0.6 m under a rim's top and the corridor rays pass over it. Known; the map is TDM-only and its bots never stuck in self-play. Next: reshape the ravine's ends. (Fixed on the way: 2 nodes floating over the roof's stairwell, open stair sides runners clipped into, the rim-top waypoints, the cut-over-a-drop, the slots by the rim.)
+- `levelAI`: every node reachable from every spawn; gunners 8 of 8; runners 189–191 of 192 over three runs (32.0's map: 176 of 176, three runs). Every failure is one goal on the east bank, (40, 0, 10), from the far spawns: survival runners out of the tunnels into the ravine stall at its end ramps, where the ramp lies up to 0.6 m under a rim's top and the corridor rays pass over it. Fixed in 33.1 (the rims along the end ramps a wall over the knee ray). (Fixed on the way: 2 nodes floating over the roof's stairwell, open stair sides runners clipped into, the rim-top waypoints, the cut-over-a-drop, the slots by the rim.)
 - `world`: no traps, escapes, invisible walls or walk-through visuals. `stress`: 16,000 controller runs from 500 cells, 0 failures.
 
 ### Measured (bot-only, 7v7, 4 matches a cell)
@@ -1734,8 +1734,20 @@ Branch `feature/deep-jungle-33.0`, from `main` @ `dd27bc5` (32.0, merged). Full 
 - **Frame cost:** `bench(3)` on Deep Jungle: 60 FPS in all 14 views (the hub, a tunnel run, a pit, the lab, its roof among them); GPU 6.0–6.6 ms (31.0: 5.7–6.2); CPU 2.4–3.1 ms (31.0: 1.6–2.1), as Maglev's in the same session (2.1–3.1; 31.0: 1.8–2.4): the machine, not the map. The tunnels' strip lights merged into one draw (the first build drew each: up to 75 more calls a view).
 - **Leaks:** `leakcheck` (Deep Jungle, Old Port, Maglev): 0 alive after GC. `vramCycle` (3 laps): every stop the same lap over lap (Deep Jungle 151 geometries, 43 textures). Tests 384 (+3: the tunnels, their walls, roofs and headroom, the outpost).
 
+## 33.1: Deep Jungle hotfix, the ravine's end ramps
+
+Branch `feature/deep-jungle-33.1`, from `main` @ `04c55e3` (33.0, merged). Full numbers: `docs/BENCH-33.1.json`.
+
+- **The failure:** `levelAI`, 189–191 of 192 runners (32.0's map: 176/176). Every failure was one goal on the east bank from the far spawns; the runners stalled at the ravine's end ramps (the tunnels lead into the ravine now, so runners use them).
+- **The cause:** the ramps rise from the ravine's floor (-4 m) to the ground over its last 11 m, and the rock rims beside them stood a fixed 0.28 m over the bank: near the top the ramp lay 0.3–0.6 m under the rim. The corridor test's lowest ray runs 0.4 m over each end's feet (`Nav.KNEE`), so from the ramp to the bank it passed over the rim near the bank end; the body can't climb more than 0.3 m. A ledge the rays don't see.
+- **Why not smooth the lip:** the ramps already climb at 20°, against the 22° walkable limit; a sideways slope out of them can be at most 10°, which would open only their last 0.7 m and leave a step where the rims stop (the slope test caught the first attempt's 0.9 m drop along that line).
+- **The fix:** along the ramps (|z| > 40) the rims stand 0.6 m over the bank (`RAVINE.rampRim`): over the knee ray, over a step from the low rims beside them, over the world check's walk-up (at 0.5 m it called the rims' tops a level the bank couldn't reach). A wall from either side, never a ledge. The ramps come out level with the ground at the ravine's ends, where the routes leave round the rims' ends. A test holds the heights; `Nav.KNEE` is exported for it.
+- **Measured:** `levelAI` 192/192 in three runs of three, every node reachable, gunners 8/8; `world` clean; `stress` 16,000 runs, 0 failures. Self-play 7v7 (4 matches): no stuck bots, 11 wall-presses (33.0: 17), kills a minute 25.4 (24.5), the tunnels 15% of lane time (9%). `leakcheck` 0 alive.
+- **Frame cost:** `bench(3)` on Deep Jungle: 60 FPS in all 14 views, GPU 6.1–6.6 ms, CPU 2.2–3.6 ms (33.0: 6.0–6.6, 2.4–3.1); a run before it saw CPU 4–5 ms from mid-run on, transient (the rims are the same boxes, 0.32 m taller).
+
 ## Next
 Human playtest:
+- 33.1 items: the ravine's end ramps (do you walk out at the ends without catching on anything; do the taller rims along them read as walls).
 - 33.0 items: Deep Jungle's outpost (does the lab on stilts read as a place; the roof: too strong a perch?), the tunnels (do you find and use them; the pits and the ravine mouths; too dark?), the plants (can you see enemies now, is it still a jungle), the overgrown containers, do bots still run into walls.
 - 32.0 items: Neon Docks' new palette (easier on the eyes, or too dull now?), the rain (still atmospheric?), the roofed warehouse (a fortress again?), 9v9 (busy or chaotic; can you read the team board), the forward zone B (spawning near the fight: fair?), do the bots still bunch up where you play.
 - 31.0 items: the deployment zones (can you tell your zones from theirs at a glance; do the letters help you call "they're at B"; is the walk from home too long now (bots' pace fell on most maps); does any zone feel camped); the five themes (the dust, the vines, the stripes, the glass: charming or noisy; is the beam distracting); `TDM.spawns = 'dynamic'` for the 30.0 pads side by side.

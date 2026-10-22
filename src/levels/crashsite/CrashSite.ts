@@ -263,13 +263,24 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     const seg = (z0: number, z1: number) => {
       // Down to below the floor under this stretch (the ramps lift it near the ends).
       const lo = Math.min(ravineFloor(z0), ravineFloor(z1)) - 0.3;
-      solid(rx0, lo, z0, rx1, RAVINE.rimTop, z1, m.rock, 'concrete', 2);
+      // 33.1: along the end ramps, above the corridor test's knee ray (RAVINE.rampRim): a wall, not a ledge.
+      const top = Math.max(Math.abs(z0), Math.abs(z1)) > RAVINE.z + 0.01 ? RAVINE.rampRim : RAVINE.rimTop;
+      solid(rx0, lo, z0, rx1, top, z1, m.rock, 'concrete', 2);
+    };
+    // (33.1: a segment never straddles the ramps' start, so the low rim's stretch ends exactly there.)
+    const run = (a: number, b: number) => {
+      for (let z = a; z < b - 0.01; ) {
+        const brk = [-RAVINE.z, RAVINE.z].find((q) => q > z + 0.01 && q < Math.min(b, z + 6));
+        const z1 = brk ?? Math.min(b, z + 6);
+        seg(z, z1);
+        z = z1;
+      }
     };
     for (const [c0, c1] of cuts) {
-      for (let z = cur; z < c0 - 0.01; z = Math.min(c0, z + 6)) seg(z, Math.min(c0, z + 6));
+      run(cur, c0);
       cur = c1;
     }
-    for (let z = cur; z < rimZ - 0.01; z = Math.min(rimZ, z + 6)) seg(z, Math.min(rimZ, z + 6));
+    run(cur, rimZ);
   }
   // The trunks: a walkable deck from bank to bank (top STEP: walked onto), the log drawn round it; under each, a
   // rock plug fills the rim's gap below the trunk (the face stays covered).
@@ -673,8 +684,8 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     N(RAVINE.x0 + 1.6, RAVINE.floor, Z(pz));
     // The ravine: down its end ramps; the drops off the rims.
     chain(N(28.5, 0, Z(RAVINE.end + 1.5)), N(28.5, ravineFloor(Z(45.5)), Z(45.5)), N(28.5, RAVINE.floor, Z(RAVINE.z - 1)));
-    // 33.0: round the rims' ends from the ramp's top (not across a corner where the ramp lies lower than
-    // the rim: runners out of the tunnels and up the ravine pressed into it there: levelAI).
+    // Round the rims' ends from the ramp's top, where it comes out level with the ground (33.1: the rims
+    // along the ramps are walls now: the only way out of the ravine's ends is past them).
     for (const x of [RAVINE.x0 - RAVINE.rim - 1.2, RAVINE.x1 + RAVINE.rim + 1.2]) links.push([N(28.5, 0, Z(RAVINE.end + 1.5)), G(x, Z(RAVINE.end + 1.5))]);
     // (33.0: the west rim's at z 5, clear of the tunnel's mouth and the floor's rocks.)
     // 33.0: from the bank just outside the rim (over it and down), never from its top: a node on a rim

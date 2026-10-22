@@ -36,7 +36,7 @@ export interface NavLayout {
 
 /** Probe height above the floor for walkability rays, plus a knee-high ray for low obstacles. */
 const BODY = 1;
-const KNEE = 0.4;
+export const KNEE = 0.4;
 /** 7.0: a wall an arena bot vaults is at most this tall (floor to top), and its rays fly over it here. */
 export const VAULT_MAX = 1.35;
 const OVER = 1.5;
