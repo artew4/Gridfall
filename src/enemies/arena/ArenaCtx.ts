@@ -18,6 +18,13 @@ import type { TeamId } from '../../combat/Team';
 */
 
 export const ARENA = {
+  /**
+   * 23.0: a bot never steers straight at a goal more than this far above it (m): it takes the route.
+   * Infinity (the default, 7.0–22.0): line of sight alone decides. Old Port's profile sets 1 (bots
+   * hunting a contact on a stack top pressed into the stair's side rail); on Crash Site, whose terraces
+   * and slopes make a goal a metre up walkable, the A/B cost pace (kills/min 27–30 → 23–27).
+   */
+  directRise: Infinity,
   /** Decide interval (s): in a fight under `closeDist`, in a fight further out, out of contact. */
   decide: { close: 0.06, far: 0.09, calm: 0.15, closeDist: 25 },
   /** Frame budget for nine bots (the survival defaults are 3 decides, 30 rays, 2 re-plans). */

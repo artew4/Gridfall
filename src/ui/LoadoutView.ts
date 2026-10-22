@@ -3,7 +3,8 @@ import { ARMORY, ARMORY_ORDER, type WeaponId } from '../entities/weapons/armory'
 
 /**
  * 13.0, the loadout picker: a card per gun (21.0: pistol, SMG, rifle, shotgun) with its key. Shown over the match
- * intro and the first seconds in the spawn yard (a pick swaps the gun at once), and under the respawn
+ * intro and the first seconds of every life (a pick swaps the gun at once; 23.0: after that a one-line
+ * prompt while he is still in the spawn area, where a pick still swaps), and under the respawn
  * countdown in Team Deathmatch (a pick is queued for the next life). Keys 1–3 always work (the mouse
  * is usually captured); the cards are clickable whenever it isn't.
  *
@@ -14,6 +15,8 @@ export class LoadoutView {
   onPick: (id: WeaponId) => void = () => {};
   private cards = new Map<WeaponId, HTMLElement>();
   private head = document.createElement('div');
+  /** 23.0: the spawn area's one-line prompt (shown after the cards, while a swap is still allowed). */
+  private line = document.createElement('div');
 
   constructor(parent: HTMLElement) {
     this.root.className = 'loadout hidden';
@@ -36,6 +39,14 @@ export class LoadoutView {
     this.root.append(this.head, row);
     for (const ev of ['mousedown', 'click']) this.root.addEventListener(ev, (e) => e.stopPropagation());
     parent.appendChild(this.root);
+    this.line.className = 'lo-prompt hidden';
+    parent.appendChild(this.line);
+  }
+
+  /** 23.0: in the spawn area, past the cards: "1–4 to change loadout", and the gun in hand. */
+  prompt(on: boolean, carried?: WeaponId) {
+    this.line.classList.toggle('hidden', !on);
+    if (on && carried) this.line.innerHTML = `<kbd>1–4</kbd> CHANGE LOADOUT ${flSpan('loadout')} <span>${ARMORY[carried].spec.name} · IN SPAWN</span>`;
   }
 
   /** `queued`: the pick (highlighted); `carried`: the gun in hand; `next`: the pick waits for a respawn. */

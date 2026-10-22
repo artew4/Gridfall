@@ -56,8 +56,14 @@ function arenaRoute(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {
 const _f = new THREE.Vector3();
 const _t = new THREE.Vector3();
 
-/** Shared by both bodies (same hooks, different base classes). */
+/**
+ * Shared by both bodies (same hooks, different base classes). 23.0: never straight at a goal more
+ * than ARENA.directRise up (a map's profile: a clear line of sight to a stack top over a stair's rail is
+ * not a walk; on Old Port bots hunting a contact up there pressed into the rail). Down is fine: a body
+ * walks off an edge.
+ */
 function directClear(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {
+  if (to.y - from.y > ARENA.directRise) return false;
   const nav = ctx.nav;
   if (nav.clear(from, to)) return true;
   return !!nav.vaultEdges && from.distanceTo(to) < 14 && nav.clearVault(from, to);

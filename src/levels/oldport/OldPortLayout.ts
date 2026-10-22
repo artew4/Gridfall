@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Terrain } from '../../world/Collision';
 import type { Zone } from '../Level';
+import type { ArenaProfile } from '../../enemies/arena/ArenaCtx';
 
 /*
   Old Port (17.1): a daytime Team Deathmatch arena, an old brick-and-concrete harbour on a clear
@@ -67,6 +68,83 @@ export const WALK = { x0: STACKS.x1, x1: STACK_B.x0, z0: 19.6, z1: 21.2 };
 export const DOCK = { x0: 24.5, x1: 35.5, z: 38, wall: 1, floor: -4.5 };
 /** The coaster in the dock: hull, deck, the bridge house and its roof, gangways at ±gz. */
 export const SHIP = { x0: 27, x1: 33, z: 15, deck: 1.0, house: { x0: 28.5, x1: 31.5, z: 2.5, roof: 3.6 }, gz: 7, gw: 1.6 };
+/*
+  23.0, the overhaul (the 17.1 port played like 18.0's Maglev: 5% of spawn-side to spawn-side pairs in
+  sight, the longest 129 m down the west quay; bots never on the stacks). Blockers by the width they
+  cover (the 20.0 rule), a container maze across the yard you go through or over, micro-cover.
+*/
+/**
+ * THE SPINE: a row of 1-high containers across the yard's middle (z ±1.22, x −22 … 18), two ground
+ * passages through it (GATES), each baffled by a container on both sides (no line through a gate), and
+ * its top a walk (2.6) joined over the gates by plank bridges and reached by a stair from each side.
+ */
+export const SPINE = { x0: -22, x1: 18, z: CONT.W / 2, top: CONT.H };
+export const GATES: [number, number][] = [
+  [-15.94, -12.44],
+  [5.74, 9.24],
+];
+/** The containers (x ranges) along the spine, between and round the gates; the last a crate stack. */
+export const SPINE_SEGMENTS: [number, number][] = [
+  [-22, -15.94],
+  [-12.44, -6.38],
+  [-6.38, -0.32],
+  [-0.32, 5.74],
+  [9.24, 15.3],
+  [15.3, 18],
+];
+/** The baffle in front of each gate (both halves): x range, z range (south half). */
+export const BAFFLES: { x: [number, number]; z: [number, number] }[] = [
+  { x: [-18, -11.94], z: [6, 8.44] },
+  { x: [4.45, 10.51], z: [4, 6.44] },
+];
+/** The stair onto the spine (south half; the north is its mirror). */
+export const SPINE_STAIR = { x0: -2.4, x1: 0, z0: SPINE.z, z1: SPINE.z + 5.2 };
+/**
+ * Full-height pieces breaking the long lines (south half, mirrored), with what they stand for:
+ * on the west quay (x 18 … 23.5) the bulldozer covers the yard side and the cargo stack the dock side;
+ * the hall's cargo stacks sit across its door-to-door line; the alley's pallet stack and skip.
+ */
+export const BLOCKERS: { name: string; x: [number, number]; z: [number, number]; h: number; y0?: number }[] = [
+  { name: 'bulldozer', x: [17.9, 21.6], z: [8, 11], h: 3.0 },
+  { name: 'cargo stack', x: [20.6, 23.5], z: [14.2, 17], h: 3.0 },
+  { name: 'hall cargo', x: [-38.6, -33.4], z: [10, 11.6], h: 2.6 },
+  { name: 'hall cargo 2', x: [-34.2, -32], z: [17.4, 18.8], h: 2.6 },
+  { name: 'alley pallets', x: [-27, -24.6], z: [17.5, 19], h: 2.4 },
+  { name: 'alley pallets 2', x: [-24.8, -22], z: [21, 22.4], h: 2.4 },
+  // The dry dock: shipwright scaffold towers from its floor to over the quay (2.2), staggered across
+  // each channel (the outer over the dock wall's top too): they cut the lines along the dock both at
+  // floor height (under the hull's overhang included) and at quay height.
+  { name: 'scaffold west outer', x: [23.4, 26.2], z: [21.2, 22.6], h: 2.2, y0: DOCK.floor },
+  { name: 'scaffold west inner', x: [25.9, 27.6], z: [16, 17.4], h: 2.2, y0: DOCK.floor },
+  { name: 'scaffold east outer', x: [33.8, 36.4], z: [21.2, 22.6], h: 2.2, y0: DOCK.floor },
+  { name: 'scaffold east inner', x: [32.4, 34.1], z: [16, 17.4], h: 2.2, y0: DOCK.floor },
+  // The sea quay: cargo stacks staggered across it.
+  { name: 'sea cargo', x: [35.6, 39.8], z: [12, 14.4], h: 3 },
+  { name: 'sea cargo 2', x: [39.6, 43.88], z: [21, 23], h: 3 },
+];
+/** 23.0: nav nodes in the passages the blockers leave (narrower than the 4 m lattice samples), south half. */
+export const PASSAGES: [number, number, number][] = [
+  [42.6, 0, 13.2], [38.2, 0, 22], [37.2, 0, 17.2], [39, 0, 10.8],
+  [25.0, DOCK.floor, 16.7], [26.9, DOCK.floor, 21.9], [34.8, DOCK.floor, 16.7], [33.1, DOCK.floor, 21.9], [26, DOCK.floor, 19.3], [34, DOCK.floor, 19.3],
+  [22.3, 0, 12.6], [19, 0, 15.6], [-23.3, 0, 18.2], [-25.9, 0, 21.7],
+];
+
+/**
+ * Micro-cover (instanced): Jersey barriers (2.2 × 1.0 × 0.6, along x or z) and barrel clusters, on
+ * the lanes' approaches; all vaultable. South half, mirrored. Never against a wall: on the dock floor a
+ * barrier against the dock wall let a sprint-jump land on the quay 4.5 m up (the body, stood on it,
+ * crossed the carve line), and drums beside the fire stair a jump over its rail (stress test).
+ */
+export const BARRIERS: [number, number, 'x' | 'z', number?][] = [
+  [-4.5, 12, 'x'], [12.5, 10, 'x'], [-15.5, 30.5, 'x'], [5, 27, 'x'], [19.5, 25, 'z'], [21.5, 5, 'x'],
+  [-23.3, 28.5, 'z'], [39.3, 5, 'z'], [37.2, 26.5, 'z'], [-6, 40, 'x'], [9, 39.5, 'x'],
+];
+export const BARRELS: [number, number, number?][] = [
+  [-6.4, 16.2], [-5.8, 16.9], [-6.6, 17.4], [15.8, 24.5], [16.5, 25], [15.9, 25.6],
+  [40.2, 9.4], [40.8, 9.9], [-23.5, 15.4], [-22.9, 16],
+  [32, 27.6, DOCK.floor], [32.5, 28.2, DOCK.floor], [26.2, 8, DOCK.floor], [26.1, 9.4, DOCK.floor], [33.9, 7.5, DOCK.floor],
+];
+
 /** Walked onto from the floor beside it: at most this (more must be jumped). */
 export const STEP = 0.28;
 
@@ -104,7 +182,8 @@ const ST = 2 * CONT.H;
 const LANES_ALPHA: [number, number, number?][][] = [
   [[-18, 56.4], [-28, 48], [-36, 40], [-36, 31.5], [-44.25, 31.8], [-44.25, 19, UP], [-41.5, 10, UP], [-41.5, 0, UP], [-41.5, -10, UP], [-44.25, -19, UP], [-44.25, -31.8], [-36, -31.5], [-36, -40]],
   // Up the team's own stacks, along the walk to STACK B, off its edge into the yard.
-  [[-18, 56.4], [-14, 46], [-18.8, 33.6], [-18.8, 21.5, ST], [-12, 20.4, ST], [-4, 20.4, ST], [4, 20.4, ST], [5, 16], [0, 8], [0, 0], [0, -12], [-3, -26], [-4, -38]],
+  // 23.0: then over the spine (the maze's top) by its stairs, not round it.
+  [[-18, 56.4], [-14, 46], [-18.8, 33.6], [-18.8, 21.5, ST], [-12, 20.4, ST], [-4, 20.4, ST], [4, 20.4, ST], [5, 16], [-1.2, 8.2], [-1.2, 4.2, CONT.H / 2], [-1.2, 0, CONT.H], [-1.2, -4.2, CONT.H / 2], [-1.2, -8.2], [-3, -26], [-4, -38]],
   // Down into the dock, up the scaffold onto the ship, over the bridge, down the far end.
   [[18, 56.4], [22, 48], [25.8, 41], [25.8, 38.5, 0], [25.8, 28, DOCK.floor], [30, 28, DOCK.floor], [30, 13, SHIP.deck], [30, 10, SHIP.deck], [30, 0, SHIP.house.roof], [30, -10, SHIP.deck], [30, -13, SHIP.deck], [30, -28, DOCK.floor], [25.8, -28, DOCK.floor], [25.8, -38.5, 0], [25.8, -41]],
 ];
@@ -131,6 +210,9 @@ export const ZONES = {
   warehouseEnds: Z('warehouseEnds', 'WAREHOUSE DOORS', 'ВОРОТА СКЛАДА', [[X_W, WHI.z, WH.x1, COURT], [X_W, -COURT, WH.x1, -WHI.z]]),
   dockHead: Z('dockHead', 'DOCK HEAD', 'ГОЛОВА ДОКА', [[DOCK.x0, DOCK.z, DOCK.x1, COURT], [DOCK.x0, -COURT, DOCK.x1, -DOCK.z]]),
   fireStairs: Z('fireStairs', 'FIRE STAIRS', 'ПОЖАРНАЯ ЛЕСТНИЦА', [[ALLEY.x0, FIRE.zFoot - 1, ALLEY.x1, FIRE.zDoor + 1.5], [ALLEY.x0, -FIRE.zDoor - 1.5, ALLEY.x1, -FIRE.zFoot + 1]]),
+  // 23.0: the maze across the yard: its top, and the gates through it.
+  spine: Z('spine', 'THE SPINE', 'ХРЕБЕТ', [[SPINE.x0, -SPINE.z - 0.5, SPINE.x1, SPINE.z + 0.5]]),
+  gates: Z('gates', 'SPINE GATES', 'ВОРОТА', GATES.map(([g0, g1]): [number, number, number, number] => [g0, -6, g1, 6])),
   stackTops: Z('stackTops', 'THE STACKS', 'ШТАБЕЛЯ', [[STACKS.x0, STACKS.z0, STACK_B.x1, STACKS.z1], [STACKS.x0, -STACKS.z1, STACK_B.x1, -STACKS.z0]]),
   bridge: Z('bridge', 'THE BRIDGE', 'РУБКА', [[SHIP.house.x0 - 0.5, -SHIP.house.z - 0.5, SHIP.house.x1 + 0.5, SHIP.house.z + 0.5]]),
   deck: Z('deck', 'THE DECK', 'ПАЛУБА', [[SHIP.x0, -SHIP.z, SHIP.x1, SHIP.z]]),
@@ -149,6 +231,8 @@ export function zoneAt(x: number, y: number, z: number): Zone | null {
   const inR = (r: [number, number, number, number]) => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
   if (y > WH.up - 1 && ZONES.upper.rects.some(inR)) return ZONES.upper;
   if (y > STACKS.top - 1 && ZONES.stackTops.rects.some(inR)) return ZONES.stackTops;
+  if (y > SPINE.top - 0.8 && ZONES.spine.rects.some(inR)) return ZONES.spine;
+  if (ZONES.gates.rects.some(inR)) return ZONES.gates;
   if (y > SHIP.house.roof - 0.8 && ZONES.bridge.rects.some(inR)) return ZONES.bridge;
   if (y > 0.5 && ZONES.deck.rects.some(inR)) return ZONES.deck;
   if (y > 1.5 && ZONES.fireStairs.rects.some(inR)) return ZONES.fireStairs;
@@ -158,3 +242,52 @@ export function zoneAt(x: number, y: number, z: number): Zone | null {
   }
   return null;
 }
+
+/*
+  23.0, the port's AI and density (self-play: docs/BENCH-23.0.json). 5v5 on the overhauled map was
+  quiet a third to a half of every match (first engagement 16–17 s): the arena is 124 m long. 7v7 with
+  50 tickets and forward respawns (as Maglev and the jungle); Maglev's under-fire reaction (a bot
+  sniped from 16 m+ breaks for cover); three flankers on a contact; and the jungle's cover-hop push,
+  so SMGs and shotguns close from the new micro-cover instead of running the open quay.
+*/
+export const OLDPORT_AI: ArenaProfile = {
+  underFire: { on: true },
+  flank: { per: 3, min: 10 },
+  coverPush: { on: true },
+  // Steep high ground (stacks 5.2, the spine 2.6) reached only by stairs: never straight up at a goal.
+  directRise: 1,
+};
+export const OLDPORT_TEAM_SIZE = 7;
+export const OLDPORT_TICKETS = 50;
+
+/**
+ * 23.0: forward respawn points on each team's approach, 37.5 m out (all level: a respawn takes the most
+ * forward safe point, and a first cut with the alley's 6 m further forward sent most respawns there and
+ * on into the yard: the dock lane fell to 12% of bot time). One per lane's mouth: the warehouse door,
+ * the alley, the yard, the west quay, the sea quay.
+ */
+export function forwardOf(team: 'alpha' | 'omega') {
+  const s = team === 'alpha' ? 1 : -1;
+  return ([[-36, 37.5], [-24.5, 37.5], [-9, 37.5], [21, 37.5], [39.5, 37.5]] as const).map(([x, z]) => new THREE.Vector3(x, 0, z * s));
+}
+
+/**
+ * 23.0: the yard's high ground is a cheap route (a multiple of a link's length): the stacks, their walk
+ * and the spine's top, so a bot crossing the yard goes over the maze, not round it (the 17.1 bots
+ * never climbed: 0.3–0.5% of their time up there).
+ */
+export const HIGH_COST = 0.4;
+export function navCost(a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) {
+  const high = (p: { x: number; y: number; z: number }) => p.y > 2.4 && p.x > SPINE.x0 - 0.5 && p.x < SPINE.x1 + 0.5 && Math.abs(p.z) < STACKS.z1 + 1;
+  return high(a) && high(b) ? HIGH_COST : 1;
+}
+
+/**
+ * 23.0: how many bots each lane is worth to the director (warehouse, yard, dock). With the yard's high
+ * ground cheap and two forward points on it, the yard drew 56–60% of bot time and the dock 10–16%;
+ * the flanks are weighted up.
+ */
+export const LANE_WEIGHTS: [number, number, number] = [1.15, 0.8, 1.4];
+/** 23.0: the flanks' bots keep to their lanes when the radar has a contact (else they cut into the yard). */
+export const LANE_STRICT: [boolean, boolean, boolean] = [true, false, true];
+

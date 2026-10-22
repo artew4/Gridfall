@@ -251,9 +251,12 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number } = {},
 ) {
   const ai = opts.ai ?? 'arena';
+  // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
+  const rise0 = ARENA.directRise;
+  if (opts.directRise !== undefined) ARENA.directRise = opts.directRise;
   const dt = opts.dt ?? 1 / 60;
   const maxSeconds = opts.maxSeconds ?? 1200;
   // 8.0 A/B switches (restored at the end): the roster request, lane discipline (Infinity: off).
@@ -416,6 +419,7 @@ export async function tdmSim(
   TDM.roster = roster0;
   ARENA.laneLeave = lane0;
   TDM.arms = arms0;
+  ARENA.directRise = rise0;
   ARENA.vantage.on = vantage0;
   ARENA.lanePressure.on = pressure0;
   Object.assign(rifle, { aim: rifle0.aim, hipSpread: rifle0.hip, maxRange: rifle0.max });

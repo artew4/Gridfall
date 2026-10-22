@@ -31,7 +31,7 @@ No install and no plugin. Open the link, click, play. Desktop browser with a mou
 | **Tokyo: Neon Block** | Tokyo Night's rain and neon as a 5v5 arena, separate from the story district: a mirrored Shinjuku block on three levels. Lantern Alley, Main Street with its footbridge, and the service alley at street level; fire escapes, landings and the footbridge in the middle; rooftops joined by a skybridge and a plank bridge on top. Drop down from a roof or a landing to flank, or take the stairs back up. | Team Deathmatch |
 | **Jungle: Crash Site** | A dropship down on an overgrown temple in the rainforest, played 7v7 (Firebase Viper stays as it was). In the middle the ship lies across the temple's top: fight under it (the undercroft and the gates through the terraces), inside it, and above it on its roof and the ruined shrine beside it, among roots, broken columns and cargo pods. A rock ridge along the west cliff with long rifle lines; a 4 m ravine in the east, its floor a close-quarters low road, crossed by fallen giant trees. Dense undergrowth everywhere. | Team Deathmatch (7v7) |
 | **Neon Docks** | A harbour at night, built for 5v5: a container maze (close range), a warehouse with catwalks (mid range) and an open quay under a crane (long range). Reworked in 15.0: the warehouse is roofless and open to the gantries outside it, the spawn exits turn out to the flanks, and gantries run over the containers and along the quay to a crane nest. | Team Deathmatch |
-| **Old Port** | A brick-and-concrete harbour on a clear morning, the opposite of the neon maps: soft sun and shade, faded containers, a haze over the sea. Built for 5v5 on four levels: an 1890s brick warehouse with a pillared hall and an upper floor lit through its broken skylights; a container yard with high stacks joined by a steel walk; a dry dock 4.5 m deep with a coaster on her blocks, her deck and bridge reached by gangways and scaffold stairs. | Team Deathmatch, Arcade Survival |
+| **Old Port** | A brick-and-concrete harbour on a clear morning, the opposite of the neon maps: soft sun and shade, faded containers, a haze over the sea. 7v7 on four levels: an 1890s brick warehouse with a pillared hall and an upper floor lit through its broken skylights; a container yard split by a maze of containers you go through or over, with high stacks joined by a steel walk; a dry dock 4.5 m deep under shipwright scaffolds, with a coaster on her blocks. No line runs from one side's spawn to the other's. | Team Deathmatch, Arcade Survival |
 | **Maglev Terminal** | A white, glass-roofed transit hall at mid-morning, played 7v7, clean and corporate after the rust and neon. A three-car maglev hovers in the middle; its aisle zig-zags through bulkheads, a close-quarters lane. On the platforms either side, holographic billboards, transit-map kiosks and art monoliths break every line from one end to the other into mid-range fights; the sunken track beds are crossed by maintenance gantries; a mezzanine and two skybridges at 5 m. The operators wear light corporate gear here: find them by their silhouette and team accents. | Team Deathmatch (7v7) |
 
 ## The modes
@@ -44,7 +44,7 @@ The main menu asks for the mode first, then shows the maps that have it. Type yo
 
 ## Gunplay
 
-- **The armory (13.0; four guns since 21.0):** every gun works on every map, and each wins somewhere and loses somewhere. Pick one with **1 / 2 / 3 / 4** while a match starts, in the first seconds in your spawn yard, or (in TDM) while you wait to respawn, for your next life:
+- **The armory (13.0; four guns since 21.0):** every gun works on every map, and each wins somewhere and loses somewhere. Pick one with **1 / 2 / 3 / 4** while a match starts, after any spawn while you're still in the spawn area (23.0: within 12 m of where you spawned, until you leave it or fire), or (in TDM) while you wait to respawn, for your next life:
 
   | Key | Gun | How it plays |
   |---|---|---|
@@ -153,7 +153,7 @@ Runtime dependencies: `three`, plus two self-hosted typefaces (`@fontsource/rajd
 | C (tap or hold) | Crouch: a tap toggles, a hold crouches while held. Quieter steps, tighter hip fire, a smaller target; slower. While sprinting: slide |
 | Space | Jump; vault low railings mid-jump |
 | Tab (hold) | Objective overview |
-| 1 / 2 / 3 / 4 | Pick your gun: as a match starts, in the first seconds in spawn, or while waiting to respawn (TDM) |
+| 1 / 2 / 3 / 4 | Pick your gun: as a match starts, in the spawn area after any spawn (until you leave it or fire), or while waiting to respawn (TDM) |
 | Esc | Pause: resume, restart, volume, graphics, quit to menu |
 
 `?setting=tokyo|desert|jungle|docks` in the URL opens a world directly.

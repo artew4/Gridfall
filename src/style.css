@@ -352,6 +352,12 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin: 0 4px; t
 .tdm-board .col { grid-template-columns: 170px 36px 36px; }
 .loadout { position: absolute; left: 50%; bottom: 17%; transform: translateX(-50%); z-index: 12; width: min(900px, 94vw); text-align: center; font-family: var(--mono); transition: opacity 0.25s; }
 .loadout.hidden { opacity: 0; pointer-events: none; }
+/* 23.0: the spawn area's prompt: one quiet line over the weapon readout. */
+.lo-prompt { position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%); z-index: 12; font-family: var(--mono); font-size: 10px; letter-spacing: 0.3em; color: var(--cyan-dim); white-space: nowrap; text-shadow: 0 0 6px rgba(0, 0, 0, 0.9); transition: opacity 0.25s; pointer-events: none; }
+.lo-prompt.hidden { opacity: 0; }
+.lo-prompt kbd { font-family: var(--mono); color: #f2fdff; border: 1px solid var(--cyan-dim); padding: 1px 5px; margin-right: 6px; }
+.lo-prompt .jp { font-family: var(--jp); margin: 0 6px; }
+.lo-prompt span { color: rgba(190, 230, 240, 0.6); margin-left: 6px; }
 .loadout .lo-head { font-size: 11px; letter-spacing: 0.4em; color: var(--cyan); margin-bottom: 10px; }
 .loadout .lo-head .jp { font-family: var(--jp); letter-spacing: 0.3em; color: var(--cyan-dim); margin: 0 6px; }
 .loadout .lo-row { display: flex; gap: 10px; }

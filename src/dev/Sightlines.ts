@@ -13,7 +13,7 @@ import type { Game } from '../core/Game';
 
 const EYE = 0.65;
 
-export function sightlines(game: Game, opts: { front?: number; minDist?: number; pairs?: number } = {}) {
+export function sightlines(game: Game, opts: { front?: number; minDist?: number; pairs?: number; band?: [number, number] } = {}) {
   const front = opts.front ?? 36;
   const minDist = opts.minDist ?? 40;
   const nodes = game.nav.nodes;
@@ -31,7 +31,7 @@ export function sightlines(game: Game, opts: { front?: number; minDist?: number;
       clear++;
       const d = Math.hypot(p.x - q.x, p.z - q.z);
       if (d > longest) longest = d;
-      if (lines.length < 400) lines.push([+p.x.toFixed(1), +p.z.toFixed(1), +q.x.toFixed(1), +q.z.toFixed(1), +d.toFixed(0)]);
+      if (lines.length < 4000) lines.push([+p.x.toFixed(1), +p.z.toFixed(1), +q.x.toFixed(1), +q.z.toFixed(1), +d.toFixed(0)]);
     }
   }
   // Which x-bands carry the spawn-to-spawn lines (the open corridors).
@@ -60,6 +60,7 @@ export function sightlines(game: Game, opts: { front?: number; minDist?: number;
     spawnToSpawn: { pairs, clearPct: +((100 * clear) / Math.max(1, pairs)).toFixed(2), clear, longest: +longest.toFixed(0), bands },
     longPct: Object.fromEntries(Object.entries(byBand).map(([k, v]) => [k, pct(v)])),
     longAllPct: pct(Object.values(byBand).reduce<[number, number]>((s, v) => [s[0] + v[0], s[1] + v[1]], [0, 0])),
-    sample: lines.slice(0, 12),
+    // 23.0: `band` lists the clear lines whose midpoint x lies in it (else the first 12).
+    sample: opts.band ? lines.filter(([x0, , x1]) => (x0 + x1) / 2 >= opts.band![0] && (x0 + x1) / 2 <= opts.band![1]).slice(0, 40) : lines.slice(0, 12),
   };
 }

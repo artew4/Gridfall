@@ -83,6 +83,10 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Old Port (17.1):
   - `?setting=oldport`. `bench(3)` has an Old Port set: nine views (the hall, the upper floor in the skylight shafts, the yard, the stacks, the dock floor, the bridge, the sea quay into the sun side, the whole port) and a firefight. `tdmSim` lanes: warehouse, yard, dock.
   - `__game.level.debug()`: nav nodes and drops, skylight shafts, indoors, `drowned` (the sea fence should keep it 0).
+- Old Port overhaul (23.0):
+  - `await __dev.sightlines({ band: [x0, x1] })`: lists the spawn-side to spawn-side lines whose middle lies in that x band (up to 40), to find what carries them.
+  - `tdmSim({ directRise })`: the arena bots' straight-walk limit for this run (Infinity is the 22.0 bot; Old Port's profile sets 1).
+  - `__game.spawnZone` (`open`, `at`): the player's spawn area for the weapon swap.
 - Character rigs (22.0):
   - `await __dev.rigs({ raise, pitch, yaw, kit, team, dist })`: lines up four merc rigs in front of him, one per gun, posed with the bots' own hold and IK (`raise` 0 the hip, 1 aimed). `__rigs()` removes them. For checking the grips.
   - `await __dev.ik(n)`: IK solves so far, rigs built (and how many merged geometry), and the cost of one pose plus two solves (µs).

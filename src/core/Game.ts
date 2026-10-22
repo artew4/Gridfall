@@ -44,10 +44,10 @@ import type { Combatant } from '../combat/Team';
 import { ARMORY, armoryByKey, type WeaponId } from '../entities/weapons/armory';
 import { gunThemeFor } from '../entities/weapons/theme';
 import { Loadout } from '../gameplay/Loadout';
+import { SpawnZone } from '../gameplay/SpawnZone';
 import { LoadoutView } from '../ui/LoadoutView';
 import { cleanName, loadName, saveName } from '../gameplay/PlayerName';
 import { menuStep, nextMaps, type MenuEvent, type MenuState } from '../ui/MenuFlow';
-import { TDM } from '../levels/Tdm';
 
 export type { Mode };
 
@@ -113,6 +113,8 @@ export class Game {
   loadout = new Loadout();
   loadoutView: LoadoutView;
   private loadoutKey = '';
+  /** 23.0: the spawn area of the current life (the weapon swap). */
+  readonly spawnZone = new SpawnZone();
   /** 13.0: his name (main menu), on the HUD, the minimap, the feed and the scoreboard. 17.0: a random handle until one is typed. */
   playerName = loadName();
   /** 17.0: this boot's name, what an emptied field falls back to. */
@@ -498,22 +500,32 @@ export class Game {
   }
 
   /**
-   * When the picker is up: 'swap' (the match intro, the first seconds in the spawn yard: a pick
-   * changes the gun at once) or 'queue' (TDM, waiting to respawn: for the next life); else null.
+   * When the picker is up: 'swap' (the match intro, the first seconds of a life: the cards; a pick
+   * changes the gun at once), 'zone' (23.0: still in the spawn area: a one-line prompt, a pick still
+   * swaps) or 'queue' (TDM, waiting to respawn: for the next life); else null.
    */
-  private loadoutPhase(): 'swap' | 'queue' | null {
+  private loadoutPhase(): 'swap' | 'zone' | 'queue' | null {
     if (this.mode === 'story' || this.loading) return null;
     if (this.state === 'intro') return 'swap';
-    if (this.state === 'play' && this.player.alive && this.elapsed - this.stats.start < TDM.loadoutGrace && !this.stats.shots) return 'swap';
+    if (this.state === 'play' && this.player.alive) {
+      const z = this.spawnZone.update(this.player.pos, this.elapsed, this.stats.shots);
+      return z === 'cards' ? 'swap' : z === 'prompt' ? 'zone' : null;
+    }
     if (this.state === 'dead' && this.respawning && this.rules === this.tdm && !this.tdm.winner) return 'queue';
     return null;
+  }
+
+  /** 23.0: he has just spawned here: the spawn area opens (the weapon swap) until he leaves it or fires. */
+  markSpawn() {
+    this.spawnZone.mark(this.player.pos, this.elapsed, this.stats.shots);
   }
 
   private pickWeapon(id: WeaponId) {
     const phase = this.loadoutPhase();
     if (!phase) return;
-    if (this.loadout.queue(id) || phase === 'swap') this.audio.uiBlip();
-    if (phase === 'swap' && this.loadout.commit()) {
+    const now = phase === 'swap' || phase === 'zone';
+    if (this.loadout.queue(id) || now) this.audio.uiBlip();
+    if (now && this.loadout.commit()) {
       this.armPlayer();
       this.weapon.reset();
       this.weapon.raiseTarget = this.state === 'play' ? 1 : this.weapon.raiseTarget;
@@ -530,7 +542,8 @@ export class Game {
     const key = phase ? `${phase}:${this.loadout.queued}:${this.loadout.current}` : '';
     if (key === this.loadoutKey) return;
     this.loadoutKey = key;
-    this.loadoutView.show(!!phase, this.loadout.queued, this.loadout.current, phase === 'queue');
+    this.loadoutView.show(phase === 'swap' || phase === 'queue', this.loadout.queued, this.loadout.current, phase === 'queue');
+    this.loadoutView.prompt(phase === 'zone', this.loadout.current);
   }
 
   /** Switch mode rules; the outgoing mode cleans up what it set up (TDM's bots, its HUD). */
@@ -773,6 +786,9 @@ export class Game {
     this.zone = null;
     this.interaction.reset();
     this.rules.begin(fromCheckpoint);
+    // 23.0: the first spawn opens the spawn area (the weapon swap); the story has no loadout.
+    if (this.mode !== 'story') this.markSpawn();
+    else this.spawnZone.close();
     if (!this.input.locked) this.pause();
   }
 
@@ -1091,6 +1107,7 @@ export class Game {
     this.playerAttacker = null;
     this.respawning = false;
     this.state = 'play';
+    this.markSpawn();
     this.timeScale = 1;
     this.damageFx = 0;
     this.renderer.grade.uniforms.uFade.value = 0;

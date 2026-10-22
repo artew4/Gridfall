@@ -314,6 +314,29 @@ How it fits:
 - **Lanes climb their own high ground** (the 15.0 lesson L-109): the warehouse lane runs on the upper floor, the yard lane over the stacks and the walk, the dock lane down the dock, aboard by the scaffold and over the bridge.
 - **The look:** see [Daylight (17.1)](#daylight-171).
 
+## Old Port overhaul (23.0)
+
+The owner: "massive open spaces, spawn-to-spawn sightlines, sniper dominance", and bots that ignored the container stacks. Measured first: 5% of spawn-side to spawn-side pairs in sight (129 m down the west quay), kills from beyond 25 m 7–27%, the rifle 30–53% of the kills, bots on the stacks 0.3–0.5% of their time. `OldPortLayout.ts` holds the new pieces as data (`SPINE`, `GATES`, `BAFFLES`, `BLOCKERS`, `BARRIERS`, `BARRELS`, `PASSAGES`); unit tests check their cover by width.
+
+- **The spine** (the container maze): a row of 1-high containers across the yard's middle (z ±1.22, x −22 … 18).
+  - **Gates:** two 3.5 m gates through it, each baffled by a container on both sides, so no line runs through a gate.
+  - **Over the top:** the top is a walk (2.6), with plank bridges over the gates and a stair up from each side; its edges are drops. The yard lane goes over it.
+  - **Replaced:** the reach stacker at mid-field.
+- **Blockers by width** (the 20.0 rule), mirrored:
+  - **West quay:** a bulldozer (yard side) and a cargo stack (dock side), with the outer scaffold over the dock wall's top.
+  - **Dry dock:** shipwright scaffold towers in each channel, from the floor to 2.2 m over the quay. Staggered across the channel (3.8 m apart, 6 m clear of the dock-end stairs), they cut the lines along the dock at floor height (under the hull's overhang too) and at quay height.
+  - **Sea quay:** two cargo stacks.
+  - **Warehouse hall:** cargo across the door-to-door line.
+  - **Alley:** two pallet stacks, a slalom.
+- **Micro-cover:** 22 Jersey barriers (1.0 m) and 30 drums (0.9 m) on the lanes' approaches, all vaultable. Two InstancedMesh draws for the map. Never against a wall: a barrier against the dock wall was a step out of the dock (stress test).
+- **Nav:** nodes in every new passage (the 4 m lattice steps over them); the dock drops moved to z ±11 and ±19.3, between the towers.
+- **The bots** (`OLDPORT_AI`, TDM data):
+  - **Density:** 7v7, 50 tickets, five forward points level at 37.5 m. A respawn takes the most forward safe point; a first cut with the alley's 6 m further forward sent the respawns there and on into the yard.
+  - **Combat:** the under-fire reaction, three flankers, cover-hop pushes.
+  - **Lanes:** weights 1.15/0.8/1.4, the warehouse and dock lanes strict, the yard's high ground at 0.4 nav cost (`navCost`).
+  - **Steering:** `directRise` 1: never straight at a goal over a metre up; bots hunting a contact on a stack top pressed into the stair's side rail.
+- **Result** (8 matches): spawn-side to spawn-side 0%; kills from beyond 25 m 4–9%; lane time 29.5 / 41.5 / 29.1%; kills by lane 22.5 / 53.7 / 23.8%; stack tops 4.4% of bot time; the rifle's kill share 23%.
+
 ## Daylight (17.1)
 
 Old Port is the first map built to look *pleasant* rather than dramatic.

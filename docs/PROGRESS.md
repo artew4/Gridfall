@@ -1290,8 +1290,47 @@ Branch `feature/character-rigs-22.0`, from `main` @ `d8833ae` (21.0: already mer
 - **Not fixed:** `friendlyFire()` fails on Maglev on 21.0 and 22.0 alike (its fixed positions are the desert's); it passes on the desert.
 - **No third-person player body:** the player is first person and his viewmodel already has hands, so the new rig is the bots'.
 
+## 23.0: Old Port overhaul, the spawn weapon swap
+
+Branch `feature/old-port-overhaul-23.0`, from `main` @ `a2548ec` (22.0: already merged and pushed when the brief asked to deploy it). Full numbers: `docs/BENCH-23.0.json`; the map in `docs/LEVELS.md` (*Old Port overhaul*).
+
+### The spawn weapon swap
+- **The spawn area:** after every spawn (the match's first, every TDM respawn, a forward point included) the player may change his gun with 1–4 while he is within 12 m of where he spawned. The area closes for the rest of the life once he steps out (or drops or climbs 4 m), or fires: the swap is for choosing a gun, not a free reload in a fight. `src/gameplay/SpawnZone.ts`, unit-tested.
+- **The UI:** the card picker for the first 3 s of a life (13.0), then a one-line prompt over the weapon readout ("1–4 CHANGE LOADOUT · KITSUNE-9 · IN SPAWN") while the area is open. Replaces 13.0's 3 s grace after the match start.
+
+### Old Port (measured first)
+- **17.1:**
+  - **Sightlines:** 5% of spawn-side to spawn-side pairs in sight, the longest 129 m (most of them down the west quay).
+  - **Pacing at 5v5:** quiet 31–47% of the time, first engagement 13–15 s.
+  - **Range:** kills from beyond 25 m 7–27%; the rifle took 30–53% of the kills.
+  - **The stacks:** bots on them 0.3–0.5% of their time.
+- **The map:**
+  - **The spine, a container maze across the yard's middle:** two baffled gates through it, its top a walk joined over the gates by plank bridges, a stair up from each side; the yard lane goes over it.
+  - **Long-line blockers:** a bulldozer and a cargo stack across the west quay; shipwright scaffold towers staggered across both dry dock channels (from the floor to over the quay); cargo stacks on the sea quay; cargo in the warehouse hall across its door-to-door line; pallet stacks making a slalom of the alley.
+  - **Micro-cover:** 22 Jersey barriers and 30 drums, two InstancedMesh draws for the map, vaultable.
+  - **Result:** spawn-side to spawn-side 5% → 0%, long pairs 40 m+ in sight 9.1% → 6.2%.
+- **The bots** (`OLDPORT_AI` and the TDM data):
+  - **Density:** 7v7, 50 tickets, forward respawns at five level points (one per lane mouth).
+  - **Combat:** the under-fire reaction, three flankers on a contact, cover-hop pushes.
+  - **Lanes:** weights 1.15/0.8/1.4, the warehouse and dock lanes strict, the yard's high ground at 0.4 nav cost.
+  - **Steering:** no straight walk at a goal more than 1 m up (`ARENA.directRise`, per map).
+
+### Self-play, shipped (7v7, 8 matches)
+- **Pacing:** 27–30.5 kills a minute, quiet 14–27%, first engagement 10.4–13.6 s; kills from beyond 25 m 4–9%.
+- **Lane time:** warehouse 29.5%, yard 41.5%, dock 29.1% (means).
+- **Kills by lane:** 22.5 / 53.7 / 23.8%.
+- **The high ground:** stack tops 4.4% of bot time (17.1: 0.3–0.5%), the spine's top 1.4%, its gates 1.8%.
+- **Kill share:** SMG 34.5%, shotgun 24.6%, rifle 23.3%, pistol 17.6%.
+- **Faults:** 0 stuck, 0 friendly damage.
+
+### Validation
+- `world()` 0; `stairGaps()` 24 stairs, 0 drops; `levelAI` graph ok, runners 160/160, gunners 8/8; `stress()` 0 in 256,000 (the first run: 16 failures, micro-cover against the dock walls and beside the fire stair, moved).
+- `bench(3)` on Old Port at 7v7: 60 FPS in all 10 views, CPU 2.1–2.5 ms, GPU 5.3–6.4 ms. `leakcheck.mjs 2 oldport,maglev,desert`: 0 alive. Tests 281 (+11).
+- **Elsewhere:** Maglev unchanged (29–31 kills a minute, 0 stuck). The steering rule cost Crash Site pace in an A/B, so it is off there (and everywhere but Old Port).
+
 ## Next
 Human playtest:
+- 23.0 items: Old Port (is it still sniped from end to end anywhere; does the spine read as a maze you go through or over; are the dock scaffolds in the way or good cover; is 7v7 too busy for the warehouse); the spawn swap (is 12 m the right size; is the prompt noticed; does closing on a shot feel right).
 - 22.0 items: can you tell friend from foe at a glance on Maglev now (the ice-blue and sand blocks, the chevrons); do the bots look like they hold their guns (the hands, the bladed stance, the aimed hold); the new silhouettes at 20–40 m.
 - 21.0 items: the four guns (does the pistol feel like a mobility gun or a peashooter; is the SMG's climb fun or annoying; does one shotgun shell feel fair to die to; is the rifle's wide hip fire too punishing), the finishes (the white Maglev guns in the bright hall, camo on the military maps), the sounds (the shotgun's cannon, the SMG's buzz).
 - 20.0 items: Maglev Terminal (is it still a sniper gallery anywhere; are the white operators fair to find or too hidden; do the platforms' chicanes give mid-range fights; does the zig-zag train still play as the shotgun lane); the bots (do they really dive for cover when you snipe them, or just jitter).

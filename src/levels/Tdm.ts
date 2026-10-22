@@ -85,8 +85,6 @@ export const TDM = {
    * survival enemies: the docks' glowing synths), for side-by-side checks.
    */
   skins: 'operators' as 'operators' | 'legacy',
-  /** 13.0: the loadout picker stays up (and a pick swaps at once) this long into a match (s). */
-  loadoutGrace: 3,
   /** 19.0 (DEV, self-play): force the team size, the tickets, or the map's AI profile off, whatever the map says. */
   force: { size: null as number | null, tickets: null as number | null, noProfile: false, noForward: false, kit: null as OperatorKit | null },
 };

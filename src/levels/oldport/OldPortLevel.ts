@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildOldPort, type OldPortResult } from './OldPort';
-import { BASE, PORT_TERRAIN, QUAY_X, WH, X_W, Z_END, DOCK, inBase, laneOf, lanesOf } from './OldPortLayout';
+import { BASE, PORT_TERRAIN, QUAY_X, WH, X_W, Z_END, DOCK, OLDPORT_AI, OLDPORT_TEAM_SIZE, OLDPORT_TICKETS, LANE_STRICT, LANE_WEIGHTS, forwardOf, inBase, laneOf, lanesOf, navCost } from './OldPortLayout';
 import { hazeTexture, rippleNormalTexture } from './textures';
 import { buildGodRays, type GodRays } from '../jungle/GodRays';
 import { DesertIntro } from '../desert/DesertIntro';
@@ -16,18 +16,19 @@ export const OLDPORT_INFO: LevelInfo = {
   name: 'OLD PORT',
   biome: 'docks',
   jp: 'СТАРЫЙ ПОРТ',
-  blurb: 'A brick-and-concrete harbour on a clear morning, built for 5v5: the old warehouse, the container yard, the dry dock.',
+  blurb: 'A brick-and-concrete harbour on a clear morning, 7v7: the old warehouse, the container maze, the dry dock under scaffolds.',
   modes: ['tdm', 'arcade'],
   loading: 'OPENING THE OLD PORT…',
   windowTitle: 'Gridfall — Old Port',
   enemies: DESERT_MERCS,
   music: 'docks_theme',
+  teamSize: OLDPORT_TEAM_SIZE,
   tagline: 'THE WAREHOUSE · THE YARD · THE DRY DOCK',
   jpLine: 'СТАРЫЙ ПОРТ · ПРИЧАЛ 3 · 09:40',
   place: 'OLD PORT, BERTH 3',
   clock: '09:40',
   cine: {
-    tdm: { t1: 'GRIDFALL', t2: 'СТАРЫЙ ПОРТ · OLD PORT', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>THE WAREHOUSE · THE YARD · THE DRY DOCK' },
+    tdm: { t1: 'GRIDFALL', t2: 'СТАРЫЙ ПОРТ · OLD PORT', t3: 'TEAM DEATHMATCH 7v7 · ALPHA vs OMEGA<br/>THE WAREHOUSE · THE YARD · THE DRY DOCK' },
     arcade: { t1: 'GRIDFALL', t2: 'СТАРЫЙ ПОРТ · OLD PORT', t3: 'ARCADE SURVIVAL · HOLD THE PORT<br/>THEY COME BY THE WAREHOUSE, THE YARD AND THE DOCK' },
   },
 };
@@ -205,11 +206,12 @@ export class OldPortLevel implements LevelRuntime {
     const d = this.port;
     for (const pole of this.flags) pole.mesh.updateMatrixWorld();
     const start = { x: 0, z: 57.4, yaw: 0, y: 0 };
+    const open = (p: THREE.Vector3) => !game.col.blocked(p, 0.6);
     this.data = {
       start,
       bounds: new THREE.Box2(new THREE.Vector2(X_W - 0.5, -Z_END - 0.5), new THREE.Vector2(QUAY_X + 0.5, Z_END + 0.5)),
       floorMin: DOCK.floor - 0.5,
-      nav: d.nav,
+      nav: { ...d.nav, cost: navCost },
       spawns: d.survival,
       perches: [],
       coverPoints: [],
@@ -225,6 +227,12 @@ export class OldPortLevel implements LevelRuntime {
         start,
         laneOf,
         laneNames: ['warehouse', 'yard', 'dock'],
+        // 23.0: 7v7, 50 tickets, forward respawns, the port's AI (OldPortLayout).
+        tickets: OLDPORT_TICKETS,
+        laneWeights: LANE_WEIGHTS,
+        laneStrict: LANE_STRICT,
+        arena: OLDPORT_AI,
+        forward: { points: { alpha: forwardOf('alpha').filter(open), omega: forwardOf('omega').filter(open) }, safe: 22, sight: 45 },
       },
     };
   }

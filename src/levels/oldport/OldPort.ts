@@ -7,7 +7,7 @@ import { plankTexture } from '../jungle/textures';
 import { crateTexture } from '../desert/textures';
 import type { Shaft } from '../jungle/GodRays';
 import {
-  ATRIUM, BASE, CONT, COURT, DOCK, FIRE, QUAY_X, SHIP, STACKS, STACK_B, WALK, WH, WHI, WH_STAIR, X_W, Z_END, lanesOf, spawnsOf, zoneAt,
+  ATRIUM, BAFFLES, BARRELS, BARRIERS, BASE, BLOCKERS, CONT, COURT, DOCK, FIRE, GATES, QUAY_X, SHIP, PASSAGES, SPINE, SPINE_SEGMENTS, SPINE_STAIR, STACKS, STACK_B, WALK, WH, WHI, WH_STAIR, X_W, Z_END, lanesOf, spawnsOf, zoneAt,
 } from './OldPortLayout';
 import { boardsTexture, brickTexture, containerTexture, dockWallTexture, quayTexture, stencilSign } from './textures';
 import type { Zone } from '../Level';
@@ -401,7 +401,9 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   }
   // Bins and a skip in the alley (cover), a row of containers at the yard's edge (two gaps a side).
   low2(-24.8, 24, -23.2, 25.6, 1.05, m.steelDark, 'metal');
-  solid2(-25.6, 0, 33, -22.4, 1.5, 36.2, m.slate, 'metal', 1);
+  // 23.0: the skip moved 1.6 m west (it left a 0.4 m slot to the container a bot jammed in, beside the
+  // alley's forward point).
+  solid2(-26.8, 0, 33, -24, 1.5, 36.2, m.slate, 'metal', 1);
   container2(-22, 36, 'z', 1);
   container2(-22, 7.4, 'z', 1);
 
@@ -425,25 +427,52 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   rail2(WALK.x0, WALK.z0, WALK.x1, WALK.z0 + 0.08, STACKS.top);
   rail2(WALK.x0, WALK.z1 - 0.08, WALK.x1, WALK.z1, STACKS.top);
   for (const x of [-5.5, -0.5]) solid2(x - 0.15, 0, 20.25, x + 0.15, STACKS.top - 0.22, 20.55, m.steelDark, 'metal', 1);
-  // Mid-field: low and single-high cover, a reach stacker parked across the middle.
-  container2(-18, 6, 'x', 1);
-  container2(9, 3, 'z', 1);
+  // Mid-field: low and single-high cover. 23.0: the reach stacker that sat across the middle gave way
+  // to THE SPINE (below); the containers by its gates are its baffles.
+  container2(BAFFLES[0].x[0], BAFFLES[0].z[0], 'x', 1);
+  container2(BAFFLES[1].x[0], BAFFLES[1].z[0], 'x', 1);
   container2(-4, 30, 'z', 1);
   container2(10.5, 32, 'x', 1);
   low2(-16.5, 12.2, -13.5, 12.8, 0.95, m.stone);
   low2(3, 11, 6, 11.6, 0.95, m.stone);
   low2(13, 15.5, 15.2, 17.5, 1.0, m.crate, 'wood');
   low2(-15.5, 34, -12.5, 35.2, 1.0, m.crate, 'wood');
+  // 23.0, THE SPINE: a row of 1-high containers across the middle (z ±1.22), two gates through it
+  // (baffled), its top a walk joined over the gates by plank bridges and reached by a stair a side.
+  for (const [x0, x1] of SPINE_SEGMENTS) {
+    if (x1 - x0 > CONT.L - 0.01) container(x0, -SPINE.z, 'x', 1, paint());
+    else {
+      solid(x0, 0, -SPINE.z, x1, 1.3, SPINE.z, m.crate, 'wood', 1.3);
+      solid(x0, 1.3, -SPINE.z, x1, SPINE.top, SPINE.z, m.crate, 'wood', 1.3);
+    }
+  }
+  for (const [g0, g1] of GATES) {
+    solid(g0, SPINE.top - 0.22, -0.8, g1, SPINE.top, 0.8, m.plank, 'wood', 1);
+    rail(g0, -0.88, g1, -0.8, SPINE.top);
+    rail(g0, 0.8, g1, 0.88, SPINE.top);
+  }
+  stair2(SPINE_STAIR.x0, SPINE_STAIR.z0, SPINE_STAIR.x1, SPINE_STAIR.z1, 'z', -1, 0, SPINE.top, m.steel, ['lo', 'hi']);
+  // 23.0: the long lines' blockers (OldPortLayout.BLOCKERS): a bulldozer and a cargo stack across the
+  // west quay, cargo stacks across the hall's door-to-door line, pallets in the alley.
   {
-    // The reach stacker: chassis (cover), cab, boom resting along x (out of reach above 3 m).
-    solid(-7.2, 0, -1.6, -2.8, 1.9, 1.6, m.mustard, 'metal', 2);
-    solid(-4.2, 1.9, -1.1, -2.8, 3.3, 1.1, m.window, 'metal', 1);
-    deco(-10.5, 2.6, -0.45, -2.8, 3.2, 0.45, m.mustard, 2);
-    for (const [x, z] of [[-6.3, 1.75], [-6.3, -1.75], [-3.7, 1.75], [-3.7, -1.75]]) {
-      const w = new THREE.CylinderGeometry(0.75, 0.75, 0.5, 16);
-      w.rotateX(Math.PI / 2);
-      b.add(w, m.tyre, x, 0.75, z);
-      w.dispose();
+    const [bd, cs, hc, hc2, ap, ap2] = BLOCKERS;
+    solid2(bd.x[0], 0, bd.z[0], bd.x[1], 1.8, bd.z[1], m.mustard, 'metal', 1.8);
+    solid2(bd.x[0] + 1.7, 1.8, bd.z[0] + 0.6, bd.x[1] - 0.4, bd.h, bd.z[1] - 0.6, m.window, 'metal', 1);
+    solid2(bd.x[0] - 0.35, 0, bd.z[0] - 0.2, bd.x[0], 1.2, bd.z[1] + 0.2, m.steelDark, 'metal', 1);
+    solid2(cs.x[0], 0, cs.z[0], cs.x[1], cs.h / 2, cs.z[1], m.crate, 'wood', 1.5);
+    solid2(cs.x[0] + 0.1, cs.h / 2, cs.z[0] + 0.1, cs.x[1] - 0.1, cs.h, cs.z[1] - 0.1, m.crate, 'wood', 1.5);
+    for (const c of [hc, hc2]) solid2(c.x[0], 0, c.z[0], c.x[1], c.h, c.z[1], m.crate, 'wood', 1.3);
+    for (const a of [ap, ap2]) solid2(a.x[0], 0, a.z[0], a.x[1], a.h, a.z[1], m.timber, 'wood', 1.2);
+    for (const c of BLOCKERS.slice(6)) {
+      if (c.y0 !== undefined) {
+        // A scaffold tower: a steel frame round a stack of staging boards (solid: cover, not a climb).
+        solid2(c.x[0], c.y0, c.z[0], c.x[1], c.h, c.z[1], m.rail, 'metal', 1.5);
+        for (let y = c.y0 + 1.5; y < c.h; y += 1.5) deco(c.x[0] - 0.04, y, c.z[0] - 0.04, c.x[1] + 0.04, y + 0.12, c.z[1] + 0.04, m.plank, 1);
+        for (let y = c.y0 + 1.5; y < c.h; y += 1.5) deco(c.x[0] - 0.04, y, -c.z[1] - 0.04, c.x[1] + 0.04, y + 0.12, -c.z[0] + 0.04, m.plank, 1);
+      } else {
+        solid2(c.x[0], 0, c.z[0], c.x[1], c.h / 2, c.z[1], m.crate, 'wood', 1.5);
+        solid2(c.x[0] + 0.1, c.h / 2, c.z[0] + 0.1, c.x[1] - 0.1, c.h, c.z[1] - 0.1, m.crate, 'wood', 1.5);
+      }
     }
   }
   // A truck chassis on the dock side of the apron.
@@ -525,7 +554,8 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   for (const z of [3.5, 18, 30]) bollard(21.2, z);
   for (const z of [10, 24, 36]) bollard(42.6, z);
   for (const s of [1, -1]) {
-    for (const [x, z] of [[19.4, 12], [20.2, 12.8], [19.6, 13.8]]) cyl(x, s * z, 0.3, 0, 0.9, m.rust, 'metal', 12).vault = true;
+    // 23.0: moved from z 12–14 (beside the bulldozer they left a 0.5 m slot runners stalled in).
+    for (const [x, z] of [[19.3, 2.2], [20.0, 2.8], [19.4, 3.4]]) cyl(x, s * z, 0.3, 0, 0.9, m.rust, 'metal', 12).vault = true;
   }
   low2(38, 16, 40.4, 18.4, 0.9, m.sacks, 'sand');
   // The harbour office (a brick hut with a door you can't open: cover on the sea quay).
@@ -606,6 +636,40 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   for (const s of [1, -1]) for (let x = -60; x < 40; x += 18) deco(x, 0, s > 0 ? Z_END + 14 : -Z_END - 34, x + 16, 15 + ((x + 60) % 7), s > 0 ? Z_END + 34 : -Z_END - 14, tones[Math.abs(x) % 3], 2);
   for (let z = -60; z < 60; z += 20) deco(X_W - 32, 0, z, X_W - 12, 16 + (Math.abs(z) % 6), z + 18, tones[Math.abs(z / 20) % 3], 2);
 
+  // 23.0: micro-cover, instanced (one mesh per prop for the whole map): Jersey barriers and drums,
+  // waist-high and vaultable, on the lanes' approaches (OldPortLayout.BARRIERS, BARRELS; both halves).
+  {
+    const barrier = new THREE.BoxGeometry(2.2, 1.0, 0.6).toNonIndexed();
+    const p = barrier.attributes.position;
+    for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setZ(i, p.getZ(i) * 0.37);
+    barrier.computeVertexNormals();
+    barrier.translate(0, 0.5, 0);
+    const drum = new THREE.CylinderGeometry(0.3, 0.3, 0.9, 12);
+    drum.translate(0, 0.45, 0);
+    const bm: THREE.Matrix4[] = [], dm: THREE.Matrix4[] = [];
+    const q = new THREE.Quaternion(), yAxis = v(0, 1, 0), one = v(1, 1, 1);
+    for (const [x, z0, along, y = 0] of BARRIERS) for (const z of [z0, -z0]) {
+      bm.push(new THREE.Matrix4().compose(v(x, y, z), q.setFromAxisAngle(yAxis, along === 'x' ? 0 : Math.PI / 2), one));
+      const [hx, hz] = along === 'x' ? [1.1, 0.3] : [0.3, 1.1];
+      col.add(x - hx, y, z - hz, x + hx, y + 1.0, z + hz, 'concrete').vault = true;
+    }
+    for (const [x, z0, y = 0] of BARRELS) for (const z of [z0, -z0]) {
+      dm.push(new THREE.Matrix4().compose(v(x, y, z), q.set(0, 0, 0, 1), one));
+      col.addCylinder(x, z, 0.3, y, y + 0.9, 'metal').vault = true;
+    }
+    const inst = (geo: THREE.BufferGeometry, mat: THREE.Material, ms: THREE.Matrix4[]) => {
+      const im = new THREE.InstancedMesh(geo, mat, ms.length);
+      ms.forEach((mx, i) => im.setMatrixAt(i, mx));
+      im.instanceMatrix.needsUpdate = true;
+      im.computeBoundingSphere();
+      im.castShadow = im.receiveShadow = true;
+      im.name = 'microCover';
+      scene.add(im);
+    };
+    inst(barrier, std(null, 0xc9c3b6, 0.92, 0, 0.35), bm);
+    inst(drum, std(null, 0x5f7f86, 0.6, 0.35, 0.5), dm);
+  }
+
   b.build(scene);
   scene.traverse((o) => {
     if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).userData.staticMerged) {
@@ -658,7 +722,9 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
     for (const z of [STACKS.z0 + 1.2, STACKS.z1 - 1.2]) N(STACK_B.x0 + 3, STACKS.top, Z(z));
     // The dry dock: the end stairs (top on the end wall, middle, foot), drops off both quays.
     for (const x of [DOCK.x0 + 1.27, DOCK.x1 - 1.27]) chain(N(x, 0, Z(DOCK.z + 0.6)), N(x, DOCK.floor / 2, Z(33.2)), N(x, DOCK.floor, Z(27.2)));
-    for (const z of [18, 24]) {
+    // (23.0: the drops moved from 18 and 24 to 11 and 19.3: between the scaffold towers, clear of the
+    // crane legs, the cargo stacks and the sacks.)
+    for (const z of [11, 19.3]) {
       drops.push([N(DX0 - 0.6, 0, Z(z)), N(DOCK.x0 + 1.4, DOCK.floor, Z(z))]);
       drops.push([N(DX1 + 0.6, 0, Z(z)), N(DOCK.x1 - 1.4, DOCK.floor, Z(z))]);
     }
@@ -668,10 +734,18 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
     chain(N(39.4, 0, gz), N(35.7, 0.5, gz), N(S.x1 - 1, S.deck, gz));
     chain(N(30, S.deck, Z(10)), N(30, (S.deck + H.roof) / 2, Z(5.75)), N(30, H.roof, Z(H.z - 1)));
     chain(N(30, DOCK.floor, Z(S.z + 12)), N(30, (DOCK.floor + S.deck) / 2, Z(S.z + 5.5)), N(30, S.deck, Z(S.z - 1)));
+    // 23.0, THE SPINE: through its gates, up its stair, drops off its top.
+    for (const [g0, g1] of GATES) for (const z of [1.5, 3]) N((g0 + g1) / 2, 0, Z(z));
+    const sx = (SPINE_STAIR.x0 + SPINE_STAIR.x1) / 2;
+    chain(N(sx, 0, Z(SPINE_STAIR.z1 + 0.9)), N(sx, SPINE.top / 2, Z((SPINE_STAIR.z0 + SPINE_STAIR.z1) / 2)), N(sx, SPINE.top, Z(0.3)));
+    for (const x of [-19, -9.5, 2.5, 12]) drops.push([N(x, SPINE.top, Z(0.6)), N(x, 0, Z(SPINE.z + 1.4))]);
     // Round the keel block into the pocket at the dock's head (the lattice steps over the gap).
     for (const x of [28.1, 31.9]) for (const z of [29.5, 32.2, 35]) N(x, DOCK.floor, Z(z));
   }
   for (const L of lanesOf('alpha')) for (const p of L) N(p.x, p.y, p.z);
+  // The spine's top (the bridges over the gates included).
+  for (let x = SPINE.x0 + 1; x <= SPINE.x1 - 1; x += 2.5) N(x, SPINE.top, 0);
+  for (const [g0, g1] of GATES) N((g0 + g1) / 2, 0, 0);
   // Lattices: the ground (4 m), the upper floor (3 m), the dock floor and the deck (2.5 m).
   for (let x = X_W + 2; x <= QUAY_X - 1.5; x += 4) {
     for (let z = -Z_END + 2; z <= Z_END - 2; z += 4) {
@@ -686,6 +760,8 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
     }
   }
   for (const x of [DOCK.x0 + 1.3, 30, DOCK.x1 - 1.3]) for (let z = -DOCK.z + 2; z <= DOCK.z - 2; z += 2.5) if (open(x, DOCK.floor, z)) N(x, DOCK.floor, z);
+  // 23.0: the passages round the new blockers (the lattices step over them).
+  for (const [x, y, z] of PASSAGES) for (const sz of [z, -z]) N(x, y, sz);
   for (const x of [S.x0 + 0.9, S.x1 - 0.9]) for (let z = -S.z + 1; z <= S.z - 1; z += 2.5) if (open(x, S.deck, z)) N(x, S.deck, z);
   for (const x of [H.x0 + 0.5, 30, H.x1 - 0.5]) for (const z of [-1.5, 0, 1.5]) N(x, H.roof, z);
 
@@ -697,7 +773,7 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
 
   const testGoals = [
     v(-41.5, UP, 0), v(-36, UP, 18), v(-30, UP, -26), v(-36, 0, 12), v(-36, 0, -16), v(-24.5, 0, 18),
-    v(-14, STACKS.top, 20.4), v(-2, STACKS.top, -20.4), v(5, STACKS.top, 20.4), v(0, 0, 0), v(-12, 0, -26),
+    v(-14, STACKS.top, 20.4), v(-2, STACKS.top, -20.4), v(5, STACKS.top, 20.4), v(7.5, 0, 0), v(-14.2, 0, 0), v(-4, SPINE.top, 0), v(-12, 0, -26),
     v(25.8, DOCK.floor, 0), v(34.2, DOCK.floor, -20), v(30, S.deck, 12), v(30, H.roof, 0), v(40, 0, 0), v(40, 0, -22), v(21, 0, -40),
   ];
   const survival: THREE.Vector3[] = [];

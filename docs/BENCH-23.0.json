@@ -1,0 +1,59 @@
+{
+  "version": "23.0 (Old Port overhaul, the spawn weapon swap)",
+  "machine": "Apple M5 laptop, Chrome, Balanced preset (60 FPS cap, render scale 1.25 = 1820x1186), on mains power",
+  "branch": "feature/old-port-overhaul-23.0 from main @ a2548ec (22.0, already merged and pushed)",
+  "sightlines": {
+    "method": "__dev.sightlines(): eye-height lines (nav node at body height + 0.65) between walkable nodes; spawn side = nodes beyond |z| 36; long = random pairs 40 m+ apart",
+    "17.1": { "spawnToSpawnClearPct": 4.98, "longestM": 129, "bands": "the west quay (x 20-28: 251 of 785 pairs), the yard's middle, the alley and the warehouse hall's door-to-door line", "longPct_40_60_80plus": [15.8, 6.2, 3.3], "longAllPct": 9.1 },
+    "pass1_spine_quay_hall": { "spawnToSpawnClearPct": 2.16, "longestM": 121, "left": "along the dry dock (at quay height over it and at floor height in its channels, under the hull's overhang) and the sea quay" },
+    "pass2_dock_scaffolds_sea_cargo": { "spawnToSpawnClearPct": 0.23, "longestM": 120, "left": "one line down the alley at x -24 (over the 1.5 m skip)" },
+    "23.0": { "spawnToSpawnClearPct": 0, "longestM": 0, "longPct_40_60_80plus": [11.2, 3.8, 1.4], "longAllPct": 6.2 }
+  },
+  "selfPlay": {
+    "method": "tdmSim({}) bot vs bot with the map's profile; laneTimePct = bot time per lane (the contested middle); killsByLane = where the victim died; zone time from zoneTimePct",
+    "17.1_baseline": {
+      "setup": "5v5, 25 tickets, no profile, yard respawns; 4-5 matches",
+      "killsPerMin": [15.3, 18.4], "quietPct": [31.3, 47.4], "firstEngagementMedianS": [13, 15], "killsOver25mPct": [7, 26.5], "killRangeMedianM": [9.7, 14.2],
+      "laneTimePct": { "warehouse": [31.6, 33.2], "yard": [34.6, 37.8], "dock": [30.6, 32.8] },
+      "killsByLane_examples": [{ "warehouse": 13, "yard": 27, "dock": 8 }, { "warehouse": 13, "yard": 25, "dock": 11 }, { "warehouse": 15, "yard": 16, "dock": 14 }],
+      "stackTopsPct": [0.3, 0.5], "rifleKillSharePct": [30, 53], "rifleMedianKillM": [16, 25.2]
+    },
+    "geometry_only": {
+      "setup": "the new map, 5v5, no profile; 3 matches",
+      "killsPerMin": [14.2, 16.4], "quietPct": [33.1, 50.8], "firstEngagementMedianS": [16, 16.9], "killsOver25mPct": [2.2, 8.7], "stackTopsPct": [0.6, 2.6], "spineTopPct": [0.1, 0.4], "rifleKillSharePct": [18, 39]
+    },
+    "iterations": [
+      { "step": "7v7, 50 tickets, forward respawns, OLDPORT_AI, the high ground at 0.6 nav cost", "laneTimePct": { "warehouse": [27.5, 30.1], "yard": [56.5, 60.1], "dock": [9.8, 16] }, "killsPerMin": [31.7, 34.2], "quietPct": [14.8, 18.4] },
+      { "step": "lane weights 1.15/0.8/1.4", "laneTimePct": { "yard": [46.8, 55.5], "dock": [15.4, 18.4] }, "note": "within noise, as on Maglev (20.0)" },
+      { "step": "dock lane strict", "laneTimePct": { "yard": [47.3, 58], "dock": [11.8, 15.2] }, "note": "no change: the cause was the respawns" },
+      { "step": "forward points level (the alley's had been 6 m further forward: most respawns went there and on into the yard)", "laneTimePct": { "warehouse": [24, 37.4], "yard": [35.1, 38.8], "dock": [26.6, 37.2] }, "stuck": "1-3 a match at the alley's mouth (a 0.4 m slot beside its forward point): the skip moved" },
+      { "step": "both flanks strict, high ground 0.4", "killsByLanePct": { "warehouse": 25, "yard": 52, "dock": 23 }, "stackPlusSpinePct": [4.6, 9.8] },
+      { "step": "no straight walk at a goal over 1 m up (ARENA.directRise, Old Port's profile)", "note": "bots hunting a contact on a stack top pressed into the stair's side rail; on Crash Site the same rule cost pace (kills/min 27-30 -> 23-27, 4 matches each), so it is per map" },
+      { "step": "dock scaffolds re-staggered (a 2 m zig-zag left the channels unreachable to walkers; a pocket by the dock-end stairs held bots)", "levelAI_runners": "146-148/160 -> 160/160" }
+    ],
+    "23.0": {
+      "setup": "7v7, 50 tickets, forward respawns (5 level points), OLDPORT_AI (underFire, flank 3, coverPush, directRise 1), lane weights 1.15/0.8/1.4, warehouse and dock strict, high ground nav cost 0.4; 8 matches",
+      "minutes": [1.5, 1.7], "killsPerMin": [27.2, 30.5], "quietPct": [13.6, 27], "firstEngagementMedianS": [10.4, 13.6],
+      "killsOver25mPct": [4.1, 8.9], "longHitEscapedPct": [50, 72.2], "killRangeMedianM": [8.1, 10.5],
+      "laneTimePct": { "warehouse": { "range": [23.9, 33.4], "mean": 29.5 }, "yard": { "range": [35.8, 48.9], "mean": 41.5 }, "dock": { "range": [23.7, 35], "mean": 29.1 } },
+      "killsByLane": { "warehouse": 84, "yard": 201, "dock": 89, "pct": { "warehouse": 22.5, "yard": 53.7, "dock": 23.8 } },
+      "zoneTimePct": { "stackTops": { "range": [2.4, 6.7], "mean": 4.4 }, "spineTop": { "range": [0.6, 3], "mean": 1.4 }, "spineGates": { "range": [1.1, 2.5], "mean": 1.8 }, "westQuay": { "range": [4.7, 10.6], "mean": 7 } },
+      "killShareByWeapon": { "SMG": [129, 34.5], "SG": [92, 24.6], "AR": [87, 23.3], "PST": [66, 17.6] },
+      "killRangeMedianByWeaponM": { "SMG": 10.7, "SG": 6.5, "AR": 13.4, "PST": 10.5 },
+      "kills": 374, "stuck": 0, "friendlyDamage": 0
+    }
+  },
+  "otherMaps_after_directRise_per_map": {
+    "maglev_x3": { "killsPerMin": [29, 31.1], "quietPct": [14.9, 15.7], "stuck": 0 },
+    "crashsite_AB_x4": { "directRise1": { "killsPerMin": [23.4, 27.1], "quietPct": [17, 23] }, "default_Infinity": { "killsPerMin": [26.6, 30], "quietPct": [14.7, 19.8] }, "stuck": 0, "shipped": "Infinity (unchanged) on every map but Old Port" }
+  },
+  "integrity": {
+    "world": "0 problems", "stairGaps": "24 stairs, 0 drops", "levelAI": "graph ok, runners 160/160, gunners 8/8 (810 nodes, 0 unreachable on foot)",
+    "stress": { "first": "16 failures in 256,000 ('crossed a solid wall'): micro-cover against the dock walls let a sprint-jump land on the quay; drums beside the fire stair, a jump over its rail", "fixed": "0 in 256,000" }
+  },
+  "bench3_oldport_7v7": { "views_fps_cpuMs_gpuMs_drawCalls": { "alphaYard": [60, 2.48, 5.53, 227], "hall": [60, 2.43, 5.83, 221], "upperFloor": [60, 2.49, 6.35, 239], "yard": [60, 2.29, 6.23, 270], "stacks": [60, 2.17, 5.54, 241], "dryDock": [60, 2.12, 5.66, 260], "bridge": [60.3, 2.16, 5.28, 259], "seaQuay": [60, 2.33, 5.79, 82], "wholePort": [60, 2.07, 5.71, 260], "firefight": [60, 2.17, 5.45, 280] }, "vs17.1": "GPU 5.2-6.5 ms in 17.1 (5v5)" },
+  "microCover": { "barriers": 22, "barrels": 30, "drawCalls": 2, "how": "two InstancedMesh (one per prop) for the whole map; colliders per instance, vaultable" },
+  "spawnSwap": "browser: cards 0-3 s, then the prompt; '2' swapped the gun in spawn; 13 m out: prompt gone, '4' ignored; killed and respawned at a forward point: the area reopened there, '1' swapped",
+  "memory": { "leakcheck": "node scripts/leakcheck.mjs 2 oldport,maglev,desert: 0 alive, flat from lap 1" },
+  "tests": 281
+}
