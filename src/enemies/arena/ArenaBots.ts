@@ -58,6 +58,38 @@ function arenaRoute(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3, arm?:
 const _f = new THREE.Vector3();
 const _t = new THREE.Vector3();
 
+/** 33.0: a body's corridor feelers (ARENA.corridor): when it looks next, the wall it found each side (m). */
+interface Feel {
+  t: number;
+  l: number;
+  r: number;
+}
+const newFeel = (): Feel => ({ t: 0, l: Infinity, r: Infinity });
+const _fo = new THREE.Vector3();
+const _fd = new THREE.Vector3();
+/** Off the nearer wall, towards the middle of a passage (ARENA.corridor): adds to `desired`. */
+function corridor(self: { pos: THREE.Vector3 }, st: Feel, ctx: EnemyCtx, dt: number, desired: THREE.Vector3) {
+  const C = ARENA.corridor;
+  if (!C.on) return;
+  const sp = Math.hypot(desired.x, desired.z);
+  if (sp < 0.5) return;
+  // Left of the heading: (-fz, fx).
+  const lx = -desired.z / sp, lz = desired.x / sp;
+  st.t -= dt;
+  if (st.t <= 0) {
+    st.t = C.every;
+    _fo.set(self.pos.x, self.pos.y + 0.5, self.pos.z);
+    st.l = ctx.col.raycast(_fo, _fd.set(lx, 0, lz), C.reach)?.dist ?? Infinity;
+    st.r = ctx.col.raycast(_fo, _fd.set(-lx, 0, -lz), C.reach)?.dist ?? Infinity;
+    ctx.arena?.sched.spend(2);
+  }
+  // + to the left (away from a wall on the right), - to the right.
+  const k = ((st.r < C.near ? C.near - st.r : 0) - (st.l < C.near ? C.near - st.l : 0)) / C.near;
+  if (!k) return;
+  desired.x += lx * k * sp * C.gain;
+  desired.z += lz * k * sp * C.gain;
+}
+
 /**
  * Shared by both bodies (same hooks, different base classes). 23.0: never straight at a goal more
  * than ARENA.directRise up (a map's profile: a clear line of sight to a stack top over a stair's rail is
@@ -162,8 +194,12 @@ export class ArenaGunner extends Gunner implements ArenaBody {
 
   // ---- ArenaBody
   steer(goal: THREE.Vector3, speed: number, ctx: EnemyCtx, dt: number, desired: THREE.Vector3) {
-    return this.moveTo(goal, speed, ctx, dt, desired);
+    const d = this.moveTo(goal, speed, ctx, dt, desired);
+    corridor(this, this.feel, ctx, dt, desired);
+    return d;
   }
+  /** 33.0: its corridor feelers. */
+  private feel = newFeel();
   face(p: THREE.Vector3, dt: number, rate: number) {
     this.faceTowards(p, dt, rate);
   }
@@ -297,8 +333,12 @@ export class ArenaRunner extends Runner implements ArenaBody {
   }
 
   steer(goal: THREE.Vector3, speed: number, ctx: EnemyCtx, dt: number, desired: THREE.Vector3) {
-    return this.moveTo(goal, speed, ctx, dt, desired);
+    const d = this.moveTo(goal, speed, ctx, dt, desired);
+    corridor(this, this.feel, ctx, dt, desired);
+    return d;
   }
+  /** 33.0: its corridor feelers. */
+  private feel = newFeel();
   face(p: THREE.Vector3, dt: number, rate: number) {
     this.faceTowards(p, dt, rate);
   }

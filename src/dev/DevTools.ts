@@ -188,6 +188,10 @@ export function installDevTools(game: Game) {
     async stairGaps() {
       return (await import('./WorldCheck')).stairGapProbe(game);
     },
+    /** 33.0: how much the undergrowth blocks sight at standing and crouched height (geometric, every plant instance). */
+    async foliageSight(opts: { n?: number; seed?: number } = {}) {
+      return (await import('./FoliageCheck')).foliageSight(game, opts);
+    },
     /** Any level: nav graph from every spawn, runners to every test goal, gunners get a shot off. */
     async levelAI(opts: { spawns?: number; seconds?: number; sight?: number } = {}) {
       return (await import('./LevelAICheck')).checkLevelAI(game, opts);

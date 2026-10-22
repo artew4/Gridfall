@@ -1,0 +1,511 @@
+{
+  "version": "33.0 (Deep Jungle overhaul: the wall-running bug; an outpost on stilts over tunnels; Old Port's containers, overgrown; plants under eye height; corridor following)",
+  "branch": "feature/deep-jungle-33.0 from main @ dd27bc5",
+  "machine": "Apple M5, Chrome, Balanced",
+  "wallRunning": {
+    "method": "tdmSim wallPress, 7v7, 4 matches a cell",
+    "32.0 map, 32.0 code": {
+      "matches": 4,
+      "kpm": 17.5,
+      "quietPct": 35.33,
+      "matchSeconds": 359.65,
+      "wallPressEvents": 487,
+      "wallPressSeconds": 1543.8,
+      "stuck": 1,
+      "lanes": {
+        "ridge": 17.7,
+        "temple": 50.2,
+        "ravine": 32.2
+      }
+    },
+    "32.0 map, the fix (33.0 1/2)": {
+      "matches": 4,
+      "kpm": 20.07,
+      "quietPct": 26.73,
+      "matchSeconds": 320.38,
+      "wallPressEvents": 8,
+      "wallPressSeconds": 1.6,
+      "stuck": 0,
+      "lanes": {
+        "ridge": 19.5,
+        "temple": 54.7,
+        "ravine": 25.8
+      }
+    }
+  },
+  "corridor": {
+    "method": "tdmSim scrape, new map, 4 matches a cell",
+    "off": {
+      "matches": 4,
+      "kpm": 23.73,
+      "quietPct": 16.43,
+      "matchSeconds": 269.48,
+      "wallPressEvents": 10,
+      "wallPressSeconds": 4.3,
+      "stuck": 0,
+      "lanes": {
+        "ridge": 12.7,
+        "outpost": 56.6,
+        "ravine": 16,
+        "tunnels": 14.7
+      },
+      "scrapePct": {
+        "THE OUTPOST": 5.1,
+        "WEST TRENCH": 4.2,
+        "THE RAVINE": 6.0,
+        "UNDER THE LAB": 13.4,
+        "EAST TRENCH": 5.3,
+        "THE TUNNELS": 7.0,
+        "TUNNEL HUB": 8.5,
+        "THE RIDGE": 9.3,
+        "OMEGA APPROACH": 1.8,
+        "ALPHA APPROACH": 2.1,
+        "RIDGE FOOT": 6.5,
+        "OMEGA LZ": 0.0,
+        "ALPHA LZ": 0.0
+      }
+    },
+    "on (near 0.95, gain 0.7)": {
+      "matches": 4,
+      "kpm": 22.43,
+      "quietPct": 25.95,
+      "matchSeconds": 299.43,
+      "wallPressEvents": 10,
+      "wallPressSeconds": 1.1,
+      "stuck": 0,
+      "lanes": {
+        "ridge": 11.1,
+        "outpost": 53.1,
+        "ravine": 22.9,
+        "tunnels": 12.8
+      },
+      "scrapePct": {
+        "WEST TRENCH": 3.5,
+        "THE RAVINE": 4.8,
+        "THE OUTPOST": 4.6,
+        "EAST TRENCH": 3.7,
+        "THE TUNNELS": 5.8,
+        "UNDER THE LAB": 8.8,
+        "TUNNEL HUB": 7.8,
+        "ALPHA APPROACH": 2.8,
+        "THE RIDGE": 4.4,
+        "OMEGA APPROACH": 1.7,
+        "RIDGE FOOT": 4.4,
+        "ALPHA LZ": 0.0,
+        "OMEGA LZ": 0.0
+      }
+    },
+    "on (near 1.1, gain 1: kept)": {
+      "matches": 4,
+      "kpm": 23.57,
+      "quietPct": 18.27,
+      "matchSeconds": 279.28,
+      "wallPressEvents": 5,
+      "wallPressSeconds": 2.6,
+      "stuck": 0,
+      "lanes": {
+        "ridge": 14.6,
+        "outpost": 50.8,
+        "ravine": 19.5,
+        "tunnels": 15.1
+      },
+      "scrapePct": {
+        "THE OUTPOST": 3.7,
+        "WEST TRENCH": 3.3,
+        "THE RAVINE": 3.5,
+        "EAST TRENCH": 5.5,
+        "THE TUNNELS": 4.8,
+        "UNDER THE LAB": 9.2,
+        "TUNNEL HUB": 6.5,
+        "THE RIDGE": 3.9,
+        "RIDGE FOOT": 4.1,
+        "OMEGA APPROACH": 2.3,
+        "ALPHA APPROACH": 2.0,
+        "ALPHA LZ": 0.0,
+        "OMEGA LZ": 0.0
+      }
+    },
+    "directRise Infinity (corridor 0.95)": {
+      "matches": 4,
+      "kpm": 22.35,
+      "quietPct": 21.65,
+      "matchSeconds": 294.35,
+      "wallPressEvents": 9,
+      "wallPressSeconds": 4.6,
+      "stuck": 0,
+      "lanes": {
+        "ridge": 6.3,
+        "outpost": 63.6,
+        "ravine": 19.3,
+        "tunnels": 10.8
+      },
+      "scrapePct": {
+        "THE OUTPOST": 3.8,
+        "WEST TRENCH": 3.6,
+        "THE RAVINE": 4.4,
+        "EAST TRENCH": 4.5,
+        "UNDER THE LAB": 9.4,
+        "THE TUNNELS": 6.1,
+        "TUNNEL HUB": 8.0,
+        "OMEGA APPROACH": 2.4,
+        "ALPHA APPROACH": 2.5,
+        "RIDGE FOOT": 3.6,
+        "THE RIDGE": 5.6,
+        "ALPHA LZ": 0.0,
+        "OMEGA LZ": 0.0
+      }
+    }
+  },
+  "final": {
+    "matches": 4,
+    "kpm": 24.5,
+    "quietPct": 15.55,
+    "matchSeconds": 263.75,
+    "wallPressEvents": 17,
+    "wallPressSeconds": 12.4,
+    "stuck": 0,
+    "lanes": {
+      "ridge": 11.4,
+      "outpost": 57.8,
+      "ravine": 21.3,
+      "tunnels": 9.5
+    },
+    "scrapePct": {
+      "THE OUTPOST": 3.6,
+      "WEST TRENCH": 3.3,
+      "THE RAVINE": 4.2,
+      "EAST TRENCH": 6.2,
+      "UNDER THE LAB": 7.6,
+      "THE TUNNELS": 5.5,
+      "OMEGA APPROACH": 2.9,
+      "ALPHA APPROACH": 2.4,
+      "THE RIDGE": 3.0,
+      "RIDGE FOOT": 6.3,
+      "TUNNEL HUB": 6.3,
+      "OMEGA LZ": 0.0,
+      "ALPHA LZ": 0.0,
+      "LAB DECK": 9.5
+    }
+  },
+  "foliageSight": {
+    "before": {
+      "lines": 2000,
+      "blockedStandingPct": 38.4,
+      "blockedCrouchedPct": 45.2,
+      "plants": 6648,
+      "spotsWithPlantOverEyePct": 22.3,
+      "vinesBelow2m": 105,
+      "kinds": {
+        "bushes": {
+          "count": 832,
+          "tris": 66560,
+          "over1_2": 676,
+          "over1_6": 428,
+          "maxTop": 2.34
+        },
+        "ferns": {
+          "count": 1788,
+          "tris": 57216,
+          "over1_2": 0,
+          "over1_6": 0,
+          "maxTop": 0.67
+        },
+        "grass": {
+          "count": 3757,
+          "tris": 26299,
+          "over1_2": 762,
+          "over1_6": 0,
+          "maxTop": 1.33
+        },
+        "bigleaf": {
+          "count": 271,
+          "tris": 29810,
+          "over1_2": 147,
+          "over1_6": 13,
+          "maxTop": 1.64
+        },
+        "crowns": {
+          "count": 82,
+          "tris": 6560,
+          "over1_2": 82,
+          "over1_6": 82,
+          "maxTop": 3.39
+        },
+        "canopy": {
+          "count": 183,
+          "tris": 14640,
+          "over1_2": 183,
+          "over1_6": 183,
+          "maxTop": 9.87
+        },
+        "vines": {
+          "count": 390,
+          "tris": 3900,
+          "over1_2": 0,
+          "over1_6": 0,
+          "maxTop": 0
+        }
+      }
+    },
+    "after1": {
+      "lines": 2000,
+      "blockedStandingPct": 3.9,
+      "blockedCrouchedPct": 26.1,
+      "plants": 6139,
+      "spotsWithPlantOverEyePct": 0,
+      "vinesBelow2m": 0,
+      "kinds": {
+        "bushes": {
+          "count": 499,
+          "tris": 39920,
+          "over1_2": 0,
+          "over1_6": 0,
+          "maxTop": 1.08
+        },
+        "ferns": {
+          "count": 1762,
+          "tris": 56384,
+          "over1_2": 0,
+          "over1_6": 0,
+          "maxTop": 0.67
+        },
+        "grass": {
+          "count": 3726,
+          "tris": 26082,
+          "over1_2": 0,
+          "over1_6": 0,
+          "maxTop": 0.56
+        },
+        "bigleaf": {
+          "count": 152,
+          "tris": 16720,
+          "over1_2": 0,
+          "over1_6": 0,
+          "maxTop": 1
+        },
+        "crowns": {
+          "count": 82,
+          "tris": 6560,
+          "over1_2": 82,
+          "over1_6": 82,
+          "maxTop": 3.37
+        },
+        "canopy": {
+          "count": 183,
+          "tris": 14640,
+          "over1_2": 183,
+          "over1_6": 183,
+          "maxTop": 9.86
+        },
+        "vines": {
+          "count": 390,
+          "tris": 3900,
+          "over1_2": 0,
+          "over1_6": 0,
+          "maxTop": 0
+        }
+      }
+    },
+    "final": {
+      "lines": 2000,
+      "blockedStandingPct": 4.2,
+      "blockedCrouchedPct": 24.7,
+      "plants": 5070,
+      "spotsWithPlantOverEyePct": 0.3,
+      "vinesBelow2m": 0,
+      "kinds": {
+        "bushes": {
+          "count": 402,
+          "tris": 32160,
+          "over1_2": 9,
+          "over1_6": 0,
+          "maxTop": 1.22
+        },
+        "ferns": {
+          "count": 1471,
+          "tris": 47072,
+          "over1_2": 0,
+          "over1_6": 0,
+          "maxTop": 0.67
+        },
+        "grass": {
+          "count": 3094,
+          "tris": 21658,
+          "over1_2": 0,
+          "over1_6": 0,
+          "maxTop": 0.6
+        },
+        "bigleaf": {
+          "count": 103,
+          "tris": 11330,
+          "over1_2": 0,
+          "over1_6": 0,
+          "maxTop": 1
+        },
+        "crowns": {
+          "count": 60,
+          "tris": 4800,
+          "over1_2": 60,
+          "over1_6": 60,
+          "maxTop": 3.37
+        },
+        "canopy": {
+          "count": 179,
+          "tris": 14320,
+          "over1_2": 179,
+          "over1_6": 179,
+          "maxTop": 9.84
+        },
+        "vines": {
+          "count": 390,
+          "tris": 3900,
+          "over1_2": 0,
+          "over1_6": 0,
+          "maxTop": 0
+        }
+      }
+    }
+  },
+  "levelAI": {
+    "32.0 map (three runs)": "graph ok; runners 176/176 ×3",
+    "33.0 (three runs)": "graph ok; gunners 8/8; runners 189, 190, 191 of 192: every failure the goal (40, 0, 10) from the far spawns, stalls at the ravine's end ramps"
+  },
+  "world": "no traps, escapes, invisible walls or walk-through visuals",
+  "stress": {
+    "runs": 16000,
+    "failures": 0
+  },
+  "perf": {
+    "bench3 crashsite (second run) [fps, cpu, gpu, drawCalls]": {
+      "alphaLZ": [
+        60,
+        2.5,
+        6.36,
+        261
+      ],
+      "ridge": [
+        60,
+        2.71,
+        6.56,
+        212
+      ],
+      "westTrench": [
+        60.3,
+        2.69,
+        6.16,
+        244
+      ],
+      "outpostFront": [
+        60,
+        2.64,
+        6.16,
+        262
+      ],
+      "underLab": [
+        60,
+        2.65,
+        6.35,
+        140
+      ],
+      "labInside": [
+        60,
+        2.55,
+        6.07,
+        99
+      ],
+      "labRoof": [
+        60,
+        2.52,
+        6.38,
+        104
+      ],
+      "tunnelHub": [
+        60,
+        2.63,
+        6.46,
+        121
+      ],
+      "tunnelRun": [
+        59.9,
+        2.4,
+        6.07,
+        259
+      ],
+      "pit": [
+        60,
+        2.43,
+        5.97,
+        165
+      ],
+      "ravine": [
+        60,
+        2.73,
+        6.05,
+        282
+      ],
+      "eastBank": [
+        60,
+        2.77,
+        6.4,
+        135
+      ],
+      "wholeMap": [
+        60,
+        2.35,
+        6.62,
+        321
+      ],
+      "firefight": [
+        60,
+        3.08,
+        6.2,
+        183
+      ]
+    },
+    "maglev same session [fps, cpu, gpu]": {
+      "alphaYard": [
+        60,
+        2.88,
+        5.43
+      ],
+      "trainAisle": [
+        59.9,
+        2.95,
+        5.29
+      ],
+      "platform1": [
+        60,
+        2.55,
+        5.74
+      ],
+      "wholeHall": [
+        60,
+        2.91,
+        6.48
+      ],
+      "firefight": [
+        60,
+        3.08,
+        6.05
+      ]
+    },
+    "note": "CPU is up ~0.5 ms on every map this session against 31.0's figures (Maglev too): the machine"
+  },
+  "leaks": {
+    "leakcheck": {
+      "command": "node scripts/leakcheck.mjs 2 crashsite,oldport,maglev",
+      "aliveAfterGC": 0
+    },
+    "vramCycle_laps3": {
+      "crashsite": [
+        151,
+        43,
+        62,
+        566
+      ],
+      "ok": true,
+      "growthLastLap": "0 everywhere"
+    }
+  },
+  "tests": 384
+}

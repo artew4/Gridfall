@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildCrashSite, type CrashResult } from './CrashSite';
-import { BASE, CRASH_TEAM_SIZE, CRASH_TERRAIN, JUNGLE_AI, RAVINE, X_OUT, Z_END, forwardOf, inBase, laneOf, lanesOf, SPAWN_PADS, SPAWN_ZONES } from './CrashLayout';
+import { BASE, CRASH_TEAM_SIZE, CRASH_TERRAIN, JUNGLE_AI, OUTPOST, RAVINE, TUNNEL, X_OUT, Z_END, forwardOf, inBase, laneOf, lanesOf, SPAWN_PADS, SPAWN_ZONES } from './CrashLayout';
 import { buildFoliage, type FoliageResult } from '../jungle/Foliage';
 import { buildGodRays, type GodRays } from '../jungle/GodRays';
 import { applyMud } from '../jungle/Mud';
@@ -17,7 +17,7 @@ export const CRASHSITE_INFO: LevelInfo = {
   name: 'DEEP JUNGLE',
   biome: 'jungle',
   jp: 'ป่าลึก',
-  blurb: 'A dropship down on an overgrown temple in the rainforest, 7v7: under the ship, inside it and above it on the ruins; the ridge and the ravine on the flanks.',
+  blurb: 'An abandoned research outpost in the rainforest, 7v7: under the lab on its stilts, on its deck and roof, and in the tunnels beneath it to the ridge and the ravine.',
   modes: ['tdm'],
   loading: 'CLEARING THE CRASH SITE…',
   windowTitle: 'Gridfall — Deep Jungle',
@@ -25,12 +25,12 @@ export const CRASHSITE_INFO: LevelInfo = {
   music: 'jungle_theme',
   // 19.0: self-play (docs/BENCH-19.0.json): 7v7 is the knee (quiet seconds 14–18%, as 8v8; 5v5 33–53%).
   teamSize: CRASH_TEAM_SIZE,
-  tagline: 'THE RIDGE · THE TEMPLE · THE RAVINE',
+  tagline: 'THE RIDGE · THE OUTPOST · THE RAVINE',
   jpLine: 'ป่าลึก · 47P QS 441 882 · ๐๖:๑๒',
   place: 'CRASH SITE · 47P QS 441 882',
   clock: '06:12',
   cine: {
-    tdm: { t1: 'GRIDFALL', t2: 'ป่าลึก · DEEP JUNGLE', t3: 'TEAM DEATHMATCH 7v7 · ALPHA vs OMEGA<br/>THE RIDGE · THE TEMPLE · THE RAVINE' },
+    tdm: { t1: 'GRIDFALL', t2: 'ป่าลึก · DEEP JUNGLE', t3: 'TEAM DEATHMATCH 7v7 · ALPHA vs OMEGA<br/>THE RIDGE · THE OUTPOST · THE TUNNELS · THE RAVINE' },
   },
 };
 
@@ -95,9 +95,9 @@ export class CrashSiteLevel implements LevelRuntime {
     for (const m of this.foliage.leaves) Object.assign(m, { roughness: 0.45, metalness: 0.08, envMapIntensity: 0.9 });
     applyMud(this.site.terrain.material as THREE.MeshStandardMaterial, this.mudOn, 'forest');
 
-    // Light shafts: onto the wreck's breach, the ridge's mid-field and the ravine's middle bridge.
+    // Light shafts: onto the lab's roof (33.0: was the wreck's breach), the ridge's mid-field and the ravine's middle bridge.
     this.rays = buildGodRays(s, this.sun.position, [
-      { x: 0, y: 2.8, z: 0, r: 2.4, k: 1.0 },
+      { x: -2, y: OUTPOST.roof, z: 2.5, r: 2.4, k: 1.0 },
       { x: -38, y: 3.6, z: 0, r: 2.6, k: 0.85 },
       { x: 28.5, y: 0.45, z: 0, r: 2.2, k: 0.8 },
     ], new THREE.Color(0.95, 1.0, 0.6).multiplyScalar(0.16));
@@ -137,7 +137,15 @@ export class CrashSiteLevel implements LevelRuntime {
         inBase: (team, p) => inBase(p, team),
         start,
         laneOf,
-        laneNames: ['ridge', 'temple', 'ravine'],
+        // 33.0: the tunnels are a fourth lane in the reports (the bots' lanes stay three).
+        laneNames: ['ridge', 'outpost', 'ravine', 'tunnels'],
+        // 33.0: the patrols' high-value areas beyond the zones and the lanes: the hub, the tunnels' bends,
+        // their mouths at the ravine and at the bottom and top of each pit, the outpost's deck and roof.
+        hvas: (() => {
+          const F = TUNNEL.floor, pz = (TUNNEL.pit.z0 + TUNNEL.pit.z1) / 2;
+          const half = [[0, F, 3], [5.5, F, pz], [-5.5, F, pz], [RAVINE.x0 - 1, F, pz], [TUNNEL.pit.x1 + 1, F, pz], [TUNNEL.pit.x0 - 1.5, 0, pz], [0.3, OUTPOST.deck.y, 6], [-5, OUTPOST.roof, 3]];
+          return half.flatMap(([x, y, z]) => [new THREE.Vector3(x, y, z), new THREE.Vector3(x, y, -z)]);
+        })(),
         // 50 tickets: about 3-minute matches at 7v7 (45 gave 2.6–2.9 min).
         tickets: 50,
         arena: JUNGLE_AI,

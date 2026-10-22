@@ -59,8 +59,9 @@ export const ATRIUM = { x0: -38.5, x1: -32.5, z: 5 };
 /** The alley between the warehouse and the yard, and the fire stairs in it (foot at ±zFoot, door at ±zDoor). */
 export const ALLEY = { x0: WH.x1, x1: -22 };
 export const FIRE = { x0: -26.9, x1: -24.6, zFoot: 3.6, zTop: 12.2, zDoor: 13.4 };
-/** Container dimensions. */
-export const CONT = { L: 6.06, W: 2.44, H: 2.6 };
+/** A 20 ft container: long side, short side, height (33.0: shared, world/Containers). */
+export { CONT } from '../../world/Containers';
+import { CONT } from '../../world/Containers';
 /** THE STACKS (2-high block, top 5.2) and STACK B, joined by a walkway at the same height. */
 export const STACKS = { x0: -20, x1: -20 + 2 * CONT.L, z0: 18, z1: 18 + 2 * CONT.W, top: 2 * CONT.H };
 export const STACK_B = { x0: 2, x1: 2 + CONT.L, z0: STACKS.z0, z1: STACKS.z1 };

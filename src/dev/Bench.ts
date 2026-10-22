@@ -215,13 +215,16 @@ async function benchCrashSite(game: Game, dev: Dev, m: (name: string) => Promise
     ['alphaLZ', [0, 0, 59], [0, 2, 30]],
     ['ridge', [-39, 3.6, 30], [-38, 4, -30]],
     ['westTrench', [-15, -1.4, 30], [-4, 2.5, 4]],
-    // 19.0, the temple: its front (the densest view: terraces, the ship, the shrine, the forest behind),
-    // under the ship, inside it, its roof, the shrine's top.
-    ['templeFront', [0, 0, 30], [0, 3, 0]],
-    ['undercroft', [-9, 0, 0], [9, 1, 0]],
-    ['wreckInside', [-8, 2.8, 0], [8, 4, 0]],
-    ['wreckRoof', [-6, 6.4, 0], [10, 4, -20]],
-    ['shrine', [-16, 7.2, 2.5], [10, 2, -25]],
+    // 33.0, the outpost (19.0–32.0: the temple, the ship, the shrine): its front (the densest view: the
+    // lab on its stilts, the forest behind), its ground floor, the lab, its roof; the tunnels' hub, a run
+    // to its bend, a pit.
+    ['outpostFront', [0, 0, 30], [0, 3, 0]],
+    ['underLab', [-9.5, 0, 6], [6, 1, -4]],
+    ['labInside', [-7.4, 3.6, 3.5], [6, 4.6, -2]],
+    ['labRoof', [-6, 7.2, 3], [10, 4, -20]],
+    ['tunnelHub', [-7, -4, 4], [6, -3, -3]],
+    ['tunnelRun', [20, -4, 13.5], [5.5, -3, 13.5]],
+    ['pit', [-27, 0, 13.5], [-12, -3, 13.5]],
     ['ravine', [28.5, -4, 36], [28.5, -2.5, -20]],
     ['eastBank', [40, 0.2, 20], [40, 1.5, -20]],
     ['wholeMap', [-40, 3.6, 40], [20, 0, -20]],
@@ -231,7 +234,8 @@ async function benchCrashSite(game: Game, dev: Dev, m: (name: string) => Promise
     dev.look(l[0], l[1], l[2]);
     await m(name);
   }
-  dev.tp(-9, 1.3, 13, 0, 0);
+  // Firefight: from the outpost's ground floor (19.0–32.0: the temple's outer terrace).
+  dev.tp(-9.5, 0, 9, 0, 0);
   const tdm = game.tdm;
   const shooter = window.setInterval(() => {
     let best: { x: number; y: number; z: number } | null = null, bd = 60;

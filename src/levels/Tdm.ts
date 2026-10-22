@@ -441,7 +441,7 @@ export class TdmRules implements ModeRules {
     const centre = (ps: THREE.Vector3[]) => ps.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(Math.max(1, ps.length));
     const a = centre(this.data.spawns.alpha), o = centre(this.data.spawns.omega);
     const lane = this.data.laneOf;
-    const pads: SpawnPad[] = raw.map(([x, y, z, yaw], id) => ({ id, pos: new THREE.Vector3(x, y, z), yaw, side: sideOf({ x, z }, a, o), lane: lane ? lane(x, y + 1, z) : null }));
+    const pads: SpawnPad[] = raw.map(([x, y, z, yaw], id) => ({ id, pos: new THREE.Vector3(x, y, z), yaw, side: sideOf({ x, z }, a, o), lane: lane ? ((l) => (l !== null && l < 3 ? l : null))(lane(x, y + 1, z)) : null }));
     this.spawner = new SpawnManager(
       pads,
       (p, q) => {
@@ -592,7 +592,10 @@ export class TdmRules implements ModeRules {
       return { at: zp.at, yaw: zp.pad.yaw, pick: { ...zp, ms: performance.now() - t0 } };
     }
     const lf = this.data.laneOf;
-    const need = lf ? laneNeed(allies.map((u) => lf(u.pos.x, u.pos.y + 1, u.pos.z)), this.data.laneWeights ?? [1, 1, 1]) : undefined;
+    const W = this.data.laneWeights ?? [1, 1, 1];
+    // 33.0: a lane past the weighted ones (Deep Jungle's tunnels: a report lane) counts as none.
+    const lw = (l: number | null) => (l !== null && l < W.length ? l : null);
+    const need = lf ? laneNeed(allies.map((u) => lw(lf(u.pos.x, u.pos.y + 1, u.pos.z))), W) : undefined;
     const pick = this.spawner!.pick(team, hostiles, allies, this.now, occupied, need);
     this.padMesh?.flash(pick.pad.id, team);
     // The other team hears a pad come alive near them (a lead for its patrols).

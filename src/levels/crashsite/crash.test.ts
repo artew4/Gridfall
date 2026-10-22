@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BASE, COURT, GATE, RAVINE, SHRINE, STEP, T1, T2, TRENCH, TRENCHES, WRECK, X_OUT, Z_END, crashHeight, inBase, laneOf, lanesOf, ravineFloor, spawnsOf, trenchDist, zoneAt } from './CrashLayout';
+import { BASE, COURT, OUTPOST, RAVINE, STEP, TRENCH, TRENCHES, TUNNEL, X_OUT, Z_END, crashHeight, crashSurface, inBase, laneOf, lanesOf, pitFloor, ravineFloor, spawnsOf, trenchDist, tunnelDist, tunnelRects, tunnelRoofs, tunnelWalls, zoneAt } from './CrashLayout';
 
 describe('Jungle: Crash Site layout', () => {
   it('walkable slopes everywhere a body stands (< 22°): the only steep ground is under the ravine rims', () => {
@@ -7,9 +7,13 @@ describe('Jungle: Crash Site layout', () => {
     let worst = 0;
     const underRim = (x: number, z: number) =>
       Math.abs(z) < RAVINE.end + 0.5 && ((x > RAVINE.x0 - RAVINE.rim - 0.3 && x < RAVINE.x0 + 0.3) || (x > RAVINE.x1 - 0.3 && x < RAVINE.x1 + RAVINE.rim + 0.3));
+    // 33.0: and under the tunnels' walls (their drop lies there, like the rims').
+    const underWall = (x: number, z: number) => tunnelDist(x, z) > -0.3 && tunnelDist(x, z) < TUNNEL.wall + 0.3;
+    // (The pits' floors follow their stairs: 4 m over 9.6 m, under the steps.)
+    const inPit = (x: number, z: number) => x > TUNNEL.pit.x0 - 0.3 && x < TUNNEL.pit.x1 + 0.3 && Math.abs(z) > TUNNEL.pit.z0 - 0.3 && Math.abs(z) < TUNNEL.pit.z1 + 0.3;
     for (let x = -X_OUT; x <= X_OUT; x += 0.5) {
       for (let z = -Z_END; z <= Z_END; z += 0.5) {
-        if (underRim(x, z)) continue;
+        if (underRim(x, z) || underWall(x, z) || inPit(x, z)) continue;
         const gx = (crashHeight(x + e, z) - crashHeight(x - e, z)) / (2 * e);
         const gz = (crashHeight(x, z + e) - crashHeight(x, z - e)) / (2 * e);
         worst = Math.max(worst, Math.hypot(gx, gz));
@@ -46,19 +50,71 @@ describe('Jungle: Crash Site layout', () => {
     expect(STEP).toBeLessThanOrEqual(0.3);
     expect(RAVINE.rimTop).toBeLessThanOrEqual(0.3);
     // 19.0: the hull's deck is level with the upper terrace its doors open onto.
-    expect(WRECK.floor).toBe(T2.y);
   });
 
-  it('19.0, the temple: the gate and the undercroft are ground level with headroom; the levels step up to the shrine', () => {
-    for (const [x, z] of [[0, T1.zOut - 1], [0, T2.zOut - 1], [0, 0], [-8, 0], [8, -1.5]]) expect(crashHeight(x, z)).toBe(0);
-    expect(WRECK.belly).toBeGreaterThanOrEqual(2.1);
-    expect(T2.y - T2.slab).toBeGreaterThanOrEqual(2.1);
-    expect(GATE * 2).toBeGreaterThanOrEqual(3);
-    expect(T1.y).toBeLessThan(T2.y);
-    expect(T2.y).toBeLessThan(WRECK.roof);
-    expect(WRECK.roof).toBeLessThan(SHRINE.top);
-    // The flat ground round the temple and its front stairs (they stand on y = 0).
-    for (const x of [-11, -7, 7, 11]) expect(Math.abs(crashHeight(x, T1.zOut + 4.6))).toBeLessThan(0.02);
+  it('33.0, the tunnels: 4 m down in every space, the pits following their stairs, the surface beyond the walls', () => {
+    for (const r of tunnelRects()) {
+      const cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2;
+      if (r.kind === 'pit') {
+        expect(crashHeight(r.x1 - 0.3, cz)).toBeLessThan(-3.7);
+        expect(crashHeight(r.x0 + 0.05, cz)).toBeGreaterThan(-0.3);
+        for (const x of [r.x0 + 1, cx, r.x1 - 1]) expect(crashHeight(x, cz)).toBeCloseTo(pitFloor(x), 5);
+      } else expect(crashHeight(cx, cz)).toBe(TUNNEL.floor);
+    }
+    // Beyond the walls the ground is the surface (the slabs lie level with it).
+    for (const [x, z] of [[0, 17], [12, 9.4], [-12, 9.4], [20, 17], [-20, 17], [0, -17]]) expect(crashHeight(x, z)).toBeCloseTo(crashSurface(x, z), 6);
+    expect(Math.abs(crashSurface(10, 13.5))).toBeLessThan(0.01);
+  });
+
+  it('33.0, the walls: a body against one reads only floor, from either side; they cover every point within their thickness, never a space', () => {
+    // Inside: against a face a body stands at face + 0.35 and samples ±0.21 (all floor).
+    const E = TUNNEL.runs.find((r) => r.name === 'eastRun')!;
+    for (const x of [10, 14, 20]) {
+      for (const z of [E.z0 + 0.14, E.z1 - 0.14]) expect(crashHeight(x, z)).toBe(TUNNEL.floor);
+      // Outside: against the outer face, all surface.
+      for (const z of [E.z0 - TUNNEL.wall - 0.14, E.z1 + TUNNEL.wall + 0.14]) expect(crashHeight(x, z)).toBeCloseTo(crashSurface(x, z), 6);
+    }
+    const walls = tunnelWalls();
+    const inBox = (x: number, z: number, b: number[]) => x >= b[0] - 1e-6 && x <= b[2] + 1e-6 && z >= b[1] - 1e-6 && z <= b[3] + 1e-6;
+    for (const r of tunnelRects()) for (const b of walls) expect(b[0] < r.x1 - 1e-6 && b[2] > r.x0 + 1e-6 && b[1] < r.z1 - 1e-6 && b[3] > r.z0 + 1e-6).toBe(false);
+    // Sample round the spaces: within the thickness, outside them all, not at the ravine (its rim is the
+    // wall) nor at a pit's head (its stair comes up there): covered.
+    let missing = 0;
+    for (let x = TUNNEL.pit.x0 - 1.1; x < RAVINE.x0 - RAVINE.rim; x += 0.37)
+      for (let z = -16.1; z <= 16.1; z += 0.37) {
+        const d = tunnelDist(x, z);
+        const head = x < TUNNEL.pit.x0 && Math.abs(z) > TUNNEL.pit.z0 && Math.abs(z) < TUNNEL.pit.z1;
+        if (d > 0.05 && d < TUNNEL.wall - 0.05 && !head && !walls.some((b) => inBox(x, z, b))) missing++;
+      }
+    expect(missing).toBe(0);
+  });
+
+  it('33.0, the roofs: 3.6 m of headroom, over every space but the pits and the hub\'s stairwell', () => {
+    expect(TUNNEL.roof - TUNNEL.floor).toBeGreaterThanOrEqual(3.5);
+    const roofs = tunnelRoofs();
+    const covered = (x: number, z: number) => roofs.some((b) => x >= b[0] && x <= b[2] && z >= b[1] && z <= b[3]);
+    const S = TUNNEL.hub.stair;
+    expect(covered(0, 0)).toBe(false);
+    expect(covered(0, 3)).toBe(true);
+    expect(covered(5.5, 10)).toBe(true);
+    expect(covered(-10, -13.5)).toBe(true);
+    expect(covered(-22, 13.5)).toBe(false);
+    expect(covered(S.x1 - 0.5, S.z - 0.5)).toBe(false);
+    // The pits' stairs reach the floor under the roof's start: headroom over the steps there.
+    expect(pitFloor(TUNNEL.roofFrom) + 2.2).toBeLessThan(TUNNEL.roof);
+  });
+
+  it('33.0, the outpost: the deck, the lab and its roof step up; the deck stairs land on the deck', () => {
+    const O = OUTPOST;
+    expect(O.deck.y - O.deck.slab).toBeGreaterThanOrEqual(3.2);
+    expect(O.deck.y + O.lab.h + 0.3).toBeCloseTo(O.roof, 5);
+    expect(O.stair.z0 - O.deck.z).toBeLessThan(0.3);
+    expect(O.stair.x0).toBeLessThan(O.deck.x1);
+    // The roof's stairwell opens where a body on the stair would hit the slab (head 1.9 m over the step).
+    const stairY = (x: number) => O.deck.y + ((x - O.roofStair.x0) / (O.roofStair.x1 - O.roofStair.x0)) * (O.roof - O.deck.y);
+    expect(stairY(O.roofStair.open) + 1.9).toBeLessThan(O.deck.y + O.lab.h);
+    // The ground floor stands on the hub's slab (y = 0 at its top); the hub is 4 m under it.
+    expect(crashSurface(-8.5, 3)).toBe(0);
   });
 
   it('mirrored: spawns, lanes (OMEGA\'s are ALPHA\'s reversed and mirrored), zones by height', () => {
@@ -69,19 +125,21 @@ describe('Jungle: Crash Site layout', () => {
     expect(la.length).toBe(3);
     for (let i = 0; i < 3; i++) expect(lo[i].map((p) => [p.x, -p.z, +p.y.toFixed(4)])).toEqual(la[2 - i].map((p) => [p.x, p.z, +p.y.toFixed(4)]));
     // The middle of each lane is in its own band.
-    const mid = (L: { x: number; z: number }[]) => L.filter((p) => Math.abs(p.z) < COURT - 4);
+    const mid = (L: { x: number; y: number; z: number }[]) => L.filter((p) => Math.abs(p.z) < COURT - 4);
     expect(mid(la[0]).every((p) => laneOf(p.x, 0, p.z) === 0)).toBe(true);
-    expect(mid(la[1]).every((p) => laneOf(p.x, 0, p.z) === 1)).toBe(true);
+    expect(mid(la[1]).every((p) => laneOf(p.x, p.y, p.z) === 1)).toBe(true);
     expect(mid(la[2]).every((p) => laneOf(p.x, 0, p.z) === 2)).toBe(true);
     expect(zoneAt(-39, 3.6, 0)?.name).toBe('THE RIDGE');
     expect(zoneAt(28.5, RAVINE.floor, 0)?.name).toBe('THE RAVINE');
-    expect(zoneAt(-4, WRECK.roof, 0)?.name).toBe('WRECK ROOF');
-    expect(zoneAt(-4, WRECK.floor, 0)?.name).toBe('THE HULL');
-    expect(zoneAt(-4, 0, 0)?.name).toBe('UNDERCROFT');
-    expect(zoneAt(0, 0, 12)?.name).toBe('UNDERCROFT');
-    expect(zoneAt(-8, T1.y, 12)?.name).toBe('TEMPLE TERRACE');
-    expect(zoneAt(-8, T2.y, 6)?.name).toBe('UPPER TERRACE');
-    expect(zoneAt(-16, SHRINE.top, 2)?.name).toBe('THE SHRINE');
+    // 33.0: the outpost's levels and the tunnels, by height.
+    expect(zoneAt(-4, OUTPOST.roof, 3)?.name).toBe('LAB ROOF');
+    expect(zoneAt(-4, OUTPOST.deck.y, 3)?.name).toBe('THE LAB');
+    expect(zoneAt(-10, OUTPOST.deck.y, 3)?.name).toBe('LAB DECK');
+    expect(zoneAt(-8, 0, 3)?.name).toBe('UNDER THE LAB');
+    expect(zoneAt(-6, TUNNEL.floor, 3)?.name).toBe('TUNNEL HUB');
+    expect(zoneAt(15, TUNNEL.floor, 13.5)?.name).toBe('THE TUNNELS');
+    expect(zoneAt(15, 0, 13.5)?.name).not.toBe('THE TUNNELS');
+    expect(laneOf(15, TUNNEL.floor, 13.5)).toBe(3);
     for (const t of ['alpha', 'omega'] as const) for (const L of lanesOf(t)) for (const p of L) expect(zoneAt(p.x, p.y, p.z)).not.toBeNull();
     expect(zoneAt(0, 0, 60)?.name).toBe('ALPHA LZ');
   });

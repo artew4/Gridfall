@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { StaticBuilder, worldBox } from '../../world/Builder';
 import type { Collider, CollisionWorld } from '../../world/Collision';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
+import { addContainer } from '../../world/Containers';
 import { chainLinkTexture } from '../../world/Textures';
 import { plankTexture } from '../jungle/textures';
 import { crateTexture } from '../desert/textures';
@@ -136,11 +137,8 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
     b.add(new THREE.CylinderGeometry(r, r, h, seg), mat, x, y0 + h / 2, z);
     return col.addCylinder(x, z, r, y0, y0 + h, surface);
   };
-  /** A container (or `n` high) with its long side along x or z, one box and collider per tier. */
-  const container = (x0: number, z0: number, along: 'x' | 'z', n: number, mat: THREE.Material, y = 0) => {
-    const x1 = x0 + (along === 'x' ? CONT.L : CONT.W), z1 = z0 + (along === 'x' ? CONT.W : CONT.L);
-    for (let i = 0; i < n; i++) solid(x0, y + i * CONT.H, z0, x1, y + (i + 1) * CONT.H, z1, mat, 'metal', CONT.H);
-  };
+  /** A container (or `n` high) with its long side along x or z, one box and collider per tier (33.0: shared, world/Containers). */
+  const container = (x0: number, z0: number, along: 'x' | 'z', n: number, mat: THREE.Material, y = 0) => addContainer(b, col, x0, z0, along, n, mat, y);
   const container2 = (x0: number, z0: number, along: 'x' | 'z', n: number) => {
     const mat = paint();
     container(x0, z0, along, n, mat);

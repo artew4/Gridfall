@@ -25,6 +25,14 @@ export const ARENA = {
    * and slopes make a goal a metre up walkable, the A/B cost pace (kills/min 27–30 → 23–27).
    */
   directRise: Infinity,
+  /**
+   * 33.0, corridor following: a moving bot feels for walls either side of its heading (one ray a side
+   * at knee height, `reach` m, every `every` s) and steers off a wall nearer than `near` m, harder the
+   * nearer (`gain` of its speed at contact); between two walls it keeps to the middle, so it rounds a
+   * tunnel's bend on its centre line, not along the inner corner. Off by default; a map's profile turns
+   * it on (Deep Jungle, 33.0: its tunnels).
+   */
+  corridor: { on: false, every: 0.15, reach: 2, near: 0.95, gain: 0.7 },
   /** Decide interval (s): in a fight under `closeDist`, in a fight further out, out of contact. */
   decide: { close: 0.06, far: 0.09, calm: 0.15, closeDist: 25 },
   /** Frame budget for nine bots (the survival defaults are 3 decides, 30 rays, 2 re-plans). */

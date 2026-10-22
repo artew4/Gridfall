@@ -52,22 +52,147 @@ export const RIDGE = { x0: -48, x1: -30, z: 34, top: 3.6, ramp: { x0: -44, x1: -
 export const STEP = 0.28;
 export const RAVINE = { x0: 24, x1: 33, z: 40, end: 51, floor: -4, rim: 1.5, rimTop: STEP };
 /**
- * 19.0: the wreck lies across the temple's upper terrace: its belly from `belly`, its deck (`floor`)
- * level with the terrace, its roof; the wings are ramps from the terrace to the roof; a hole in the
- * deck (`hole`) drops into the undercroft below. Side doors at x ±7.8, the breach x ±2 (full height).
+ * 33.0, THE OUTPOST (replaces 19.0's temple, wreck and shrine): an abandoned research lab raised on
+ * stilts over the clearing. Three levels and a fourth below:
+ *  - the ground floor, open under the deck (columns, the hub's stairwell railed in its middle);
+ *  - the deck (`deck.y`), a walkway round the lab, up the deck stairs (along x outside its long sides,
+ *    from the ground at `stair.x1` to a landing at `stair.x0`), railed at its edges;
+ *  - the lab on the deck (walls `lab`, doors and windows), its stair (`roofStair`, along x through the
+ *    middle) up to the roof (`roof`), parapets round it and the comms mast;
+ *  - under it all the tunnels' hub (TUNNEL).
  */
-export const WRECK = { x0: -10, x1: 10, z: 2.8, belly: 2.2, floor: 2.8, roof: 6.4, wing: { x0: 2.4, x1: 6.6, z1: 9 }, doors: [-7.8, 7.8], breach: 2, hole: 1.2 };
+export const OUTPOST = {
+  deck: { x0: -11, x1: 11, z: 7, y: 3.6, slab: 0.3 },
+  lab: { x0: -8.5, x1: 8.5, z: 5, t: 0.3, h: 3.3 },
+  roof: 7.2,
+  stair: { x0: 1.7, x1: 11.3, z0: 7.25, z1: 9.7, landing: -1 },
+  roofStair: { x0: -6.2, x1: 3.4, z: 1.2, open: -3 },
+  mast: { x: 5.8, z: 0, r: 0.45, top: 19 },
+};
 /**
- * 19.0, the temple (mirrored, ALPHA's half authored): the outer terrace T1 (a band in front of the
- * upper one), the upper terrace T2 (from the hull's side to T1), both cut by the gate (|x| < GATE) at
- * ground level: open between T1's halves, roofed by T2's bridge slab, then under the hull (the
- * undercroft: ground level, ceiling the hull's belly).
+ * 33.0, the tunnels: passages 4 m under the jungle floor (`floor`), roofed at `roof` (the slabs over
+ * them are the ground above), their walls `wall` thick. A hub under the outpost (its stair up to the
+ * ground floor, along x through the middle, |z| < `stair.z`), and per half (mirrored) two L-shaped
+ * branches: east to the ravine (opening through its west rim: the east depression), west to a sunken
+ * stair pit at the ridge's foot (the west depression; the pit's stair runs down along x from the
+ * ground at `pit.x0` to the floor at `pit.x1`, open to the sky until `roofFrom`).
  */
-export const T1 = { x0: -16, x1: 16, zIn: 9, zOut: 15, y: 1.3 };
-export const T2 = { x0: -12, x1: 12, zIn: WRECK.z, zOut: 9, y: WRECK.floor, slab: 0.4 };
-export const GATE = 2;
-/** The shrine (a ruined prang) west of the wreck, its stairs up both flanks, the fallen lintel to the wreck's roof. */
-export const SHRINE = { x0: -20, x1: -13.2, z: 4, top: 7.2, stair: { x0: -20, x1: -17.6, foot: 17 }, lintel: 1.0 };
+export const TUNNEL = {
+  floor: -4,
+  roof: -0.4,
+  wall: 1.2,
+  hub: { x0: -8, x1: 8, z0: -5, z1: 5, stair: { x0: -5.5, x1: 4.1, z: 1.25 } },
+  /** ALPHA's half; OMEGA's is the mirror (z → -z). */
+  runs: [
+    { name: 'eastConnector', x0: 4, x1: 7, z0: 5, z1: 15 },
+    { name: 'eastRun', x0: 4, x1: RAVINE.x0, z0: 12, z1: 15 },
+    { name: 'westConnector', x0: -7, x1: -4, z0: 5, z1: 15 },
+    { name: 'westRun', x0: -15.4, x1: -4, z0: 12, z1: 15 },
+  ],
+  pit: { x0: -25, x1: -15.4, z0: 12, z1: 15 },
+  roofFrom: -17,
+};
+type Rect = { x0: number; x1: number; z0: number; z1: number };
+const mirrorRect = (r: Rect): Rect => ({ x0: r.x0, x1: r.x1, z0: -r.z1, z1: -r.z0 });
+/** Every space of the tunnels, both halves: the hub, the runs, the pits (floor rects, inside the walls). */
+export function tunnelRects(): (Rect & { kind: 'hub' | 'run' | 'pit' })[] {
+  const out: (Rect & { kind: 'hub' | 'run' | 'pit' })[] = [{ ...TUNNEL.hub, kind: 'hub' }];
+  for (const r of TUNNEL.runs) out.push({ ...r, kind: 'run' }, { ...mirrorRect(r), kind: 'run' });
+  out.push({ ...TUNNEL.pit, kind: 'pit' }, { ...mirrorRect(TUNNEL.pit), kind: 'pit' });
+  return out;
+}
+const TR = tunnelRects();
+/** Signed distance to a rect (negative inside: the distance to its nearest edge). */
+function rectDist(x: number, z: number, r: Rect) {
+  const dx = Math.max(r.x0 - x, 0, x - r.x1), dz = Math.max(r.z0 - z, 0, z - r.z1);
+  if (dx > 0 || dz > 0) return Math.hypot(dx, dz);
+  return -Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z);
+}
+/** The pit's floor: its stair's slope (5 cm under the steps), level with the ground at its head. */
+export function pitFloor(x: number) {
+  const P = TUNNEL.pit;
+  return TUNNEL.floor * THREE.MathUtils.clamp((x - P.x0) / (P.x1 - P.x0), 0, 1) - 0.05;
+}
+/** Distance to the nearest tunnel space (negative inside one). */
+export function tunnelDist(x: number, z: number) {
+  let d = Infinity;
+  for (const r of TR) d = Math.min(d, rectDist(x, z, r));
+  return d;
+}
+/**
+ * The terrain carved for the tunnels at (x, z) given the surface there, or the surface: each space's
+ * floor flat to 0.8 m into its walls, rising to the surface over their last 0.35 m (the ravine's rule:
+ * no foot sample, on either side, ever reads the slope). Flat that far under the wall, the terrain
+ * mesh's 0.9 m triangles never draw the rise out past the wall's face (the first builds showed a curb,
+ * then a sloped band, along every wall).
+ */
+export function tunnelCarve(x: number, z: number, surface: number) {
+  let h = surface;
+  const W = TUNNEL.wall;
+  for (const r of TR) {
+    const d = rectDist(x, z, r);
+    if (d > W) continue;
+    const floor = r.kind === 'pit' ? pitFloor(x) : TUNNEL.floor;
+    const k = smoothstep(W - 0.4, W - 0.05, d);
+    h = Math.min(h, floor + (surface - floor) * k);
+  }
+  return h;
+}
+
+/**
+ * Boxes [x0, z0, x1, z1] covering a mask on a 0.2 m grid (row runs, merged down while identical): the
+ * tunnels' walls and roofs are made from masks of the spaces above, so no corner is missed.
+ */
+function boxesOf(mask: (x: number, z: number) => boolean, x0: number, z0: number, x1: number, z1: number) {
+  const G = 0.2;
+  const nx = Math.round((x1 - x0) / G), nz = Math.round((z1 - z0) / G);
+  const runsOf = (j: number) => {
+    const out: [number, number][] = [];
+    let start = -1;
+    for (let i = 0; i <= nx; i++) {
+      const on = i < nx && mask(x0 + (i + 0.5) * G, z0 + (j + 0.5) * G);
+      if (on && start < 0) start = i;
+      if (!on && start >= 0) {
+        out.push([start, i]);
+        start = -1;
+      }
+    }
+    return out;
+  };
+  const boxes: [number, number, number, number][] = [];
+  let open = new Map<string, number>();
+  for (let j = 0; j <= nz; j++) {
+    const runs = j < nz ? runsOf(j) : [];
+    const next = new Map<string, number>();
+    for (const [a, b] of runs) next.set(`${a},${b}`, open.get(`${a},${b}`) ?? j);
+    for (const [k, j0] of open) {
+      if (next.get(k) === j0) continue;
+      const [a, b] = k.split(',').map(Number);
+      boxes.push([+(x0 + a * G).toFixed(2), +(z0 + j0 * G).toFixed(2), +(x0 + b * G).toFixed(2), +(z0 + j * G).toFixed(2)]);
+    }
+    open = next;
+  }
+  return boxes;
+}
+const inside = (x: number, z: number) => TR.some((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1);
+/** Within the wall's thickness of a space (L∞, so corners are square). */
+const near = (x: number, z: number) => TR.some((r) => x > r.x0 - TUNNEL.wall && x < r.x1 + TUNNEL.wall && z > r.z0 - TUNNEL.wall && z < r.z1 + TUNNEL.wall);
+/** The ravine's rim stands there (it is the wall), and the pits' heads are open (the stairs come up there). */
+const noWall = (x: number, z: number) => x > RAVINE.x0 - RAVINE.rim || (x < TUNNEL.pit.x0 && Math.abs(z) > TUNNEL.pit.z0 && Math.abs(z) < TUNNEL.pit.z1);
+const BX = [TUNNEL.pit.x0 - 2, -16.4, RAVINE.x0 + 0.2, 16.4] as const;
+/** The tunnels' walls [x0, z0, x1, z1]: everything within the wall's thickness of a space, outside them all. */
+export function tunnelWalls() {
+  return boxesOf((x, z) => near(x, z) && !inside(x, z) && !noWall(x, z), ...BX);
+}
+/**
+ * The roof slabs [x0, z0, x1, z1] (top at the ground, underside at TUNNEL.roof): over the spaces and
+ * their walls from `roofFrom` east, except the hub's stairwell (open to the outpost's ground floor) and
+ * the rim's width at the ravine (a lintel there, level with the rim's top).
+ */
+export function tunnelRoofs() {
+  const S = TUNNEL.hub.stair;
+  return boxesOf((x, z) => near(x, z) && x > TUNNEL.roofFrom && x < RAVINE.x0 - RAVINE.rim && !(x > S.x0 && x < S.x1 && Math.abs(z) < S.z), ...BX);
+}
 /** ALPHA's landing zone (OMEGA's is the mirror): a sandbag yard, two exits. */
 export const BASE = { x0: -16, x1: 16, z0: 54, z1: 63 };
 /** The approaches (in front of the yards) start here. */
@@ -110,11 +235,21 @@ export function ravineFloor(z: number) {
 }
 
 /**
- * Height of the jungle floor. Flat on the yards, the approaches' middle, the wreck's clearing and
- * under the ridge (its blocks stand on y = 0); gentle hummocks elsewhere; the trenches carved with
- * gentle banks; the ravine carved between its rims (the drop lies under the rim rocks).
+ * 33.0: the walkable heightfield: the jungle floor (crashSurface) with the tunnels carved into it (their
+ * slabs, built over them, are the ground above).
  */
 export function crashHeight(x: number, z: number): number {
+  const s = crashSurface(x, z);
+  return tunnelDist(x, z) < TUNNEL.wall ? tunnelCarve(x, z, s) : s;
+}
+
+/**
+ * Height of the jungle floor. Flat on the yards, the approaches' middle, the outpost's clearing and
+ * under the ridge (its blocks stand on y = 0); gentle hummocks elsewhere (33.0: none near the tunnels:
+ * their slabs lie level); the trenches carved with gentle banks; the ravine carved between its rims
+ * (the drop lies under the rim rocks). The plants and the mist follow this (never down a tunnel).
+ */
+export function crashSurface(x: number, z: number): number {
   // The ravine: the floor inside the rims; the drop happens under the rim rocks, clear of foot samples.
   // The drop ends 0.1 m inside each rim's face: a body against it stands at +0.35 and samples ±0.21.
   const r0 = RAVINE.x0 + 0.1, r1 = RAVINE.x1 - 0.1;
@@ -127,8 +262,8 @@ export function crashHeight(x: number, z: number): number {
   }
   // Hummocks, faded out where the arena needs flat ground.
   const yard = Math.abs(z) > COURT - 2 ? smoothstep(COURT + 2, COURT - 2, Math.abs(z)) : 1;
-  // 19.0: flat round the temple and its stairs (they stand on y = 0).
-  const wreck = smoothstep(22, 28, Math.hypot(x / 1.3, z));
+  // 19.0: flat round the centre (33.0: the outpost and its stairs stand on y = 0), and round the tunnels.
+  const wreck = smoothstep(22, 28, Math.hypot(x / 1.3, z)) * smoothstep(TUNNEL.wall + 0.3, TUNNEL.wall + 4, tunnelDist(x, z));
   const ridge = smoothstep(-31, -26, x);
   const bank = x > RAVINE.x1 ? smoothstep(RAVINE.x1 + RAVINE.rim, RAVINE.x1 + RAVINE.rim + 4, x) : x < RAVINE.x0 ? smoothstep(RAVINE.x0 - RAVINE.rim, RAVINE.x0 - RAVINE.rim - 4, x) : 0;
   // |z|: mirror-symmetric, like everything else on the map.
@@ -171,9 +306,8 @@ export function forwardOf(team: 'alpha' | 'omega') {
 /** Lanes, as ALPHA faces north: the ridge (west), the wreck (centre), the ravine (east). */
 const LANES_ALPHA: [number, number, number?][][] = [
   [[-18, 57.2], [-26, 52], [-39, 47], [-39, 30, RIDGE.top], [-39, 15, RIDGE.top], [-39, 0, RIDGE.top], [-39, -15, RIDGE.top], [-39, -30, RIDGE.top], [-39, -47], [-26, -52]],
-  // 19.0: up the temple's front stair, the terrace stair, through the hull by its side doors, down the far side.
-  [[-18, 57.2], [-12, 48], [-12, 44], [-16, 34], [-12, 26], [-9, 20.5], [-9, 14, T1.y], [-9.25, 11.5, (T1.y + T2.y) / 2], [-8.5, 7, T2.y], [-7.8, 4.2, T2.y], [-7.8, 0, WRECK.floor],
-    [-7.8, -4.2, T2.y], [-8.5, -7, T2.y], [-9.25, -11.5, (T1.y + T2.y) / 2], [-9, -14, T1.y], [-9, -20.5], [-12, -26], [-16, -34], [-12, -44], [-12, -48]],
+  // 33.0: down the west trench and across the outpost's ground floor, under the lab's deck.
+  [[-18, 57.2], [-12, 48], [-12, 44], [-16, 34], [-12, 26], [-9.5, 18], [-9.5, 8], [-9.5, 0], [-9.5, -8], [-9.5, -18], [-12, -26], [-16, -34], [-12, -44], [-12, -48]],
   [[18, 57.2], [24, 54], [28.5, 52.5], [28.5, 30, RAVINE.floor], [28.5, 12, RAVINE.floor], [28.5, -6, RAVINE.floor], [28.5, -24, RAVINE.floor], [28.5, -40, RAVINE.floor], [28.5, -52.5], [24, -54]],
 ];
 
@@ -187,28 +321,31 @@ export function lanesOf(team: 'alpha' | 'omega'): THREE.Vector3[][] {
     .map((L) => L.map(([x, z, y]) => v(x, -z, y)));
 }
 
-/** The lanes for the flow reports: the ridge side, the wreck, the ravine side. */
-export function laneOf(x: number, _y: number, z: number): 0 | 1 | 2 | null {
+/** The lanes for the flow reports: the ridge side, the outpost, the ravine side; 33.0: and the tunnels. */
+export function laneOf(x: number, y: number, z: number): 0 | 1 | 2 | 3 | null {
   if (Math.abs(z) > BASE.z0 - 2) return null;
+  if (y < -1 && tunnelDist(x, z) < 0.5) return 3;
   return x < -24 ? 0 : x > 20 ? 2 : 1;
 }
 
 const Z = (id: string, name: string, jp: string, rects: [number, number, number, number][]): Zone => ({ id, name, jp, rects });
-const both = (x0: number, z0: number, x1: number, z1: number): [number, number, number, number][] => [[x0, z0, x1, z1], [x0, -z1, x1, -z0]];
+
+const O = OUTPOST;
 export const ZONES = {
-  hull: Z('hull', 'THE HULL', 'ในลำเรือ', [[WRECK.x0, -WRECK.z, WRECK.x1, WRECK.z]]),
-  undercroft: Z('undercroft', 'UNDERCROFT', 'ใต้ซากเครื่อง', [[WRECK.x0 - 3.2, -WRECK.z, WRECK.x1 + 2, WRECK.z], ...both(-GATE, WRECK.z, GATE, T1.zOut)]),
-  terrace: Z('terrace', 'TEMPLE TERRACE', 'ลานวิหาร', [...both(T1.x0, T1.zIn, T1.x1, T1.zOut), ...both(SHRINE.stair.x1, WRECK.z, T2.x0, T1.zIn)]),
-  upperTerrace: Z('upperTerrace', 'UPPER TERRACE', 'ลานบน', both(T2.x0, T2.zIn, T2.x1, T2.zOut)),
-  shrine: Z('shrine', 'THE SHRINE', 'ปรางค์', [[SHRINE.x0, -SHRINE.z, SHRINE.x1, SHRINE.z]]),
+  // 33.0, the outpost's levels and the tunnels.
+  labRoof: Z('labRoof', 'LAB ROOF', 'หลังคาแล็บ', [[O.lab.x0, -O.lab.z, O.lab.x1, O.lab.z]]),
+  lab: Z('lab', 'THE LAB', 'ห้องแล็บ', [[O.lab.x0, -O.lab.z, O.lab.x1, O.lab.z]]),
+  deck: Z('deck', 'LAB DECK', 'ระเบียงแล็บ', [[O.deck.x0, -O.stair.z1, O.deck.x1, O.stair.z1]]),
+  underLab: Z('underLab', 'UNDER THE LAB', 'ใต้ถุนแล็บ', [[O.deck.x0, -O.deck.z, O.deck.x1, O.deck.z]]),
+  hub: Z('hub', 'TUNNEL HUB', 'ชุมทางอุโมงค์', [[TUNNEL.hub.x0, TUNNEL.hub.z0, TUNNEL.hub.x1, TUNNEL.hub.z1]]),
+  tunnels: Z('tunnels', 'THE TUNNELS', 'อุโมงค์', [[TUNNEL.pit.x0, -TUNNEL.pit.z1 - 1, RAVINE.x0 + 0.5, TUNNEL.pit.z1 + 1]]),
   ridge: Z('ridge', 'THE RIDGE', 'สันเขา', [[-X_OUT, -COURT - 2, -29, COURT + 2]]),
-  wreckRoof: Z('wreckRoof', 'WRECK ROOF', 'หลังคาซากเครื่อง', [[WRECK.x0 - 3.2, -WRECK.wing.z1, WRECK.x1 + 1, WRECK.wing.z1]]),
   ravine: Z('ravine', 'THE RAVINE', 'หุบเหว', [[RAVINE.x0, -RAVINE.end, RAVINE.x1, RAVINE.end]]),
   alphaSpawn: Z('alphaSpawn', 'ALPHA LZ', 'จุดลงจอดอัลฟา', [[BASE.x0, BASE.z0, BASE.x1, Z_END]]),
   omegaSpawn: Z('omegaSpawn', 'OMEGA LZ', 'จุดลงจอดโอเมกา', [[BASE.x0, -Z_END, BASE.x1, -BASE.z0]]),
   alphaCourt: Z('alphaCourt', 'ALPHA APPROACH', 'ทางเข้าอัลฟา', [[-X_OUT, COURT, X_OUT, Z_END]]),
   omegaCourt: Z('omegaCourt', 'OMEGA APPROACH', 'ทางเข้าโอเมกา', [[-X_OUT, -Z_END, X_OUT, -COURT]]),
-  wreck: Z('wreck', 'THE TEMPLE', 'วิหาร', [[-21, -T1.zOut - 4, 18, T1.zOut + 4]]),
+  outpost: Z('outpost', 'THE OUTPOST', 'ฐานวิจัย', [[-21, -19, 18, 19]]),
   westTrench: Z('westTrench', 'WEST TRENCH', 'สนามเพลาะตะวันตก', [[-24, -COURT, -2, COURT]]),
   eastTrench: Z('eastTrench', 'EAST TRENCH', 'สนามเพลาะตะวันออก', [[-2, -COURT, RAVINE.x0, COURT]]),
   eastBank: Z('eastBank', 'EAST BANK', 'ฝั่งตะวันออก', [[RAVINE.x1, -COURT, X_OUT, COURT]]),
@@ -218,15 +355,14 @@ export const ZONES = {
 export function zoneAt(x: number, y: number, z: number): Zone | null {
   const inR = (r: [number, number, number, number]) => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
   if (y > 1.5 && ZONES.ridge.rects.some(inR) && x < -29.5) return ZONES.ridge;
-  // 19.0: the temple's levels, top down: the shrine, the wreck's roof, the hull, the terraces, the undercroft.
-  if (y > SHRINE.top - 0.8 && ZONES.shrine.rects.some(inR)) return ZONES.shrine;
-  if (y > WRECK.roof - 0.8 && ZONES.wreckRoof.rects.some(inR)) return ZONES.wreckRoof;
-  if (y > WRECK.floor - 0.3 && ZONES.hull.rects.some(inR)) return ZONES.hull;
-  if (y > T2.y - 0.4 && ZONES.upperTerrace.rects.some(inR)) return ZONES.upperTerrace;
-  if (y > T1.y - 0.4 && y < T2.y - 0.4 && ZONES.terrace.rects.some(inR)) return ZONES.terrace;
-  if (y < WRECK.belly && ZONES.undercroft.rects.some(inR)) return ZONES.undercroft;
+  // 33.0: the outpost's levels top down, then under the ground: the hub, the tunnels.
+  if (y > O.roof - 0.8 && ZONES.labRoof.rects.some(inR)) return ZONES.labRoof;
+  if (y > O.deck.y - 0.4 && ZONES.lab.rects.some(inR)) return ZONES.lab;
+  if (y > O.deck.y - 0.4 && ZONES.deck.rects.some(inR)) return ZONES.deck;
+  if (y < -1 && ZONES.hub.rects.some(inR)) return ZONES.hub;
+  if (y < -1 && tunnelDist(x, z) < 0.5) return ZONES.tunnels;
   if (y < -0.6 && ZONES.ravine.rects.some(inR)) return ZONES.ravine;
-  for (const zone of [ZONES.alphaSpawn, ZONES.omegaSpawn, ZONES.alphaCourt, ZONES.omegaCourt, ZONES.wreck, ZONES.ravine, ZONES.ridge, ZONES.eastBank, ZONES.ridgeFoot, ZONES.westTrench, ZONES.eastTrench]) {
+  for (const zone of [ZONES.alphaSpawn, ZONES.omegaSpawn, ZONES.alphaCourt, ZONES.omegaCourt, ZONES.underLab, ZONES.outpost, ZONES.ravine, ZONES.ridge, ZONES.eastBank, ZONES.ridgeFoot, ZONES.westTrench, ZONES.eastTrench]) {
     if (zone.rects.some(inR)) return zone;
   }
   return null;
@@ -254,6 +390,8 @@ export const JUNGLE_AI: ArenaProfile = {
   // 33.0: never straight at a goal more than half a metre up (the terraces, the ravine's bank from its
   // floor): the graph knows the stairs and ramps (Old Port's 23.0 rule, tighter: trenches and hummocks).
   directRise: 0.5,
+  // 33.0: feel along the tunnels' walls (round their bends on the centre line).
+  corridor: { on: true, near: 1.1, gain: 1 },
 };
 
 /**

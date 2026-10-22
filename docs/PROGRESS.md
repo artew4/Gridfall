@@ -1688,8 +1688,55 @@ Branch `feature/neon-docks-32.0`, from `main` @ `e31cdf4` (31.0, merged). Full n
 - **Frame cost at 9v9:** `bench(3)` on the docks: 60 FPS in all 14 views, CPU 2.2–3.0 ms (28.0 at 5v5: 1.9–2.6), GPU 5.4–6.6 ms (5.0–6.4); the AI 0.12 ms a step (5v5: 0.07), p99 0.67.
 - **Leaks:** `leakcheck` (docks, Maglev, Neon Block): 0 alive after GC. `vramCycle` (3 laps): every level stop the same lap over lap (the docks 179 geometries, 52 textures); only the menu's known timing reading (106 or 140) differs. Tests 381 (+8).
 
+## 33.0: Deep Jungle overhaul
+
+Branch `feature/deep-jungle-33.0`, from `main` @ `dd27bc5` (32.0, merged). Full numbers: `docs/BENCH-33.0.json`.
+
+### The wall-running bug (engine-wide, commit 1 of 2)
+- **Symptom:** bots on the ravine's floor ran into its west rim for whole matches (and inside the landing yards into their front wall). A new `tdmSim` metric (`wallPress`: running over 1.5 m/s, covering under 40% of it, for 1.5 s+) counted 487 events in 4 matches (1,544 s).
+- **Cause:** the route search tries 128 entry nodes ranked by distance plus the remaining path. From a ravine floor the best-ranked are on the bank above, over the rim, and all fail the walkable-corridor test; the ravine's own nodes rank too low to be tried. No route, so steering fell back to the goal itself: straight at the wall.
+- **Fix:** after the ranked entries, the 16 nodes nearest by plain distance are tried (`Nav.stats.nearestEntries`); with no route at all a bot walks onto the graph (the nearest node it can reach), never at the goal; Deep Jungle's profile never walks straight at a goal more than 0.5 m up.
+- **Measured:** 487 → 8 wall-presses (1,544 s → 2 s), kills a minute 17.5 → 20.1, stuck 1 → 0; Maglev 0.
+
+### The map (commit 2 of 2)
+- **The outpost** (replaces 19.0's temple, wreck and shrine): a research lab on stilts. The open ground floor under its deck (columns, the hub's stairwell railed in its middle); the deck at 3.6 m, a walkway round the lab, up two stairs (one a half) to landings; the lab (doors and windows, benches and racks inside); its stair to the roof at 7.2 m (parapets, the comms mast and its beacon).
+- **The tunnels:** 4 m under the jungle floor. A hub under the outpost, its stair up into the ground floor; per half two L-shaped branches: east to the ravine (out through its west rim: the east depression), west to a sunken stair pit at the ridge's foot (the west depression). 3 m wide, 3.6 m high, lit by strips (every other one a pooled light).
+  - **Carved, not boolean:** the heightfield is always a floor, so a tunnel is carved into it (its floor flat to half a metre into the walls, the rise under them: no foot reads it from either side) and roofed with slabs that are the ground above. Walls and roofs come from masks of the spaces on a 0.2 m grid, merged into boxes (`tunnelWalls`, `tunnelRoofs`): no corner missed.
+- **Old Port's containers** (`world/Containers.ts`, shared now: Old Port builds its own with it), moss grown over the paint (`overgrownContainerTexture`): seven, by the west runs, on the east bank (8 m off the ravine's rim: nearer, they squeezed the bank's way onto the rim) and across the middle west.
+- **Plants and mist** follow the surface (`crashSurface`), never down a tunnel; the forest keeps 1.1 m clear of anything solid (a slim trunk 0.84 m off the ravine's rim made a slot a runner wedged in), and 5 m along the ravine's east bank (a path beside the rim).
+- **The ravine's drop-downs** start from the bank outside the rims (over and down), never from a rim's top: a node there made the 1.5 m rim tops a way along the ravine, beside a 4 m drop. The ramps' tops link round the rims' ends.
+
+### The visibility pass
+- Every plant under eye height: bushes to 1.1 m (were 2.3), sedge to 0.6 m (1.3), big-leaf plants to 1.0 m (1.6); 40% fewer bushes, half the big-leaf plants; no wall of bushes round the yards; vines end over 2.6 m. The canopy and the trees stay. The AI's concealment layer 1.9 → 1.2 m (a crouch, not a standing man). Firebase Viper's plants unchanged (`FoliageSite.plants`).
+- **Measured** (`__dev.foliageSight`: 2,000 sightlines 8–40 m between random standable spots, every plant instance's footprint and top): standing sightlines blocked 38.4% → 4.2%, crouched 45.2% → 24.7%; spots with a plant over eye height within 2.5 m 22.3% → 0.3% (a plant on higher ground beside a lower spot); vines below 2 m 105 → 0; plants 6,648 → 5,070, foliage triangles 205k → 135k.
+
+### Nav and AI
+- The graph rebuilt: tunnel nodes on the passages' centre lines (a bend's node in its middle), the stairs' chains (pits, hub, deck, roof), grids over the hub, the ground floor, the deck, the lab and its roof (each node needs a floor at its level). 938 nodes.
+- Patrol areas in the tunnels (the hub, the bends, the mouths, the pits) and on the outpost; the tunnels a fourth lane in the reports.
+- **Corridor following** (`ARENA.corridor`, on through Deep Jungle's profile): a moving bot feels for walls either side (one ray a side, knee height, every 0.15 s) and steers off one nearer than 1.1 m; between two it keeps to the middle. Scraping a wall (a moving bot within 8 cm of something solid; `tdmSim(...).scrape`), A/B 4 matches each: the tunnels 7.0% → 4.8%, the hub 8.5% → 6.5%, everywhere 5.8% → 4.0%, the same pace.
+- **Path following never cuts over a drop** (engine-wide): a waypoint is skipped only if the floor runs on under the straight line too (`Nav.walkable`), not just a clear corridor; runners cut from a bank onto a bridge over its side, into the ravine.
+- `directRise` 0.5 on the new map: the same pace as Infinity (22.4 kills a minute), the tunnels used more (1.6× the time). (23.0's A/B, where it cost pace, was on the old temple's terraces.)
+
+### Checks
+- `levelAI`: every node reachable from every spawn; gunners 8 of 8; runners 189–191 of 192 over three runs (32.0's map: 176 of 176, three runs). Every failure is one goal on the east bank, (40, 0, 10), from the far spawns: survival runners out of the tunnels into the ravine stall at its end ramps, where the ramp lies up to 0.6 m under a rim's top and the corridor rays pass over it. Known; the map is TDM-only and its bots never stuck in self-play. Next: reshape the ravine's ends. (Fixed on the way: 2 nodes floating over the roof's stairwell, open stair sides runners clipped into, the rim-top waypoints, the cut-over-a-drop, the slots by the rim.)
+- `world`: no traps, escapes, invisible walls or walk-through visuals. `stress`: 16,000 controller runs from 500 cells, 0 failures.
+
+### Measured (bot-only, 7v7, 4 matches a cell)
+| | 32.0's map | 33.0 (1/2: the bug fixed) | 33.0 |
+|---|---|---|---|
+| wall-presses (seconds) | 487 (1,544) | 8 (2) | 17 (12) |
+| stuck | 1 | 0 | 0 |
+| kills a minute | 17.5 | 20.1 | 24.5 |
+| quiet seconds | – | 26.7% | 15.6% |
+| lanes: ridge / outpost / ravine / tunnels | – | – | 11 / 58 / 21 / 9% |
+| deaths within 3 s of spawning | – | – | 0 of 398 |
+| AI ms a step (avg / p99) | – | – | 0.26 / 1.75 |
+- **Frame cost:** `bench(3)` on Deep Jungle: 60 FPS in all 14 views (the hub, a tunnel run, a pit, the lab, its roof among them); GPU 6.0–6.6 ms (31.0: 5.7–6.2); CPU 2.4–3.1 ms (31.0: 1.6–2.1), as Maglev's in the same session (2.1–3.1; 31.0: 1.8–2.4): the machine, not the map. The tunnels' strip lights merged into one draw (the first build drew each: up to 75 more calls a view).
+- **Leaks:** `leakcheck` (Deep Jungle, Old Port, Maglev): 0 alive after GC. `vramCycle` (3 laps): every stop the same lap over lap (Deep Jungle 151 geometries, 43 textures). Tests 384 (+3: the tunnels, their walls, roofs and headroom, the outpost).
+
 ## Next
 Human playtest:
+- 33.0 items: Deep Jungle's outpost (does the lab on stilts read as a place; the roof: too strong a perch?), the tunnels (do you find and use them; the pits and the ravine mouths; too dark?), the plants (can you see enemies now, is it still a jungle), the overgrown containers, do bots still run into walls.
 - 32.0 items: Neon Docks' new palette (easier on the eyes, or too dull now?), the rain (still atmospheric?), the roofed warehouse (a fortress again?), 9v9 (busy or chaotic; can you read the team board), the forward zone B (spawning near the fight: fair?), do the bots still bunch up where you play.
 - 31.0 items: the deployment zones (can you tell your zones from theirs at a glance; do the letters help you call "they're at B"; is the walk from home too long now (bots' pace fell on most maps); does any zone feel camped); the five themes (the dust, the vines, the stripes, the glass: charming or noisy; is the beam distracting); `TDM.spawns = 'dynamic'` for the 30.0 pads side by side.
 - 30.0 items: the stamina (does a 3.5 s rifle sprint feel punishing or right; the pistol as the mobile gun; the forced walk at 0: frustrating?); the bar under the crosshair (noticed? in the way?); do bots feel less frantic, or too slow?

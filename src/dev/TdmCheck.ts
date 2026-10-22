@@ -252,7 +252,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -309,6 +309,11 @@ export async function tdmSim(
   // 29.0: the map's tickets unless told (50 since 29.0; 25 forced before).
   startMatch(game, true, opts.tickets, ai, opts.size, opts.profile ?? true);
   if (opts.space !== undefined) ARENA.space.on = opts.space;
+  // 33.0 A/B: `corridor: false` turns the corridor feelers off (after the profile, which may turn them on).
+  const corridor0 = ARENA.corridor.on;
+  if (opts.corridor !== undefined) ARENA.corridor.on = opts.corridor;
+  // (And `directRise` again: the map's profile sets it at the match's start; L-165.)
+  if (opts.directRise !== undefined) ARENA.directRise = opts.directRise;
   // 25.0 A/B: `fog: false` plays Neon Block without its ground fog's sight cap and route bias.
   if (opts.fog === false) {
     if (game.tdm.sensing) game.tdm.sensing.fog = null;
@@ -374,7 +379,8 @@ export async function tdmSim(
   const zoneT: Record<string, number> = {};
   // 15.0: bot time per lane (the map's laneOf), sampled with the zones.
   const tdmData = game.level.data.tdm;
-  const laneT = [0, 0, 0];
+  // 33.0: as many lanes as the map names (Deep Jungle's fourth: the tunnels).
+  const laneT = new Array(Math.max(3, game.level.data.tdm?.laneNames?.length ?? 3)).fill(0);
   // 9.0: how often a bot came into each zone (a passage like a culvert is crossed in a second: time
   // share undersells it).
   const zoneIn: Record<string, number> = {};
@@ -410,6 +416,9 @@ export async function tdmSim(
   // that, for 1.5 s or more: pressing into something. Events, seconds, and where (4 m cells, by state).
   const press = new Map<number, { x: number; z: number; t: number; open: boolean }>();
   const wallPress = { events: 0, seconds: 0, spots: new Map<string, { n: number; s: number; y: number; why: Record<string, number> }>() };
+  // 33.0, scraping: a moving bot (> 1.5 m/s) with its body within 8 cm of something solid (every 15 steps), by zone.
+  const scrape = new Map<string, [number, number]>();
+  const _sp = new THREE.Vector3();
   const edgeN = { time: 0, timeIn: 0, fight: 0, fightIn: 0 };
   const wall0 = performance.now();
   while (!tdm.winner && game.elapsed - t0 < maxSeconds) {
@@ -490,6 +499,12 @@ export async function tdmSim(
         } else if (fv > -1) falling.delete(b.uid);
         if (steps % 15 === 0) {
           const zn = zoneOf(b.pos.x, b.pos.y, b.pos.z);
+          if (sp > 1.5) {
+            const e = scrape.get(zn) ?? [0, 0];
+            e[1]++;
+            if (game.col.blocked(_sp.set(b.pos.x, b.pos.y + 0.35, b.pos.z), b.radius + 0.08, 1.2)) e[0]++;
+            scrape.set(zn, e);
+          }
           zoneT[zn] = (zoneT[zn] ?? 0) + 1;
           flow.add(b.pos.x, b.pos.z, 'occ');
           {
@@ -582,6 +597,7 @@ export async function tdmSim(
   ARENA.lastStand.on = ls0;
   STAMINA.on = stam0;
   ARENA.space.on = space0;
+  ARENA.corridor.on = corridor0;
   game.ctx.sightRange = sight0;
   if (fog0 !== undefined) (game.fog as { density: number }).density = fog0;
   game.timeScale = 1;
@@ -709,6 +725,8 @@ export async function tdmSim(
       perBotMin: +(wallPress.events / Math.max(1e-9, (smp.n * dt) / 60)).toFixed(3),
       spots: [...wallPress.spots.entries()].sort((a, c) => c[1].s - a[1].s).slice(0, 12).map(([k, e]) => ({ at: k, y: +e.y.toFixed(1), events: e.n, seconds: +e.s.toFixed(1), why: e.why })),
     },
+    // 33.0: scraping walls (see `scrape`): moving samples and the share touching, by zone (the busiest).
+    scrape: Object.fromEntries([...scrape.entries()].filter(([, e]) => e[1] >= 50).sort((a, c) => c[1][1] - a[1][1]).map(([k, e]) => [k, { samples: e[1], touchingPct: +((100 * e[0]) / e[1]).toFixed(1) }])),
     // 32.0: how bunched the teams are (see `spr`).
     spread: (() => {
       const m = spr.mates.sort((a, c) => a - c);
@@ -802,7 +820,7 @@ export async function tdmSim(
     })(),
     // 15.0: share of lane time (in the contested middle) per lane, flank / centre / flank.
     laneTimePct: (() => {
-      const tot = laneT[0] + laneT[1] + laneT[2];
+      const tot = laneT.reduce((a: number, v: number) => a + v, 0);
       if (!tot) return null;
       const names = tdmData?.laneNames ?? ['left', 'centre', 'right'];
       return Object.fromEntries(names.map((n, i) => [n, +((100 * laneT[i]) / tot).toFixed(1)]));
@@ -813,7 +831,7 @@ export async function tdmSim(
       const out: Record<string, number> = {};
       for (const x of k) {
         if (x.victimPos === undefined) continue;
-        const lane: 0 | 1 | 2 | null = tdmData.laneOf!(x.victimPos[0], x.victimPos[1], x.victimPos[2]);
+        const lane: number | null = tdmData.laneOf!(x.victimPos[0], x.victimPos[1], x.victimPos[2]);
         const n = lane === null ? 'none' : names[lane];
         out[n] = (out[n] ?? 0) + 1;
       }

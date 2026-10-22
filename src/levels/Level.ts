@@ -25,10 +25,11 @@ export interface TdmData {
   /**
    * 15.0: which lane a point is in, as the map defines them (the flow reports and the bots' lane
    * pressure): 0 and 2 the flanks, 1 the centre; null outside the contested middle (yards, behind them).
+   * 33.0: a map may add report-only lanes past them (Deep Jungle's tunnels: 3).
    */
-  laneOf?(x: number, y: number, z: number): 0 | 1 | 2 | null;
-  /** 15.0: the lanes' names for the reports, [flank, centre, flank]. */
-  laneNames?: [string, string, string];
+  laneOf?(x: number, y: number, z: number): number | null;
+  /** 15.0: the lanes' names for the reports, [flank, centre, flank] (33.0: then any report-only lanes). */
+  laneNames?: [string, string, string, ...string[]];
   /**
    * 18.0: how many bots each lane is worth to the director's balance (default 1 each): a lane worth
    * 1.6 holds two of a team's five while the others hold one or two (a map's centre of gravity).

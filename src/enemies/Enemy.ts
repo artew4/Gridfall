@@ -381,8 +381,9 @@ export abstract class Enemy implements Combatant {
     this.skipT -= dt;
     if (this.skipT <= 0) {
       this.skipT = 0.2;
-      // 19.0: never past a stair's node (Nav.climb): it is walked, not cut.
-      while (this.path.length > 1 && !ctx.nav.climb.has(this.path[0]) && level(ctx.nav.nodes[this.path[1]]) && this.directClear(ctx, from, ctx.nav.nodes[this.path[1]])) this.path.shift();
+      // 19.0: never past a stair's node (Nav.climb): it is walked, not cut. 33.0: nor over a drop: the
+      // floor runs on under the cut (runners cut from a bank onto a bridge over its side, into the ravine).
+      while (this.path.length > 1 && !ctx.nav.climb.has(this.path[0]) && level(ctx.nav.nodes[this.path[1]]) && this.directClear(ctx, from, ctx.nav.nodes[this.path[1]]) && ctx.nav.walkable(from, ctx.nav.nodes[this.path[1]])) this.path.shift();
     }
     if (this.path.length) {
       const n = ctx.nav.nodes[this.path[0]];

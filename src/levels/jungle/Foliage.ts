@@ -162,7 +162,27 @@ export interface FoliageSite {
   vineOk(x: number, z: number): boolean;
   /** 19.0: a multiplier on every plant count (default 1). Instanced: one draw call per kind at any count. */
   density?: number;
+  /**
+   * 33.0: plant sizes and counts by kind (absent: Firebase's, 3.6–32.0). Scale ranges for bushes,
+   * sedge and big-leaf plants (their tops: ~1.06 m, ~0.83 m and ~0.86 m × scale); count multipliers for
+   * the bushes and big-leaf plants; the dense ring of bushes round the spawns; the lowest a vine may
+   * end over the ground (m); the top of the layer that hides bodies from the AI (concealment, m).
+   */
+  plants?: Partial<PlantLook>;
 }
+
+export interface PlantLook {
+  bush: [number, number];
+  bushN: number;
+  grass: [number, number];
+  bigleaf: [number, number];
+  bigleafN: number;
+  spawnRing: boolean;
+  vineEnd: number;
+  concealTop: number;
+}
+/** Firebase Viper's plants (3.6–32.0, Deep Jungle's too until 33.0). */
+export const PLANTS: PlantLook = { bush: [0.9, 2.2], bushN: 1, grass: [0.8, 1.6], bigleaf: [1.0, 1.9], bigleafN: 1, spawnRing: true, vineEnd: 0.3, concealTop: 1.9 };
 
 /** Firebase Viper's site (the 3.6–14.0 behaviour exactly). */
 export const FIREBASE_SITE: FoliageSite = {
@@ -272,11 +292,13 @@ export function buildFoliage(
   const tint = (h: number, s: number, l: number) => _c.clone().setHSL(h, s, l);
 
   const q = Math.max(0.35, quality) * (site.density ?? 1);
+  const P = { ...PLANTS, ...site.plants };
+  const span = ([a, b]: [number, number]) => a + rnd() * (b - a);
   // ------------------------------------------------------------------ bushes
-  const bushPts = scatter(Math.round(1100 * q), STRIP - 1, (x, z) => rnd() < density(x, z) && !blockedSpot(x, z, 0.5))
-    .map((p) => ({ p, s: 0.9 + rnd() * 1.3, yaw: rnd() * 6.28, color: tint(0.22 + rnd() * 0.08, 0.45 + rnd() * 0.2, 0.17 + rnd() * 0.1) }));
+  const bushPts = scatter(Math.round(1100 * q * P.bushN), STRIP - 1, (x, z) => rnd() < density(x, z) && !blockedSpot(x, z, 0.5))
+    .map((p) => ({ p, s: span(P.bush), yaw: rnd() * 6.28, color: tint(0.22 + rnd() * 0.08, 0.45 + rnd() * 0.2, 0.17 + rnd() * 0.1) }));
   // Dense walls of undergrowth right round the spawns (where the hunters come out of).
-  for (const s of spawns) {
+  for (const s of P.spawnRing ? spawns : []) {
     for (let k = 0; k < 9; k++) {
       const a = rnd() * Math.PI * 2, d = 1.6 + rnd() * 5;
       const x = s.x + Math.cos(a) * d, z = s.z + Math.sin(a) * d;
@@ -294,12 +316,12 @@ export function buildFoliage(
 
   // ------------------------------------------------------------------ sedge
   const grassPts = scatter(Math.round(2600 * q), STRIP - 4, (x, z) => rnd() < 0.5 + density(x, z) * 0.5 && !blockedSpot(x, z, 0.1))
-    .map((p) => ({ p, s: 0.8 + rnd() * 0.8, yaw: rnd() * 6.28, color: tint(0.2 + rnd() * 0.07, 0.4 + rnd() * 0.2, 0.2 + rnd() * 0.12) }));
+    .map((p) => ({ p, s: span(P.grass), yaw: rnd() * 6.28, color: tint(0.2 + rnd() * 0.07, 0.4 + rnd() * 0.2, 0.2 + rnd() * 0.12) }));
   instanced('grass', grassGeometry(rnd), leafMat(0.18, THREE.DoubleSide), grassPts, false);
 
   // ------------------------------------------------------------------ big-leaf plants
-  const bigPts = scatter(Math.round(380 * q), STRIP, (x, z) => rnd() < density(x, z) && !blockedSpot(x, z, 0.5))
-    .map((p) => ({ p, s: 1.0 + rnd() * 0.9, yaw: rnd() * 6.28, color: tint(0.27 + rnd() * 0.05, 0.5, 0.2 + rnd() * 0.08) }));
+  const bigPts = scatter(Math.round(380 * q * P.bigleafN), STRIP, (x, z) => rnd() < density(x, z) && !blockedSpot(x, z, 0.5))
+    .map((p) => ({ p, s: span(P.bigleaf), yaw: rnd() * 6.28, color: tint(0.27 + rnd() * 0.05, 0.5, 0.2 + rnd() * 0.08) }));
   instanced('bigleaf', bigLeafGeometry(), leafMat(0.08, THREE.DoubleSide), bigPts, true);
 
   // ------------------------------------------------------------------ crowns of the slim trees
@@ -346,7 +368,8 @@ export function buildFoliage(
       const g = H(x, z);
       const top = g + 16 + rnd() * 14;
       // Most end well above head height; a few trail down to the ground.
-      const bottom = rnd() < 0.25 ? g + 0.3 : g + 2.4 + rnd() * 6;
+      // 33.0: never lower than the site's vineEnd (Deep Jungle: over head height).
+      const bottom = Math.max(g + P.vineEnd, rnd() < 0.25 ? g + 0.3 : g + 2.4 + rnd() * 6);
       _m.compose(_p.set(x, top, z), _q.setFromEuler(_e.set((rnd() - 0.5) * 0.06, 0, (rnd() - 0.5) * 0.06)), _s.set(1, top - bottom, 1));
       vines.setMatrixAt(n++, _m);
     }
@@ -432,14 +455,14 @@ export function buildFoliage(
     const len = Math.hypot(dx, dy, dz);
     // Point blank (an arm's length plus a step or two) the bushes hide nothing.
     if (len < 6) return 1;
-    // March in 1 m steps; only the part of the line inside the undergrowth layer (≤ 1.9 m above
+    // March in 1 m steps; only the part of the line inside the undergrowth layer (≤ concealTop m above
     // the ground there) counts; the first and last metre are the viewer's and target's own spot.
     let tau = 0;
     const n = Math.floor(len);
     for (let i = 1; i < n; i++) {
       const t = i / len;
       const x = a.x + dx * t, y = a.y + dy * t, z = a.z + dz * t;
-      if (y - H(x, z) > 1.9) continue;
+      if (y - H(x, z) > P.concealTop) continue;
       tau += 0.3 * cover(x, z);
       if (tau > 3) return 0;
     }
