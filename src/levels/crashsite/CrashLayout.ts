@@ -251,6 +251,9 @@ export const JUNGLE_AI: ArenaProfile = {
   laneLeave: 16,
   retreat: { unseenDmg: 0.45 },
   coverPush: { on: true },
+  // 33.0: never straight at a goal more than half a metre up (the terraces, the ravine's bank from its
+  // floor): the graph knows the stairs and ramps (Old Port's 23.0 rule, tighter: trenches and hummocks).
+  directRise: 0.5,
 };
 
 /**

@@ -389,8 +389,21 @@ export abstract class Enemy implements Combatant {
       if (Math.hypot(n.x - this.pos.x, n.z - this.pos.z) < 0.8) this.path.shift();
       return n;
     }
+    // 33.0: no route and no straight line (the goal is walled off from here): never run at it through
+    // the wall (bots ran into a ravine's rim for whole matches). Onto the graph instead: the nearest node
+    // it can walk to (looked up on the re-plan timer); from there the next plan has an entry.
+    if (this.noRoute) {
+      if (this.pathT >= 0.55 || !this.onto) {
+        const i = ctx.nav.nearestVisible(from);
+        this.onto = i >= 0 ? ctx.nav.nodes[i] : null;
+      }
+      if (this.onto && Math.hypot(this.onto.x - this.pos.x, this.onto.z - this.pos.z) > 0.8) return this.onto;
+      return this.pos;
+    }
     return goal;
   }
+  /** 33.0: the node it walks to when its goal has no route from here. */
+  private onto: THREE.Vector3 | null = null;
 
   /** Can it walk straight from `from` to `to` (body height)? Arena bots (7.0) also count low walls they vault. */
   protected directClear(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {

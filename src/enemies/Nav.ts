@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import type { CollisionWorld } from '../world/Collision';
 
+/** 33.0: when the ranked entries all fail, how many of the nodes nearest the walker are tried. */
+const NEAREST_TRIES = 16;
+
 export interface NavLayout {
   /** Node positions at floor level (y = surface height). */
   nodes: THREE.Vector3[];
@@ -281,8 +284,8 @@ export class Nav {
   bias: ((a: THREE.Vector3, b: THREE.Vector3, kind: 'low' | 'high') => number) | null = null;
   private fields = new Map<number, { dist: Float64Array; next: Int32Array }>();
   private vaultFields = new Map<number, { dist: Float64Array; next: Int32Array }>();
-  /** Fields computed vs served from the memo (DEV counters). */
-  stats = { computed: 0, cached: 0 };
+  /** Fields computed vs served from the memo; 33.0: routes entered by the nearest-node fallback (DEV counters). */
+  stats = { computed: 0, cached: 0, nearestEntries: 0 };
   private toward(goal: number, vault = false, kind: 'low' | 'high' | null = null) {
     const memo = vault ? this.vaultFields : this.fields;
     const edges = vault ? this.vaultEdges! : this.edges;
@@ -374,29 +377,43 @@ export class Nav {
     const b = this.nearestVisible(to);
     if (b < 0) return [];
     const { dist, next } = this.toward(b, vault, opts.bias ?? null);
-    const cand: { i: number; s: number }[] = [];
+    const cand: { i: number; s: number; d: number }[] = [];
     for (let i = 0; i < this.nodes.length; i++) {
       if (dist[i] === Infinity) continue;
       const n = this.nodes[i];
       const dy = n.y - from.y;
       const d = Math.sqrt((n.x - from.x) ** 2 + (n.z - from.z) ** 2 + dy * dy * 9);
-      cand.push({ i, s: d + dist[i] });
+      cand.push({ i, s: d + dist[i], d });
     }
     cand.sort((x, y) => x.s - y.s);
     // 7.0: a caller may cap the entry search (rays); the best few entries are almost always it.
     const tries = opts.tries ?? Infinity;
     const onStair = this.onClimb(from);
-    for (let k = 0; k < cand.length && k < tries; k++) {
-      const c = cand[k];
+    const entry = (c: { i: number }) => {
       const n = this.nodes[c.i];
       // 19.0: a stair is entered at its foot or its top (level with the walker), never in its middle
       // from beside it (the corridor rays clear the steps' edge; the body walks into its side), unless
       // the walker is on the stair already.
-      if (this.climb.has(c.i) && Math.abs(n.y - from.y) > 0.35 && !onStair) continue;
-      if (!(this.clear(from, n) || (vault && from.distanceTo(n) < 14 && this.clearVault(from, n))) || !this.walkable(from, n)) continue;
+      if (this.climb.has(c.i) && Math.abs(n.y - from.y) > 0.35 && !onStair) return false;
+      return (this.clear(from, n) || (vault && from.distanceTo(n) < 14 && this.clearVault(from, n))) && this.walkable(from, n);
+    };
+    const walk = (i: number) => {
       const out: number[] = [];
-      for (let v = c.i; v >= 0 && out.length < 200; v = next[v]) out.push(v);
+      for (let v = i; v >= 0 && out.length < 200; v = next[v]) out.push(v);
       return out;
+    };
+    for (let k = 0; k < cand.length && k < tries; k++) if (entry(cand[k])) return walk(cand[k].i);
+    // 33.0: the best-ranked entries all failed (walled off from the walker: a ravine floor under its rim,
+    // ranked by the short way on over the wall). The nodes nearest the walker, by plain distance, are
+    // the ones it can actually walk to: the best of the first few that are clear.
+    if (cand.length > tries) {
+      const near = cand.slice().sort((a, b) => a.d - b.d).slice(0, NEAREST_TRIES);
+      let best: { i: number; s: number } | null = null;
+      for (const c of near) if ((!best || c.s < best.s) && entry(c)) best = c;
+      if (best) {
+        this.stats.nearestEntries++;
+        return walk(best.i);
+      }
     }
     return [];
   }

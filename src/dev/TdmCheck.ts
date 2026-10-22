@@ -406,6 +406,10 @@ export async function tdmSim(
   // could); its width (x range over the map's).
   const spr = { bots: 0, grouped: 0, paired: 0, convoy: 0, teamN: 0, laneCover: 0, width: 0, mates: [] as number[], groupedBy: {} as Record<string, number>, convoyBy: {} as Record<string, number> };
   const nLanes = game.level.data.tdm?.laneNames?.length ?? 0;
+  // 33.0, wall-running: a bot whose velocity says it runs (> 1.5 m/s) while it covers less than 40% of
+  // that, for 1.5 s or more: pressing into something. Events, seconds, and where (4 m cells, by state).
+  const press = new Map<number, { x: number; z: number; t: number; open: boolean }>();
+  const wallPress = { events: 0, seconds: 0, spots: new Map<string, { n: number; s: number; y: number; why: Record<string, number> }>() };
   const edgeN = { time: 0, timeIn: 0, fight: 0, fightIn: 0 };
   const wall0 = performance.now();
   while (!tdm.winner && game.elapsed - t0 < maxSeconds) {
@@ -431,6 +435,36 @@ export async function tdmSim(
           continue;
         }
         const sp = Math.hypot(b.vel.x, b.vel.z);
+        {
+          const pr = press.get(b.uid);
+          if (!pr) press.set(b.uid, { x: b.pos.x, z: b.pos.z, t: 0, open: false });
+          else {
+            const moved = Math.hypot(b.pos.x - pr.x, b.pos.z - pr.z) / dt;
+            pr.x = b.pos.x;
+            pr.z = b.pos.z;
+            if (sp > 1.5 && moved < 0.4 * sp) {
+              pr.t += dt;
+              if (pr.t >= 1.5) {
+                wallPress.seconds += dt;
+                if (!pr.open) {
+                  pr.open = true;
+                  wallPress.events++;
+                }
+                const key = `${Math.round(b.pos.x / 4) * 4},${Math.round(b.pos.z / 4) * 4}`;
+                const e = wallPress.spots.get(key) ?? { n: 0, s: 0, y: b.pos.y, why: {} };
+                if (pr.t - dt < 1.5) {
+                  e.n++;
+                  e.why[b.tac.action] = (e.why[b.tac.action] ?? 0) + 1;
+                }
+                e.s += dt;
+                wallPress.spots.set(key, e);
+              }
+            } else {
+              pr.t = 0;
+              pr.open = false;
+            }
+          }
+        }
         smp.n++;
         smp.speed += sp;
         if (sp > 1.5) smp.moving++;
@@ -668,6 +702,13 @@ export async function tdmSim(
       };
       return { from: xb.min.y, to: xb.max.y, bands: BANDS, timePct: pctOf(zTime), fightPct: pctOf(zFight), killPct: pctOf(zKill) };
     })(),
+    // 33.0: wall-running (see `press`): events, seconds, a bot-minute, the worst spots.
+    wallPress: {
+      events: wallPress.events,
+      seconds: +wallPress.seconds.toFixed(1),
+      perBotMin: +(wallPress.events / Math.max(1e-9, (smp.n * dt) / 60)).toFixed(3),
+      spots: [...wallPress.spots.entries()].sort((a, c) => c[1].s - a[1].s).slice(0, 12).map(([k, e]) => ({ at: k, y: +e.y.toFixed(1), events: e.n, seconds: +e.s.toFixed(1), why: e.why })),
+    },
     // 32.0: how bunched the teams are (see `spr`).
     spread: (() => {
       const m = spr.mates.sort((a, c) => a - c);
