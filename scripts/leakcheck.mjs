@@ -37,7 +37,7 @@ for (let lap = 0; lap < laps; lap++) {
     await ev(`(()=>{ const G=__game, M=G.tdm.minimap, B=G.tdm.bots[0]; const mk=(k)=>new ({['${t}_'+k]: class{}})['${t}_'+k](); G.level.__tag=mk('level'); G.scene.userData.__tag=mk('scene'); G.player.__tag=mk('player'); G.col.__tag=mk('collision'); G.nav.__tag=mk('nav'); G.ctx.__tag=mk('enemyCtx'); if(M) M.root.__tag=mk('minimapDom'); if(B) B.__tag=mk('bot'); })()`);
     tags.push(t);
     const next = maps[(i + 1) % maps.length];
-    const r = await ev(page(`__game.tdm.end('alpha'); for(let i=0;i<3000&&__game.state!=='ending';i++) await sl(20); await sl(100); const c=document.querySelector('#tdmscreen [data-map="${next}"]'); if(!c) return 'no card'; c.click(); for(let i=0;i<3000&&__game.setting!=='${next}';i++) await sl(20); ${intoPlay} return __game.setting+' '+__game.state;`));
+    const r = await ev(page(`__game.tdm.end({ winner: 'alpha', why: 'elimination' }); for(let i=0;i<3000&&__game.state!=='ending';i++) await sl(20); await sl(100); const c=document.querySelector('#tdmscreen [data-map="${next}"]'); if(!c) return 'no card'; c.click(); for(let i=0;i<3000&&__game.setting!=='${next}';i++) await sl(20); ${intoPlay} return __game.setting+' '+__game.state;`));
     if (!r.startsWith(next)) { console.error('hop failed:', r); done(2); }
   }
 }

@@ -217,5 +217,8 @@
     }
   },
   "ui": "uicheck 16/16 at four sizes (the sudden-death clock and the zone toast in the overlap list)",
-  "tests": 357
+  "tests": 357,
+  "memory": {
+    "leakcheck": "node scripts/leakcheck.mjs 2 maglev,oldport,docks: 0 alive (after fixing its match end: tdm.end takes an outcome now)"
+  }
 }

@@ -36,7 +36,7 @@ export async function vramCycle(game: Game, opts: { laps?: number; play?: number
   const playMs = opts.play ?? 2500;
   const g = game as unknown as { skipIntro(): void; intro: { t: number } | null; stage: object | null; loading: boolean; menuState: { screen: string } };
   const dev = (window as unknown as { __dev: { start(m: string, s?: SettingId): string; lock(): void; god(on?: boolean): void } }).__dev;
-  const tdm = game.tdm as unknown as { end(w: 'alpha' | 'omega'): void };
+  const tdm = game.tdm as unknown as { end(o: { winner: 'alpha' | 'omega' | 'draw'; why: 'elimination' }): void };
   const stops: Stop[] = [];
   const errors: string[] = [];
   const onErr = (e: ErrorEvent) => errors.push(String(e.message));
@@ -63,7 +63,7 @@ export async function vramCycle(game: Game, opts: { laps?: number; play?: number
   };
   /** The match ends; the result screen's card for `next` (a map) or its MAIN MENU button. */
   const leave = async (next: SettingId | 'menu') => {
-    tdm.end('alpha');
+    tdm.end({ winner: 'alpha', why: 'elimination' });
     // The result screen comes 1.2 s of game time later: a paused game (a lost pointer lock) never gets there.
     for (let k = 0; k < 600 && game.state !== 'ending'; k++) {
       if (game.state === 'paused') dev.lock();

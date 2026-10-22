@@ -50,7 +50,7 @@ export async function mapCycle(game: Game, opts: { maps?: SettingId[]; laps?: nu
   const playMs = opts.play ?? 2500;
   const g = game as unknown as { skipIntro(): void; resume(): void; intro: { t: number } | null };
   const dev = (window as unknown as { __dev: { start(m: string, s?: SettingId): string; lock(): void; god(on?: boolean): void } }).__dev;
-  const tdm = game.tdm as unknown as { end(w: 'alpha' | 'omega'): void; minimap: { root: HTMLElement } | null; bots: unknown[] };
+  const tdm = game.tdm as unknown as { end(o: { winner: 'alpha' | 'omega' | 'draw'; why: 'elimination' }): void; minimap: { root: HTMLElement } | null; bots: unknown[] };
   const snaps: Snap[] = [];
   const refs: { what: string; from: SettingId; ref: WeakRef<object> }[] = [];
   const errors: string[] = [];
@@ -114,7 +114,7 @@ export async function mapCycle(game: Game, opts: { maps?: SettingId[]; laps?: nu
       ];
       for (const [what, o] of keep) if (o) refs.push({ what, from, ref: new WeakRef(o) });
       // The match ends (ALPHA wins): the result screen and its next-map cards.
-      tdm.end('alpha');
+      tdm.end({ winner: 'alpha', why: 'elimination' });
       for (let k = 0; k < 300 && game.state !== 'ending'; k++) await wait(10);
       await frames(3);
       const next = maps[(i + 1) % maps.length];
