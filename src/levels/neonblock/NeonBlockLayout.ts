@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Zone } from '../Level';
+import { mirrorPads } from '../SpawnManager';
 
 /*
   Tokyo: Neon Block (14.0): a Team Deathmatch arena in Tokyo Night's biome, built for 5v5 rather than
@@ -154,3 +155,9 @@ export function groundFogBias(a: { y: number }, b: { y: number }, kind: 'low' | 
   return neither ? 0.6 : both ? 1.35 : 1;
 }
 
+/**
+ * 27.0: the spawn pads (TdmData.pads), ALPHA's half mirrored for OMEGA: [x, floor y, z, yaw]. The first
+ * is in the old yard (a safe rear pad); the rest cover the contested map, proposed by
+ * __dev.spawnPads (farthest-point, then Lloyd relaxation over the nav, sheltered spots first).
+ */
+export const SPAWN_PADS = mirrorPads([[0, 0, 61, 3.14], [-24, 0, 6, 1.57], [32.4, 0, 15.2, 3.14], [-34.5, 0, 44, 3.14], [32.6, 0, 44.2, 2.75], [5.5, 0, 19, 3.93], [-22, 7.2, 27.5, 1.18]]);

@@ -20,6 +20,15 @@ import { ARENA } from './ArenaCtx';
      sight right now is "spotted": on everyone's minimap, fading out over ARENA.spot.fade s after the
      last sighting, with who saw it from where (a bot out of sight uses that to flank).
    - 12.0, flank claims: at most ARENA.flank.per bots go round one spotted hostile, on alternate sides.
+   - 27.0, patrol (a map with spawn pads: no bases, so no front to walk to): a bot with nothing on the
+     board searches the map's high-value areas (the pads and the lanes' waypoints). Each area keeps its
+     activity (deaths, heard gunfire and heard spawns near it, halving every patrol.halfLife s) and
+     when the team last had someone there; a bot claims the best area for it:
+        score = heat · min(heatCap, activity) + stale · min(1, unseen / staleT) + lane · [in its own lane]
+                − dist / distM − claim · claimants + U(0, jitter)
+     so the team spreads over the map, goes where the noise is (capped: one hot spot doesn't take
+     everyone), keeps to the lane the director balanced it into (the map's lane weights still hold),
+     and looks again where nobody has been.
 
   Pure (no scene, no clock): the arena tests drive it.
 */
@@ -83,6 +92,15 @@ export class ArenaDirector {
   private mid = new THREE.Vector2();
   private half = 64;
   private laneProg: number[][] = [];
+  /** 27.0: patrol mode (TdmData.pads): the high-value areas, their activity, last visit and claims. */
+  patrol = false;
+  hvas: THREE.Vector3[] = [];
+  private hvaHeat: number[] = [];
+  private hvaSeen: number[] = [];
+  private hvaClaim = new Map<number, number>();
+  private hvaT = 0;
+  /** 27.0 (DEV): patrol picks, and how many went to an area with activity. */
+  patrolStats = { picks: 0, active: 0, spawnsHeard: 0 };
   /** Event log for checks: [time, what, detail]. Bounded. */
   log: [number, string, string][] = [];
 
@@ -121,8 +139,9 @@ export class ArenaDirector {
     this.heatT = now;
   }
 
-  /** 15.0: something happened at `p` (a death, a shot): its lane gets hotter. */
+  /** 15.0: something happened at `p` (a death, a shot): its lane gets hotter. 27.0: and the areas near it. */
   addHeat(p: { x: number; z: number }, amount: number, now: number) {
+    this.activity(p, amount, now);
     if (!ARENA.lanePressure.on || !this.lanes.length) return;
     this.coolTo(now);
     this.heat[this.nearestLane(p)] += amount;
@@ -242,6 +261,93 @@ export class ArenaDirector {
     return best;
   }
 
+  // ------------------------------------------------------------------ patrol (27.0)
+  /** Patrol mode on, over these areas (deduplicated: none within patrol.minGap m of another). */
+  setPatrol(points: readonly THREE.Vector3[]) {
+    const P = ARENA.patrol;
+    this.patrol = true;
+    this.hvas = [];
+    for (const p of points) if (!this.hvas.some((h) => Math.hypot(h.x - p.x, h.z - p.z) < P.minGap && Math.abs(h.y - p.y) < 2)) this.hvas.push(p.clone());
+    this.hvaHeat = this.hvas.map(() => 0);
+    this.hvaSeen = this.hvas.map(() => -Infinity);
+    this.hvaLane = this.hvas.map((h) => (this.lanes.length ? this.nearestLane(h) : 0));
+    this.hvaClaim.clear();
+    this.patrolStats = { picks: 0, active: 0, spawnsHeard: 0 };
+  }
+
+  private coolAreas(now: number) {
+    const dt = now - this.hvaT;
+    if (dt <= 0) return;
+    const k = Math.pow(0.5, dt / ARENA.patrol.halfLife);
+    for (let i = 0; i < this.hvaHeat.length; i++) this.hvaHeat[i] *= k;
+    this.hvaT = now;
+  }
+
+  /** Activity at `p`: every area within patrol.radius m takes `amount`, less with distance. */
+  activity(p: { x: number; z: number }, amount: number, now: number) {
+    if (!this.patrol) return;
+    this.coolAreas(now);
+    const R = ARENA.patrol.radius;
+    for (let i = 0; i < this.hvas.length; i++) {
+      const d = Math.hypot(this.hvas[i].x - p.x, this.hvas[i].z - p.z);
+      if (d < R) this.hvaHeat[i] += amount * (1 - d / R);
+    }
+  }
+
+  /** A pad came alive at `p` (someone of the other team spawned): heard if a member is within earshot. */
+  heardSpawn(p: THREE.Vector3, now: number, members: readonly ArenaMember[]) {
+    if (!this.patrol || !members.some((m) => m.alive && Math.hypot(m.pos.x - p.x, m.pos.z - p.z) < HEAR)) return false;
+    this.patrolStats.spawnsHeard++;
+    this.activity(p, ARENA.patrol.spawn, now);
+    return true;
+  }
+
+  /** Each area's nearest lane (set with the areas). */
+  private hvaLane: number[] = [];
+
+  /** The area a patrolling bot should search next (claimed until released), or -1. */
+  patrolPick(uid: number, p: THREE.Vector3, now: number, rand: () => number = Math.random) {
+    if (!this.hvas.length) return -1;
+    const P = ARENA.patrol;
+    this.coolAreas(now);
+    const prev = this.hvaClaim.get(uid);
+    this.hvaClaim.delete(uid);
+    const claims = this.hvas.map(() => 0);
+    for (const i of this.hvaClaim.values()) claims[i]++;
+    let best = -1, bs = -Infinity;
+    for (let i = 0; i < this.hvas.length; i++) {
+      const h = this.hvas[i];
+      const d = Math.hypot(h.x - p.x, h.z - p.z);
+      if (i === prev || d < P.minGap) continue;
+      const own = this.lanes.length ? this.hvaLane[i] === this.laneFor(uid, p) : false;
+      const s = this.patrolScore(i, d, claims[i], now, own) + rand() * P.jitter;
+      if (s > bs) {
+        bs = s;
+        best = i;
+      }
+    }
+    if (best < 0) best = prev ?? 0;
+    this.hvaClaim.set(uid, best);
+    this.patrolStats.picks++;
+    if (this.hvaHeat[best] > 0.1) this.patrolStats.active++;
+    return best;
+  }
+
+  /** An area's patrol score for a bot `d` m away (see the header), without the jitter. */
+  patrolScore(i: number, d: number, claimants: number, now: number, ownLane = false) {
+    const P = ARENA.patrol;
+    return P.heat * Math.min(P.heatCap, this.hvaHeat[i]) + P.stale * Math.min(1, (now - this.hvaSeen[i]) / P.staleT) + (ownLane ? P.lane : 0) - d / P.distM - P.claim * claimants;
+  }
+
+  patrolRelease(uid: number) {
+    this.hvaClaim.delete(uid);
+  }
+
+  /** The team had someone at area `i` now. */
+  visited(i: number, now: number) {
+    if (i >= 0 && i < this.hvaSeen.length) this.hvaSeen[i] = now;
+  }
+
   // ------------------------------------------------------------------ deaths
   hostileDied(v: Combatant, now: number) {
     this.addHeat(v.pos, ARENA.lanePressure.death, now);
@@ -254,6 +360,7 @@ export class ArenaDirector {
   friendDied(v: Combatant, now: number) {
     this.addHeat(v.pos, ARENA.lanePressure.death, now);
     this.laneOf.delete(v.uid);
+    this.hvaClaim.delete(v.uid);
     this.releasePush(v.uid);
     this.releaseFlank(v.uid);
     this.trades.push([now, -1]);
@@ -338,6 +445,10 @@ export class ArenaDirector {
     while (this.trades.length && now - this.trades[0][0] > D.tradeWindow) this.trades.shift();
     const alive = members.filter((m) => m.alive);
     const bots = alive.filter((m) => !m.isPlayer);
+    // 27.0: an area anyone of the team stands near has been looked at.
+    if (this.patrol)
+      for (const m of alive)
+        for (let i = 0; i < this.hvas.length; i++) if (Math.hypot(this.hvas[i].x - m.pos.x, this.hvas[i].z - m.pos.z) < ARENA.patrol.near && Math.abs(this.hvas[i].y - m.pos.y) < 2) this.hvaSeen[i] = now;
     // Fronts.
     const prog = bots.map((m) => this.progress(m.pos)).sort((a, b) => a - b);
     this.ownFront = prog.length ? prog[Math.floor(prog.length / 2)] : -0.8;

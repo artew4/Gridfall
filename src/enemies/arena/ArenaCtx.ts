@@ -182,6 +182,17 @@ export const ARENA = {
    */
   lanePressure: { on: true, halfLife: 10, death: 1, shot: 0.04, weight: 1.2, hot: 1.5, moveCd: 6 },
   /**
+   * 27.0, patrol (maps with spawn pads; ArenaDirector): areas take activity from deaths (1), heard
+   * rounds (0.04 each) and heard spawns (`spawn`) within `radius` m, halving every `halfLife` s; an area
+   * counts as looked at while a member is within `near` m. A pick: `heat` × min(`heatCap`, activity) +
+   * `stale` × min(1, unseen / `staleT`) + `lane` if in the bot's own lane (the director's balance, by
+   * the map's lane weights) − distance / `distM` − `claim` × bots already on it + U(0, `jitter`); areas
+   * within `minGap` m of the bot (or of each other, at setup) are skipped. At an area it looks round
+   * for `dwell` s, then picks again. The team's radar reaches `radar` m on these maps: a contact
+   * further off (out of sight, not shooting at the bot) is not hunted.
+   */
+  patrol: { radar: 40, halfLife: 20, radius: 22, spawn: 0.6, near: 5, heat: 0.6, heatCap: 1.5, lane: 0.8, stale: 1.4, staleT: 40, distM: 110, claim: 0.7, jitter: 0.25, minGap: 9, dwell: [0.5, 1.4] as [number, number] },
+  /**
    * 14.0, high ground: a flank's spot may be a floor up to `up` m above the contact (a landing, a
    * roof's edge), each metre of height worth `perM` m of distance, within `reach` m of the flank point.
    * Off (A/B): flank spots on the contact's own level, as 12.0.
@@ -272,6 +283,8 @@ export interface ArenaStats {
   /** 12.0: flanks started, that reached their point, that ended in an engage from it, kills on the flank. */
   flanks: number;
   flankArrive: number;
+  /** 27.0: patrols that reached their area. */
+  patrolArrive: number;
   flankEngage: number;
   flankKills: number;
   /** 12.0: retreats (by why), those still alive `maxT` s on, deaths during one. */
@@ -320,7 +333,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

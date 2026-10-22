@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Terrain } from '../../world/Collision';
 import type { Zone } from '../Level';
 import type { ArenaProfile } from '../../enemies/arena/ArenaCtx';
+import { mirrorPads } from '../SpawnManager';
 
 /*
   Maglev Terminal (18.0): a corporate sci-fi Team Deathmatch arena, a white glass-roofed transit hall
@@ -284,3 +285,9 @@ export const PLATFORM_BLOCKERS: { name: string; x: [number, number]; z: [number,
   { name: 'signal cabinet', x: [11, 12.9], z: [39.6, 41], h: 2.0 },
 ];
 
+/**
+ * 27.0: the spawn pads (TdmData.pads), ALPHA's half mirrored for OMEGA: [x, floor y, z, yaw]. The first
+ * is in the old yard (a safe rear pad); the rest cover the contested map, proposed by
+ * __dev.spawnPads (farthest-point, then Lloyd relaxation over the nav, sheltered spots first).
+ */
+export const SPAWN_PADS = mirrorPads([[0, 0, 55.8, 3.14], [22.4, 0, 17, 3.53], [-22.4, 0, 17, 2.75], [28, 0, 38, 3.14], [-24, 0, 38, 1.57], [-4, 0, 30, 3.53], [-4, 0, 6, 4.32]]);

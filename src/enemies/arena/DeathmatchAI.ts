@@ -50,7 +50,7 @@ import { ARMORY, type BotArm } from '../../entities/weapons/armory';
      ground with a contact close.
 */
 
-export type ArenaState = 'emerge' | 'advance' | 'hunt' | 'engage' | 'push' | 'break' | 'flank' | 'retreat';
+export type ArenaState = 'emerge' | 'advance' | 'patrol' | 'hunt' | 'engage' | 'push' | 'break' | 'flank' | 'retreat';
 
 /** 12.0: a bot's temperament (ARENA.persona). */
 export interface Persona {
@@ -295,6 +295,12 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     return s;
   }
 
+  /** 27.0, patrol: the area it is going to (-1: none), when its look round ends, the look point. */
+  private hva = -1;
+  private dwellUntil = -Infinity;
+  private scanA = 0;
+  private scan: THREE.Vector3 | null = null;
+
   private setState(s: ArenaState, ctx: EnemyCtx, A: ArenaCtx) {
     if (s === this.state) return;
     if (this.state === 'push') A.director.releasePush(this.self.uid);
@@ -309,6 +315,10 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       if (this.self.alive) A.stats.retreatLived++;
     }
     if (this.state === 'break' && s !== 'break') this.evading = false;
+    if (this.state === 'patrol') {
+      A.director.patrolRelease(this.self.uid);
+      this.hva = -1;
+    }
     this.state = s;
     this.stateT = 0;
     this.goal = null;
@@ -367,6 +377,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       if (!vis && age > ARENA.contactTtl) continue;
       const p = vis ? h.pos : c!.pos;
       const d = Math.max(3, Math.hypot(p.x - me.pos.x, p.z - me.pos.z));
+      // 27.0, patrol maps: the radar reaches patrol.radar m; a fight further off is left to those near
+      // it (unless it is shooting at this bot), so a team doesn't all converge on one fight.
+      if (!vis && dir.patrol && d > ARENA.patrol.radar && now - (this.alert.get(h.uid) ?? -Infinity) >= 1.5) continue;
       let s = 12 / d;
       if (vis) {
         s += 1.5;
@@ -445,7 +458,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       // 12.0: out of its sight but in a teammate's (the shared spotting): go round.
       const flanking = !pushing && !tv && !!contact && this.wantsFlank(ctx, A, T, contact, now);
       next = pushing ? 'push' : tv ? 'engage' : flanking ? 'flank' : 'hunt';
-    } else next = 'advance';
+    } else next = A.director.patrol ? 'patrol' : 'advance';
     this.setState(next, ctx, A);
     if (retreatWhy) {
       A.stats.retreats++;
@@ -469,6 +482,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       if (!this.laneTo) this.goal.y = contact.pos.y;
     } else if (next === 'hunt' && T && !contact) this.goal = T.pos.clone();
     else if (next === 'advance') this.planLane(ctx, A);
+    else if (next === 'patrol') this.planPatrol(ctx, A);
 
     // A runner closing in leaps the last metres now and then.
     if (!gunner && tv && dT > 4 && dT < 9 && Math.random() < 0.08) this.tryJump(ctx, false);
@@ -654,7 +668,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     else if ((next === 'break' || next === 'retreat') && this.goal) {
       const d = Math.hypot(this.goal.x - me.pos.x, this.goal.z - me.pos.z);
       if (d >= S.dive[0] && d <= S.dive[1] && toward(this.goal, d) && Math.random() < 0.8 * k) why = 'dive';
-    } else if ((next === 'hunt' || next === 'flank' || next === 'advance') && Math.random() < 0.06 * k) {
+    } else if ((next === 'hunt' || next === 'flank' || next === 'advance' || next === 'patrol') && Math.random() < 0.06 * k) {
       for (const c of A.director.contacts.values()) {
         if (now - c.seenT < 1 && Math.hypot(c.pos.x - me.pos.x, c.pos.z - me.pos.z) < S.exposed) {
           why = 'exposed';
@@ -701,6 +715,47 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     this.laneTo = true;
     const off = w.y > 0.5 ? 0.4 : 1.2;
     return new THREE.Vector3(w.x + Math.cos(this.seed) * off, w.y, w.z + Math.sin(this.seed) * off);
+  }
+
+  /**
+   * 27.0, patrol/search (no bases: TdmData.pads): the team's radar first (the freshest contact, straight
+   * at it); else the area the director gave it (ArenaDirector.patrolPick), looked round for a moment on
+   * arrival, then the next.
+   */
+  private planPatrol(ctx: EnemyCtx, A: ArenaCtx) {
+    const me = this.self;
+    const now = ctx.time;
+    const c = A.director.freshest(me.pos, now);
+    if (c && Math.hypot(c.pos.x - me.pos.x, c.pos.z - me.pos.z) <= ARENA.patrol.radar) {
+      this.goal = c.pos.clone();
+      return;
+    }
+    if (now < this.dwellUntil) {
+      this.goal = null;
+      // Looking round: the look point swings either way at each decide (faced smoothly in the move).
+      this.scanA += (this.seed > Math.PI ? 1 : -1) * 0.8;
+      (this.scan ??= new THREE.Vector3()).set(me.pos.x + Math.sin(this.scanA) * 10, me.pos.y + 1.5, me.pos.z + Math.cos(this.scanA) * 10);
+      return;
+    }
+    this.scan = null;
+    let h = this.hva >= 0 ? A.director.hvas[this.hva] : null;
+    // Arrived: as near as the director counts an area looked at (the move stops 2 m short of its goal).
+    if (h && Math.hypot(h.x - me.pos.x, h.z - me.pos.z) < ARENA.patrol.near && Math.abs(h.y - me.pos.y) < 1.5) {
+      A.director.visited(this.hva, now);
+      A.stats.patrolArrive++;
+      const [d0, d1] = ARENA.patrol.dwell;
+      this.dwellUntil = now + d0 + Math.random() * (d1 - d0);
+      this.scanA = me.yaw;
+      this.hva = -1;
+      this.goal = null;
+      return;
+    }
+    if (!h) {
+      this.hva = A.director.patrolPick(me.uid, me.pos, now);
+      h = this.hva >= 0 ? A.director.hvas[this.hva] : null;
+      if (!h) return;
+    }
+    this.goal = new THREE.Vector3(h.x + Math.cos(this.seed) * 0.8, h.y, h.z + Math.sin(this.seed) * 0.8);
   }
 
   /** No contact: walk the lane towards the director's front, then patrol a step either side of it. */
@@ -912,7 +967,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
         // No spot: sidestep out of its line, away from it.
         this.strafe(dt, ctx, T, sprint, desired, -1);
       }
-    } else if ((this.state === 'hunt' || this.state === 'advance' || this.state === 'flank' || this.state === 'retreat') && this.goal) {
+    } else if ((this.state === 'hunt' || this.state === 'advance' || this.state === 'patrol' || this.state === 'flank' || this.state === 'retreat') && this.goal) {
       const d = me.steer(this.goal, sprint, ctx, dt, desired);
       const at = this.state === 'flank' ? ARENA.flank.arrive : 2;
       if (d < at && Math.abs(this.goal.y - me.pos.y) < 1.5) {
@@ -931,12 +986,13 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       _aim.set(T.pos.x, T.pos.y + T.chestY, T.pos.z).addScaledVector(T.vel, flight);
       this.aimPoint.copy(_aim);
       me.face(_aim, dt, ARENA.yawRate);
-    } else if (T && this.state !== 'advance' && !fleeing) {
+    } else if (T && this.state !== 'advance' && this.state !== 'patrol' && !fleeing) {
       const c = A.director.contacts.get(T.uid);
       const p = c?.pos ?? T.pos;
       if (Math.hypot(p.x - me.pos.x, p.z - me.pos.z) < 25) me.face(_v.set(p.x, p.y + 1.3, p.z), dt, 12);
       else if (Math.hypot(me.vel.x, me.vel.z) > 0.3) me.face(_v.copy(me.pos).add(me.vel), dt, 10);
     } else if (Math.hypot(me.vel.x, me.vel.z) > 0.3) me.face(_v.copy(me.pos).add(me.vel), dt, 10);
+    else if (this.scan && this.state === 'patrol') me.face(this.scan, dt, 5);
 
     // ---- Fire (gunner) and reload.
     if (gunner) this.gun(dt, ctx, A, tv && !fleeing ? T : null, strafing);
@@ -1073,7 +1129,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // Engaging, or a hunt or advance that just caught sight of it (the state follows at the next
     // decide, a frame or few later); never in a push, a break, the air, a reload or a swing.
     const st = this.state;
-    const can = gunner && T !== null && (st === 'engage' || st === 'hunt' || st === 'advance' || st === 'flank') && !this.reloading && !me.airborne && !me.sliding && !this.swing;
+    const can = gunner && T !== null && (st === 'engage' || st === 'hunt' || st === 'advance' || st === 'patrol' || st === 'flank') && !this.reloading && !me.airborne && !me.sliding && !this.swing;
     if (can && tv) {
       this.lostT = 0;
       const d = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);

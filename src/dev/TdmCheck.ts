@@ -103,7 +103,7 @@ export async function tdmSoak(game: Game, opts: { seconds?: number; timeScale?: 
   // Stuck watch: a live bot that moved < 1.5 m over 15 s of sim time while meant to be moving.
   const track = new Map<TacticalEnemy, { x: number; z: number; t: number }>();
   const stuck: string[] = [];
-  const moving = new Set(['idle', 'hunt', 'search', 'takeCover', 'advance', 'stage', 'rush']);
+  const moving = new Set(['idle', 'hunt', 'search', 'takeCover', 'advance', 'patrol', 'stage', 'rush']);
   const held = new Map<number, number>();
   let firstContact: number | null = null;
   const barks: Record<string, number> = {};
@@ -251,7 +251,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'dynamic' | 'bases'; cell?: number } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -293,6 +293,9 @@ export async function tdmSim(
     ARENA.slide.on = false;
   }
   // 19.0: `size` (players a team; the match is bot-vs-bot, so all bots), `profile: false` (the map's AI tuning off).
+  // 27.0 A/B: the pads (scored respawns, patrols) or the yards and the front.
+  const spawns0 = TDM.spawns;
+  if (opts.spawns) TDM.spawns = opts.spawns;
   startMatch(game, true, opts.tickets ?? 25, ai, opts.size, opts.profile ?? true);
   // 25.0 A/B: `fog: false` plays Neon Block without its ground fog's sight cap and route bias.
   if (opts.fog === false) {
@@ -358,6 +361,8 @@ export async function tdmSim(
   const zoneOf = (x: number, y: number, z: number) => game.level.data.zoneAt(x, y, z)?.name ?? '-';
   const track = new Map<TacticalEnemy, { x: number; z: number; t: number }>();
   const stuck: string[] = [];
+  // 27.0, map use: an occupancy grid of `cell` m over the map's walkable cells (those with a nav node).
+  const flow = flowGrid(game, opts.cell ?? 8);
   const wall0 = performance.now();
   while (!tdm.winner && game.elapsed - t0 < maxSeconds) {
     for (let i = 0; i < (opts.chunk ?? 240) && !tdm.winner; i++) {
@@ -407,6 +412,7 @@ export async function tdmSim(
         if (steps % 15 === 0) {
           const zn = zoneOf(b.pos.x, b.pos.y, b.pos.z);
           zoneT[zn] = (zoneT[zn] ?? 0) + 1;
+          flow.add(b.pos.x, b.pos.z, 'occ');
           const ln = tdmData?.laneOf?.(b.pos.x, b.pos.y, b.pos.z);
           if (ln !== undefined && ln !== null) laneT[ln]++;
           if (lastZone.get(b.uid) !== zn) {
@@ -430,6 +436,7 @@ export async function tdmSim(
   game.projectiles.onFire = onFire0;
   targets.hit = hit0;
   TDM.force.noForward = false;
+  TDM.spawns = spawns0;
   game.timeScale = 1;
   TDM.roster = roster0;
   ARENA.laneLeave = lane0;
@@ -458,6 +465,48 @@ export async function tdmSim(
     // 19.0: the self-play density metrics.
     teamSize: tdm.slots.filter((x) => x.team === 'omega').length,
     forwardSpawns: { ...tdm.forwardStats },
+    // 27.0: the respawns and how they went (anti-spawn-trap), and how evenly the map was used.
+    spawnSafety: (() => {
+      const log = tdm.spawnLog;
+      const lives = log.filter((x) => born.has(x.uid));
+      const ttd: number[] = [], hitIn: number[] = [];
+      let dead = 0, in3 = 0, in5 = 0, shotIn3 = 0;
+      for (const x of lives) {
+        const b = born.get(x.uid)!;
+        const d = diedAt.get(x.uid);
+        if (d !== undefined) {
+          dead++;
+          ttd.push(d - b);
+          if (d - b < 3) in3++;
+          if (d - b < 5) in5++;
+        }
+        const h = firstHit.get(x.uid);
+        if (h !== undefined) {
+          hitIn.push(h - b);
+          if (h - b < 3) shotIn3++;
+        }
+      }
+      const n = Math.max(1, lives.length);
+      return {
+        mode: tdm.spawner ? 'dynamic' : 'bases',
+        respawns: lives.length,
+        diedWithin3sPct: +((100 * in3) / n).toFixed(1),
+        diedWithin5sPct: +((100 * in5) / n).toFixed(1),
+        shotWithin3sPct: +((100 * shotIn3) / n).toFixed(1),
+        timeToDeath: { median: q(ttd, 0.5), p10: q(ttd, 0.1), p25: q(ttd, 0.25), deaths: dead },
+        timeToFirstHit: { median: q(hitIn, 0.5), p10: q(hitIn, 0.1) },
+        nearestHostileAtSpawn: { median: q(log.map((x) => x.nearest).filter((x) => x < Infinity), 0.5), p10: q(log.map((x) => x.nearest).filter((x) => x < Infinity), 0.1) },
+        fallbacks: log.filter((x) => x.fallback).length,
+        rays: { mean: +(log.reduce((a, x) => a + x.rays, 0) / Math.max(1, log.length)).toFixed(1), max: Math.max(0, ...log.map((x) => x.rays)) },
+        msPerPick: { mean: +(log.reduce((a, x) => a + x.ms, 0) / Math.max(1, log.length)).toFixed(3), max: +Math.max(0, ...log.map((x) => x.ms)).toFixed(3) },
+        padUse: log.reduce<Record<number, number>>((a, x) => ((a[x.pad] = (a[x.pad] ?? 0) + 1), a), {}),
+      };
+    })(),
+    flow: (() => {
+      for (const x of k) if (x.victimPos) flow.add(x.victimPos[0], x.victimPos[2], 'kill');
+      return flow.report();
+    })(),
+    patrol: tdm.directors ? { picks: tdm.directors.alpha.patrolStats.picks + tdm.directors.omega.patrolStats.picks, toActive: tdm.directors.alpha.patrolStats.active + tdm.directors.omega.patrolStats.active, spawnsHeard: tdm.directors.alpha.patrolStats.spawnsHeard + tdm.directors.omega.patrolStats.spawnsHeard, arrivals: st.patrolArrive } : null,
     firstEngagement: {
       lives: firstShot.length + silentDeaths,
       median: +q(firstShot, 0.5).toFixed(1),
@@ -710,4 +759,55 @@ export async function friendlyFire(game: Game) {
   dev().god(true);
   const ok = Object.values(out).every((v) => typeof v !== 'object' || Object.entries(v as Record<string, unknown>).every(([k, x]) => (k === 'passed' ? (x as number) >= 1 : k === 'clearLine' || k === 'fromTeammateKilled' ? x === false : x === true || typeof x === 'number')));
   return { ok: ok && tdm.friendlyDamage === 0, ...out };
+}
+
+/**
+ * 27.0, how evenly a match used the map: an occupancy grid of `cell` m (bot samples, kills) over the
+ * cells a nav node is in (where anyone can be). Reported: coverage (the share of those cells with any
+ * time, with 1% of a fair share or more, with a kill), the normalized entropy of the time (1: every
+ * cell alike, 0: one cell), the Gini of the kills over the cells (0: even, 1: one cell), and the share
+ * of all kills in the busiest tenth of the cells.
+ */
+export function flowGrid(game: Game, cell: number) {
+  const b = game.level.data.bounds;
+  const nx = Math.ceil((b.max.x - b.min.x) / cell), nz = Math.ceil((b.max.y - b.min.y) / cell);
+  const idx = (x: number, z: number) => {
+    const i = Math.floor((x - b.min.x) / cell), j = Math.floor((z - b.min.y) / cell);
+    return i < 0 || j < 0 || i >= nx || j >= nz ? -1 : j * nx + i;
+  };
+  const walk = new Set<number>();
+  for (const p of game.nav.nodes) {
+    const i = idx(p.x, p.z);
+    if (i >= 0) walk.add(i);
+  }
+  const occ = new Float64Array(nx * nz), kill = new Float64Array(nx * nz);
+  return {
+    add(x: number, z: number, what: 'occ' | 'kill') {
+      const i = idx(x, z);
+      if (i >= 0) (what === 'occ' ? occ : kill)[i]++;
+    },
+    report() {
+      const cells = [...walk];
+      const n = cells.length;
+      const o = cells.map((i) => occ[i]), kv = cells.map((i) => kill[i]);
+      const ot = o.reduce((a, x) => a + x, 0) || 1, kt = kv.reduce((a, x) => a + x, 0) || 1;
+      let H = 0;
+      for (const x of o) if (x > 0) H -= (x / ot) * Math.log(x / ot);
+      const sorted = kv.slice().sort((a, c) => a - c);
+      let g = 0;
+      sorted.forEach((x, i) => (g += (2 * (i + 1) - n - 1) * x));
+      const gini = g / (n * kt);
+      const top = sorted.slice(n - Math.max(1, Math.round(n / 10))).reduce((a, x) => a + x, 0);
+      return {
+        cell,
+        walkableCells: n,
+        coveragePct: +((100 * o.filter((x) => x > 0).length) / n).toFixed(1),
+        fairSharePct: +((100 * o.filter((x) => x >= (0.01 * ot) / n).length) / n).toFixed(1),
+        killCellsPct: +((100 * kv.filter((x) => x > 0).length) / n).toFixed(1),
+        timeEntropy: +(H / Math.log(n)).toFixed(3),
+        killGini: +gini.toFixed(3),
+        killsInTop10PctCells: +((100 * top) / kt).toFixed(1),
+      };
+    },
+  };
 }

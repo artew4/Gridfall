@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Terrain } from '../../world/Collision';
 import type { Zone } from '../Level';
 import type { ArenaProfile } from '../../enemies/arena/ArenaCtx';
+import { mirrorPads } from '../SpawnManager';
 
 /*
   Old Port (17.1): a daytime Team Deathmatch arena, an old brick-and-concrete harbour on a clear
@@ -291,3 +292,10 @@ export const LANE_WEIGHTS: [number, number, number] = [1.15, 0.8, 1.4];
 /** 23.0: the flanks' bots keep to their lanes when the radar has a contact (else they cut into the yard). */
 export const LANE_STRICT: [boolean, boolean, boolean] = [true, false, true];
 
+/**
+ * 27.0: the spawn pads (TdmData.pads), ALPHA's half mirrored for OMEGA: [x, floor y, z, yaw]. The first
+ * is in the old yard (a safe rear pad); the rest cover the contested map, proposed by
+ * __dev.spawnPads (farthest-point, then Lloyd relaxation over the nav, sheltered spots first). Moved by
+ * hand: the fifth, from the container yard (two pads in one lane) to the warehouse's ground floor.
+ */
+export const SPAWN_PADS = mirrorPads([[0, 0, 57.4, 3.14], [-35, 4.4, 16, 1.96], [24.3, 0.56, 7, 0.39], [-32, 0, 40, 1.96], [32, 0, 44, 4.71], [-38, 0, 24, 1.57], [16, 0, 28, 0.79]]);

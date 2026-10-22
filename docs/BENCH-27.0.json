@@ -1,0 +1,417 @@
+{
+  "version": "27.0 (dynamic spawns: scored pads instead of base yards; patrol instead of a front)",
+  "branch": "feature/dynamic-spawns-27.0 from main @ 4916435",
+  "machine": "Apple M5, Chrome, Balanced",
+  "selfPlay": {
+    "method": "__dev.tdmSim({ spawns: 'dynamic' | 'bases', tickets: 50 }), the map's team size (7v7; Neon Block 5v5), bot-only; Maglev and Old Port 4 matches per mode, Neon Block and Deep Jungle 2. 'bases' = the yards and 19.0 forward points (the 26.0 game). Time to death: from a respawn to that life's death; shot within 3 s: a hostile round landed (spawn protection, 2 s, absorbs the damage); flow: an 8 m grid over the walkable cells (a nav node in them)",
+    "maps": {
+      "crashsite": {
+        "bases": {
+          "matches": 2,
+          "respawns": 184,
+          "diedWithin3s": 0,
+          "diedWithin5s": 4,
+          "shotWithin3sPct": 7.1,
+          "timeToDeathMedian": 17.095,
+          "timeToDeathP10": 6.97,
+          "nearestHostileAtSpawnMedian": 43.5,
+          "nearestHostileAtSpawnP10": 26.4,
+          "fallbacks": 0,
+          "raysPerPickMean": 0,
+          "raysPerPickMax": 0,
+          "msPerPickMean": 0,
+          "msPerPickMax": 0,
+          "coveragePct": 71.2,
+          "timeEntropy": 0.846,
+          "killGini": 0.885,
+          "killsInTop10PctCells": 79.4,
+          "killCellsPct": 19.15,
+          "killsPerMin": 29.75,
+          "matchSeconds": 189.65,
+          "quietPct": 13.95,
+          "firstEngagementMedian": 9.1,
+          "stuck": 0,
+          "lanes": {
+            "ridge": 12.0,
+            "temple": 66.3,
+            "ravine": 21.6
+          },
+          "patrol": {
+            "picks": 0,
+            "toActive": 0,
+            "spawnsHeard": 0,
+            "arrivals": 0
+          }
+        },
+        "dynamic": {
+          "matches": 2,
+          "respawns": 189,
+          "diedWithin3s": 0,
+          "diedWithin5s": 2,
+          "shotWithin3sPct": 1.6,
+          "timeToDeathMedian": 19.56,
+          "timeToDeathP10": 8.58,
+          "nearestHostileAtSpawnMedian": 42.85,
+          "nearestHostileAtSpawnP10": 31.55,
+          "fallbacks": 0,
+          "raysPerPickMean": 5.3,
+          "raysPerPickMax": 19,
+          "msPerPickMean": 0.039,
+          "msPerPickMax": 0.3,
+          "coveragePct": 74.6,
+          "timeEntropy": 0.858,
+          "killGini": 0.831,
+          "killsInTop10PctCells": 64.6,
+          "killCellsPct": 24.9,
+          "killsPerMin": 25.9,
+          "matchSeconds": 225.7,
+          "quietPct": 17.7,
+          "firstEngagementMedian": 8.8,
+          "stuck": 1,
+          "lanes": {
+            "ridge": 27.6,
+            "temple": 41.0,
+            "ravine": 31.4
+          },
+          "patrol": {
+            "picks": 595,
+            "toActive": 515,
+            "spawnsHeard": 105,
+            "arrivals": 105
+          }
+        }
+      },
+      "maglev": {
+        "bases": {
+          "matches": 4,
+          "respawns": 369,
+          "diedWithin3s": 0,
+          "diedWithin5s": 2,
+          "shotWithin3sPct": 1.625,
+          "timeToDeathMedian": 16.968,
+          "timeToDeathP10": 10.072,
+          "nearestHostileAtSpawnMedian": 39.375,
+          "nearestHostileAtSpawnP10": 24.775,
+          "fallbacks": 0,
+          "raysPerPickMean": 0,
+          "raysPerPickMax": 0,
+          "msPerPickMean": 0,
+          "msPerPickMax": 0,
+          "coveragePct": 89.75,
+          "timeEntropy": 0.843,
+          "killGini": 0.871,
+          "killsInTop10PctCells": 76.625,
+          "killCellsPct": 24.125,
+          "killsPerMin": 32.375,
+          "matchSeconds": 177.05,
+          "quietPct": 14.225,
+          "firstEngagementMedian": 9.8,
+          "stuck": 0,
+          "lanes": {
+            "west": 20.0,
+            "train": 37.4,
+            "east": 42.6
+          },
+          "patrol": {
+            "picks": 0,
+            "toActive": 0,
+            "spawnsHeard": 0,
+            "arrivals": 0
+          }
+        },
+        "dynamic": {
+          "matches": 4,
+          "respawns": 374,
+          "diedWithin3s": 0,
+          "diedWithin5s": 2,
+          "shotWithin3sPct": 3.8,
+          "timeToDeathMedian": 19.797,
+          "timeToDeathP10": 9.322,
+          "nearestHostileAtSpawnMedian": 37.65,
+          "nearestHostileAtSpawnP10": 28.7,
+          "fallbacks": 1,
+          "raysPerPickMean": 6.225,
+          "raysPerPickMax": 30,
+          "msPerPickMean": 0.028,
+          "msPerPickMax": 0.3,
+          "coveragePct": 93.35,
+          "timeEntropy": 0.929,
+          "killGini": 0.704,
+          "killsInTop10PctCells": 44.925,
+          "killCellsPct": 43.05,
+          "killsPerMin": 29.2,
+          "matchSeconds": 196.325,
+          "quietPct": 10.45,
+          "firstEngagementMedian": 8.625,
+          "stuck": 0,
+          "lanes": {
+            "west": 32.3,
+            "train": 18.6,
+            "east": 49.2
+          },
+          "patrol": {
+            "picks": 937,
+            "toActive": 816,
+            "spawnsHeard": 253,
+            "arrivals": 57
+          }
+        }
+      },
+      "neonblock": {
+        "bases": {
+          "matches": 2,
+          "respawns": 189,
+          "diedWithin3s": 0,
+          "diedWithin5s": 0,
+          "shotWithin3sPct": 0,
+          "timeToDeathMedian": 27.2,
+          "timeToDeathP10": 14.41,
+          "nearestHostileAtSpawnMedian": 70.55,
+          "nearestHostileAtSpawnP10": 47.1,
+          "fallbacks": 0,
+          "raysPerPickMean": 0,
+          "raysPerPickMax": 0,
+          "msPerPickMean": 0,
+          "msPerPickMax": 0,
+          "coveragePct": 91.95,
+          "timeEntropy": 0.911,
+          "killGini": 0.849,
+          "killsInTop10PctCells": 71.3,
+          "killCellsPct": 26.85,
+          "killsPerMin": 16.4,
+          "matchSeconds": 353.4,
+          "quietPct": 30.35,
+          "firstEngagementMedian": 14.05,
+          "stuck": 0,
+          "lanes": {
+            "west": 27.7,
+            "centre": 50.9,
+            "east": 21.4
+          },
+          "patrol": {
+            "picks": 0,
+            "toActive": 0,
+            "spawnsHeard": 0,
+            "arrivals": 0
+          }
+        },
+        "dynamic": {
+          "matches": 2,
+          "respawns": 187,
+          "diedWithin3s": 0,
+          "diedWithin5s": 0,
+          "shotWithin3sPct": 0.55,
+          "timeToDeathMedian": 23.46,
+          "timeToDeathP10": 10.365,
+          "nearestHostileAtSpawnMedian": 41.2,
+          "nearestHostileAtSpawnP10": 31.7,
+          "fallbacks": 0,
+          "raysPerPickMean": 3.95,
+          "raysPerPickMax": 11,
+          "msPerPickMean": 0.029,
+          "msPerPickMax": 0.3,
+          "coveragePct": 86.9,
+          "timeEntropy": 0.896,
+          "killGini": 0.807,
+          "killsInTop10PctCells": 62.2,
+          "killCellsPct": 30.2,
+          "killsPerMin": 17.55,
+          "matchSeconds": 323.25,
+          "quietPct": 20.6,
+          "firstEngagementMedian": 10.5,
+          "stuck": 0,
+          "lanes": {
+            "west": 31.3,
+            "centre": 38.0,
+            "east": 30.7
+          },
+          "patrol": {
+            "picks": 569,
+            "toActive": 490,
+            "spawnsHeard": 112,
+            "arrivals": 77
+          }
+        }
+      },
+      "oldport": {
+        "bases": {
+          "matches": 4,
+          "respawns": 374,
+          "diedWithin3s": 0,
+          "diedWithin5s": 3,
+          "shotWithin3sPct": 2.475,
+          "timeToDeathMedian": 19.503,
+          "timeToDeathP10": 9.92,
+          "nearestHostileAtSpawnMedian": 41.9,
+          "nearestHostileAtSpawnP10": 30.775,
+          "fallbacks": 0,
+          "raysPerPickMean": 0,
+          "raysPerPickMax": 0,
+          "msPerPickMean": 0,
+          "msPerPickMax": 0,
+          "coveragePct": 76.0,
+          "timeEntropy": 0.878,
+          "killGini": 0.848,
+          "killsInTop10PctCells": 71.6,
+          "killCellsPct": 24.3,
+          "killsPerMin": 29.15,
+          "matchSeconds": 197.375,
+          "quietPct": 10.9,
+          "firstEngagementMedian": 9.725,
+          "stuck": 0,
+          "lanes": {
+            "warehouse": 23.8,
+            "yard": 44.5,
+            "dock": 31.8
+          },
+          "patrol": {
+            "picks": 0,
+            "toActive": 0,
+            "spawnsHeard": 0,
+            "arrivals": 0
+          }
+        },
+        "dynamic": {
+          "matches": 4,
+          "respawns": 361,
+          "diedWithin3s": 0,
+          "diedWithin5s": 2,
+          "shotWithin3sPct": 1.375,
+          "timeToDeathMedian": 18.943,
+          "timeToDeathP10": 9.33,
+          "nearestHostileAtSpawnMedian": 41.45,
+          "nearestHostileAtSpawnP10": 32.4,
+          "fallbacks": 0,
+          "raysPerPickMean": 4.825,
+          "raysPerPickMax": 18,
+          "msPerPickMean": 0.036,
+          "msPerPickMax": 0.3,
+          "coveragePct": 75.85,
+          "timeEntropy": 0.886,
+          "killGini": 0.814,
+          "killsInTop10PctCells": 60.325,
+          "killCellsPct": 26.0,
+          "killsPerMin": 28.3,
+          "matchSeconds": 199.55,
+          "quietPct": 10.95,
+          "firstEngagementMedian": 9.475,
+          "stuck": 0,
+          "lanes": {
+            "warehouse": 31.1,
+            "yard": 34.4,
+            "dock": 34.5
+          },
+          "patrol": {
+            "picks": 966,
+            "toActive": 840,
+            "spawnsHeard": 208,
+            "arrivals": 90
+          }
+        }
+      }
+    }
+  },
+  "tuning": {
+    "note": "variants measured before the final weights (3 matches each, 50 tickets)",
+    "unboundedRadar": "patrol picks 0-26 a match: every bot always had a board contact; Maglev kill Gini 0.86 (bases 0.87)",
+    "noLaneTerms": "Old Port container yard 70% of the kills (bases 61%), kill Gini 0.868",
+    "activityFirst (heat 0.9, stale 1)": "Maglev kill Gini 0.75, Old Port 0.82",
+    "unseenFirst (heat 0.6, stale 1.4) - kept": "Maglev 0.72, Old Port 0.82, Old Port coverage 79%",
+    "spawn penalties 14 m / 38 m / face 20 -> 18 m / 45 m / face 35 - kept": "shot within 3 s 5.7% -> 2.2% (Old Port), 5.2% -> 2.5% (Maglev); died within 3 s 1 -> 0"
+  },
+  "perf": {
+    "bench3": {
+      "oldport": {
+        "dynamic": {
+          "fps": "60 in all 10 views",
+          "cpuMs": [
+            2.12,
+            2.7
+          ],
+          "gpuMs": [
+            4.9,
+            6.35
+          ]
+        }
+      },
+      "maglev": {
+        "dynamic": {
+          "fps": "60 in all 12 views",
+          "cpuMs": [
+            2.16,
+            2.66
+          ],
+          "gpuMs": [
+            5.57,
+            6.26
+          ]
+        },
+        "bases (same session)": {
+          "cpuMs": [
+            2.11,
+            2.79
+          ],
+          "gpuMs": [
+            5.24,
+            6.42
+          ]
+        },
+        "discarded": "a first dynamic run: the first 8 views at CPU 4.1-6.7 ms (warm-up, L-140)",
+        "note": "CPU reads 2.2-2.7 ms in both modes this session (26.0 measured 1.7-2.0): the machine state, not 27.0"
+      }
+    },
+    "tdmBench oldport withPlayer": {
+      "dynamic": [
+        {
+          "cpuMs": 2.63,
+          "aiMsAvg": 0.66,
+          "p99": 2.0,
+          "worst": 2.6,
+          "raysPerFrame": 30.1
+        },
+        {
+          "cpuMs": 2.61,
+          "aiMsAvg": 0.761,
+          "p99": 5.2,
+          "worst": 6.3,
+          "raysPerFrame": 53.9
+        },
+        {
+          "cpuMs": 2.72,
+          "aiMsAvg": 0.667,
+          "p99": 2.0,
+          "worst": 3.9,
+          "raysPerFrame": 28.2
+        },
+        {
+          "cpuMs": 2.61,
+          "aiMsAvg": 0.714,
+          "p99": 2.2,
+          "worst": 4.2,
+          "raysPerFrame": 44.1
+        }
+      ],
+      "bases": [
+        {
+          "cpuMs": 2.45,
+          "aiMsAvg": 0.655,
+          "p99": 2.2,
+          "worst": 3.5,
+          "raysPerFrame": 35.6
+        },
+        {
+          "cpuMs": 2.79,
+          "aiMsAvg": 0.691,
+          "p99": 2.1,
+          "worst": 3.1,
+          "raysPerFrame": 32.6
+        }
+      ],
+      "note": "one dynamic run's P99 5.2 ms did not repeat in two more"
+    },
+    "spawnPick": "rays only at a respawn: mean 4-7 a pick, at most 30; 0.02-0.05 ms mean, 0.3 ms at most (all four maps)",
+    "pads": "one InstancedMesh a map: 14 instances, 96 triangles each, one draw call"
+  },
+  "placement": "14 pads a map, ALPHA's half mirrored; __dev.spawnPadReport: all reachable, none blocked",
+  "tests": 336
+}

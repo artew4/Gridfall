@@ -1429,8 +1429,54 @@ Branch `feature/hud-audio-26.0`, from `main` @ `fef85fb` (25.0, merged and live)
 - Tests 311 (+11: the board's order and the corners' CSS, Text-node writes, the recipes' pitch order, length, ratchet and node cap, the burst start).
 - New DEV scripts: `scripts/boardcost.mjs`, `scripts/reloadcheck.mjs`.
 
+## 27.0: dynamic spawns and map-wide flow
+
+Branch `feature/dynamic-spawns-27.0`, from `main` @ `4916435` (26.0, merged and live). Full numbers: `docs/BENCH-27.0.json`.
+
+### Spawn pads instead of base yards
+- Maglev Terminal, Old Port, Neon Block and Deep Jungle have **14 spawn pads** each: ALPHA's half (one in the old yard, six in the lanes) mirrored for OMEGA. Placed with `__dev.spawnPads` (nav nodes in a lane with room; farthest-point, then Lloyd relaxation, sheltered spots first), checked with `spawnPadReport` (all reachable, none blocked) and `spawnPadPlan`; Old Port's fifth pad moved by hand from the container yard to the warehouse floor. Desert and Neon Docks keep their yards.
+- **The marker:** a flat hex ring with six chevrons pointing in and a centre hex, 96 triangles; every pad of a map is one instance of one InstancedMesh (one draw call). A quiet neutral; a spawn flashes it in the team's colour for 1.4 s. Hexes on the minimap's plan.
+
+### The spawn scorer (`SpawnManager`)
+- **At the respawn only,** over every pad: enemy pressure (−140 · Σ(1 − d/45)², invalid under 18 m), hostiles facing it (−35 each within 30 m), the nearest ally (+30 at 12 m), allies within 25 m (+5 each, three at most), recent use (−25 fading over 6 s), rotation (+15 for a pad unused 45 s), recent deaths within 12 m (−15 fading over 10 s), lane balance (+40 × how short the team is of the lane's weighted share), a little jitter.
+- **Sight:** rays down the ranked list (one per hostile within 70 m) until a pad nobody sees; 64 rays at most; else the seen pad furthest from its nearest hostile. Measured: 4-7 rays a pick on average, 30 at most; 0.02-0.05 ms a pick, 0.3 ms at most.
+- **The opening:** squads of two on 3-4 pads of each side; OMEGA's pads never within 30 m of ALPHA's or in sight of them. The player starts on ALPHA's first, with a teammate.
+- `TDM.spawns = 'bases'` (DEV) plays the yards again (the A/B).
+
+### Patrol (no bases, no front)
+- A new arena state, PATROL, where ADVANCE was on these maps: the team's radar within 40 m first; else an area the director gives (the pads and the lanes' waypoints), a look round on arrival, then the next. The pick: 0.6 × min(1.5, activity) + 1.4 × min(1, unseen / 40 s) + 0.8 in its own lane − distance / 110 m − 0.7 × bots already on it. Activity: deaths, heard rounds and heard spawns (a pad coming alive within 45 m of a member) near the area, halving every 20 s.
+- The radar bound applies to target choice too: an unseen contact over 40 m off (not shooting at the bot) is left to those nearer. Without it the patrol never ran (every bot always had some contact) and the whole team converged on one fight.
+- Lane discipline stays (the lanes are routes, not bases): without it Old Port's container yard took 70% of the kills.
+
+### Measured (self-play, 50 tickets, bot-only; pads vs the yards)
+| | Maglev | Old Port | Neon Block | Deep Jungle |
+|---|---|---|---|---|
+| deaths within 3 s of a respawn | 0 of 374 (yards 0 of 369) | 0 of 361 (0 of 374) | 0 of 187 (0 of 189) | 0 of 189 (0 of 184) |
+| within 5 s | 2 (2) | 2 (3) | 0 (0) | 2 (4) |
+| shot within 3 s (protected) | 3.8% (1.6%) | 1.4% (2.5%) | 0.6% (0%) | 1.6% (7.1%) |
+| time to death, median | 19.8 s (17.0) | 18.9 s (19.5) | 23.5 s (27.2) | 19.6 s (17.1) |
+| kill Gini over 8 m cells | 0.70 (0.87) | 0.81 (0.85) | 0.81 (0.85) | 0.83 (0.89) |
+| kills in the busiest 10% of cells | 45% (77%) | 60% (72%) | 62% (71%) | 65% (79%) |
+| cells with a kill | 43% (24%) | 26% (24%) | 30% (27%) | 25% (19%) |
+| time entropy | 0.93 (0.84) | 0.89 (0.88) | 0.90 (0.91) | 0.86 (0.85) |
+| lanes, time % | 32/19/49 (20/37/43) | 31/34/35 (24/45/32) | 31/38/31 (28/51/21) | 28/41/31 (12/66/22) |
+| kills a minute | 29.2 (32.4) | 28.3 (29.2) | 17.6 (16.4) | 25.9 (29.8) |
+| quiet seconds | 10.5% (14.2%) | 11.0% (10.9%) | 20.6% (30.4%) | 17.7% (14.0%) |
+
+- **Flatter:** on every map the kills spread (Gini down 0.04-0.17, the busiest tenth down 9-32 points) and the lanes even out (the centre lane 51% → 38% on Neon Block, 66% → 41% on Deep Jungle).
+- **Not better:** Deep Jungle is slower (kills a minute −13%, quiet 14% → 18%); Maglev −10%. Maglev's train (the 18.0 shotgun lane) went from 37% to 19% of the time. Neon Block's coverage dropped 92% → 87%. Maglev's shot-within-3 s rose 1.6% → 3.8% (no deaths: spawn protection).
+
+### Performance
+- `bench(3)`: Old Port 60 FPS in all 10 views, CPU 2.1-2.7 ms, GPU 4.9-6.4 ms; Maglev 60 FPS in all 12, CPU 2.2-2.7 ms, GPU 5.6-6.3 ms, and the same bench with the yards in the same session CPU 2.1-2.8 ms. The CPU sits at or a little over the 2.5 ms budget in **both** modes this session (26.0 read 1.7-2.0 on Maglev): the machine's state, not 27.0.
+- `tdmBench` Old Port with the player: AI 0.66-0.76 ms (yards 0.66-0.69), P99 2.0-2.2 ms (one run 5.2, not repeated in two more).
+
+### Tests and tools
+- Tests 336 (+25: the scorer, the opening, lanes and mirroring; the director's patrol).
+- `tdmSim` gains `spawns` (A/B), `spawnSafety`, `flow` and `patrol`; `__dev.spawnPads`, `spawnPadReport`, `spawnPadPlan`.
+
 ## Next
 Human playtest:
+- 27.0 items: the spawn pads (do you notice them, does the flash read as "someone just spawned there"; is spawning next to a teammate good or confusing); spawn safety in your own play (killed right after spawning? spawned looking at a wall?); do matches feel like they happen all over the map, or aimless (bots wandering); Maglev's train still a shotgun lane?
 - 26.0 items: the three-corner HUD (is the team board in the way top left, is the score readable at a glance, does your gold row help); the reloads with headphones (does the pistol sound like a pistol, the SMG zip, the rifle's weight, the shotgun's shells and pump; is any too loud against the gunshots).
 - 25.0 items: Neon Block's fog (does it read as fog or as darkness; is 13 m too short for the street, too long; do the roofs feel like the place to snipe from); the new jungle and desert music (listen: no more siren? does the desert sound Arabic, or like a cliché?).
 - 24.0 items: is the text the right size on your monitor (too big at 4K?), do the map cards read at a glance, is the live scoreboard in the way of the kill feed, does your gold kill row feel rewarding or noisy.

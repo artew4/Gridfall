@@ -40,7 +40,7 @@ The main menu asks for the mode first, then shows the maps that have it. Type yo
 
 - **Story Escape** (Tokyo): you are Arashi Kaito, framed for a bombing, and every patrol in the district has your description. Four acts across the streets, the rooftops and the Sakura Line metro, ending on the last express out. Stealth comes first: keep your weapon holstered and stay out of view cones. If you're seen, break line of sight and lose the search.
 - **Arcade Survival** (Tokyo, Desert, Jungle): wave after wave of enemies who fight as a squad.
-- **Team Deathmatch** (5v5 on Neon Block, Desert, Docks; 7v7 on Deep Jungle, Old Port, Maglev): you and four allied bots against five, 25 tickets a team, respawns in 3–5 s. You don't command your squad: the bots read what you're doing and play around you. Every match deals the ten bots different callsigns (Jax, Nova, Kuro, Viper…) and each bot a gun from the armory at every spawn. They wear matte tactical gear with small glowing accents in their team colour (a visor strip, shoulder patches, a spine light): cyan for ALPHA, orange for OMEGA.
+- **Team Deathmatch** (5v5 on Neon Block, Desert, Docks; 7v7 on Deep Jungle, Old Port, Maglev): you and four allied bots against five, 25 tickets a team, respawns in 3–5 s. You don't command your squad: the bots read what you're doing and play around you. Every match deals the ten bots different callsigns (Jax, Nova, Kuro, Viper…) and each bot a gun from the armory at every spawn. They wear matte tactical gear with small glowing accents in their team colour (a visor strip, shoulder patches, a spine light): cyan for ALPHA, orange for OMEGA. On Maglev Terminal, Old Port, Neon Block and Deep Jungle there are no bases: 14 glowing spawn pads are spread over the map, each respawn takes the best one at that moment (away from enemies and out of their sight, near your team), and a match opens with each team split into pairs across its own side. With no front line to walk to, bots search the map between fights.
 
 ## Gunplay
 
@@ -116,7 +116,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **311 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **336 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;

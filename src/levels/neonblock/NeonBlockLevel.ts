@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildNeonBlock, type NeonBlockResult } from './NeonBlock';
-import { BASE, GROUND_FOG, X_OUT, Z_END, groundFogBias, inBase, lanesOf } from './NeonBlockLayout';
+import { BASE, GROUND_FOG, X_OUT, Z_END, groundFogBias, inBase, lanesOf, SPAWN_PADS } from './NeonBlockLayout';
 import { DesertIntro } from '../desert/DesertIntro';
 import { clearHeightFog, setHeightFog } from '../../world/HeightFog';
 import { ReflectionCatchers } from '../../world/ReflectionCatchers';
@@ -110,6 +110,8 @@ export class NeonBlockLevel implements LevelRuntime {
       testGoals: d.testGoals,
       tdm: {
         spawns: d.spawns,
+        // 27.0: spawn pads anywhere on the map (SpawnManager); the yards above stay for the 'bases' A/B.
+        pads: SPAWN_PADS,
         lanes: { alpha: lanesOf('alpha'), omega: lanesOf('omega') },
         inBase: (team, p) => inBase(p, team),
         start,

@@ -228,7 +228,7 @@ export function installDevTools(game: Game) {
       return (await import('./TdmCheck')).tdmBench(game, opts);
     },
     /** 7.0: a whole TDM match stepped headless at a fixed 1/60 s (bot vs bot): length, movement, aggression, AI cost. */
-    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | 'pistol' | 'smg' | 'ar' | 'shotgun'; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean } = {}) {
+    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | 'pistol' | 'smg' | 'ar' | 'shotgun'; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'dynamic' | 'bases'; cell?: number } = {}) {
       return (await import('./TdmCheck')).tdmSim(game, opts);
     },
     /**
@@ -286,6 +286,18 @@ export function installDevTools(game: Game) {
       } finally {
         Object.assign(TDM.force, keep);
       }
+    },
+    /** 27.0: spawn pad proposals for the loaded map (nav nodes, farthest-point, sheltered first). */
+    async spawnPads(opts: { n?: number; clear?: number; seed?: number; keep?: number[][]; zMin?: number } = {}) {
+      return (await import('./SpawnCheck')).spawnPads(game, opts);
+    },
+    /** 27.0: the map's pads: exposure, the pads each sees, nearest pad, room, reach (a TDM match running). */
+    async spawnPadReport() {
+      return (await import('./SpawnCheck')).spawnPadReport(game);
+    },
+    /** 27.0: a top-down plan of the map with its pads and their sightlines (PNG data URL). */
+    async spawnPadPlan(px = 900, extra: number[][] = []) {
+      return (await import('./SpawnCheck')).spawnPadPlan(game, px, extra);
     },
     /** 20.0: how much of a TDM map is in sight from far off (spawn side to spawn side, long pairs anywhere). */
     async sightlines(opts: { front?: number; minDist?: number; pairs?: number; band?: [number, number] } = {}) {

@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildMaglev, type MaglevResult } from './Maglev';
-import { BASE, HALL_TERRAIN, LANE_STRICT, LANE_WEIGHTS, MAGLEV_AI, MAGLEV_TEAM_SIZE, MAGLEV_TICKETS, TRACK, X_HALL, Z_END, forwardOf, inBase, laneOf, lanesOf, navCost } from './MaglevLayout';
+import { BASE, HALL_TERRAIN, LANE_STRICT, LANE_WEIGHTS, MAGLEV_AI, MAGLEV_TEAM_SIZE, MAGLEV_TICKETS, TRACK, X_HALL, Z_END, forwardOf, inBase, laneOf, lanesOf, navCost, SPAWN_PADS } from './MaglevLayout';
 import { DesertIntro } from '../desert/DesertIntro';
 import { damp } from '../../core/math';
 import { fogRange } from '../../world/Visibility';
@@ -162,6 +162,8 @@ export class MaglevLevel implements LevelRuntime {
       testGoals: d.testGoals,
       tdm: {
         spawns: d.spawns,
+        // 27.0: spawn pads anywhere on the map (SpawnManager); the yards above stay for the 'bases' A/B.
+        pads: SPAWN_PADS,
         lanes: { alpha: lanesOf('alpha'), omega: lanesOf('omega') },
         inBase: (team, p) => inBase(p, team),
         start,

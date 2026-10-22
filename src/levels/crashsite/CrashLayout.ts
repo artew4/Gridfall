@@ -4,6 +4,7 @@ import type { Zone } from '../Level';
 import { smoothstep } from '../../core/math';
 import { noise } from '../jungle/Terrain';
 import type { ArenaProfile } from '../../enemies/arena/ArenaCtx';
+import { mirrorPads } from '../SpawnManager';
 
 /*
   Jungle: Crash Site (15.0): a Team Deathmatch arena built for 5v5 in Deep Jungle's biome, not a
@@ -251,3 +252,10 @@ export const JUNGLE_AI: ArenaProfile = {
   retreat: { unseenDmg: 0.45 },
   coverPush: { on: true },
 };
+
+/**
+ * 27.0: the spawn pads (TdmData.pads), ALPHA's half mirrored for OMEGA: [x, floor y, z, yaw]. The first
+ * is in the old yard (a safe rear pad); the rest cover the contested map, proposed by
+ * __dev.spawnPads (farthest-point, then Lloyd relaxation over the nav, sheltered spots first).
+ */
+export const SPAWN_PADS = mirrorPads([[0, 0, 59, 3.14], [26, -4, 21, 3.14], [-39, 3.6, 15, 0.79], [-38, 0, 46, 1.57], [28.5, -1.89, 45.5, 3.14], [0, 0, 15.6, 0.79], [-18, -1.27, 38, 5.89]]);

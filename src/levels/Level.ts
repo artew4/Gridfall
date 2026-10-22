@@ -65,6 +65,12 @@ export interface TdmData {
    * guns (SMG, shotgun), 'high' for the rifle; nodes at body height. Neon Block: the fog's links.
    */
   navBias?: (a: THREE.Vector3, b: THREE.Vector3, kind: 'low' | 'high') => number;
+  /**
+   * 27.0: spawn pads anywhere on the map, [x, y (the floor), z, yaw (enemy convention: forward =
+   * (sin, cos))]. Present (and TDM.spawns 'dynamic'): every spawn is scored over them (SpawnManager);
+   * the yards and `forward` are not used. Absent: the yards.
+   */
+  pads?: [number, number, number, number][];
 }
 
 export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock' | 'crashsite' | 'oldport' | 'maglev';

@@ -24,6 +24,8 @@ import { ARMORY, dealArm, type BotArm, type WeaponId } from '../entities/weapons
 import { dealCallsigns } from '../enemies/Callsigns';
 import { rand } from '../core/math';
 import type { BoardLine, TdmLine } from '../ui/TdmHud';
+import { SpawnManager, laneNeed, sideOf, type SpawnPad, type SpawnUnit } from './SpawnManager';
+import { SpawnPads } from '../world/SpawnPads';
 
 /*
   Team Deathmatch, 5v5 (6.0): ALPHA (the player and four bots) against OMEGA (five bots). Each team
@@ -87,6 +89,11 @@ export const TDM = {
   skins: 'operators' as 'operators' | 'legacy',
   /** 19.0 (DEV, self-play): force the team size, the tickets, or the map's AI profile off, whatever the map says. */
   force: { size: null as number | null, tickets: null as number | null, noProfile: false, noForward: false, kit: null as OperatorKit | null },
+  /**
+   * 27.0: where a map with spawn pads (TdmData.pads) spawns: 'dynamic', scored over every pad at each
+   * respawn (SpawnManager); 'bases' (DEV A/B), the two yards and 19.0's forward points as before.
+   */
+  spawns: 'dynamic' as 'dynamic' | 'bases',
 };
 
 /** 19.0: the team size of the loaded map (the player counts on ALPHA). */
@@ -260,6 +267,7 @@ export class TdmRules implements ModeRules {
       if (this.directors) this.directors[otherTeam(by.team)].heard(from, by, this.now, this.friends[otherTeam(by.team)]);
       else this.squads[otherTeam(by.team)].hearShot(from, by);
     };
+    this.setupSpawns();
     const st = this.data.start;
     g.player.reset(st.x, st.z, st.yaw, st.y);
     g.safety.reset(g.player.pos);
@@ -278,6 +286,7 @@ export class TdmRules implements ModeRules {
     const n = TEAMS.reduce((k, t) => k + rosters[t].length, 0);
     const names = dealCallsigns(n, [g.playerUnit.name]);
     for (const team of TEAMS) for (const [, kind] of filterRoster(rosters[team], TDM.roster)) this.slots.push({ team, name: names.shift()!, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0, arm: null });
+    this.openingSpawns();
     for (const s of this.slots) this.spawn(s);
     this.showStanding();
     g.hud.bannerShow('TEAM DEATHMATCH', fl('tdmBanner'), 2.6);
@@ -329,7 +338,8 @@ export class TdmRules implements ModeRules {
       friends: this.friends[team],
       enemies: this.bots,
       lanes: this.data.lanes[team],
-      avoid: (p: THREE.Vector3) => this.data.inBase(other, p),
+      // 27.0: with pads there is no enemy yard to keep out of.
+      avoid: this.spawner ? () => false : (p: THREE.Vector3) => this.data.inBase(other, p),
       onDeath: (v: Combatant, by: Combatant | null) => this.onDeath(v, by),
     } satisfies Partial<EnemyCtx>);
     c.arena = this.directors && this.sensing ? ({ director: this.directors[team], sensing: this.sensing, sched: this.sched, stats: this.arenaStats } satisfies ArenaCtx) : undefined;
@@ -338,7 +348,9 @@ export class TdmRules implements ModeRules {
 
   private spawn(s: Slot, respawn = false) {
     const g = this.game;
-    const at = (respawn && this.forwardPoint(s.team)) || this.spawnPoint(s.team);
+    // 27.0: a pad (the opening's squad pad, or the scorer's pick), else the 19.0 forward point or yard.
+    const pad: SpawnAt | undefined = this.spawner ? (respawn ? this.pickPad(s.team) : this.openAt.get(s)) : undefined;
+    const at = pad?.at ?? ((respawn && this.forwardPoint(s.team)) || this.spawnPoint(s.team));
     // 20.0: the map's kit (TdmData.kit: the corporate whites on Maglev Terminal), else the night kit.
     const look = TDM.skins === 'operators' ? OPERATOR_KITS[TDM.force.kit ?? this.data.kit ?? 'night'][s.team] : s.team === 'alpha' ? DESERT_GARRISON : g.level.info.enemies;
     const arena = this.ai === 'arena';
@@ -353,8 +365,10 @@ export class TdmRules implements ModeRules {
     e.team = s.team;
     e.name = s.name;
     e.invulnUntil = this.now + TDM.protect;
-    // Facing the other base (enemy yaw: forward = (sin, cos); ALPHA's base is in the south).
-    e.yaw = s.team === 'alpha' ? Math.PI : 0;
+    // Facing the other base (enemy yaw: forward = (sin, cos); ALPHA's base is in the south). 27.0: the pad's way.
+    e.yaw = pad ? pad.yaw : s.team === 'alpha' ? Math.PI : 0;
+    if (pad?.pick) this.logSpawn(s.team, pad.pick, e.uid);
+    else if (respawn && !this.spawner) this.logYard(s.team, at, e.uid);
     g.scene.add(e.rig.root);
     this.bots.push(e);
     s.bot = e;
@@ -374,6 +388,114 @@ export class TdmRules implements ModeRules {
   }
 
   /** The base spawn furthest from every hostile, not on top of a body. */
+  /** 27.0: the map's spawn pads and their scorer (null: the yards), the pads on the floor. */
+  spawner: SpawnManager | null = null;
+  private padMesh: SpawnPads | null = null;
+  /** 27.0: the match's first spawn: where each slot (and the player) starts. */
+  private openAt = new Map<Slot | 'player', SpawnAt>();
+  /** 27.0 (DEV): every spawn this match: when, whose, which pad, its nearest hostile, rays, fallback. */
+  spawnLog: { t: number; team: TeamId; pad: number; nearest: number; rays: number; ms: number; fallback: boolean; uid: number }[] = [];
+
+  /**
+   * 27.0: the map's pads, if it has them and TDM.spawns is 'dynamic': each pad's side of the map (by
+   * progress between the old yards' centres), the scorer, and the pads on the floor (one draw call).
+   */
+  private setupSpawns() {
+    const g = this.game;
+    this.padMesh?.dispose();
+    this.padMesh = null;
+    this.spawner = null;
+    this.openAt.clear();
+    this.spawnLog = [];
+    const raw = this.data.pads;
+    if (!raw?.length || TDM.spawns !== 'dynamic') return;
+    const centre = (ps: THREE.Vector3[]) => ps.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(Math.max(1, ps.length));
+    const a = centre(this.data.spawns.alpha), o = centre(this.data.spawns.omega);
+    const lane = this.data.laneOf;
+    const pads: SpawnPad[] = raw.map(([x, y, z, yaw], id) => ({ id, pos: new THREE.Vector3(x, y, z), yaw, side: sideOf({ x, z }, a, o), lane: lane ? lane(x, y + 1, z) : null }));
+    this.spawner = new SpawnManager(pads, (p, q) => {
+      this.sched.spend(1);
+      return g.col.lineOfSight(p, q);
+    });
+    this.padMesh = new SpawnPads(pads);
+    g.scene.add(this.padMesh.mesh);
+    this.minimap?.drawPads(pads.map((p) => p.pos));
+    // No bases, no front: the bots search the pads and the lanes' waypoints (ArenaDirector.setPatrol).
+    if (this.directors) {
+      const hvas = [...pads.map((p) => p.pos), ...this.data.lanes.alpha.flat()];
+      for (const t of TEAMS) this.directors[t].setPatrol(hvas);
+    }
+  }
+
+  /**
+   * 27.0: the opening: each team in squads of two on its own side's pads (SpawnManager.opening), the
+   * player first on ALPHA's first pad. Fills openAt for spawn() and puts the player on his pad.
+   */
+  private openingSpawns() {
+    const sp = this.spawner;
+    if (!sp) return;
+    const g = this.game;
+    const members: Record<TeamId, (Slot | 'player')[]> = { alpha: this.spectate ? [] : ['player'], omega: [] };
+    for (const s of this.slots) members[s.team].push(s);
+    const pads = sp.opening({ alpha: members.alpha.length, omega: members.omega.length });
+    const taken: THREE.Vector3[] = [];
+    for (const team of TEAMS) {
+      const P = pads[team];
+      if (!P.length) continue;
+      members[team].forEach((m, i) => {
+        const pad = P[Math.min(P.length - 1, Math.floor(i / 2))];
+        const at = sp.slot(pad, (q) => taken.some((t) => t.distanceTo(q) < 1));
+        taken.push(at);
+        this.openAt.set(m, { at, yaw: pad.yaw });
+        this.padMesh?.flash(pad.id, team);
+      });
+    }
+    const me = this.openAt.get('player');
+    if (me) {
+      g.player.reset(me.at.x, me.at.z, me.yaw + Math.PI, me.at.y);
+      g.safety.reset(g.player.pos);
+    }
+  }
+
+  /** 27.0: a respawn's pad for `team`, scored now against everyone alive (rays only at this moment). */
+  private pickPad(team: TeamId): SpawnAt {
+    const t0 = performance.now();
+    const unit = (c: Combatant): SpawnUnit => {
+      const f = c.facing(_face);
+      return { pos: c.pos, face: { x: f.x, y: f.y } };
+    };
+    const hostiles = this.hostilesNow(team).map(unit);
+    const allies: SpawnUnit[] = this.bots.filter((b) => b.alive && b.team === team).map(unit);
+    if (team === 'alpha' && !this.spectate && this.game.player.alive) allies.push(unit(this.game.playerUnit));
+    const occupied = (q: THREE.Vector3) =>
+      this.bots.some((b) => b.alive && Math.hypot(b.pos.x - q.x, b.pos.z - q.z) < 1 && Math.abs(b.pos.y - q.y) < 1.5) ||
+      (this.game.player.alive && Math.hypot(this.game.player.pos.x - q.x, this.game.player.pos.z - q.z) < 1);
+    // The lanes the team is short of (by the map's lane weights): a pad there scores higher.
+    const lf = this.data.laneOf;
+    const need = lf ? laneNeed(allies.map((u) => lf(u.pos.x, u.pos.y + 1, u.pos.z)), this.data.laneWeights ?? [1, 1, 1]) : undefined;
+    const pick = this.spawner!.pick(team, hostiles, allies, this.now, occupied, need);
+    this.padMesh?.flash(pick.pad.id, team);
+    // The other team hears a pad come alive near them (a lead for its patrols).
+    this.directors?.[otherTeam(team)].heardSpawn(pick.pad.pos, this.now, this.friends[otherTeam(team)]);
+    return { at: pick.at, yaw: pick.pad.yaw, pick: { ...pick, ms: performance.now() - t0 } };
+  }
+
+  /** 27.0 (DEV): a yard respawn (the 'bases' A/B), logged as the pads' are: pad -1, its nearest hostile. */
+  private logYard(team: TeamId, at: THREE.Vector3, uid: number) {
+    let near = Infinity;
+    for (const h of this.hostilesNow(team)) near = Math.min(near, h.pos.distanceTo(at));
+    this.spawnLog.push({ t: +(this.now - this.startT).toFixed(2), team, pad: -1, nearest: +near.toFixed(1), rays: 0, ms: 0, fallback: false, uid });
+  }
+
+  private logSpawn(team: TeamId, p: { pad: SpawnPad; nearest: number; rays: number; ms: number; fallback: boolean }, uid: number) {
+    this.spawnLog.push({ t: +(this.now - this.startT).toFixed(2), team, pad: p.pad.id, nearest: +p.nearest.toFixed(1), rays: p.rays, ms: +p.ms.toFixed(3), fallback: p.fallback, uid });
+  }
+
+  /** 27.0: the map's pads (empty: none, or the yards are in use). */
+  spawnPadList(): readonly SpawnPad[] {
+    return this.spawner?.pads ?? [];
+  }
+
   /** 19.0 (DEV): respawns taken at a forward point, and in the yard, this match. */
   forwardStats = { forward: 0, yard: 0 };
 
@@ -448,6 +570,7 @@ export class TdmRules implements ModeRules {
     const g = this.game;
     if (this.winner) return;
     this.tickets[v.team] = Math.max(0, this.tickets[v.team] - 1);
+    this.spawner?.noteDeath(v.pos, this.now);
     const weapon = by ? this.armOf(by)?.tag : undefined;
     g.tdmHud.kill(by, v, weapon);
     const vs = this.slotOf(v);
@@ -555,6 +678,7 @@ export class TdmRules implements ModeRules {
       // 7.0's callouts (rays from his camera); 12.0's arena has him in the sensing pass instead.
       if (!this.spectate && (!this.directors || !TDM.spotting)) this.spot(dt);
     } else if (g.state !== 'ending' && now - this.endT > 1.2) this.finish();
+    this.padMesh?.update(dt);
     g.tdmHud.setTickets(this.tickets.alpha, this.tickets.omega);
     g.tdmHud.setRespawn(g.state === 'dead' && !this.winner ? this.playerRespawnAt - now : null, this.killerName);
     g.tdmHud.update(dt, g.camera, this.friends.alpha);
@@ -641,8 +765,11 @@ export class TdmRules implements ModeRules {
 
   private respawnPlayer() {
     const g = this.game;
-    const p = this.forwardPoint('alpha') ?? this.spawnPoint('alpha');
-    g.revive(p, 0);
+    const pad = this.spawner ? this.pickPad('alpha') : null;
+    if (pad?.pick) this.logSpawn('alpha', pad.pick, g.playerUnit.uid);
+    const p = pad?.at ?? this.forwardPoint('alpha') ?? this.spawnPoint('alpha');
+    // (The player's yaw looks down -z at 0: the enemy convention's yaw + π.)
+    g.revive(p, pad ? pad.yaw + Math.PI : 0);
     g.playerInvulnUntil = this.now + TDM.protect;
     this.playerRespawnAt = Infinity;
     this.killerName = null;
@@ -693,6 +820,10 @@ export class TdmRules implements ModeRules {
 
   reset() {
     this.clearBots();
+    this.padMesh?.dispose();
+    this.padMesh = null;
+    this.spawner = null;
+    this.openAt.clear();
     this.unprofile?.();
     this.unprofile = null;
     for (const t of TEAMS) this.squads[t].reset();
@@ -759,4 +890,11 @@ export class TdmRules implements ModeRules {
       kills: this.kills.length,
     };
   }
+}
+const _face = new THREE.Vector2();
+/** 27.0: where a spawn puts someone: the spot, the pad's facing, and (a scored respawn) how it was picked. */
+interface SpawnAt {
+  at: THREE.Vector3;
+  yaw: number;
+  pick?: { pad: SpawnPad; nearest: number; rays: number; ms: number; fallback: boolean };
 }

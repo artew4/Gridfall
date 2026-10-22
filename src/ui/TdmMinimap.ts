@@ -93,6 +93,23 @@ export class TdmMinimap {
     return c;
   }
 
+  /** 27.0: the map's spawn pads on the plan, small hexagons (drawn into it once; a frame stays one blit). */
+  private padsDrawn = false;
+  drawPads(pads: readonly { x: number; z: number }[]) {
+    if (this.padsDrawn) return;
+    this.padsDrawn = true;
+    const g = this.plan.getContext('2d')!;
+    const k = this.px;
+    g.strokeStyle = 'rgba(190,250,255,0.8)';
+    g.lineWidth = Math.max(1, 0.35 * k);
+    for (const p of pads) {
+      const x = (p.x - this.x0) * k, z = (p.z - this.z0) * k, r = 1.6 * k;
+      g.beginPath();
+      for (let i = 0; i <= 6; i++) g[i ? 'lineTo' : 'moveTo'](x + Math.sin((i * Math.PI) / 3) * r, z + Math.cos((i * Math.PI) / 3) * r);
+      g.stroke();
+    }
+  }
+
   /**
    * One frame: the player at `p` looking along `yaw` (the Player's: -z at 0), allies and spotted
    * hostiles. Cheap: a blit and a few arcs.
