@@ -45,7 +45,7 @@ function heapMB() {
 }
 
 export async function mapCycle(game: Game, opts: { maps?: SettingId[]; laps?: number; play?: number } = {}) {
-  const maps = opts.maps ?? ['desert', 'docks', 'jungle'];
+  const maps = opts.maps ?? ['desert', 'docks', 'crashsite'];
   const laps = opts.laps ?? 2;
   const playMs = opts.play ?? 2500;
   const g = game as unknown as { skipIntro(): void; resume(): void; intro: { t: number } | null };

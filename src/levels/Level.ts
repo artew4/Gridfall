@@ -55,6 +55,16 @@ export interface TdmData {
    * Crash Site's: flank more, fight closer, push sooner. Absent: the global ARENA as it is.
    */
   arena?: ArenaProfile;
+  /**
+   * 25.0: a ground fog that limits sight (Neon Block): when both the viewer's and the target's feet are
+   * under `below` m, nobody sees further than `range` m (Sensing; the player's spotting included).
+   */
+  groundFog?: { below: number; range: number };
+  /**
+   * 25.0: a nav link's cost multiplier by the route's kind (Nav.route's `bias`): 'low' for the close
+   * guns (SMG, shotgun), 'high' for the rifle; nodes at body height. Neon Block: the fog's links.
+   */
+  navBias?: (a: THREE.Vector3, b: THREE.Vector3, kind: 'low' | 'high') => number;
 }
 
 export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock' | 'crashsite' | 'oldport' | 'maglev';

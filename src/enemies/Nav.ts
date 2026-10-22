@@ -277,14 +277,19 @@ export class Nav {
    * binary heap (5.0; was an O(n²) scan), memoised per goal node: a squad hunting one spot asks
    * for the same field over and over. The memo is dropped whenever links change.
    */
+  /** 25.0: a link's cost multiplier by the route's kind (TdmData.navBias), set while a match runs. */
+  bias: ((a: THREE.Vector3, b: THREE.Vector3, kind: 'low' | 'high') => number) | null = null;
   private fields = new Map<number, { dist: Float64Array; next: Int32Array }>();
   private vaultFields = new Map<number, { dist: Float64Array; next: Int32Array }>();
   /** Fields computed vs served from the memo (DEV counters). */
   stats = { computed: 0, cached: 0 };
-  private toward(goal: number, vault = false) {
+  private toward(goal: number, vault = false, kind: 'low' | 'high' | null = null) {
     const memo = vault ? this.vaultFields : this.fields;
     const edges = vault ? this.vaultEdges! : this.edges;
-    const hit = memo.get(goal);
+    // 25.0: one memo entry per goal and bias kind.
+    if (!this.bias) kind = null;
+    const key = kind === null ? goal : kind === 'low' ? -1 - goal * 2 : -2 - goal * 2;
+    const hit = memo.get(key);
     if (hit) {
       // Refresh its place in the (insertion-ordered) memo.
       memo.delete(goal);
@@ -342,7 +347,7 @@ export class Nav {
       const relax = (v: number) => {
         if (done[v]) return;
         const nv = this.nodes[v];
-        const nd = du + nu.distanceTo(nv) * (this.cost ? this.cost(nu, nv) : 1);
+        const nd = du + nu.distanceTo(nv) * (this.cost ? this.cost(nu, nv) : 1) * (kind ? this.bias!(nu, nv, kind) : 1);
         if (nd < dist[v]) {
           dist[v] = nd;
           next[v] = u;
@@ -354,8 +359,8 @@ export class Nav {
       if (vault) for (const v of this.dropsIn[u]) relax(v);
     }
     const f = { dist, next };
-    memo.set(goal, f);
-    if (memo.size > 32) memo.delete(memo.keys().next().value!);
+    memo.set(key, f);
+    if (memo.size > 48) memo.delete(memo.keys().next().value!);
     return f;
   }
 
@@ -364,11 +369,11 @@ export class Nav {
    * the lowest (distance to it + remaining distance to the goal), so an agent never walks back to a
    * node behind it just because that node happens to be the closest.
    */
-  route(from: THREE.Vector3, to: THREE.Vector3, opts: { vault?: boolean; tries?: number } = {}): number[] {
+  route(from: THREE.Vector3, to: THREE.Vector3, opts: { vault?: boolean; tries?: number; bias?: 'low' | 'high' } = {}): number[] {
     const vault = !!opts.vault && !!this.vaultEdges;
     const b = this.nearestVisible(to);
     if (b < 0) return [];
-    const { dist, next } = this.toward(b, vault);
+    const { dist, next } = this.toward(b, vault, opts.bias ?? null);
     const cand: { i: number; s: number }[] = [];
     for (let i = 0; i < this.nodes.length; i++) {
       if (dist[i] === Infinity) continue;

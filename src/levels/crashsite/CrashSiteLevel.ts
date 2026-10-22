@@ -13,13 +13,14 @@ import { JUNGLE_GUARDS } from '../../entities/enemies/paramilitary';
 
 export const CRASHSITE_INFO: LevelInfo = {
   id: 'crashsite',
-  name: 'JUNGLE: CRASH SITE',
+  // 25.0: the TDM pool's one jungle map, "DEEP JUNGLE" (the firebase is Survival only).
+  name: 'DEEP JUNGLE',
   biome: 'jungle',
-  jp: 'จุดเครื่องตก',
+  jp: 'ป่าลึก',
   blurb: 'A dropship down on an overgrown temple in the rainforest, 7v7: under the ship, inside it and above it on the ruins; the ridge and the ravine on the flanks.',
   modes: ['tdm'],
   loading: 'CLEARING THE CRASH SITE…',
-  windowTitle: 'Gridfall — Jungle: Crash Site',
+  windowTitle: 'Gridfall — Deep Jungle',
   enemies: JUNGLE_GUARDS,
   music: 'jungle_theme',
   // 19.0: self-play (docs/BENCH-19.0.json): 7v7 is the knee (quiet seconds 14–18%, as 8v8; 5v5 33–53%).
@@ -29,7 +30,7 @@ export const CRASHSITE_INFO: LevelInfo = {
   place: 'CRASH SITE · 47P QS 441 882',
   clock: '06:12',
   cine: {
-    tdm: { t1: 'GRIDFALL', t2: 'จุดเครื่องตก · CRASH SITE', t3: 'TEAM DEATHMATCH 7v7 · ALPHA vs OMEGA<br/>THE RIDGE · THE TEMPLE · THE RAVINE' },
+    tdm: { t1: 'GRIDFALL', t2: 'ป่าลึก · DEEP JUNGLE', t3: 'TEAM DEATHMATCH 7v7 · ALPHA vs OMEGA<br/>THE RIDGE · THE TEMPLE · THE RAVINE' },
   },
 };
 

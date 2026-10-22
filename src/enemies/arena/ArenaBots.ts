@@ -45,13 +45,15 @@ const ROUTE_TRIES = 128;
  * A graph route that may cross low walls. Both ends are put back on the floor first (body height): a
  * bot mid-jump, or a contact plotted mid-vault, would otherwise be a point no node can see.
  */
-function arenaRoute(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {
+function arenaRoute(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3, arm?: string) {
   const col = ctx.col;
   _f.set(from.x, col.groundHeightAt(from.x, from.z, 0.3, from.y - 1, 0.6) + 1, from.z);
   _t.set(to.x, col.groundHeightAt(to.x, to.z, 0.3, to.y - 1, 0.6) + 1, to.z);
   if (!Number.isFinite(_f.y)) _f.copy(from);
   if (!Number.isFinite(_t.y)) _t.copy(to);
-  return ctx.nav.route(_f, _t, { vault: true, tries: ROUTE_TRIES });
+  // 25.0: on a map with a route bias (Neon Block's fog) the close guns take the fog, the rifle the clear.
+  const bias = arm === 'smg' || arm === 'shotgun' ? 'low' : arm === 'ar' ? 'high' : undefined;
+  return ctx.nav.route(_f, _t, { vault: true, tries: ROUTE_TRIES, bias });
 }
 const _f = new THREE.Vector3();
 const _t = new THREE.Vector3();
@@ -150,7 +152,7 @@ export class ArenaGunner extends Gunner implements ArenaBody {
   }
 
   protected routeTo(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {
-    return arenaRoute(ctx, from, to);
+    return arenaRoute(ctx, from, to, this.arm.id);
   }
 
   protected ground(ctx: EnemyCtx, dt: number) {

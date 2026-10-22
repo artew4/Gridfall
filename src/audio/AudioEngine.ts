@@ -43,7 +43,7 @@ export class AudioEngine {
   private levelBus!: GainNode;
   private levelNodes: AudioScheduledSourceNode[] = [];
   /** Which ambience the level asked for: drives the random events in update(). */
-  private ambience: 'city' | 'desert' | 'jungle' | 'harbour' | 'terminal' | null = null;
+  private ambience: 'city' | 'city-dry' | 'desert' | 'jungle' | 'harbour' | 'terminal' | null = null;
   private birdTimer = 3;
   private frogTimer = 2;
   private monkeyTimer = 25;
@@ -153,10 +153,12 @@ export class AudioEngine {
   }
 
   /** Ambience profile of the loaded level: the beds and the random events around the listener. */
-  setAmbience(kind: 'city' | 'desert' | 'jungle' | 'harbour' | 'terminal') {
+  setAmbience(kind: 'city' | 'city-dry' | 'desert' | 'jungle' | 'harbour' | 'terminal') {
     if (!this.started || this.ambience === kind) return;
     this.ambience = kind;
     if (kind === 'city') this.startAmbience();
+    // 25.0: Neon Block after the rain: the city's rumble without the rain bed.
+    else if (kind === 'city-dry') this.startAmbience(false);
     else if (kind === 'jungle') this.startJungle();
     else if (kind === 'harbour') this.startHarbour();
     else if (kind === 'terminal') this.startTerminal();
@@ -363,7 +365,7 @@ export class AudioEngine {
   }
 
   // ------------------------------------------------------------------ ambience
-  private startAmbience() {
+  private startAmbience(rain = true) {
     const ctx = this.ctx;
     const layer = (buf: AudioBuffer, type: BiquadFilterType, f: number, q: number, gain: number) => {
       const s = this.levelSrc(this.noise(buf, true));
@@ -373,6 +375,12 @@ export class AudioEngine {
       s.connect(fl).connect(g).connect(this.levelBus);
       return g;
     };
+    // Distant city rumble.
+    if (!rain) {
+      layer(this.brown, 'lowpass', 160, 0.5, 0.4);
+      layer(this.pink, 'bandpass', 300, 0.4, 0.06);
+      return;
+    }
     // Rain: body, hiss, mid patter with slow swell. All through one filter so it can go muffled underground.
     const rainFilter = this.filter('lowpass', 20000);
     this.rainFilter = rainFilter;

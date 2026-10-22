@@ -133,3 +133,24 @@ export function zoneAt(x: number, y: number, z: number): Zone | null {
   }
   return null;
 }
+
+/**
+ * 25.0, the ground fog: the rain has stopped and a fog lies in the streets, thickest on the ground
+ * and gone by the mid level (4.5 m: the fire-escape landings, the footbridge, Block E's roofs). It
+ * is a gameplay layer, not only a look: in the street a figure is 85% hidden at 13 m, and the bots'
+ * sight follows it (TdmData.groundFog: both below 3 m, nobody sees past 13 m); from the roofs a
+ * street target at 15 m is ~14% veiled, and roof to roof is clear. Close fights below, long ones above.
+ */
+export const GROUND_FOG = { density: 0.256, top: 4.5, color: 0x62597f, opacity: 0.96, cap: { below: 3, range: 13 } };
+
+/**
+ * 25.0: a link's cost multiplier by the gun (Nav bias): 'low' (SMG, shotgun) finds the fog's links
+ * cheap and the clear ones dear, 'high' (rifle) the other way; nodes are at body height (feet + 1).
+ */
+export function groundFogBias(a: { y: number }, b: { y: number }, kind: 'low' | 'high') {
+  const inFog = (p: { y: number }) => p.y - 1 < GROUND_FOG.cap.below;
+  const both = inFog(a) && inFog(b), neither = !inFog(a) && !inFog(b);
+  if (kind === 'low') return both ? 0.7 : neither ? 1.25 : 1;
+  return neither ? 0.6 : both ? 1.35 : 1;
+}
+

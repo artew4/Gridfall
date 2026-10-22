@@ -114,6 +114,10 @@ export function installDevTools(game: Game) {
       ikStats.solves = before.solves;
       return { solvesSoFar: before.solves, rigsBuilt: before.built, rigsThatMerged: before.merged, usPerHoldAndTwoSolves: +us.toFixed(3) };
     },
+    /** 25.0: the procedural themes measured offline: energy above 1 kHz and 2.5 kHz, RMS, peak. */
+    async musicSpectrum(opts: { ids?: string[]; seconds?: number; intensity?: number } = {}) {
+      return (await import('./MusicRender')).musicSpectrum(opts);
+    },
     lock() {
       game.input.locked = true;
       if (game.state === 'paused') g.resume();
@@ -224,7 +228,7 @@ export function installDevTools(game: Game) {
       return (await import('./TdmCheck')).tdmBench(game, opts);
     },
     /** 7.0: a whole TDM match stepped headless at a fixed 1/60 s (bot vs bot): length, movement, aggression, AI cost. */
-    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | 'pistol' | 'smg' | 'ar' | 'shotgun'; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number } = {}) {
+    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | 'pistol' | 'smg' | 'ar' | 'shotgun'; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean } = {}) {
       return (await import('./TdmCheck')).tdmSim(game, opts);
     },
     /**

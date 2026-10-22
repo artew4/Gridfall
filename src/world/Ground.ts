@@ -68,6 +68,8 @@ export const CATCHERS = {
 
 export interface WetOptions {
   puddles: boolean;
+  /** 25.0: raindrop rings in the puddles (off on a map where it no longer rains: Neon Block). Default on. */
+  ripples?: boolean;
   /** Overall wetness for non-puddle areas. */
   wet: number;
 }
@@ -148,7 +150,7 @@ export function applyWet(mat: THREE.MeshStandardMaterial, time: { value: number 
         `#include <normal_fragment_maps>
         {
           float fade = 1.0 - smoothstep(6.0, 26.0, camDist);
-          vec2 rip = rainRipples(vWetPos.xz, uTime) * fade * (0.25 + puddle * 0.9);
+          vec2 rip = ${opts.ripples === false ? 'vec2(0.0)' : 'rainRipples(vWetPos.xz, uTime) * fade * (0.25 + puddle * 0.9)'};
           float n1 = wNoise(vWetPos.xz * 3.0 + vec2(0.0, uTime * 0.35));
           float n2 = wNoise(vWetPos.xz * 3.0 + vec2(1.3, 0.0));
           vec2 grain = (vec2(n1, n2) - 0.5) * (1.0 - puddle) * 0.25;
@@ -157,7 +159,7 @@ export function applyWet(mat: THREE.MeshStandardMaterial, time: { value: number 
         }`,
       );
   };
-  mat.customProgramCacheKey = () => `wet-${opts.puddles}-${opts.wet}`;
+  mat.customProgramCacheKey = () => `wet-${opts.puddles}-${opts.wet}-${opts.ripples !== false}`;
 }
 
 /** Stretched, rippling reflection streaks: the Blade Runner smear of neon on wet asphalt. */

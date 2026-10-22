@@ -302,6 +302,9 @@ export class TdmRules implements ModeRules {
       },
       conceal ? (a, b) => conceal(a, b) < 0.35 : undefined,
     );
+    // 25.0: the map's ground fog caps sight; its routing bias by gun.
+    this.sensing.fog = d.groundFog ?? null;
+    g.nav.bias = d.navBias ?? null;
     this.arenaStats = newArenaStats();
     this.brains = [];
     this.playerSense = TDM.spotting ? new PlayerSense(g.playerUnit) : null;
@@ -695,6 +698,7 @@ export class TdmRules implements ModeRules {
     for (const t of TEAMS) this.squads[t].reset();
     this.directors = null;
     this.sensing = null;
+    this.game.nav.bias = null;
     // 13.0: nothing of the match may hold on to its bodies or the player (a map change frees the level).
     this.playerSense = null;
     this.brains.length = this.viewers.length = this.spots.length = 0;

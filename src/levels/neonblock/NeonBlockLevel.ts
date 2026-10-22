@@ -3,9 +3,9 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildNeonBlock, type NeonBlockResult } from './NeonBlock';
-import { BASE, X_OUT, Z_END, inBase, lanesOf } from './NeonBlockLayout';
+import { BASE, GROUND_FOG, X_OUT, Z_END, groundFogBias, inBase, lanesOf } from './NeonBlockLayout';
 import { DesertIntro } from '../desert/DesertIntro';
-import { Rain } from '../../world/Rain';
+import { clearHeightFog, setHeightFog } from '../../world/HeightFog';
 import { ReflectionCatchers } from '../../world/ReflectionCatchers';
 import { WET4, createStreak, updateStreaks } from '../../world/Ground';
 import { damp } from '../../core/math';
@@ -17,7 +17,7 @@ export const NEONBLOCK_INFO: LevelInfo = {
   name: 'TOKYO: NEON BLOCK',
   biome: 'tokyo',
   jp: '東京 · ネオン街区',
-  blurb: 'A Shinjuku block in the rain, built for 5v5: alleys, fire escapes, a footbridge and the rooftops.',
+  blurb: 'A Shinjuku block after the rain, fog lying in its streets: close fights in the alleys, long ones across the clear rooftops. 5v5.',
   modes: ['tdm'],
   loading: 'WIRING THE NEON…',
   windowTitle: 'Gridfall — Tokyo: Neon Block',
@@ -33,6 +33,8 @@ export const NEONBLOCK_INFO: LevelInfo = {
 };
 
 const FOG = 0x0d0b19;
+
+
 
 /**
  * Tokyo: Neon Block (14.0): Tokyo Night's biome as a Team Deathmatch arena. The 4.0 pipeline (wet
@@ -57,15 +59,15 @@ export class NeonBlockLevel implements LevelRuntime {
   private env: THREE.WebGLRenderTarget;
   private catchers: ReflectionCatchers;
   private streaks: THREE.Mesh[] = [];
-  private rain!: Rain;
   private covered = 0;
 
   constructor(private game: Game) {
     const s = game.scene;
     s.background = new THREE.Color(FOG);
     game.fog.color.set(FOG);
-    // Tokyo's rain haze, thinner: ~90% at 85 m, so the 90 m length of a lane fades but its fights don't.
-    game.fog.density = 0.018;
+    // 25.0: no rain, so a thinner haze over the roofs (~90% at 126 m: the long fights up there are clear);
+    // the streets get the ground fog instead (attach).
+    game.fog.density = 0.012;
     s.add(new THREE.HemisphereLight(0x4a5598, 0x221828, 0.95));
     const moon = new THREE.DirectionalLight(0x5868a8, 0.3);
     moon.position.set(-20, 60, -30);
@@ -113,19 +115,24 @@ export class NeonBlockLevel implements LevelRuntime {
         start,
         laneOf: (x, _y, z) => (Math.abs(z) > 50 ? null : x < -12 ? 0 : x > 12 ? 2 : 1),
         laneNames: ['west', 'centre', 'east'],
+        // 25.0: the bots' sight in the ground fog (Sensing): both below `below` m, `range` at most.
+        groundFog: GROUND_FOG.cap,
+        // 25.0: SMG and shotgun bots route through the fog, riflemen over it (Nav bias).
+        navBias: groundFogBias,
       },
     };
   }
 
   attach() {
     const game = this.game;
-    this.rain = new Rain(game.scene, game.glows, game.time, game.fog, { ...this.block.rain, holes: game.col.holes });
+    setHeightFog(GROUND_FOG.density, GROUND_FOG.top, GROUND_FOG.color, GROUND_FOG.opacity);
     game.ctx.sightRange = fogRange(game.fog.density);
     game.weapon.setLights({ sky: 0x5a6aa8, ground: 0x2a1c2c, hemi: 0.9, key: 0xffc890, keyI: 1.6, rim: 0xff4ad8, rimI: 0.9 });
   }
 
   startAudio() {
-    this.game.audio.setAmbience('city');
+    // 25.0: the city without its rain bed.
+    this.game.audio.setAmbience('city-dry');
   }
 
   private under(p: THREE.Vector3) {
@@ -137,7 +144,6 @@ export class NeonBlockLevel implements LevelRuntime {
     game.glows.update(f.elapsed, f.camPos);
     this.catchers.update();
     updateStreaks(this.streaks, f.camPos);
-    this.rain.update(f.elapsed, f.camPos);
     this.covered = damp(this.covered, this.under(f.camPos) ? 1 : 0, 6, f.rawDt);
     game.audio.setUnderground(this.covered * 0.35);
   }
@@ -180,6 +186,7 @@ export class NeonBlockLevel implements LevelRuntime {
 
   dispose() {
     const game = this.game;
+    clearHeightFog();
     WET4.value = 1;
     this.catchers.dispose();
     this.env.dispose();

@@ -254,6 +254,9 @@ How it fits:
 - **Lane points snap to free ground** (`freeNear`), because random trees can land on them. `layoutProblems` warns about any lane point or nav node inside geometry.
 - **A flank is used only when a lane goes through it.** With three lanes per team the bots never entered the culvert; with a fourth they enter it 4–5 times a match.
 
+## Neon Block's ground fog (25.0)
+The rain stopped (no particles, no raindrop ripples, no rain bed); a fog lies in the streets. `world/HeightFog.ts` patches three's fog chunks to integrate a density D·clamp(1 − y/4.5, 0, 1)² along each view ray in closed form, applied as 1 − exp(−τ²). That gives a clear near field and a wall further out: in the street a figure is 85% hidden at 13 m. The landings, the footbridge and every roof are above it. The bots see the same way (`TdmData.groundFog`: both under 3 m, 13 m at most), and route by gun (`navBias`: SMG and shotgun into the fog, riflemen above it). Self-play: street kills at ~8 m, roof kills at ~14.5 m (p90 31 m); see `docs/BENCH-25.0.json`.
+
 ## Tokyo: Neon Block (14.0)
 
 `src/levels/neonblock/`: `NeonBlockLayout.ts` (the plan, lanes and zones), `NeonBlock.ts` (the builder), `NeonBlockLevel.ts` (the runtime). TDM only. The story district (`tokyo/`) is untouched.

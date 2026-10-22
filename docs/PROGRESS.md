@@ -1365,8 +1365,46 @@ Branch `feature/ui-ux-overhaul-24.0`, from `main` @ `03c4b8c` (23.0, merged and 
 - **Tests:** 289 (+8: the scaling rules, the animation rule, the card markup, the ranks and the score).
 - **Real browser:** checked by eye: the maps screen, a card hovered, the survival death screen.
 
+## 25.0: vertical fog gameplay, audio polish, the map registry
+
+Branch `feature/atmosphere-fog-25.0`, from `main` @ `37544f8` (24.0, merged and live). Full numbers: `docs/BENCH-25.0.json`.
+
+### The map pool
+One jungle map in Team Deathmatch: Crash Site, shown as **DEEP JUNGLE**. The firebase (`jungle`) left the TDM pool and is Survival only, shown as **FIREBASE VIPER**, so the two never share a name.
+
+### Music
+- **Deep Jungle** (`jungle_theme`), drums and bass only:
+  - **Removed:** the 9.0 theme's high triangle lead with glide and vibrato, its rimshots and mid toms (the "siren and beeping").
+  - **In:** a heartbeat on a deep tribal drum (52 Hz), hand drums three against four (72–88 Hz), a breathing drone on the root and fifth, a low ostinato, war drums and a surdo roll at the top.
+  - **Measured offline** (`musicSpectrum`): energy above 1 kHz 1.69% → 0.04%, above 2.5 kHz 0.23% → 0.01%, the same loudness (−16.8 dB RMS).
+- **Desert** (`desert_theme`): maqam Hijaz on E (Phrygian dominant) over a tanpura-like drone.
+  - **Percussion:** a darbuka in the maqsum rhythm.
+  - **Melody:** an oud line, a ney (breathy flute) as the fight grows, and at the top a bowed string ensemble in the double harmonic (Hijaz Kar), doubled at the octave.
+  - **Phrasing:** phrases walk the scale by step, end on the tonic or fifth, and slide into notes.
+  - **New instruments:** `tribal`, `drone`, `flute`, `bowed`, `darbuka`.
+
+### Neon Block: the ground fog
+- **No rain:** the particles, the puddles' raindrop ripples and the rain bed are gone; the street stays wet.
+- **The fog:** lies in the streets and is gone by 4.5 m (the landings, the footbridge, Block E's roofs; Block W's roofs at 7.2). The distance haze is thinner (0.018 → 0.012).
+- **How it's drawn** (`world/HeightFog.ts`): three's fog chunks are patched at startup to integrate a height-dependent density along each view ray in closed form, so there's no raymarching and no extra geometry. The parameters are uniforms shared by reference by every built-in material, and are off (density 0) on every other map.
+  - **In the street:** a figure is under 20% hidden at 4 m and over 80% at 13 m.
+  - **From the roofs:** a street target at 15 m is under 25% veiled, and roof to roof is clear.
+- **Bots see as the player does:** with both feet under 3 m, no bot sees past 13 m (`TdmData.groundFog`, in the Sensing pass; the player's spotting too).
+- **Route bias** (`TdmData.navBias`, `Nav.route({ bias })`): SMG and shotgun bots find fog links cheaper, riflemen the clear ones.
+
+### Self-play on Neon Block (5v5)
+- **Kill distances:** street kills a median of about 8.3 m (90th percentile about 11 m), rooftop kills about 14.5 m (90th percentile about 31 m). Without the fog: street 11.4 m (90th percentile 22.9 m).
+- **Who goes high:** rifle bots spend 48% of their time over the fog (27% without), SMG 25% (35%), shotgun 20% (29%).
+- **The cost is pace:** 14–17.6 kills a minute against 15.6–18.5, as street fights now start closer.
+
+### Validation
+- `bench(3)` Neon Block: 60 FPS, CPU 2.0–2.8 ms, GPU 5.4–6.4 ms (6.1–6.7 with the rain in 17.0). Maglev with the patched chunks and the fog off: GPU unchanged.
+- `leakcheck.mjs 2 neonblock,crashsite,desert`: 0 alive.
+- Tests 300 (+11: the fog's numbers, the patched chunks and shared uniforms, the sight cap, the route bias, the registry, the two themes' notes and instruments).
+
 ## Next
 Human playtest:
+- 25.0 items: Neon Block's fog (does it read as fog or as darkness; is 13 m too short for the street, too long; do the roofs feel like the place to snipe from); the new jungle and desert music (listen: no more siren? does the desert sound Arabic, or like a cliché?).
 - 24.0 items: is the text the right size on your monitor (too big at 4K?), do the map cards read at a glance, is the live scoreboard in the way of the kill feed, does your gold kill row feel rewarding or noisy.
 - 23.0 items: Old Port (is it still sniped from end to end anywhere; does the spine read as a maze you go through or over; are the dock scaffolds in the way or good cover; is 7v7 too busy for the warehouse); the spawn swap (is 12 m the right size; is the prompt noticed; does closing on a shot feel right).
 - 22.0 items: can you tell friend from foe at a glance on Maglev now (the ice-blue and sand blocks, the chevrons); do the bots look like they hold their guns (the hands, the bladed stance, the aimed hold); the new silhouettes at 20–40 m.

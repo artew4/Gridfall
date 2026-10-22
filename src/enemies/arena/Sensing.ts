@@ -93,6 +93,11 @@ export class Sensing {
    * `los`: the collision query (the caller counts it against the frame budget). `hidden`: soft
    * concealment along a sightline (the jungle's undergrowth), if any.
    */
+  /** 25.0: a ground fog's sight cap (TdmData.groundFog): both feet under `below` m, no further than `range`. */
+  fog: { below: number; range: number } | null = null;
+  /** 25.0 (DEV): pairs the fog cut (in range otherwise, both in the fog, beyond its range). */
+  fogCut = 0;
+
   constructor(
     private los: (a: THREE.Vector3, b: THREE.Vector3) => boolean,
     public hidden?: (a: THREE.Vector3, b: THREE.Vector3) => boolean,
@@ -138,6 +143,13 @@ export class Sensing {
         // Pre-filters, no ray: out of range; behind its back and nothing drew its eye there.
         if (d > Math.min(range, S.range)) {
           s.vis = false;
+          continue;
+        }
+        // 25.0: in the ground fog both ways, nobody sees past its range (a figure 85% hidden).
+        const F = this.fog;
+        if (F && d > F.range && me.pos.y < F.below && h.pos.y < F.below) {
+          s.vis = false;
+          this.fogCut++;
           continue;
         }
         const alertT = a.alert.get(h.uid) ?? -Infinity;

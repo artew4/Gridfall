@@ -83,6 +83,9 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Old Port (17.1):
   - `?setting=oldport`. `bench(3)` has an Old Port set: nine views (the hall, the upper floor in the skylight shafts, the yard, the stacks, the dock floor, the bridge, the sea quay into the sun side, the whole port) and a firefight. `tdmSim` lanes: warehouse, yard, dock.
   - `__game.level.debug()`: nav nodes and drops, skylight shafts, indoors, `drowned` (the sea fence should keep it 0).
+- Fog and music (25.0):
+  - `tdmSim(...).fog` (a map with a ground fog): kills on the ground (both ends under its top), on the roofs (both over) and across, with medians and p10/p90; each gun's share of its time over the fog; the sight checks the fog cut. `tdmSim({ fog: false })` plays the map without the fog's sight cap and route bias.
+  - `await __dev.musicSpectrum({ ids, seconds, intensity })`: each procedural theme rendered offline (all layers in at `intensity`, mixed as the game mixes it), and again through a high-pass at 1 kHz and 2.5 kHz: the share of the energy above each, the RMS and the peak (before the limiter).
 - UI checks (24.0):
   - `node scripts/uicheck.mjs [out-dir]` (Node 22+, Google Chrome; `URL=`, `SIZES=1440x900,3840x2160`): headless Chrome at 1440×900, 1920×1080, 2560×1440 and 3840×2160. It checks the menu, the maps screen, a TDM HUD (a kill of the player's in the feed) and the result screen: the smallest visible text, anything off screen, overlaps among the minimap, health, callsign, ammo and live scoreboard. Screenshots go to `out-dir`. Exit 1 on a spill, an overlap or text under 11 px.
   - `node scripts/csscheck.mjs [seconds]` also measures a hovered button, a hovered map card (a hover must settle) and the TDM HUD after a kill, and stops the logo's glitch for the hover rows.

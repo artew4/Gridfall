@@ -1,0 +1,46 @@
+{
+  "version": "25.0 (vertical fog gameplay, audio polish, the map registry)",
+  "machine": "Apple M5 laptop, Chrome, Balanced preset (60 FPS cap, render scale 1.25)",
+  "branch": "feature/atmosphere-fog-25.0 from main @ 37544f8 (24.0)",
+  "registry": { "tdmJungle": "crashsite only, shown as DEEP JUNGLE (Thai flavor ป่าลึก)", "firebase": "jungle: Survival only, shown as FIREBASE VIPER" },
+  "groundFog": {
+    "where": "Neon Block (TDM)",
+    "model": "density D·clamp(1 − y/H, 0, 1)², D 0.256 /m, H 4.5 m; integrated along the camera-to-fragment segment in closed form; hidden = (1 − exp(−τ²))·0.96",
+    "hiddenShare": { "street 4 m": "< 0.2", "street 9 m": "> 0.45", "street 13 m": "> 0.8", "roof to roof": 0, "roof (8.85 m eye) to street at 15 m": "< 0.25" },
+    "sightCap": "both feet under 3 m: no bot sees past 13 m (Sensing pre-filter; the player's spotting too)",
+    "routeBias": "SMG and shotgun: fog links ×0.7, clear ×1.25; rifle: clear ×0.6, fog ×1.35; pistol neutral"
+  },
+  "selfPlay": {
+    "method": "tdmSim on Neon Block, 5v5, 25 tickets; kills by where both ends stood (ground: both feet under 3 m; roof: both over; across: one each); each gun's share of its time over 3 m",
+    "fogOn_8": {
+      "groundKills": 139, "groundMedianM_perMatch": [8.2, 7.8, 8.0, 8.8, 10.0, 8.6, 8.3, 6.8], "groundP90M_perMatch": [11.3, 11.8, 10.0, 10.1, 11.6, 10.5, 12.6, 8.9],
+      "roofKills": 163, "roofMedianM_perMatch": [10.8, 14.3, 16.4, 15.5, 14.7, 13.7, 24.0, 13.2], "roofP90M_perMatch": [30.9, 31.4, 32.6, 33.9, 27.9, 33.4, 36.9, 29.9],
+      "acrossMedianM_perMatch": [16.5, 15.1, 19.3, 12.2, 12.8, 15.9, 10.9, 19.1],
+      "timeOverFogPctByGun_mean": { "AR": 47.6, "PST": 32.8, "SMG": 24.6, "SG": 20.2 },
+      "killsPerMin": [14.0, 17.6], "quietPct": [24.7, 40.6], "stuck": 1
+    },
+    "fogOff_4": {
+      "note": "the same build with the sight cap and the route bias off (tdmSim({ fog: false })): the 24.0 bots on this map",
+      "groundKills": 91, "groundMedianM_perMatch": [9.7, 9.9, 11.0, 15.2], "groundP90M_mean": 22.9,
+      "roofKills": 67, "roofMedianM_perMatch": [10.7, 17.6, 10.9, 17.3], "roofP90M_mean": 26.4,
+      "timeOverFogPctByGun_mean": { "AR": 27.3, "PST": 17.8, "SMG": 34.7, "SG": 28.6 },
+      "killsPerMin": [15.6, 18.5], "quietPct": [27.8, 37], "stuck": 0
+    }
+  },
+  "music": {
+    "method": "__dev.musicSpectrum: every layer of a theme rendered offline (OfflineAudioContext, mixed as PatternTheme mixes it: layer levels, theme gain; no limiter), then again through a 12 dB/oct high-pass at 1 kHz and at 2.5 kHz; 10 s at intensity 1",
+    "columns": "above1kPct, above2_5kPct, rmsDb, peakDb (before the limiter)",
+    "jungle_24.0": [1.69, 0.23, -17.0, -1.0],
+    "jungle_25.0": [0.04, 0.01, -16.8, 1.0],
+    "desert_24.0": [1.24, 0.15, -16.4, 0.4],
+    "desert_25.0": [2.94, 0.17, -16.6, 0.1],
+    "docks (reference)": [0.66, 0.14, -14.6, -0.9],
+    "note": "the jungle's first cut rendered 2.7 dB over the 24.0 theme (gain 0.9 -> 0.62); a first measurement read only the reverb sends (the TrackBus output starts at 0) and was redone"
+  },
+  "bench3": {
+    "neonblock": { "views_fps_cpuMs_gpuMs": { "alphaYard": [60, 2.44, 6.3], "mainStreet": [59.6, 2.84, 5.43], "lanternAlley": [60, 1.99, 6.34], "fireEscape": [60, 2.55, 5.45], "westRoofs": [60, 2.31, 6.3], "footbridge": [60.2, 2.64, 5.58], "eastRoofs": [60, 2.35, 6.43], "serviceAlley": [60, 2.33, 6.08], "wholeBlock": [60, 2.55, 6.2], "firefight": [60, 2.49, 6.15] }, "vs17.0": "GPU 6.1-6.7 ms with the rain", "discarded": "a first run's first five views (CPU 4.4-5.2 ms: the warm-up, L-140)" },
+    "maglev": { "gpuMs": [5.19, 6.33], "fps": 60, "note": "the patched fog chunks with the ground fog off: unchanged (22.0: 5.6-6.4)" }
+  },
+  "memory": { "leakcheck": "node scripts/leakcheck.mjs 2 neonblock,crashsite,desert: 0 alive, flat from lap 1" },
+  "tests": 300
+}

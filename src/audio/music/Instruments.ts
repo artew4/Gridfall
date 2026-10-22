@@ -396,4 +396,138 @@ export class Instruments {
     r.gain.value = 0.5;
     g.connect(r).connect(bus.reverbIn);
   }
+
+  // ---------------------------------------------------------------- 25.0: the jungle's drums and drones, the desert's voices
+  /**
+   * A deep tribal drum (25.0, the jungle): a sine thump falling from 2.2× its pitch to `f` (45–90 Hz
+   * for the big drums), a long body, and a short low-passed slap of the skin. Nothing over ~1 kHz.
+   */
+  tribal(bus: TrackBus, t: number, f: number, vel = 1, opts: { decay?: number; slap?: number } = {}) {
+    const decay = opts.decay ?? 0.55;
+    const o = this.osc('sine', f * 2.2, t, decay + 0.1);
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.09);
+    o.connect(this.env(t, 0.6 * vel, 0.003, decay)).connect(bus.drums);
+    // The body's second partial (a drum, not a sine).
+    const o2 = this.osc('sine', f * 1.6, t, decay * 0.6);
+    o2.frequency.exponentialRampToValueAtTime(f * 1.5, t + 0.07);
+    o2.connect(this.env(t, 0.16 * vel, 0.003, decay * 0.5)).connect(bus.drums);
+    const slap = opts.slap ?? 0.25;
+    if (slap > 0) {
+      const n = this.noiseSrc(t, 0.06);
+      n.connect(this.filt('lowpass', 900, 0.8)).connect(this.env(t, slap * vel, 0.001, 0.05)).connect(bus.drums);
+    }
+    const r = this.ctx.createGain();
+    r.gain.value = 0.25;
+    o.connect(r).connect(bus.reverbIn);
+  }
+
+  /**
+   * A drone (25.0): two detuned saws and a sub under a low-pass that breathes (an LFO on the cutoff,
+   * `rate` Hz), with a slow swell in and out. For the jungle's floor and the desert's tanpura.
+   */
+  drone(bus: TrackBus, t: number, note: number, dur: number, vel = 1, opts: { cutoff?: number; depth?: number; rate?: number; detune?: number } = {}) {
+    const f = midi(note);
+    const cutoff = opts.cutoff ?? 180;
+    const lp = this.filt('lowpass', cutoff, 1.2);
+    const lfo = this.ctx.createOscillator();
+    lfo.frequency.value = opts.rate ?? 0.12;
+    const lg = this.ctx.createGain();
+    lg.gain.value = cutoff * (opts.depth ?? 0.5);
+    lfo.connect(lg).connect(lp.frequency);
+    lfo.start(t);
+    lfo.stop(t + dur + 1.6);
+    const g = this.ctx.createGain();
+    const peak = 0.12 * vel;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + Math.min(1.5, dur * 0.3));
+    g.gain.setValueAtTime(peak, t + dur);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur + 1.5);
+    const det = opts.detune ?? 7;
+    for (const d of [-det, det]) this.osc('sawtooth', f, t, dur + 1.6, d).connect(lp);
+    this.osc('sine', f / 2, t, dur + 1.6).connect(g);
+    lp.connect(g).connect(bus.bass);
+    const r = this.ctx.createGain();
+    r.gain.value = 0.3;
+    g.connect(r).connect(bus.reverbIn);
+  }
+
+  /**
+   * A ney-like flute (25.0, the desert): a sine and a soft triangle an octave up, breath (noise
+   * band-passed at the note), a slow vibrato that comes in late; `from` slides into the note (the
+   * maqam ornament).
+   */
+  flute(bus: TrackBus, t: number, note: number, dur: number, vel = 1, opts: { from?: number; glide?: number } = {}) {
+    const f = midi(note);
+    const g = this.env(t, 0.07 * vel, 0.07, 0.25, 0.85, Math.max(0, dur - 0.25), 0.25);
+    const vib = this.ctx.createOscillator();
+    vib.frequency.value = 5;
+    const vg = this.ctx.createGain();
+    vg.gain.setValueAtTime(0, t);
+    vg.gain.linearRampToValueAtTime(f * 0.008, t + Math.min(0.6, dur * 0.7));
+    vib.connect(vg);
+    vib.start(t);
+    vib.stop(t + dur + 0.4);
+    for (const [type, mul, lvl] of [['sine', 1, 1], ['triangle', 2, 0.18]] as [OscillatorType, number, number][]) {
+      const o = this.osc(type, (opts.from ? midi(opts.from) : f) * mul, t, dur + 0.3);
+      if (opts.from) o.frequency.exponentialRampToValueAtTime(f * mul, t + (opts.glide ?? 0.12));
+      vg.connect(o.frequency);
+      const og = this.ctx.createGain();
+      og.gain.value = lvl;
+      o.connect(og).connect(g);
+    }
+    const n = this.noiseSrc(t, dur + 0.3);
+    const bp = this.filt('bandpass', f * 1.5, 2.2);
+    n.connect(bp).connect(this.env(t, 0.035 * vel, 0.05, 0.2, 0.5, Math.max(0, dur - 0.2), 0.2)).connect(bus.lead);
+    g.connect(bus.lead);
+    const r = this.ctx.createGain();
+    r.gain.value = 0.55;
+    g.connect(r).connect(bus.reverbIn);
+  }
+
+  /**
+   * A bowed string (25.0, the desert's kamancheh/rebab ensemble): detuned saws through a low-pass and
+   * a body formant, a slow bow attack, vibrato; `from` slides into the note.
+   */
+  bowed(bus: TrackBus, t: number, note: number, dur: number, vel = 1, opts: { from?: number; glide?: number; voices?: number } = {}) {
+    const f = midi(note);
+    const lp = this.filt('lowpass', 2200, 0.8);
+    const body = this.filt('peaking', 1100, 1.2);
+    body.gain.value = 5;
+    const g = this.env(t, 0.06 * vel, 0.14, 0.3, 0.8, Math.max(0, dur - 0.3), 0.3);
+    const vib = this.ctx.createOscillator();
+    vib.frequency.value = 5.8;
+    const vg = this.ctx.createGain();
+    vg.gain.setValueAtTime(0, t);
+    vg.gain.linearRampToValueAtTime(f * 0.007, t + Math.min(0.5, dur * 0.6));
+    vib.connect(vg);
+    vib.start(t);
+    vib.stop(t + dur + 0.4);
+    const voices = opts.voices ?? 3;
+    for (let i = 0; i < voices; i++) {
+      const det = (i - (voices - 1) / 2) * 7;
+      const o = this.osc('sawtooth', opts.from ? midi(opts.from) : f, t, dur + 0.35, det);
+      if (opts.from) o.frequency.exponentialRampToValueAtTime(f, t + (opts.glide ?? 0.15));
+      vg.connect(o.frequency);
+      o.connect(lp);
+    }
+    lp.connect(body).connect(g).connect(bus.lead);
+    const r = this.ctx.createGain();
+    r.gain.value = 0.6;
+    g.connect(r).connect(bus.reverbIn);
+  }
+
+  /** A darbuka (25.0, the desert): `dum` (low, open), `tek` (the rim, bright and dry), `ka` (a softer tek). */
+  darbuka(bus: TrackBus, t: number, stroke: 'dum' | 'tek' | 'ka', vel = 1) {
+    if (stroke === 'dum') {
+      const o = this.osc('sine', 150, t, 0.35);
+      o.frequency.exponentialRampToValueAtTime(82, t + 0.06);
+      o.connect(this.env(t, 0.55 * vel, 0.002, 0.3)).connect(bus.drums);
+      return;
+    }
+    const k = stroke === 'tek' ? 1 : 0.55;
+    const n = this.noiseSrc(t, 0.05);
+    n.connect(this.filt('bandpass', 3400, 1.4)).connect(this.env(t, 0.32 * vel * k, 0.0008, 0.04)).connect(bus.drums);
+    const o = this.osc('triangle', 620, t, 0.06);
+    o.connect(this.env(t, 0.12 * vel * k, 0.001, 0.05)).connect(bus.drums);
+  }
 }

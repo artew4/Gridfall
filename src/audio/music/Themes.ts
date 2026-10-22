@@ -189,7 +189,6 @@ export class PatternTheme {
 }
 
 // ---------------------------------------------------------------------------------------------- themes
-const pick = <T>(a: readonly T[], r: () => number) => a[Math.floor(r() * a.length)];
 
 /** Title and menus: slow, wide, D minor; nothing that implies a fight. */
 export const MENU_THEME: ThemeDef = {
@@ -218,52 +217,126 @@ export const MENU_THEME: ThemeDef = {
   ],
 };
 
-/** Desert Outpost: E phrygian dominant, a frame-drum pulse, a plucked oud-like line; a fight adds drums. */
-const PHRYG_DOM = [52, 53, 56, 57, 59, 60, 62, 64, 65, 68, 69, 71];
+/*
+  25.0, the desert: maqam Hijaz on E (the Phrygian dominant: E F G♯ A B C D, the augmented second F–G♯
+  that makes it read as Arabic), over a tanpura-like drone of E and B. A darbuka plays the Egyptian
+  maqsum (dum tek · tek dum · tek ·); an oud plucks the phrase; a ney (breathy flute) takes it up as
+  the fight grows; at the top a bowed string ensemble plays it in the double harmonic (D♯ for D: Hijaz
+  Kar), doubled an octave. The melodies are phrases, not random notes: they walk the scale mostly by
+  step, end on the tonic or the fifth, and slide into notes (the maqam's ornament).
+*/
+/** E Hijaz from E3, two octaves; the double harmonic swaps D for D♯. */
+export const HIJAZ = [52, 53, 56, 57, 59, 60, 62, 64, 65, 68, 69, 71, 72, 74, 76];
+export const HIJAZ_KAR = HIJAZ.map((n) => (n % 12 === 2 ? n + 1 : n));
+
+/** A phrase over `bars` bars: [step from the phrase's start, scale degree, length in steps]. */
+export type Phrase = [number, number, number][];
+const RHYTHMS: [number, number][][] = [
+  [[0, 4], [4, 2], [6, 2], [8, 6], [14, 2]],
+  [[0, 2], [2, 2], [4, 4], [8, 3], [11, 1], [12, 4]],
+  [[0, 6], [6, 2], [8, 2], [10, 2], [12, 4]],
+  [[0, 3], [3, 1], [4, 2], [6, 2], [8, 8]],
+];
+/**
+ * 25.0: a melodic phrase over two bars: a walk on scale degrees, by step (70%), by a third (20%) or
+ * held (10%), inside `lo`…`hi`; the last note lands on the tonic or the fifth of the octave it is in.
+ */
+export function makePhrase(rnd: () => number, start: number, lo: number, hi: number): Phrase {
+  const out: Phrase = [];
+  let d = start;
+  for (let bar = 0; bar < 2; bar++) {
+    const rh = RHYTHMS[Math.floor(rnd() * RHYTHMS.length)];
+    for (const [s, len] of rh) {
+      const r = rnd();
+      const move = r < 0.7 ? (rnd() < 0.5 ? -1 : 1) : r < 0.9 ? (rnd() < 0.5 ? -2 : 2) : 0;
+      d = Math.max(lo, Math.min(hi, d + move));
+      out.push([bar * 16 + s, d, len]);
+    }
+  }
+  // Cadence: the tonic (degree 0 or 7) or the fifth (4 or 11), whichever is nearest.
+  const last = out[out.length - 1];
+  last[1] = [0, 4, 7, 11].reduce((a, b) => (Math.abs(b - last[1]) < Math.abs(a - last[1]) ? b : a));
+  return out;
+}
+
+/** The phrase each melodic layer is playing (made at the start of every second bar). */
+const desertPhrase: Record<string, Phrase> = {};
+function phraseStep(key: string, c: StepCtx, lo: number, hi: number, startDeg: number) {
+  const pos = (c.bar % 2) * 16 + c.step;
+  if (pos === 0 || !desertPhrase[key]) desertPhrase[key] = makePhrase(c.rnd, startDeg, lo, hi);
+  return desertPhrase[key].find(([s]) => s === pos) ?? null;
+}
+
 export const DESERT_THEME: ThemeDef = {
   id: 'desert_theme',
-  bpm: 96,
+  bpm: 92,
   gain: 0.85,
-  barsPerChord: 2,
+  barsPerChord: 4,
   chords: [
     { root: 40, pad: [52, 59, 64] },
-    { root: 41, pad: [53, 57, 60] },
+    { root: 41, pad: [53, 56, 60] },
     { root: 40, pad: [52, 56, 59, 64] },
     { root: 38, pad: [50, 57, 62] },
   ],
-  scale: PHRYG_DOM,
+  scale: HIJAZ,
   layers: [
-    { id: 'drone', on: 0, off: 0, level: 0.6, part: 'bass', play: (c) => { if (c.step === 0 && c.bar % 2 === 0) c.I.bass(c.bus, c.t, 28, c.s16 * 32 - 0.2, 0.55, { cutoff: 140, env: 30, detune: 7 }); } },
-    { id: 'pad', on: 0, off: 0, level: 0.45, part: 'synth', play: (c) => { if (c.step === 0 && c.bar % 2 === 0) c.I.pad(c.bus, c.t, c.chord.pad, c.s16 * 32 - 0.2, 0.6, 900); } },
-    { id: 'frame', on: 0, off: 0, level: 0.55, part: 'drums', play: (c) => { if ([0, 6, 10].includes(c.step)) c.I.tom(c.bus, c.t, c.step === 0 ? 92 : 128, c.step === 0 ? 0.6 : 0.35); } },
+    // The tanpura: E and B, breathing, every four bars.
+    { id: 'drone', on: 0, off: 0, level: 0.6, part: 'bass', play: (c) => { if (c.step === 0 && c.bar % 4 === 0) { c.I.drone(c.bus, c.t, 28, c.s16 * 64 - 0.5, 0.8, { cutoff: 260, rate: 0.09 }); c.I.drone(c.bus, c.t, 35, c.s16 * 64 - 0.5, 0.45, { cutoff: 320, rate: 0.13 }); } } },
     {
-      id: 'oud', on: 0, off: 0, level: 0.55, part: 'lead',
+      // Maqsum: dum tek · tek dum · tek · (eighths), ka ghosts between.
+      id: 'darbuka', on: 0, off: 0, level: 0.6, part: 'drums',
       play: (c) => {
-        if (c.step % 2 || c.rnd() > 0.32 - c.intensity * 0.12) return;
-        c.I.pluck(c.bus, c.t, pick(PHRYG_DOM, c.rnd) + 12, 0.45 + c.rnd() * 0.3, { type: 'sawtooth', cutoff: 1800, decay: 0.35, delay: 0.35 });
+        const hit: Record<number, 'dum' | 'tek' | 'ka'> = { 0: 'dum', 2: 'tek', 6: 'tek', 8: 'dum', 12: 'tek' };
+        const k = hit[c.step];
+        if (k) c.I.darbuka(c.bus, c.t, k, k === 'dum' ? 0.85 : 0.6);
+        else if (c.step % 2 && c.rnd() < 0.25 + c.intensity * 0.3) c.I.darbuka(c.bus, c.t, 'ka', 0.35);
       },
     },
-    { id: 'shaker', on: 0.3, off: 0.2, level: 0.5, part: 'drums', play: (c) => { if (c.step % 2 === 0) c.I.shaker(c.bus, c.t, c.step % 4 === 0 ? 0.5 : 0.3); } },
+    {
+      // The oud: the phrase plucked, low register.
+      id: 'oud', on: 0, off: 0, level: 0.55, part: 'lead',
+      play: (c) => {
+        const n = phraseStep('oud', c, 0, 9, 4);
+        if (n) c.I.pluck(c.bus, c.t, HIJAZ[n[1]], 0.6, { type: 'sawtooth', cutoff: 1500, decay: 0.32, delay: 0.3 });
+      },
+    },
+    {
+      // The ney, an octave up, long notes sliding in from the note below.
+      id: 'ney', on: 0.3, off: 0.2, level: 0.6, part: 'lead',
+      play: (c) => {
+        const n = phraseStep('ney', c, 4, 12, 7);
+        if (!n || n[2] < 2) return;
+        const note = HIJAZ[n[1]] + 12;
+        c.I.flute(c.bus, c.t, note, c.s16 * n[2] * 0.95, 0.75, c.rnd() < 0.4 ? { from: note - 1, glide: 0.1 } : {});
+      },
+    },
+    { id: 'riq', on: 0.45, off: 0.35, level: 0.45, part: 'drums', play: (c) => { if (c.step % 2 === 0) c.I.shaker(c.bus, c.t, c.step % 4 === 0 ? 0.5 : 0.3); if (c.step === 4 || c.step === 12) c.I.hat(c.bus, c.t, 0.35); } },
     {
       id: 'bass', on: 0.45, off: 0.35, level: 0.8, part: 'bass',
       play: (c) => {
         const motif: [number, number][] = [[0, 0], [3, 0], [6, 1], [8, 0], [11, 4], [14, 3]];
-        for (const [s, iv] of motif) if (s === c.step) c.I.bass(c.bus, c.t, 40 + iv, c.s16 * 1.6, s === 0 ? 0.9 : 0.7, { cutoff: 380, env: 900 });
+        for (const [s, iv] of motif) if (s === c.step) c.I.bass(c.bus, c.t, 40 + iv, c.s16 * 1.6, s === 0 ? 0.9 : 0.7, { cutoff: 380, env: 700 });
       },
     },
     {
+      // Baladi on the big drums: dum dum · tek dum · tek ·, a roll into every fourth bar.
       id: 'drums', on: 0.65, off: 0.52, level: 0.8, part: 'drums',
       play: (c) => {
-        if (c.step === 0 || c.step === 8 || (c.bar % 2 && c.step === 11)) c.I.kick(c.bus, c.t, c.step === 0 ? 0.9 : 0.7, { pump: 0.2 });
-        if (c.step === 4 || c.step === 12) c.I.snare(c.bus, c.t, 0.55, 210, 0.3);
-        if (c.bar % 4 === 3 && c.step >= 12) c.I.tom(c.bus, c.t, [180, 150, 120, 100][c.step - 12], 0.5);
+        if (c.step === 0 || c.step === 2 || c.step === 8) c.I.kick(c.bus, c.t, c.step === 0 ? 0.9 : 0.7, { pump: 0.2 });
+        if (c.step === 6 || c.step === 12) c.I.darbuka(c.bus, c.t, 'tek', 0.8);
+        if (c.bar % 4 === 3 && c.step >= 12) c.I.darbuka(c.bus, c.t, c.step % 2 ? 'ka' : 'tek', 0.7);
       },
     },
     {
-      id: 'lead', on: 0.8, off: 0.66, level: 0.6, part: 'lead',
+      // The string ensemble in the double harmonic, doubled at the octave.
+      id: 'strings', on: 0.8, off: 0.66, level: 0.55, part: 'lead',
       play: (c) => {
-        if (c.bar % 2 || c.step % 4) return;
-        c.I.lead(c.bus, c.t, pick([64, 65, 68, 69, 71, 72], c.rnd) + 12, c.s16 * 3.5, 0.5, { glide: 0.06, cutoff: 2600, vibrato: 1.2, type: 'sawtooth' });
+        const n = phraseStep('strings', c, 4, 11, 7);
+        if (!n || n[2] < 2) return;
+        const note = HIJAZ_KAR[n[1]] + 12;
+        const slide = c.rnd() < 0.5 ? { from: HIJAZ_KAR[Math.max(0, n[1] - 1)] + 12, glide: 0.14 } : {};
+        c.I.bowed(c.bus, c.t, note, c.s16 * n[2] * 0.95, 0.7, slide);
+        c.I.bowed(c.bus, c.t, note - 12, c.s16 * n[2] * 0.95, 0.45, { ...slide, ...(slide.from ? { from: slide.from - 12 } : {}), voices: 2 });
       },
     },
   ],
@@ -307,51 +380,65 @@ export const DOCKS_THEME: ThemeDef = {
   ],
 };
 
-/** Deep Jungle: A minor pentatonic, tribal toms in three against four, a breathy lead in a fight. */
+/*
+  25.0, the jungle (Deep Jungle, Firebase Viper): drums and bass only. The 9.0 theme's high triangle
+  lead with its glide and vibrato, its rimshots and its mid toms read as a siren and beeping. Now
+  nothing sounds above A3 (220 Hz; the old lead sat at 440–880) but the skin of a drum: a slow heartbeat on a deep tribal drum (55 Hz), hand
+  drums in three against four under it (65–90 Hz), a breathing drone (A1 and E2), a low ostinato as
+  the fight starts, war drums and a surdo roll at its height.
+*/
 export const JUNGLE_THEME: ThemeDef = {
   id: 'jungle_theme',
-  bpm: 104,
-  gain: 0.85,
-  barsPerChord: 2,
+  bpm: 88,
+  // Measured (DEV musicSpectrum, all layers in): at 0.9 it was 2.7 dB over the 24.0 theme and peaked over
+  // full scale before the limiter; 0.62 sits with the others.
+  gain: 0.62,
+  barsPerChord: 4,
   chords: [
-    { root: 33, pad: [57, 60, 64, 67] },
-    { root: 31, pad: [55, 59, 62, 67] },
-    { root: 29, pad: [53, 57, 60, 64] },
-    { root: 28, pad: [52, 55, 59, 64] },
+    { root: 33, pad: [45, 52, 57] },
+    { root: 31, pad: [43, 50, 55] },
+    { root: 29, pad: [41, 48, 53] },
+    { root: 28, pad: [40, 47, 52] },
   ],
-  scale: [57, 60, 62, 64, 67, 69, 72, 74, 76],
+  scale: [33, 36, 38, 40, 43, 45, 48],
   layers: [
-    { id: 'drone', on: 0, off: 0, level: 0.55, part: 'bass', play: (c) => { if (c.step === 0 && c.bar % 2 === 0) c.I.bass(c.bus, c.t, c.chord.root, c.s16 * 32 - 0.2, 0.5, { cutoff: 130, env: 30, detune: 6 }); } },
-    { id: 'pad', on: 0, off: 0, level: 0.4, part: 'synth', play: (c) => { if (c.step === 0 && c.bar % 2 === 0) c.I.pad(c.bus, c.t, c.chord.pad, c.s16 * 32 - 0.2, 0.55, 700); } },
+    // The floor: a drone on the root and its fifth, breathing slowly, every four bars.
+    { id: 'drone', on: 0, off: 0, level: 0.7, part: 'bass', play: (c) => { if (c.step === 0 && c.bar % 4 === 0) { c.I.drone(c.bus, c.t, c.chord.root, c.s16 * 64 - 0.5, 0.85, { cutoff: 150, rate: 0.07, depth: 0.6 }); c.I.drone(c.bus, c.t, c.chord.root + 7, c.s16 * 64 - 0.5, 0.4, { cutoff: 170, rate: 0.11 }); } } },
+    // The heartbeat: a deep drum on one and its echo, a ghost before three.
+    { id: 'pulse', on: 0, off: 0, level: 0.75, part: 'drums', play: (c) => { if (c.step === 0) c.I.tribal(c.bus, c.t, 52, 0.9, { decay: 0.8, slap: 0.1 }); else if (c.step === 3) c.I.tribal(c.bus, c.t, 52, 0.5, { decay: 0.6, slap: 0.05 }); else if (c.step === 7 && c.bar % 2) c.I.tribal(c.bus, c.t, 58, 0.35, { decay: 0.4 }); } },
     {
-      id: 'toms', on: 0, off: 0, level: 0.65, part: 'drums',
+      // Hand drums in three against four, low; the accent moves round the bar.
+      id: 'hands', on: 0, off: 0, level: 0.55, part: 'drums',
       play: (c) => {
-        // Three against four: a dotted pattern of low toms over the bar.
-        if (c.step % 3 === 0) c.I.tom(c.bus, c.t, c.step % 6 === 0 ? 86 : 110, c.step === 0 ? 0.7 : 0.45);
-        if (c.step === 14) c.I.tom(c.bus, c.t, 140, 0.4);
+        if (c.step % 3 !== 0) return;
+        const accent = (c.step / 3 + c.bar) % 4 === 0;
+        c.I.tribal(c.bus, c.t, accent ? 72 : 88, accent ? 0.6 : 0.32, { decay: 0.28, slap: accent ? 0.35 : 0.2 });
       },
     },
-    { id: 'shaker', on: 0, off: 0, level: 0.4, part: 'drums', play: (c) => { if (c.step % 2 === 0) c.I.shaker(c.bus, c.t, c.step % 4 === 0 ? 0.45 : 0.25); } },
-    { id: 'rims', on: 0.3, off: 0.2, level: 0.55, part: 'drums', play: (c) => { if ([2, 5, 10, 13].includes(c.step)) c.I.rim(c.bus, c.t, 0.5); } },
+    { id: 'shaker', on: 0.2, off: 0.12, level: 0.25, part: 'drums', play: (c) => { if (c.step % 2 === 0) c.I.shaker(c.bus, c.t, c.step % 4 === 0 ? 0.4 : 0.22); } },
     {
-      id: 'bass', on: 0.45, off: 0.35, level: 0.8, part: 'bass',
+      // A low ostinato on the root, its fifth and flat seventh, dark (no filter sweep).
+      id: 'bass', on: 0.4, off: 0.3, level: 0.85, part: 'bass',
       play: (c) => {
-        const motif: [number, number][] = [[0, 0], [3, 7], [6, 0], [8, 10], [11, 7], [14, 3]];
-        for (const [s, iv] of motif) if (s === c.step) c.I.bass(c.bus, c.t, c.chord.root + 12 + iv, c.s16 * 1.5, s === 0 ? 0.9 : 0.7, { cutoff: 420, env: 900 });
-      },
-    },
-    {
-      id: 'drums', on: 0.65, off: 0.52, level: 0.8, part: 'drums',
-      play: (c) => {
-        if ([0, 7, 10].includes(c.step)) c.I.kick(c.bus, c.t, c.step === 0 ? 0.9 : 0.65, { pump: 0.25 });
-        if (c.step === 4 || c.step === 12) c.I.snare(c.bus, c.t, 0.55, 230, 0.3);
+        const motif: [number, number][] = [[0, 0], [3, 0], [6, 7], [8, 0], [11, 10], [14, 7]];
+        for (const [s, iv] of motif) if (s === c.step) c.I.bass(c.bus, c.t, c.chord.root + 12 + iv, c.s16 * 1.8, s === 0 ? 0.95 : 0.7, { cutoff: 210, env: 160, detune: 5 });
       },
     },
     {
-      id: 'flute', on: 0.8, off: 0.66, level: 0.55, part: 'lead',
+      // War drums: a big drum on one, the and of two and three; a tribal roll into every second bar.
+      id: 'war', on: 0.6, off: 0.48, level: 0.85, part: 'drums',
       play: (c) => {
-        if (c.bar % 2 || c.step % 4) return;
-        c.I.lead(c.bus, c.t, pick([69, 72, 74, 76, 79, 81], c.rnd), c.s16 * 3.5, 0.45, { glide: 0.08, cutoff: 3000, vibrato: 2, type: 'triangle' });
+        if ([0, 6, 8].includes(c.step)) c.I.kick(c.bus, c.t, c.step === 0 ? 0.95 : 0.75, { pump: 0.25, tune: 0.8 });
+        if (c.step === 4 || c.step === 12) c.I.tribal(c.bus, c.t, 64, 0.85, { decay: 0.35, slap: 0.5 });
+        if (c.bar % 2 && c.step >= 12) c.I.tribal(c.bus, c.t, [96, 86, 76, 66][c.step - 12], 0.7, { decay: 0.22, slap: 0.4 });
+      },
+    },
+    {
+      // The surdo: a deep open boom answering the war drums, and sixteenths on low drums at the peak.
+      id: 'surdo', on: 0.8, off: 0.66, level: 0.75, part: 'drums',
+      play: (c) => {
+        if (c.step === 10) c.I.tribal(c.bus, c.t, 46, 1, { decay: 1.0, slap: 0.15 });
+        if (c.step % 2 && c.rnd() < 0.5) c.I.tribal(c.bus, c.t, 78 + c.rnd() * 14, 0.3, { decay: 0.16, slap: 0.3 });
       },
     },
   ],

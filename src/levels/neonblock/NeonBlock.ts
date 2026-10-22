@@ -81,13 +81,13 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
 
   // ---------------------------------------------------------------- materials
   const asphalt = std(asphaltTexture(), 0xffffff, 0.62, 0, 1.25);
-  applyWet(asphalt, time, { puddles: true, wet: 0.9 });
+  applyWet(asphalt, time, { puddles: true, wet: 0.9, ripples: false });
   const alleyFloor = std(concreteTexture(), 0x7c7a80, 0.6, 0, 1.0);
-  applyWet(alleyFloor, time, { puddles: true, wet: 0.85 });
+  applyWet(alleyFloor, time, { puddles: true, wet: 0.85, ripples: false });
   const paving = std(pavingTexture(), 0xffffff, 0.5, 0, 1.2);
-  applyWet(paving, time, { puddles: true, wet: 0.85 });
+  applyWet(paving, time, { puddles: true, wet: 0.85, ripples: false });
   const roofDeck = std(concreteTexture(), 0x55545a, 0.7, 0, 0.8);
-  applyWet(roofDeck, time, { puddles: true, wet: 0.7 });
+  applyWet(roofDeck, time, { puddles: true, wet: 0.7, ripples: false });
   // Facades: Tokyo's window tiles, the lit windows dimmer than the story district's (1.6): a bright
   // window wall behind a fighter is a silhouette nobody can read.
   const facade = [0, 1, 2].map((k) => {

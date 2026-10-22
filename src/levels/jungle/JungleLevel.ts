@@ -14,13 +14,14 @@ import { JUNGLE_GUARDS } from '../../entities/enemies/paramilitary';
 
 export const JUNGLE_INFO: LevelInfo = {
   id: 'jungle',
-  name: 'DEEP JUNGLE',
+  // 25.0: named for its place (Crash Site is TDM's "DEEP JUNGLE" now); Survival only, out of the TDM pool.
+  name: 'FIREBASE VIPER',
   biome: 'jungle',
   jp: 'ฐานยิงไวเปอร์',
-  blurb: 'A walled firebase under the rainforest canopy. Survival: fight up the road and breach the gate. 5v5 TDM: LZ Alpha against LZ North, round and through the compound.',
-  modes: ['arcade', 'tdm'],
+  blurb: 'A walled firebase under the rainforest canopy. Survival: fight up the road, breach the gate and clear the compound.',
+  modes: ['arcade'],
   loading: 'GROWING THE JUNGLE…',
-  windowTitle: 'Gridfall — Deep Jungle',
+  windowTitle: 'Gridfall — Firebase Viper',
   enemies: JUNGLE_GUARDS,
   music: 'jungle_theme',
   tagline: 'BREACH THE GATE · CLEAR THE COMPOUND',
@@ -28,7 +29,7 @@ export const JUNGLE_INFO: LevelInfo = {
   place: 'FIREBASE VIPER · 47P QR 118 640',
   clock: '07:40',
   cine: {
-    arcade: { t1: 'GRIDFALL', t2: 'ฐานยิงไวเปอร์ · DEEP JUNGLE', t3: 'ARCADE SURVIVAL · FIREBASE VIPER<br/>PUSH UP THE ROAD · BREACH THE GATE · CLEAR THE COMPOUND' },
+    arcade: { t1: 'GRIDFALL', t2: 'ฐานยิงไวเปอร์ · FIREBASE VIPER', t3: 'ARCADE SURVIVAL · FIREBASE VIPER<br/>PUSH UP THE ROAD · BREACH THE GATE · CLEAR THE COMPOUND' },
     tdm: { t1: 'GRIDFALL', t2: 'ฐานยิงไวเปอร์ · DEEP JUNGLE', t3: 'TEAM DEATHMATCH 5v5 · LZ ALPHA vs LZ NORTH<br/>THE GATE · THE BREACHES · THE CULVERT · THE JUNGLE' },
   },
 };

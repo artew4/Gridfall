@@ -14,3 +14,64 @@ describe('music manager', () => {
     for (const id of TRACKS) expect(id === 'tokyo_theme' || id in PATTERN_THEMES).toBe(true);
   });
 });
+
+import { DESERT_THEME, HIJAZ, HIJAZ_KAR, JUNGLE_THEME, makePhrase, type ThemeDef } from './Themes';
+import { mulberry32 } from '../../core/math';
+
+/** Play a theme's every layer for `bars` bars at `intensity`, recording each instrument call. */
+function record(def: ThemeDef, bars: number, intensity = 1) {
+  const calls: { fn: string; layer: string; args: unknown[] }[] = [];
+  let layer = '';
+  const I = new Proxy({}, { get: (_t, fn: string) => (...args: unknown[]) => void calls.push({ fn, layer, args: args.slice(2) }) }) as never;
+  const rnd = mulberry32(5);
+  for (let bar = 0; bar < bars; bar++) for (let step = 0; step < 16; step++) {
+    const chord = def.chords[Math.floor(bar / def.barsPerChord) % def.chords.length];
+    for (const l of def.layers) {
+      layer = l.id;
+      l.play({ I, bus: {} as never, t: 0, step, bar, chord, s16: 60 / def.bpm / 4, intensity, rnd });
+    }
+  }
+  return calls;
+}
+const midiHz = (n: number) => 440 * 2 ** ((n - 69) / 12);
+
+describe('25.0: the jungle theme is drums and bass only', () => {
+  const calls = record(JUNGLE_THEME, 16);
+  it('no lead, pluck, rimshot, hats, pads or stabs (the "siren and beeping")', () => {
+    const used = new Set(calls.map((c) => c.fn));
+    for (const f of ['lead', 'pluck', 'rim', 'hat', 'pad', 'stab', 'riser', 'metal']) expect(used.has(f), f).toBe(false);
+    expect(used.has('tribal') && used.has('drone') && used.has('bass')).toBe(true);
+  });
+  it('every pitched note is low: tonal notes at or under A3 (220 Hz; the old lead sat at 440–880), drums under 100 Hz', () => {
+    for (const c of calls) {
+      if (c.fn === 'bass' || c.fn === 'drone') expect(c.args[0] as number).toBeLessThanOrEqual(57);
+      if (c.fn === 'tribal') expect(c.args[0] as number).toBeLessThan(100);
+    }
+  });
+});
+
+describe('25.0: the desert theme is maqam Hijaz', () => {
+  const calls = record(DESERT_THEME, 16);
+  it('a darbuka, an oud, a ney and bowed strings', () => {
+    const used = new Set(calls.map((c) => c.fn));
+    for (const f of ['darbuka', 'pluck', 'flute', 'bowed', 'drone']) expect(used.has(f), f).toBe(true);
+  });
+  it('every melodic note is in E Hijaz (the strings in Hijaz Kar): the augmented second F–G♯', () => {
+    const pcs = (a: number[]) => new Set(a.map((n) => n % 12));
+    const hijaz = pcs(HIJAZ), kar = pcs(HIJAZ_KAR);
+    expect([...hijaz].sort((a, b) => a - b)).toEqual([0, 2, 4, 5, 8, 9, 11]);
+    for (const c of calls) {
+      if (c.fn === 'pluck' || c.fn === 'flute') expect(hijaz.has((c.args[0] as number) % 12)).toBe(true);
+      if (c.fn === 'bowed') expect(kar.has((c.args[0] as number) % 12)).toBe(true);
+    }
+  });
+  it('phrases walk by step and end on the tonic or the fifth', () => {
+    const r = mulberry32(11);
+    for (let i = 0; i < 200; i++) {
+      const p = makePhrase(r, 4, 0, 11);
+      for (let j = 1; j < p.length - 1; j++) expect(Math.abs(p[j][1] - p[j - 1][1])).toBeLessThanOrEqual(2);
+      expect([0, 4, 7, 11]).toContain(p[p.length - 1][1]);
+    }
+  });
+});
+void midiHz;

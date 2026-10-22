@@ -251,7 +251,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -294,6 +294,11 @@ export async function tdmSim(
   }
   // 19.0: `size` (players a team; the match is bot-vs-bot, so all bots), `profile: false` (the map's AI tuning off).
   startMatch(game, true, opts.tickets ?? 25, ai, opts.size, opts.profile ?? true);
+  // 25.0 A/B: `fog: false` plays Neon Block without its ground fog's sight cap and route bias.
+  if (opts.fog === false) {
+    if (game.tdm.sensing) game.tdm.sensing.fog = null;
+    game.nav.bias = null;
+  }
   // Forward respawns are read at each respawn: held off for the whole match (A/B), restored below.
   TDM.force.noForward = opts.forward === false;
   const tdm = game.tdm;
@@ -334,6 +339,9 @@ export async function tdmSim(
   let steps = 0, firstContact: number | null = null;
   // Per bot-step samples: moving (> 1.5 m/s), crouched (> 0.5), standing still (< 0.5 m/s).
   const smp = { n: 0, moving: 0, crouched: 0, still: 0, speed: 0, elevated: 0, mid: 0, top: 0 };
+  // 25.0: the map's ground fog, if any (time above it by gun).
+  const fogTop = game.level.data.tdm?.groundFog?.below ?? null;
+  const upT: Record<string, [number, number]> = {};
   // 14.0: drop-downs (a bot falling fast: walked off a roof or a landing; stairs never build fall speed).
   const falling = new Set<number>();
   let drops = 0;
@@ -382,6 +390,13 @@ export async function tdmSim(
         // 14.0: which floor: the street, the mid level (2.5–6 m: landings, footbridge, low roofs) or the top.
         if (b.pos.y > 6) smp.top++;
         else if (b.pos.y > 2.5) smp.mid++;
+        // 25.0: time over a ground fog's top, by gun.
+        if (fogTop !== null && steps % 15 === 0) {
+          const tag = (b as unknown as { arm?: { tag: string } }).arm?.tag ?? 'melee';
+          const u = (upT[tag] ??= [0, 0]);
+          u[1]++;
+          if (b.pos.y >= fogTop) u[0]++;
+        }
         const fv = (b as unknown as { fallV: number }).fallV;
         if (fv < -5 && !falling.has(b.uid)) {
           falling.add(b.uid);
@@ -488,6 +503,22 @@ export async function tdmSim(
     range: { median: q(k.map((x) => x.dist), 0.5), p10: q(k.map((x) => x.dist), 0.1), p90: q(k.map((x) => x.dist), 0.9), melee: k.filter((x) => x.dist < 3).length },
     movement: { movingPct: pct(smp.moving), crouchedPct: pct(smp.crouched), stillPct: pct(smp.still), elevatedPct: pct(smp.elevated), avgSpeed: +(smp.speed / Math.max(1, smp.n)).toFixed(2) },
     // 14.0: vertical flow: bot time per floor, drop-downs taken (and where from), kills by the killer's floor.
+    // 25.0: a ground fog's combat (TdmData.groundFog): kills with both ends under its top (the street),
+    // both above (the roofs) and across; the range of each; each gun's time above it; sight checks it cut.
+    fog: fogTop === null ? null : (() => {
+      const zone = (x: { killerY?: number; victimPos?: number[] }) => {
+        const a = (x.killerY ?? 0) < fogTop, b = (x.victimPos?.[1] ?? 0) < fogTop;
+        return a && b ? 'ground' : !a && !b ? 'roof' : 'across';
+      };
+      const out: Record<string, unknown> = {};
+      for (const z of ['ground', 'roof', 'across']) {
+        const d = k.filter((x) => x.killerTeam && zone(x) === z).map((x) => x.dist);
+        out[z] = { kills: d.length, median: +q(d, 0.5).toFixed(1), p10: +q(d, 0.1).toFixed(1), p90: +q(d, 0.9).toFixed(1) };
+      }
+      out.upTimePctByGun = Object.fromEntries(Object.entries(upT).map(([g, [u, n]]) => [g, +((100 * u) / Math.max(1, n)).toFixed(1)]));
+      out.sightCut = tdm.sensing?.fogCut ?? 0;
+      return out;
+    })(),
     vertical: {
       streetPct: pct(smp.n - smp.mid - smp.top),
       midPct: pct(smp.mid),

@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+// 25.0: patches three's fog chunks (ground fog) before any material compiles.
+import '../world/HeightFog';
 import { Renderer, type Pipeline } from './Renderer';
 import { Input } from './Input';
 import { InteractionController, type Interactable } from './Interaction';
