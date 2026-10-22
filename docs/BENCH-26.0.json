@@ -1,0 +1,36 @@
+{
+  "version": "26.0 (the TDM HUD in three corners; procedural reload audio per gun)",
+  "branch": "feature/hud-audio-26.0 from main @ fef85fb",
+  "machine": "Apple M5, Chrome, Balanced",
+  "hud": {
+    "uicheck": { "method": "node scripts/uicheck.mjs: 4 sizes x 4 screens; overlaps among the minimap, health, callsign, ammo, team board, score and feed", "result": "16 of 16: no spill, no overlap; smallest text 11.3 px (1440x900) to 18.5 px (4K)" },
+    "csscheck": { "label": "the TDM HUD (a kill of his in the feed), loop stopped", "taskMsPerS_styleMsPerS_layoutMsPerS_recalcsPerS_layoutsPerS": [3.8, 0, 0, 0, 0], "vs24.0": [3.1, 0, 0, 0, 0] },
+    "boardcost": {
+      "method": "node scripts/boardcost.mjs 200: headless, a TDM match with the loop stopped; 200 kills on the board (a bot's kills + 1, every third a death), each followed by a frame; DevTools metrics minus the same 200 idle frames",
+      "perKill": { "jsMs": 0.0565, "styleMs": 0.24, "layoutMs": 0.155, "layouts": 0.77 },
+      "order": "rows read by score after the run: 3400 3300 3300 3300 2550 2475 0"
+    },
+    "live": "Neon Docks, 5 forced kills: score ALPHA 5 - 1 OMEGA with tickets alpha 24, omega 20 of 25; board sorted, his row first and gold"
+  },
+  "reload": {
+    "method": "node scripts/reloadcheck.mjs: each stage rendered offline (OfflineAudioContext 48 kHz, dry, as AudioEngine plays it); length to -40 dB, peak, spectral centroid (2048-pt Hann frames), energy share under 250 Hz. LEAK=1 renders every noise layer started at 0 (as the engine played them before 26.0)",
+    "stages_ms_peak_centroidHz_lowPct": {
+      "old (every gun)": { "out": [400, 0.08, 2930, 1], "in": [120, 0.11, 2511, 0], "rack": [204, 0.28, 10885, 0] },
+      "pistol": { "out": [47, 0.17, 12671, 0], "in": [70, 0.19, 4167, 0], "rack": [80, 0.23, 8219, 0] },
+      "smg": { "out": [168, 0.12, 3375, 0.1], "in": [52, 0.31, 621, 80.7], "rack": [135, 0.25, 7047, 0] },
+      "rifle": { "out": [245, 0.26, 199, 84.7], "in": [142, 0.75, 434, 89.5], "rack": [141, 0.67, 625, 86.3] },
+      "shotgun": { "in (a shell)": [85, 0.25, 408, 63.7], "pump": [275, 0.66, 201, 86.4] }
+    },
+    "burstLeak": {
+      "bug": "burst() started its noise source now and its gain envelope at t; a GainNode is 1 until its first event, so a burst scheduled ahead played full-level noise until it began",
+      "old reload as it played (LEAK=1) vs as written": { "out peak": [0.73, 0.08], "rack peak": [1.82, 0.28], "rack centroid": [12331, 10885] },
+      "fix": "the noise starts at t (13 delayed burst calls in the engine: reloads, gunshot tails, impacts)"
+    },
+    "mainThreadMsPerCall": { "pistol": 0.074, "smg": 0.127, "rifle": 0.073, "shotgun": 0.068, "pump": 0.108, "note": "building and scheduling the nodes; nothing runs after the call" },
+    "nodesPerStage": "12-26 (unit test cap 40)"
+  },
+  "bench3": {
+    "maglev": { "views_fps_cpuMs_gpuMs": { "alphaYard": [60, 1.8, 5.93], "trainAisle": [60, 1.96, 6.42], "platform1": [60, 1.81, 6.13], "trackBed": [60, 1.84, 6.22], "mezzanine": [60, 1.95, 6.4], "bridge": [60, 1.87, 6.31], "roofUp": [60, 1.92, 6.11], "platformCover": [60, 1.88, 6.21], "billboardClose": [60, 1.91, 6.16], "glassWall": [60, 1.8, 6.36], "wholeHall": [60, 1.73, 6.39], "firefight": [60, 1.71, 6.27] } }
+  },
+  "tests": 311
+}

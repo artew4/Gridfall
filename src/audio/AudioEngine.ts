@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { rand } from '../core/math';
 import type { GunSound } from '../entities/types';
+import { pumpLayers, reloadRecipe, type Layer, type ReloadKind, type ReloadStage } from './ReloadSynth';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -274,11 +275,11 @@ export class AudioEngine {
     return this.ctx.currentTime;
   }
 
-  private noise(buf: AudioBuffer, loop = false, offset = Math.random() * 2) {
+  private noise(buf: AudioBuffer, loop = false, offset = Math.random() * 2, at = this.now()) {
     const s = this.ctx.createBufferSource();
     s.buffer = buf;
     s.loop = loop;
-    s.start(this.now(), offset);
+    s.start(at, offset);
     return s;
   }
 
@@ -343,7 +344,9 @@ export class AudioEngine {
   }
 
   private burst(dest: AudioNode, buf: AudioBuffer, ftype: BiquadFilterType, freq: number, q: number, peak: number, attack: number, decay: number, t = this.now(), freqEnd?: number) {
-    const src = this.noise(buf);
+    // 26.0: started at `t`, not now. A gain sits at its default (1) until its first event, so a burst
+    // scheduled ahead played its noise at full level, unfiltered by the envelope, until it began.
+    const src = this.noise(buf, false, Math.random() * 2, t);
     const f = this.filter(ftype, freq, q);
     if (freqEnd) {
       f.frequency.setValueAtTime(freq, t);
@@ -1010,15 +1013,10 @@ export class AudioEngine {
     this.burst(o, this.pink, 'lowpass', 500, 0.6, 0.35, 0.03, 0.9, t + 0.05, 140);
   }
 
-  /** Pump action: the fore-end racked back (shhk) and slammed forward (chk). */
+  /** Pump action: the fore-end racked back (cha) and slammed forward (chunk), as the reload's last stage. */
   pump() {
     if (!this.started) return;
-    const t = this.now();
-    const o = this.out(null, 0.15, this.ui);
-    this.burst(o, this.white, 'bandpass', 2400, 1.4, 0.16, 0.004, 0.07, t);
-    this.metal(o, 900, 0.08, 0.06, [1, 2.1, 3.3], t + 0.02);
-    this.burst(o, this.white, 'bandpass', 3200, 1.6, 0.2, 0.002, 0.05, t + 0.17);
-    this.metal(o, 1400, 0.12, 0.05, [1, 2.4], t + 0.18);
+    this.play(pumpLayers(), this.out(null, 0.15, this.ui));
   }
 
   /** Holster: cloth rustle and a soft clip; draw: a quick metallic slide. */
@@ -1043,23 +1041,22 @@ export class AudioEngine {
     this.burst(o, this.white, 'bandpass', 3000, 2, 0.1, 0.001, 0.02);
   }
 
-  reload(stage: 'out' | 'in' | 'rack') {
+  /** 26.0: a stage of a reload, synthesised for the gun in hand (ReloadSynth's recipes). */
+  reload(stage: ReloadStage, kind: ReloadKind = 'rifle') {
     if (!this.started) return;
+    const r = reloadRecipe(kind, stage);
+    if (r.length) this.play(r, this.out(null, 0.1));
+  }
+
+  /** Builds a recipe's nodes and schedules them all on the audio clock: nothing runs after this call. */
+  private play(r: readonly Layer[], o: AudioNode) {
     const t = this.now();
-    const o = this.out(null, 0.1);
-    if (stage === 'out') {
-      this.tone(o, 'square', 1900, 1800, 0.06, 0.001, 0.01, t);
-      this.burst(o, this.white, 'bandpass', 2500, 1.5, 0.18, 0.005, 0.12, t + 0.01, 800);
-      this.burst(o, this.white, 'lowpass', 1200, 0.7, 0.12, 0.002, 0.08, t + 0.35);
-    } else if (stage === 'in') {
-      this.burst(o, this.white, 'bandpass', 900, 1.5, 0.15, 0.01, 0.07, t, 2500);
-      this.tone(o, 'square', 2300, 2200, 0.08, 0.001, 0.012, t + 0.08);
-      this.metal(o, 1800, 0.05, 0.06, [1, 2.4], t + 0.08);
-    } else {
-      this.burst(o, this.white, 'bandpass', 800, 1.2, 0.2, 0.01, 0.09, t, 3200);
-      this.tone(o, 'square', 2800, 2700, 0.1, 0.001, 0.012, t + 0.1);
-      this.burst(o, this.white, 'highpass', 2500, 0.7, 0.22, 0.001, 0.05, t + 0.1);
-      this.tone(o, 'sine', 4000, 3800, 0.03, 0.002, 0.2, t + 0.12);
+    // Each play a touch higher or lower: five shells in a row are never the same click.
+    const p = rand(0.97, 1.03);
+    for (const l of r) {
+      if (l.v === 'tone') this.tone(o, l.wave, l.f0 * p, l.f1 * p, l.peak, l.attack, l.decay, t + l.at);
+      else if (l.v === 'noise') this.burst(o, this[l.color], l.filter, l.f * p, l.q, l.peak, l.attack, l.decay, t + l.at, l.fEnd && l.fEnd * p);
+      else this.metal(o, l.base * p, l.peak, l.decay, l.ratios, t + l.at);
     }
   }
 

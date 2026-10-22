@@ -313,7 +313,8 @@ kbd { display: inline-block; min-width: 1.25rem; padding: 1px 0.375rem; margin: 
 .tdm-score .bar i { display: block; height: 100%; transition: transform 0.4s; }
 .tdm-score .bar.a i { background: var(--alpha); transform-origin: right; box-shadow: 0 0 0.5rem var(--alpha); }
 .tdm-score .bar.o i { background: var(--omega); transform-origin: left; box-shadow: 0 0 0.5rem var(--omega); }
-.tdm-score.low-a .side.a b, .tdm-score.low-o .side.o b { color: var(--red); animation: tdmPulse 0.9s ease-in-out infinite; }
+/* 26.0: a team down to its last 5 tickets: its bar pulses red (the big numbers are now kills). */
+.tdm-score.low-a .side.a .bar i, .tdm-score.low-o .side.o .bar i { background: var(--red); box-shadow: 0 0 0.5rem var(--red); animation: tdmPulse 0.9s ease-in-out infinite; }
 @keyframes tdmPulse { 50% { opacity: 0.45; } }
 .tdm-feed { position: absolute; right: 1.375rem; top: 3.25rem; display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; font-size: 0.75rem; letter-spacing: 0.14em; }
 .tdm-feed .row { background: rgba(0,0,0,0.35); padding: 0.1875rem 0.5625rem; color: #dfe9ee; }
@@ -335,11 +336,6 @@ kbd { display: inline-block; min-width: 1.25rem; padding: 1px 0.375rem; margin: 
 #tdmscreen .end-title.win { text-shadow: 0 0 1.375rem rgba(124, 200, 255, 0.6); }
 #tdmscreen .end-title.lose { text-shadow: 0 0 1.375rem rgba(255, 80, 60, 0.6); }
 #tdmscreen .end-sub { margin-top: 0.875rem; letter-spacing: 0.3em; font-size: 0.75rem; color: #e8fbff; }
-.tdm-board { margin: 1.625rem 0; display: flex; gap: 3rem; font-size: 0.75rem; letter-spacing: 0.2em; }
-.tdm-board .col { display: grid; grid-template-columns: 8.125rem 2.25rem 2.25rem; gap: 0.375rem 0.625rem; }
-.tdm-board .hd { display: contents; color: var(--cyan-dim); }
-.tdm-board .col.a b { color: var(--alpha); } .tdm-board .col.o b { color: var(--omega); }
-.tdm-board span { color: #e8fbff; } .tdm-board span.you { color: var(--alpha); text-decoration: underline; }
 .bark.ally { color: var(--alpha); border-color: var(--alpha-dim); }
 /* 12.0: the Team Deathmatch minimap (top left; the kill feed has the right). */
 .minimap.tdm-map { left: 1.375rem; right: auto; top: 1.375rem; }
@@ -636,27 +632,40 @@ html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
 #title[data-screen="maps"] h1 { font-size: clamp(2rem, 3.6vw, 3.6rem); }
 #title[data-screen="maps"] .mm-mode-title { font-size: 1rem; letter-spacing: 0.4em; }
 
-/* ---------- 24.0: the TDM HUD, restructured ---------- */
+/* ---------- 26.0: the TDM HUD, three corners ---------- */
 /*
-  Top right: the live scoreboard (tickets, ALPHA vs OMEGA, with bars; under it the player's rank in
-  his team, kills and deaths) and the kill feed under it, one column. Bottom left: the minimap, the
-  health and callsign beside it. Animations are transform and opacity only (a kill's row pops in,
-  the standing bumps on a kill); numbers are written only when they change (TdmHud).
+  Top left: his team's live board (name, K, D, score; by score; his row gold). Top centre: the match
+  score, ALPHA kills - kills OMEGA, each team's tickets left a thin bar under its name. Top right: the
+  kill feed (his kills gold). Bottom left: the minimap, the health and callsign beside it (24.0).
+  The board's rows are absolutely placed, one row height apart, and change place by transform (their
+  transition is on transform only); the board is a containment root (layout, paint), so a number
+  written into a row's Text node re-lays and repaints the board and nothing else. Animations are
+  transform and opacity only.
 */
-.tdm-right { position: absolute; top: 1.1rem; right: 1.4rem; display: flex; flex-direction: column; align-items: flex-end; gap: 0.55rem; width: min(24rem, 40vw); }
-.tdm-score { position: static; transform: none; display: flex; align-items: flex-start; justify-content: flex-end; gap: 0.8rem; padding: 0.6rem 0.9rem 0.7rem; font-size: 0.8rem; letter-spacing: 0.22em; background: linear-gradient(270deg, rgba(4, 8, 16, 0.78), rgba(4, 8, 16, 0.5)); border-right: 2px solid var(--cyan-dim); }
-.tdm-score .vs { padding-top: 0.9rem; font-size: 0.75rem; letter-spacing: 0.3em; }
-.tdm-score .side { min-width: 7.5rem; }
-.tdm-score b { font-size: 2rem; line-height: 1.05; }
-.tdm-score .bar { width: 7.5rem; height: 0.25rem; }
-.tdm-me { display: flex; align-items: baseline; gap: 1rem; padding: 0.35rem 0.9rem; font-family: var(--ui); font-size: 0.95rem; font-weight: 600; letter-spacing: 0.16em; color: rgba(220, 238, 245, 0.85); background: rgba(4, 8, 16, 0.6); border-right: 2px solid var(--alpha); transform-origin: right center; }
-.tdm-me .rank { font-family: var(--display); font-size: 1.25rem; font-weight: 700; letter-spacing: 0.08em; color: #f2fbff; }
-.tdm-me .rank.top { color: var(--amber); }
-.tdm-me .rank i { font-style: normal; font-family: var(--ui); font-size: 0.85rem; font-weight: 500; margin-left: 0.3rem; color: var(--cyan-dim); }
-.tdm-me .kd b { font-size: 1.15rem; font-weight: 700; color: #f2fbff; margin-right: 0.15rem; }
-.tdm-me.bump { animation: me-bump 0.45s ease-out; }
-@keyframes me-bump { 0% { transform: scale(1.12); } 100% { transform: scale(1); } }
-.tdm-feed { position: static; gap: 0.3rem; font-family: var(--ui); font-size: 0.9rem; font-weight: 600; letter-spacing: 0.1em; }
+.tdm-hud { --board-row: 1.75rem; }
+.tdm-board { position: absolute; top: 1.1rem; left: 1.4rem; width: min(19rem, 30vw); contain: layout paint; font-family: var(--ui); font-size: 0.85rem; font-weight: 600; letter-spacing: 0.08em; color: rgba(225, 240, 246, 0.9); background: linear-gradient(90deg, rgba(4, 8, 16, 0.72), rgba(4, 8, 16, 0.42)); border-left: 2px solid var(--alpha); }
+.tdm-board .head, .tdm-board .row { display: grid; grid-template-columns: minmax(0, 1fr) 2.2rem 2.2rem 3.8rem; align-items: center; height: var(--board-row); padding: 0 0.7rem; }
+.tdm-board .head { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.25em; color: var(--alpha); border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.tdm-board .head em { font-style: normal; font-family: var(--jp); letter-spacing: 0.1em; opacity: 0.6; margin-left: 0.5rem; }
+.tdm-board .head span:not(.nm), .tdm-board .row span:not(.nm) { text-align: right; }
+.tdm-board .rows { position: relative; }
+.tdm-board .row { position: absolute; top: 0; left: 0; right: 0; transition: transform 0.35s ease-out; font-variant-numeric: tabular-nums; }
+.tdm-board .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tdm-board .sc { color: #f2fbff; }
+.tdm-board .row.you { z-index: 1; color: #fff6dc; background: linear-gradient(90deg, rgba(255, 196, 80, 0.42), rgba(255, 196, 80, 0.14)); box-shadow: inset 3px 0 0 var(--amber); }
+.tdm-board .row.you .sc { color: var(--amber); }
+.tdm-board .glow { position: absolute; inset: 0; background: rgba(255, 214, 120, 0.5); opacity: 0; pointer-events: none; }
+.tdm-score { position: absolute; left: 50%; top: 1.1rem; transform: translateX(-50%); display: flex; align-items: flex-start; gap: 0.9rem; padding: 0.4rem 1.6rem 0.55rem; font-size: 0.8rem; letter-spacing: 0.22em; background: linear-gradient(90deg, rgba(4, 8, 16, 0), rgba(4, 8, 16, 0.7) 18%, rgba(4, 8, 16, 0.7) 82%, rgba(4, 8, 16, 0)); }
+.tdm-score .side { display: grid; grid-template-columns: auto auto; column-gap: 0.7rem; align-items: baseline; min-width: 0; }
+.tdm-score .side.a, .tdm-score .side.o { align-items: baseline; }
+.tdm-score .side.a { justify-items: end; }
+.tdm-score .side.o b { order: -1; }
+.tdm-score .side .bar { grid-column: 1 / -1; width: 100%; height: 0.2rem; margin-top: 0.3rem; }
+.tdm-score b { font-family: var(--ui); font-size: 2.3rem; font-weight: 700; line-height: 1; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; min-width: 2ch; }
+.tdm-score .side.a b { text-align: right; }
+.tdm-score .vs { padding-top: 0.55rem; color: var(--cyan-dim); }
+.tdm-score .vs i { font-style: normal; font-size: 1.2rem; }
+.tdm-feed { position: absolute; top: 1.1rem; right: 1.4rem; max-width: min(26rem, 34vw); gap: 0.3rem; font-family: var(--ui); font-size: 0.9rem; font-weight: 600; letter-spacing: 0.1em; }
 .tdm-feed .row { padding: 0.2rem 0.7rem; background: rgba(0, 0, 0, 0.42); transform-origin: right center; }
 .tdm-feed .you { text-decoration: none; color: #fff !important; }
 /* His kill: a gold panel, bigger and bold, popping in once. */
@@ -672,7 +681,7 @@ html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
 #hud.tdm .health { left: 15rem; bottom: 1.4rem; }
 #hud.tdm .callsign { left: 15.9rem; bottom: 6.6rem; }
 #hud.tdm .clock { display: none; }
-@media (prefers-reduced-motion: reduce) { .tdm-feed .row.mine, .tdm-me.bump { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .tdm-feed .row.mine { animation: none; } .tdm-board .row { transition: none; } }
 
 /* ---------- 24.0: the result screen ---------- */
 #tdmscreen { overflow-y: auto; justify-content: flex-start; padding: clamp(1rem, 4vh, 3rem) 0 2rem; }

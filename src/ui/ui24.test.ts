@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-ignore: node's fs in the test runner (the app's tsconfig has no node types; vitest returns CSS empty under ?raw)
 import { readFileSync } from 'node:fs';
 import { mapCardHtml } from './MapCard';
-import { ordinal, scoreOf } from './TdmHud';
+import { boardOrder, scoreOf } from './TdmHud';
 import type { LevelInfo } from '../levels/Level';
 
 const css: string = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
@@ -58,8 +58,12 @@ describe('24.0: the map card', () => {
 });
 
 describe('24.0: the live scoreboard and the board', () => {
-  it('ranks read 1ST 2ND 3RD 4TH … 11TH 12TH 13TH 21ST', () => {
-    expect([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal)).toEqual(['1ST', '2ND', '3RD', '4TH', '11TH', '12TH', '13TH', '21ST', '22ND']);
+  it('26.0: the team board reads by score, then kills, then fewer deaths, then the name', () => {
+    const l = (name: string, kills: number, deaths: number, you = false) => ({ name, kills, deaths, you });
+    const lines = [l('ZED', 3, 1), l('AXE', 5, 6), l('YOU', 5, 2, true), l('BEE', 3, 1), l('CAT', 0, 9)];
+    // Scores: YOU 450, AXE 350, BEE and ZED 275 (by name), CAT 0. The input is left as it was.
+    expect(boardOrder(lines).map((x) => x.name)).toEqual(['YOU', 'AXE', 'BEE', 'ZED', 'CAT']);
+    expect(lines.map((x) => x.name)).toEqual(['ZED', 'AXE', 'YOU', 'BEE', 'CAT']);
   });
   it('score: 100 a kill, −25 a death, never below 0', () => {
     expect(scoreOf({ kills: 12, deaths: 4 })).toBe(1100);

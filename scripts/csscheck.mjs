@@ -59,7 +59,7 @@ await ev(`(async()=>{ __dev.start('tdm','docks'); await new Promise(r=>setTimeou
 await sleep(800);
 rows.push(await measure('pause menu over a match'));
 // 24.0: the match's HUD (the loop stopped: only what CSS itself keeps doing), after a kill of his.
-await ev(`(async()=>{ const g = __game; g.resume?.(); await new Promise(r=>setTimeout(r,600)); const b = g.tdm.bots; g.tdmHud.kill(g.playerUnit, b.find((x) => x.team === 'omega'), 'AR'); g.tdmHud.setMe?.(1, 5, 1, 0); })()`);
+await ev(`(async()=>{ const g = __game; g.resume?.(); await new Promise(r=>setTimeout(r,600)); const b = g.tdm.bots; g.tdmHud.kill(g.playerUnit, b.find((x) => x.team === 'omega'), 'AR'); g.tdm.player.kills++; g.tdm.showStanding?.(); })()`);
 await sleep(1200);
 rows.push(await measure('the TDM HUD (a kill of his in the feed)'));
 console.table(rows);

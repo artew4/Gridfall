@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Spring, damp, clamp, easeInOut, easeOut, lerp, rand } from '../core/math';
 import { flashTexture, makeAmmoDisplay } from '../world/Textures';
 import type { AudioEngine } from '../audio/AudioEngine';
+import { reloadKind } from '../audio/ReloadSynth';
 import type { Player } from './Player';
 import type { WeaponSpec } from '../entities/types';
 import { KITSUNE_9 } from '../entities/weapons/kitsune9';
@@ -29,6 +30,8 @@ export class Weapon {
   private reloadT = 0;
   private autoReloadT = 0;
   private reloadStage = 0;
+  /** 26.0: a tube gun reloaded from empty racks its pump once the tube is full. */
+  private rackAfter = false;
   private cooldown = 0;
   /** Time since the last shot (drives the pump cycle); Infinity when idle. */
   private cycleT = Infinity;
@@ -108,6 +111,11 @@ export class Weapon {
    * Swap the weapon (13.0: the loadout's pick, or the story's own). The previous model is freed: the viewmodel outlives levels,
    * so anything left behind here would leak across every switch.
    */
+  /** 26.0: whose reload this gun plays (ReloadSynth). */
+  get reloadKind() {
+    return reloadKind(this.spec.sound);
+  }
+
   setSpec(spec: WeaponSpec, theme: GunTheme = this.theme) {
     if (this.spec === spec && this.theme === theme && this.gun.children.length) return;
     this.disposeModel();
@@ -280,6 +288,7 @@ export class Weapon {
     this.reloadT = 0;
     this.reloadStage = 0;
     this.loaded = 0;
+    this.rackAfter = this.ammo === 0;
     this.ammoDisplay.draw(0, this.spec.mag, true);
   }
 
@@ -334,13 +343,15 @@ export class Weapon {
         if (should > this.loaded && this.ammo < this.spec.mag) {
           this.loaded = should;
           this.ammo++;
-          this.audio.reload('in');
+          this.audio.reload('in', this.reloadKind);
           this.kickZ.impulse(-0.5);
           this.ammoDisplay.draw(this.ammo, this.spec.mag, false);
         }
       } else magY = -0.12;
       if (this.ammo >= this.spec.mag) {
         this.reloading = false;
+        // Chamber one: the pump's own cycle (its fore-end and its cha-chunk), as after a shot.
+        if (this.rackAfter) this.cycleT = 0;
         this.onReloadDone();
       }
     } else if (pr) magVis = false;
@@ -355,21 +366,21 @@ export class Weapon {
       rTilt = t < 0.2 ? easeOut(t / 0.2) : t > 1.12 ? 1 - easeInOut((t - 1.12) / (BASE_RELOAD - 1.12)) : 1;
       if (t > 0.22 && this.reloadStage === 0) {
         this.reloadStage = 1;
-        this.audio.reload('out');
+        this.audio.reload('out', this.reloadKind);
       }
       if (t > 0.22 && t < 0.5) magY = -easeOut((t - 0.22) / 0.28) * 0.25;
       else if (t >= 0.5 && t < 0.6) magVis = false;
       else if (t >= 0.6 && t < 0.82) magY = -0.25 * (1 - easeOut((t - 0.6) / 0.22));
       if (t > 0.82 && this.reloadStage === 1) {
         this.reloadStage = 2;
-        this.audio.reload('in');
+        this.audio.reload('in', this.reloadKind);
         this.kickZ.impulse(-0.8);
         this.ammo = this.spec.mag;
         this.ammoDisplay.draw(this.ammo, this.spec.mag, false);
       }
       if (t > 0.98 && this.reloadStage === 2) {
         this.reloadStage = 3;
-        this.audio.reload('rack');
+        this.audio.reload('rack', this.reloadKind);
         this.slideS.value = 0.035;
         this.kickRot.impulse(-4);
       }

@@ -36,7 +36,7 @@ No install and no plugin. Open the link, click, play. Desktop browser with a mou
 
 ## The modes
 
-The main menu asks for the mode first, then shows the maps that have it. Type your name on the menu (it starts as *Artem*): it shows on your HUD, under your arrow on the minimap, in the kill feed and on the scoreboard. After a match, the result screen lists the next maps for the same mode, so you can go straight into another map (or a rematch) without the main menu.
+The main menu asks for the mode first, then shows the maps that have it. Type your name on the menu (it starts as *Artem*): it shows on your HUD, under your arrow on the minimap, in the kill feed and on the scoreboard. In a match, the HUD keeps the score top centre (ALPHA kills against OMEGA kills), the kill feed top right, and a live board of your team top left (kills, deaths, score, your row in gold). After a match, the result screen lists the next maps for the same mode, so you can go straight into another map (or a rematch) without the main menu.
 
 - **Story Escape** (Tokyo): you are Arashi Kaito, framed for a bombing, and every patrol in the district has your description. Four acts across the streets, the rooftops and the Sakura Line metro, ending on the last express out. Stealth comes first: keep your weapon holstered and stay out of view cones. If you're seen, break line of sight and lose the search.
 - **Arcade Survival** (Tokyo, Desert, Jungle): wave after wave of enemies who fight as a squad.
@@ -112,10 +112,11 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 ### Audio
 - **Dynamic Web Audio track switching:** each world and the menu has its own theme, crossfaded on an equal-power curve over 2 s. A track that fades out is disposed: timers cleared, nodes disconnected, the stream released. Memory stays flat over 60 straight switches.
 - **Music that follows the fight:** the built-in themes are synthesised live, in layers that come in and out with combat intensity, on bar lines.
+- **Every reload synthesised per gun:** no samples. The pistol's high click-clack, the SMG's ratchet zip and mag slap, the rifle's three heavy stages ending in a low bolt slam, the shotgun's shells and its pump. Each is a recipe of oscillators, filtered noise and metal partials, scheduled on the audio clock in one call.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **254 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **311 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;

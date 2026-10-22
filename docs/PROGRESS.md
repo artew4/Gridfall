@@ -1402,8 +1402,36 @@ One jungle map in Team Deathmatch: Crash Site, shown as **DEEP JUNGLE**. The fir
 - `leakcheck.mjs 2 neonblock,crashsite,desert`: 0 alive.
 - Tests 300 (+11: the fog's numbers, the patched chunks and shared uniforms, the sight cap, the route bias, the registry, the two themes' notes and instruments).
 
+## 26.0: the tactical HUD, procedural reload audio
+
+Branch `feature/hud-audio-26.0`, from `main` @ `fef85fb` (25.0, merged and live). Full numbers: `docs/BENCH-26.0.json`.
+
+### The TDM HUD in three corners
+- **Top centre, the match score:** ALPHA 24 — 18 OMEGA, each team's kills (what it took off the other's tickets), with each team's tickets left as a thin bar under its name. A team down to 5 tickets: its bar pulses red.
+- **Top right, the kill feed** on its own; his kills stay gold (24.0), his deaths red.
+- **Top left, a live board of his team** (it replaces the 24.0 "2ND / 7" rank line): name, K, D, score (100 a kill, −25 a death), ordered by score, then kills, fewer deaths, the name. His row is a gold band and flashes on his kill.
+- **How it stays cheap:** the rows are built once per roster; a kill writes only the numbers that changed, straight into their Text nodes (no innerHTML); a row changes place by `translateY(n × 100%)`, its transition on transform only; the board is a containment root (`contain: layout paint`). The flash is a Web Animations opacity run (no class toggle and forced reflow).
+- **Measured:** a kill costs 0.06 ms of JS, 0.24 ms of style and 0.15 ms of layout (`scripts/boardcost.mjs`, 200 kills). With the HUD at rest: 0 recalcs and 0 layouts a second (`csscheck`). `uicheck`: 16/16 at 1440×900 to 4K, no overlap among the board, score, feed, minimap, health, callsign and ammo.
+- Removed: the dead 6.0 result-board rules (`.tdm-board .col`), whose class name the new board took; a 24.0 `.tdm-feed { position: static }` that sat after the new rule (the test that reads the last rule for a selector caught it).
+
+### Reload audio, per gun
+- `src/audio/ReloadSynth.ts`: each gun's reload stages as data (layers of three voices: a gliding oscillator, filtered noise with a sweeping cutoff, inharmonic metal partials), played by `AudioEngine.reload(stage, kind)`. Everything is scheduled on the audio clock in the call; nothing runs after it.
+  - **Kitsune-9 (pistol):** a button click, a click-clack of the mag (catch, then latch 45 ms later), the slide back and slammed. 47–80 ms a stage, centroid 4–13 kHz, nothing under 250 Hz.
+  - **Hornet (SMG):** a ratchet zip on the way out (7 clicks closing up and rising 1.8 → 4.2 kHz), a mag slap (a low palm thump and a broad crack, 81% under 250 Hz), the charging handle's ratchet and snap.
+  - **Jackal (AR):** mag out (release click, slide, the drop in the hand), mag in (scrape up the well, seated: a 120 → 58 Hz thud), bolt release (spring rasp, then the carrier slams home at 95 → 44 Hz and rings). 85–90% under 250 Hz.
+  - **Boar (shotgun):** each shell thumbed into the tube (a low push, a dull click, the follower's tick); reloaded from empty, the pump racks when the tube is full (the fore-end moves too). The pump between shots is the same heavier cha-chunk: 275 ms, 86% under 250 Hz.
+  - Each play is pitched ±3%, so five shells in a row never click the same.
+- **A bug in every delayed noise burst, fixed:** `burst()` started its noise now and its gain envelope at `t`, and a gain sits at its default (1) until its first event, so a burst scheduled ahead played full-level noise until it began. The old reload's rack really peaked at 1.82 (written: 0.28), its mag-out 0.73 (written: 0.08). The noise now starts at `t` (13 delayed bursts: reloads, gunshot tails, impacts).
+- **Cost:** 0.07–0.13 ms of main thread a call, 12–26 nodes a stage.
+
+### Validation
+- `bench(3)` Maglev, Balanced: 60 FPS in all 12 views, CPU 1.7–2.0 ms, GPU 5.9–6.4 ms.
+- Tests 311 (+11: the board's order and the corners' CSS, Text-node writes, the recipes' pitch order, length, ratchet and node cap, the burst start).
+- New DEV scripts: `scripts/boardcost.mjs`, `scripts/reloadcheck.mjs`.
+
 ## Next
 Human playtest:
+- 26.0 items: the three-corner HUD (is the team board in the way top left, is the score readable at a glance, does your gold row help); the reloads with headphones (does the pistol sound like a pistol, the SMG zip, the rifle's weight, the shotgun's shells and pump; is any too loud against the gunshots).
 - 25.0 items: Neon Block's fog (does it read as fog or as darkness; is 13 m too short for the street, too long; do the roofs feel like the place to snipe from); the new jungle and desert music (listen: no more siren? does the desert sound Arabic, or like a cliché?).
 - 24.0 items: is the text the right size on your monitor (too big at 4K?), do the map cards read at a glance, is the live scoreboard in the way of the kill feed, does your gold kill row feel rewarding or noisy.
 - 23.0 items: Old Port (is it still sniped from end to end anywhere; does the spine read as a maze you go through or over; are the dock scaffolds in the way or good cover; is 7v7 too busy for the warehouse); the spawn swap (is 12 m the right size; is the prompt noticed; does closing on a shot feel right).

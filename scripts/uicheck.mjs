@@ -7,7 +7,7 @@
   Headless Chrome at each viewport (device scale 1): the title's root menu, the maps screen (the map
   cards), a TDM match's HUD (with a kill of the player's in the feed) and the result screen. For each:
   the smallest visible text (px), anything that spills off the screen, and (the HUD) any overlap of the
-  minimap, the health, the callsign, the ammo and the live scoreboard. Screenshots go to `out-dir`.
+  minimap, the health, the callsign, the ammo, the team board, the score and the feed (26.0). Screenshots go to `out-dir`.
   Exit 1 on any spill, overlap, or text under 11 px.
 */
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -68,14 +68,14 @@ for (const [w, h] of SIZES) {
   await check('menu', ['#title']);
   await ev(page(`document.querySelector('#title [data-mode="tdm"]').click(); await sl(900);`));
   await check('maps', ['#title']);
-  // A match: the HUD, with a kill of his and one of a bot's in the feed, his standing set.
+  // A match: the HUD, with a kill of his and one of a bot's in the feed, his line on the board set.
   await ev(page(`
     __dev.start('tdm'); __dev.god(true); await sl(2500);
     const g = __game, bots = g.tdm.bots, me = g.playerUnit;
     const foe = bots.find((b) => b.team === 'omega'), mate = bots.find((b) => b.team === 'alpha');
-    g.tdmHud.kill(mate, foe, 'SMG'); g.tdmHud.kill(me, foe, 'AR'); g.tdmHud.setMe(2, 7, 12, 4);
+    g.tdmHud.kill(mate, foe, 'SMG'); g.tdmHud.kill(me, foe, 'AR'); g.tdm.player.kills = 12; g.tdm.player.deaths = 4; g.tdm.showStanding();
     await sl(900);`));
-  await check('hud', ['#hud', '.tdm-hud'], ['.minimap.tdm-map', '#hud .health', '#hud .callsign', '#hud .ammo', '.tdm-right']);
+  await check('hud', ['#hud', '.tdm-hud'], ['.minimap.tdm-map', '#hud .health', '#hud .callsign', '#hud .ammo', '.tdm-board', '.tdm-score', '.tdm-feed']);
   // The result screen with the match's own lines.
   await ev(page(`
     const g = __game, t = g.tdm;

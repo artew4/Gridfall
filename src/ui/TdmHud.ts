@@ -14,30 +14,53 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''):
 const FEED_LIFE = 5;
 const FEED_MAX = 5;
 
-/** 24.0: 1st, 2nd, 3rd, 4th… */
-export function ordinal(n: number) {
-  const t = n % 100;
-  return `${n}${t >= 11 && t <= 13 ? 'TH' : (['TH', 'ST', 'ND', 'RD'][n % 10] ?? 'TH')}`;
+/** 26.0: one line of the live team board. */
+export interface BoardLine {
+  name: string;
+  kills: number;
+  deaths: number;
+  you: boolean;
+}
+
+/** 26.0: the board's order: score, then kills, then fewer deaths, then the name (stable between equal lines). */
+export function boardOrder<T extends BoardLine>(lines: readonly T[]): T[] {
+  return [...lines].sort((a, b) => scoreOf(b) - scoreOf(a) || b.kills - a.kills || a.deaths - b.deaths || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
+/** A board row: its element, the Text nodes its numbers live in, and what they last said. */
+interface BoardRow {
+  el: HTMLDivElement;
+  name: Text;
+  k: Text;
+  d: Text;
+  sc: Text;
+  glow: HTMLElement;
+  at: number;
+  kills: number;
+  deaths: number;
+  you: boolean;
 }
 
 /**
- * Team Deathmatch HUD (6.0): the ticket score, a kill feed, the respawn countdown, and the name tags
- * over allied bots. 24.0: the score and the player's standing are one live scoreboard in the top
- * right (ALPHA vs OMEGA tickets with bars; his rank in his team, kills and deaths), the feed under it;
- * his own kills stand out in the feed (gold); the minimap moved to the bottom left (stylesheet).
- * Every number is written only when it changes (a text write every frame re-laid and repainted it).
+ * Team Deathmatch HUD (6.0): the score, a kill feed, the respawn countdown, and the name tags over
+ * allied bots. 26.0, three corners: top centre the match score (ALPHA kills - kills OMEGA, the
+ * tickets left as thin bars under it), top right the kill feed (his kills gold, 24.0), top left a live
+ * board of his team (name, K, D, score, by score, his row gold). The minimap stays bottom left.
+ * Every number is written only when it changes, straight into its Text node; the board's rows are
+ * built once and reordered by transform alone, so a kill re-lays nothing outside the board.
  */
 export class TdmHud {
   root = el('div', 'tdm-hud hidden');
-  private right = el('div', 'tdm-right');
   private score = el('div', 'tdm-score');
-  private aNum = el('b', 'a');
-  private oNum = el('b', 'o');
+  private aNum = document.createTextNode('0');
+  private oNum = document.createTextNode('0');
   private aBar = el('i', 'a');
   private oBar = el('i', 'o');
-  private me = el('div', 'tdm-me');
   private feed = el('div', 'tdm-feed');
-  private last = { a: -1, o: -1, me: '', respawn: '' };
+  private board = el('div', 'tdm-board');
+  private boardRows = el('div', 'rows');
+  private rows: BoardRow[] = [];
+  private last = { a: -1, o: -1, respawn: '' };
   private respawn = el('div', 'tdm-respawn hidden');
   private tags = el('div', 'tdm-tags');
   private feedRows: { el: HTMLDivElement; t: number }[] = [];
@@ -45,33 +68,69 @@ export class TdmHud {
   private max = 25;
 
   constructor(parent: HTMLElement) {
-    const aSide = el('div', 'side a', `<span>ALPHA${flSpan('ally', 'em', '')}</span>`);
-    const oSide = el('div', 'side o', `<span>OMEGA${flSpan('enemy', 'em', '')}</span>`);
-    const ab = el('div', 'bar a');
-    ab.appendChild(this.aBar);
-    const ob = el('div', 'bar o');
-    ob.appendChild(this.oBar);
-    aSide.append(this.aNum, ab);
-    oSide.append(this.oNum, ob);
-    this.score.append(aSide, el('div', 'vs', 'TICKETS'), oSide);
-    this.right.append(this.score, this.me, this.feed);
-    this.root.append(this.tags, this.right, this.respawn);
+    // Top centre: ALPHA 24 - 18 OMEGA, each team's tickets left a bar under its name.
+    const side = (t: 'a' | 'o', name: string, num: Text, bar: HTMLElement) => {
+      const s = el('div', `side ${t}`, `<span>${name}${flSpan(t === 'a' ? 'ally' : 'enemy', 'em', '')}</span>`);
+      const b = el('b');
+      b.appendChild(num);
+      const track = el('div', `bar ${t}`);
+      track.appendChild(bar);
+      s.append(b, track);
+      return s;
+    };
+    this.score.append(side('a', 'ALPHA', this.aNum, this.aBar), el('div', 'vs', '<i>—</i>'), side('o', 'OMEGA', this.oNum, this.oBar));
+    this.board.append(el('div', 'head', `<span class="nm">ALPHA${flSpan('ally', 'em', '')}</span><span>K</span><span>D</span><span class="sc">SCORE</span>`), this.boardRows);
+    this.root.append(this.tags, this.board, this.score, this.feed, this.respawn);
     parent.appendChild(this.root);
-    this.setMe(1, 1, 0, 0);
   }
 
-  /** 24.0: the player's standing in his team (rank of `of`), his kills and deaths. */
-  setMe(rank: number, of: number, kills: number, deaths: number) {
-    const key = `${rank}/${of}/${kills}/${deaths}`;
-    if (key === this.last.me) return;
-    const bumped = this.last.me !== '' && kills > Number(this.last.me.split('/')[2]);
-    this.last.me = key;
-    this.me.innerHTML = `<span class="rank${rank === 1 ? ' top' : ''}">${ordinal(rank)}<i>/ ${of}</i></span><span class="kd"><b>${kills}</b> KILLS</span><span class="kd"><b>${deaths}</b> DEATHS</span>`;
-    if (bumped) {
-      this.me.classList.remove('bump');
-      void this.me.offsetWidth;
-      this.me.classList.add('bump');
+  /**
+   * 26.0, the live team board: one row per member of his team, in score order, his row gold. Rows are
+   * made when the roster changes (a match start) and otherwise only their Text nodes change, and only
+   * when the number did; a change of place moves the row by its transform (one compositor move).
+   */
+  setBoard(lines: readonly BoardLine[]) {
+    if (lines.length !== this.rows.length || lines.some((l, i) => l.name !== this.rows[i].name.data)) this.buildBoard(lines);
+    const order = boardOrder(lines);
+    for (let i = 0; i < this.rows.length; i++) {
+      const r = this.rows[i], l = lines[i];
+      if (l.kills !== r.kills) {
+        r.k.data = String(l.kills);
+        // A kill of his flashes his row (the Web Animations API: no class toggle, no forced reflow).
+        if (r.you && r.kills >= 0 && l.kills > r.kills) r.glow.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 700, easing: 'ease-out' });
+      }
+      if (l.deaths !== r.deaths) r.d.data = String(l.deaths);
+      if (l.kills !== r.kills || l.deaths !== r.deaths) r.sc.data = String(scoreOf(l));
+      r.kills = l.kills;
+      r.deaths = l.deaths;
+      const at = order.indexOf(l);
+      if (at !== r.at) {
+        r.at = at;
+        r.el.style.transform = `translateY(${at * 100}%)`;
+      }
     }
+  }
+
+  /** The rows for a roster (in the order given; `setBoard` places them). */
+  private buildBoard(lines: readonly BoardLine[]) {
+    for (const r of this.rows) r.el.remove();
+    this.rows = lines.map((l) => {
+      const e = el('div', `row${l.you ? ' you' : ''}`);
+      const cell = (cls: string, v: string) => {
+        const c = el('span', cls);
+        const t = document.createTextNode(v);
+        c.appendChild(t);
+        e.appendChild(c);
+        return t;
+      };
+      const glow = el('i', 'glow');
+      e.appendChild(glow);
+      const row: BoardRow = { el: e, name: cell('nm', l.name), k: cell('k', '0'), d: cell('d', '0'), sc: cell('sc', '0'), glow, at: -1, kills: -1, deaths: -1, you: l.you };
+      this.boardRows.appendChild(e);
+      return row;
+    });
+    // The rows are absolutely placed: the board's height is set once per roster.
+    this.boardRows.style.height = `calc(${lines.length} * var(--board-row))`;
   }
 
   show(on: boolean) {
@@ -82,12 +141,13 @@ export class TdmHud {
     this.max = n;
   }
 
+  /** The tickets each team has left; the score shown is what each took off the other (its kills). */
   setTickets(a: number, o: number) {
     if (a === this.last.a && o === this.last.o) return;
+    if (o !== this.last.o) this.aNum.data = String(Math.max(0, this.max - o));
+    if (a !== this.last.a) this.oNum.data = String(Math.max(0, this.max - a));
     this.last.a = a;
     this.last.o = o;
-    this.aNum.textContent = String(a);
-    this.oNum.textContent = String(o);
     this.aBar.style.transform = `scaleX(${Math.max(0, a / this.max)})`;
     this.oBar.style.transform = `scaleX(${Math.max(0, o / this.max)})`;
     this.score.classList.toggle('low-a', a <= 5);
@@ -117,8 +177,8 @@ export class TdmHud {
 
   clear() {
     this.last.a = this.last.o = -1;
-    this.last.me = '';
-    this.setMe(1, 1, 0, 0);
+    for (const r of this.rows) r.el.remove();
+    this.rows = [];
     for (const r of this.feedRows) r.el.remove();
     this.feedRows.length = 0;
     for (const t of this.tagEls.values()) t.el.remove();

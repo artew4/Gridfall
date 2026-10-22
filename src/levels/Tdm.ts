@@ -23,7 +23,7 @@ import { gunThemeFor, themedArm, themeRigGun } from '../entities/weapons/theme';
 import { ARMORY, dealArm, type BotArm, type WeaponId } from '../entities/weapons/armory';
 import { dealCallsigns } from '../enemies/Callsigns';
 import { rand } from '../core/math';
-import type { TdmLine } from '../ui/TdmHud';
+import type { BoardLine, TdmLine } from '../ui/TdmHud';
 
 /*
   Team Deathmatch, 5v5 (6.0): ALPHA (the player and four bots) against OMEGA (five bots). Each team
@@ -271,7 +271,6 @@ export class TdmRules implements ModeRules {
     g.tdmHud.clear();
     g.tdmHud.setMax(this.ticketMax);
     g.tdmHud.show(true);
-    g.tdmHud.setMe(1, teamSizeOf(g.level.info), 0, 0);
     g.hud.root.classList.add('tdm');
     this.slots = [];
     const size = teamSizeOf(g.level.info);
@@ -280,6 +279,7 @@ export class TdmRules implements ModeRules {
     const names = dealCallsigns(n, [g.playerUnit.name]);
     for (const team of TEAMS) for (const [, kind] of filterRoster(rosters[team], TDM.roster)) this.slots.push({ team, name: names.shift()!, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0, arm: null });
     for (const s of this.slots) this.spawn(s);
+    this.showStanding();
     g.hud.bannerShow('TEAM DEATHMATCH', fl('tdmBanner'), 2.6);
   }
 
@@ -499,12 +499,12 @@ export class TdmRules implements ModeRules {
     if (this.tickets[v.team] <= 0) this.end(otherTeam(v.team));
   }
 
-  /** 24.0: the player's standing on the HUD: his rank in his team (by kills, then fewer deaths), kills, deaths. */
+  /** 26.0: his team's live board on the HUD (him and every alpha slot: name, kills, deaths). */
   private showStanding() {
-    const p = this.player;
-    const mates = this.slots.filter((s) => s.team === 'alpha');
-    const ahead = mates.filter((s) => s.kills > p.kills || (s.kills === p.kills && s.deaths < p.deaths)).length;
-    this.game.tdmHud.setMe(ahead + 1, mates.length + 1, p.kills, p.deaths);
+    // (Spectating, he is not on the team: its bots fill it.)
+    const lines: BoardLine[] = this.spectate ? [] : [{ name: this.game.playerUnit.name, kills: this.player.kills, deaths: this.player.deaths, you: true }];
+    for (const s of this.slots) if (s.team === 'alpha') lines.push({ name: s.name, kills: s.kills, deaths: s.deaths, you: false });
+    this.game.tdmHud.setBoard(lines);
   }
 
   /** The player died: the mode respawns him (Game shows the countdown instead of the death screen). */

@@ -86,6 +86,10 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Fog and music (25.0):
   - `tdmSim(...).fog` (a map with a ground fog): kills on the ground (both ends under its top), on the roofs (both over) and across, with medians and p10/p90; each gun's share of its time over the fog; the sight checks the fog cut. `tdmSim({ fog: false })` plays the map without the fog's sight cap and route bias.
   - `await __dev.musicSpectrum({ ids, seconds, intensity })`: each procedural theme rendered offline (all layers in at `intensity`, mixed as the game mixes it), and again through a high-pass at 1 kHz and 2.5 kHz: the share of the energy above each, the RMS and the peak (before the limiter).
+- HUD and reload audio (26.0):
+  - `node scripts/boardcost.mjs [kills=200]` (Node 22+, Google Chrome): headless, a TDM match with the loop stopped; each step is a kill on the team board and a frame. It prints JS, style and layout time per kill, and the rows' final order.
+  - `node scripts/reloadcheck.mjs`: every gun's reload stages rendered offline (48 kHz, dry): length to −40 dB, peak, spectral centroid and the energy share under 250 Hz, with the pre-26.0 reload as a reference row. Also the live engine's main-thread cost per `reload()` call. `LEAK=1` renders the noise layers as the engine played them before 26.0 (started at once).
+  - `uicheck.mjs` checks overlaps among the team board, the score and the feed too (instead of the 24.0 scoreboard column).
 - UI checks (24.0):
   - `node scripts/uicheck.mjs [out-dir]` (Node 22+, Google Chrome; `URL=`, `SIZES=1440x900,3840x2160`): headless Chrome at 1440×900, 1920×1080, 2560×1440 and 3840×2160. It checks the menu, the maps screen, a TDM HUD (a kill of the player's in the feed) and the result screen: the smallest visible text, anything off screen, overlaps among the minimap, health, callsign, ammo and live scoreboard. Screenshots go to `out-dir`. Exit 1 on a spill, an overlap or text under 11 px.
   - `node scripts/csscheck.mjs [seconds]` also measures a hovered button, a hovered map card (a hover must settle) and the TDM HUD after a kill, and stops the logo's glitch for the hover rows.
