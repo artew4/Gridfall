@@ -1549,8 +1549,49 @@ Branch `feature/last-stand-29.0`, from `main` @ `b7c00bd` (28.0, merged and live
 - **Edge cases (live):** the last two killed in one frame: a draw; 0.2 s apart: a draw (the trade window); 1.5 s apart: the survivor's team wins.
 - `bench(3)` Maglev: 60 FPS in all 12 views, CPU 2.2–2.9 ms, GPU 5.6–6.3 ms. `uicheck` 16/16. Tests 357 (+14).
 
+## 30.0: stamina and weight-based mobility
+
+Branch `feature/stamina-mechanic-30.0`, from `main` @ `1125398` (29.0, merged and live). Full numbers: `docs/BENCH-30.0.json`.
+
+### The mechanic (`Stamina.ts`, 6 unit tests)
+- A pool of 0–100 for the player and every bot. Sprinting drains it (100 / `sprintFor` a second); after 0.6 s without sprinting it refills (100 / `recoverIn` a second walking, ×1.5 standing or crouched). At 0 the sprint is gone until the pool is back to 20: forced to walk.
+- **A slide only out of an active sprint,** and it costs 12.
+- **The gun's weight sets both** (by its sound family for the player, its armory id for a bot):
+
+| class | a full sprint lasts | empty → full (walking) |
+|---|---|---|
+| pistol | 9 s | 4.5 s |
+| SMG | 5.5 s | 7 s |
+| rifle | 3.5 s | 10 s |
+| shotgun | 3.5 s | 10 s |
+
+### The HUD bar
+- A thin bar under the crosshair: a dark track, a cyan fill scaled on X (`transform: scaleX`), faded out (opacity) while the pool is full, red once it ran dry. Written only when the value moves by 0.5% (200 steps) or a state flips; nothing else changes per frame.
+- **Measured:** frame CPU on the GPU with the bar changing every frame as with it idle (2.21 / 2.19 ms, 60 FPS); style recalcs and layouts with it draining as with it idle; `csscheck`: the match HUD at rest 0 recalcs, 0 layouts.
+
+### The bots
+- They walk (their run pace) unless they have a reason to sprint: retreating or diving for cover under fire; flanking; pushing with a close gun (SMG, shotgun, pistol: a rifle walks up to range); crossing ground a hostile can see (one in view, or one the team saw within 1.5 s and 40 m).
+- **Energy management:** the optional sprints (crossing, flanking) start at 50 or more and stop at 30 (the fight they lead to starts with that much); a push stops at 10; only a retreat may run the pool dry. A slide needs the sprint and pays for it.
+- The first version (start at 35, run to 0) left bots dry a quarter of their time and 42% of fights started under 20.
+
+### Measured (bot-only, 4 matches a cell; stamina off = 29.0's endless sprint)
+| | Maglev off | Maglev on | Neon Block off | Neon Block on |
+|---|---|---|---|---|
+| kills a minute | 25.9 | 23.0 (−11%) | 17.0 | 15.0 (−11%) |
+| bots' average speed (m/s) | 4.08 | 3.75 | 4.32 | 3.74 |
+| first engagement, median (s) | 8.7 | 10.3 | 10.8 | 12.8 |
+| quiet seconds | 19.7% | 20.1% | 31.0% | 36.8% |
+| sprinting (of the time alive) | – | 31% | – | 28% |
+| run dry | – | 6.2% (first version 24.8%) | – | 2.8% (23.1%) |
+| fights started under 20 | – | 24% (42%) | – | 16% (42%) |
+| the pool when a fight starts, median | – | 39 (26) | – | 42 (25) |
+
+- Sprint time by reason (Maglev / Neon Block): pushing 42% / 31%, crossing 25% / 34%, retreating 20% / 15%, flanking 13% / 20%.
+- `bench(3)`: Maglev 60 FPS, CPU 2.0–2.6 ms; Neon Block 60 FPS, CPU 2.0–2.8 ms; GPU 5.8–6.9 ms. Tests 367 (+10).
+
 ## Next
 Human playtest:
+- 30.0 items: the stamina (does a 3.5 s rifle sprint feel punishing or right; the pistol as the mobile gun; the forced walk at 0: frustrating?); the bar under the crosshair (noticed? in the way?); do bots feel less frantic, or too slow?
 - 29.0 items: the last stand from your side (being the last man; does the clock feel fair or cruel; is 60 s the right length; 30 s of holding before the push); spectating (does following a bot's eye make you sick: the snap turns are damped, is it enough; would a shoulder camera be better); does the ticket race decide too much (the team out first lost 10 of 12 in self-play).
 - 28.0 items: the Desert's outer flanks (does the trench feel like a route or a trap; the Anvil and the Spine as perches: too strong in calm air?); the storm (is spawning in the dunes in a storm fair; should calm last longer so the outer perches matter?); Neon Docks' depot (dead ends: fun or annoying) and the barges (does anyone go out on the water; falling in).
 - 27.0 items: the spawn pads (do you notice them, does the flash read as "someone just spawned there"; is spawning next to a teammate good or confusing); spawn safety in your own play (killed right after spawning? spawned looking at a wall?); do matches feel like they happen all over the map, or aimless (bots wandering); Maglev's train still a shotgun lane?

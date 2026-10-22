@@ -5,6 +5,7 @@ import type { AudioEngine } from '../audio/AudioEngine';
 import { clamp, damp, lerp, Spring } from '../core/math';
 import { KEYS } from '../core/Bindings';
 import { SLIDE, slideStep } from './Slide';
+import { Stamina } from '../combat/Stamina';
 import type { GunHandling } from '../entities/types';
 
 const WALK = 5.0;
@@ -62,6 +63,8 @@ export class Player {
   adsT = 0;
   /** 21.0: the handling of the gun in hand (Game sets it with the weapon). */
   gun: GunHandling = BASE_GUN;
+  /** 30.0: the sprint's pool; its profile is the gun's weight class (Game sets it with the weapon). */
+  stamina = new Stamina();
   ads = 0;
   /**
    * 12.0, the sprint slide (Slide.ts): crouch pressed while sprinting. `slideV` is the speed left,
@@ -108,6 +111,7 @@ export class Player {
     this.adsT = this.ads = 0;
     this.sliding = false;
     this.slideT = this.slideV = this.slideK = this.slideCd = 0;
+    this.stamina.reset();
     this.trauma = 0;
     this.kickPitch.reset();
     this.kickYaw.reset();
@@ -143,7 +147,8 @@ export class Player {
     // is still last frame's). The press also sets the crouch, so the slide ends in a crouch.
     this.slideCd = Math.max(0, this.slideCd - dt);
     const hs0 = Math.hypot(this.vel.x, this.vel.z);
-    if (controls && this.alive && !this.sliding && this.sprinting && this.onGround && this.slideCd <= 0 && input.pressed.has(KEYS.crouch) && hs0 >= SPRINT * SLIDE.minEntry) {
+    // 30.0: only out of an active sprint (it was sprinting last frame), and it costs stamina.
+    if (controls && this.alive && !this.sliding && this.sprinting && this.onGround && this.slideCd <= 0 && input.pressed.has(KEYS.crouch) && hs0 >= SPRINT * SLIDE.minEntry && this.stamina.slide()) {
       this.startSlide(hs0);
     }
     this.updateCrouch(dt, input, controls);
@@ -161,6 +166,8 @@ export class Player {
     if (wl > 0) { wx /= wl; wz /= wl; }
     this.sprinting = controls && (input.key('ShiftLeft') || input.key('ShiftRight'));
     this.sprinting = this.sprinting && wl > 0 && input.key('KeyW') && !aim && !this.sliding;
+    // 30.0: no breath, no sprint (run dry, it walks until the pool is back to STAMINA.resume).
+    if (!this.stamina.canSprint) this.sprinting = false;
     // Sprinting stands you up (if there's room); crouched or aiming you can't sprint.
     if (this.sprinting && this.crouch > 0.05) {
       this.crouchToggle = false;
@@ -173,6 +180,11 @@ export class Player {
       const accel = this.onGround ? 16 : 3;
       this.vel.x = damp(this.vel.x, wx * speed, accel, dt);
       this.vel.z = damp(this.vel.z, wz * speed, accel, dt);
+    }
+    {
+      // 30.0: the pool: drained by the sprint, refilled walking (faster standing or crouched).
+      const hs = Math.hypot(this.vel.x, this.vel.z);
+      this.stamina.step(dt, this.sprinting && hs > WALK * 0.8, hs < 0.5 || this.crouch > 0.5);
     }
     const x0 = this.pos.x, z0 = this.pos.z;
 

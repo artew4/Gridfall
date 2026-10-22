@@ -3,6 +3,7 @@ import type { Game } from '../core/Game';
 import { TDM } from '../levels/Tdm';
 import { ANY, RANGED_ONLY } from '../enemies/Roster';
 import { ARENA } from '../enemies/arena/ArenaCtx';
+import { STAMINA } from '../combat/Stamina';
 import { ARMORY, type WeaponId } from '../entities/weapons/armory';
 import type { TacticalEnemy } from '../enemies/Enemy';
 import { probe } from './PerfProbe';
@@ -251,7 +252,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -299,6 +300,9 @@ export async function tdmSim(
   // 29.0 A/B: the last-stand instincts off (the bots fight on as before, under the same rules).
   const ls0 = ARENA.lastStand.on;
   if (opts.lastStand !== undefined) ARENA.lastStand.on = opts.lastStand;
+  // 30.0 A/B: `stamina: false` is the endless sprint of 29.0 (the bots sprint as they did).
+  const stam0 = STAMINA.on;
+  if (opts.stamina !== undefined) STAMINA.on = opts.stamina;
   // 29.0: the map's tickets unless told (50 since 29.0; 25 forced before).
   startMatch(game, true, opts.tickets, ai, opts.size, opts.profile ?? true);
   // 25.0 A/B: `fog: false` plays Neon Block without its ground fog's sight cap and route bias.
@@ -490,6 +494,7 @@ export async function tdmSim(
   TDM.force.noForward = false;
   TDM.spawns = spawns0;
   ARENA.lastStand.on = ls0;
+  STAMINA.on = stam0;
   game.ctx.sightRange = sight0;
   if (fog0 !== undefined) (game.fog as { density: number }).density = fog0;
   game.timeScale = 1;
@@ -555,6 +560,22 @@ export async function tdmSim(
         rays: { mean: +(log.reduce((a, x) => a + x.rays, 0) / Math.max(1, log.length)).toFixed(1), max: Math.max(0, ...log.map((x) => x.rays)) },
         msPerPick: { mean: +(log.reduce((a, x) => a + x.ms, 0) / Math.max(1, log.length)).toFixed(3), max: +Math.max(0, ...log.map((x) => x.ms)).toFixed(3) },
         padUse: log.reduce<Record<number, number>>((a, x) => ((a[x.pad] = (a[x.pad] ?? 0) + 1), a), {}),
+      };
+    })(),
+    // 30.0: the sprint's economy: seconds sprinting by reason and run dry (shares of the bots' alive
+    // time), pools emptied a bot-minute, the pool when a fight starts.
+    stamina: (() => {
+      const alive = Math.max(1, st.aliveT);
+      const w = st.sprintWhy;
+      const sp = w.cross + w.flank + w.push + w.retreat;
+      const at = st.staminaAtEngage;
+      return {
+        on: opts.stamina !== false,
+        sprintPct: +((100 * sp) / alive).toFixed(1),
+        sprintByWhyPct: Object.fromEntries(Object.entries(w).map(([k, v]) => [k, +((100 * v) / Math.max(1e-9, sp)).toFixed(1)])),
+        exhaustedPct: +((100 * st.exhaustedT) / alive).toFixed(1),
+        emptiedPerBotMin: +((st.emptied / alive) * 60).toFixed(2),
+        atEngage: { n: at.length, median: q(at, 0.5), p10: q(at, 0.1), under20Pct: +((100 * at.filter((x) => x < 20).length) / Math.max(1, at.length)).toFixed(1) },
       };
     })(),
     // 29.0: how the match ended and what its endgame looked like.

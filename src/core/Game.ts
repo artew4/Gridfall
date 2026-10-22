@@ -50,6 +50,7 @@ import { SpawnZone } from '../gameplay/SpawnZone';
 import { LoadoutView } from '../ui/LoadoutView';
 import { cleanName, loadName, saveName } from '../gameplay/PlayerName';
 import { menuStep, nextMaps, type MenuEvent, type MenuState } from '../ui/MenuFlow';
+import { WEIGHT, weightOf } from '../combat/Stamina';
 
 export type { Mode };
 
@@ -498,6 +499,8 @@ export class Game {
     // 21.0: the gun wears the map's finish, and handles as itself.
     this.weapon.setSpec(spec, gunThemeFor(this.setting));
     this.player.gun = spec.handling;
+    // 30.0: what it weighs sets the sprint (Stamina.ts).
+    this.player.stamina.profile = WEIGHT[weightOf(spec.sound)];
     this.hud.setWeapon(spec.name, fl(id), spec.mag, this.weapon.lowAmmo);
   }
 
@@ -1069,6 +1072,7 @@ export class Game {
       if (this.state === 'play') this.updateZone(dt);
       // HUD.
       this.hud.setHealth(this.player.health, this.player.maxHealth);
+      this.hud.setStamina(this.player.stamina.frac, this.player.stamina.exhausted);
       this.hud.setAmmo(this.weapon.ammo, this.weapon.reloading);
       this.hud.setArmed(this.weapon.visible);
       this.hud.setWave(this.waves.wave, this.waves.remaining, this.waves.state === 'break');

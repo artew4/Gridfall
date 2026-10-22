@@ -89,7 +89,8 @@ export class Hud {
     wave.append(wl, row, this.remain);
 
     this.clockEl.innerHTML = 'SHINJUKU-KU · <b>02:47</b>';
-    this.root.append(this.cross, this.hit, this.dmg, this.feed, this.callsign, this.health, this.ammo, wave, this.clockEl);
+    this.stam.appendChild(this.stamFill);
+    this.root.append(this.cross, this.stam, this.hit, this.dmg, this.feed, this.callsign, this.health, this.ammo, wave, this.clockEl);
 
     this.banner.id = 'banner';
     this.title.id = 'title';
@@ -250,6 +251,25 @@ export class Hud {
 
   show(e: HTMLElement, on: boolean) {
     e.classList.toggle('hidden', !on);
+  }
+
+  /**
+   * 30.0: the stamina bar under the crosshair: a fill scaled on X (composited, no layout), shown while
+   * the pool isn't full, red once it ran dry. Written only when the value moves by 0.5% or a state flips.
+   */
+  private stam = el('div', 'stamina full');
+  private stamFill = el('i');
+  private stamLast = { k: -1, full: true, dry: false };
+  setStamina(frac: number, exhausted: boolean) {
+    const k = Math.round(frac * 200);
+    const full = k >= 200 && !exhausted;
+    const L = this.stamLast;
+    if (k !== L.k) this.stamFill.style.transform = `scaleX(${(k / 200).toFixed(3)})`;
+    if (full !== L.full) this.stam.classList.toggle('full', full);
+    if (exhausted !== L.dry) this.stam.classList.toggle('dry', exhausted);
+    L.k = k;
+    L.full = full;
+    L.dry = exhausted;
   }
 
   setHealth(h: number, max: number) {

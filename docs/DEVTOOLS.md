@@ -86,6 +86,9 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Fog and music (25.0):
   - `tdmSim(...).fog` (a map with a ground fog): kills on the ground (both ends under its top), on the roofs (both over) and across, with medians and p10/p90; each gun's share of its time over the fog; the sight checks the fog cut. `tdmSim({ fog: false })` plays the map without the fog's sight cap and route bias.
   - `await __dev.musicSpectrum({ ids, seconds, intensity })`: each procedural theme rendered offline (all layers in at `intensity`, mixed as the game mixes it), and again through a high-pass at 1 kHz and 2.5 kHz: the share of the energy above each, the RMS and the peak (before the limiter).
+- Stamina (30.0):
+  - `tdmSim(...)` reports `stamina`: sprint time (share of the bots' alive time) and its reasons (crossing, flanking, pushing, retreating), the time run dry, pools emptied a bot-minute, and the pool when a fight starts (median, p10, the share under 20). `stamina: false` is 29.0's endless sprint (the A/B).
+  - `STAMINA` and `WEIGHT` (`src/combat/Stamina.ts`) are the knobs; `ARENA.stamina` the bots' reserve and floors.
 - Last stand (29.0):
   - `tdmSim(...)` reports `endgame`: the outcome and how (elimination, sudden death, trade, sudden death draw), when the first team ran out of tickets and who stood then, the endgame's length, a comeback, the final standing, the sudden-death clocks (starts, resets, the longest run), and last-stand bots against the same bots before (nearest teammate, crouched, moving, holding). `lastStand: false` turns the last-stand instincts off (the A/B); the tickets default to the map's (50).
   - `__game.tdm.rules`: the match rules (tickets, the clocks, the outcome); `__game.tdm.standing()`; `__game.tdm.debug()` includes them.

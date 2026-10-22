@@ -1,0 +1,319 @@
+{
+  "version": "30.0 (stamina: sprint and slide cost breath, scaled by the gun's weight; bots sprint for reasons)",
+  "branch": "feature/stamina-mechanic-30.0 from main @ 1125398",
+  "machine": "Apple M5, Chrome, Balanced",
+  "selfPlay": {
+    "method": "__dev.tdmSim({ stamina }), bot-only, the maps' sizes and 50 tickets (29.0 rules), 4 matches a cell",
+    "results": {
+      "maglev": {
+        "stamina off (29.0)": {
+          "matches": 4,
+          "matchSeconds": 255.47,
+          "killsPerMin": 25.85,
+          "quietPct": 19.72,
+          "firstEngagementMedian": 8.65,
+          "avgSpeed": 4.08,
+          "killRangeMedian": 10.78,
+          "ttkFromFirstHitMedian": 7.17,
+          "endgameSeconds": 61.83,
+          "stuck": 0,
+          "stamina": {
+            "sprintPct": 0,
+            "sprintByWhyPct": {
+              "cross": 0,
+              "flank": 0,
+              "push": 0,
+              "retreat": 0
+            },
+            "exhaustedPct": 0,
+            "emptiedPerBotMin": 0,
+            "atEngageMedian": 0,
+            "atEngageP10": 0,
+            "engagesUnder20Pct": 0
+          }
+        },
+        "stamina on (30.0)": {
+          "matches": 4,
+          "matchSeconds": 282.7,
+          "killsPerMin": 23.02,
+          "quietPct": 20.12,
+          "firstEngagementMedian": 10.3,
+          "avgSpeed": 3.75,
+          "killRangeMedian": 10.65,
+          "ttkFromFirstHitMedian": 7.57,
+          "endgameSeconds": 51.85,
+          "stuck": 0,
+          "stamina": {
+            "sprintPct": 31.02,
+            "sprintByWhyPct": {
+              "cross": 24.9,
+              "flank": 13.05,
+              "push": 41.85,
+              "retreat": 20.2
+            },
+            "exhaustedPct": 6.22,
+            "emptiedPerBotMin": 1.88,
+            "atEngageMedian": 38.75,
+            "atEngageP10": 9.5,
+            "engagesUnder20Pct": 23.68
+          }
+        },
+        "first version (reserve 35, run to 0)": {
+          "matches": 4,
+          "matchSeconds": 278.85,
+          "killsPerMin": 23.35,
+          "quietPct": 18.85,
+          "firstEngagementMedian": 9.82,
+          "avgSpeed": 3.73,
+          "killRangeMedian": 11.75,
+          "ttkFromFirstHitMedian": 6.57,
+          "endgameSeconds": 53.73,
+          "stuck": 0,
+          "stamina": {
+            "sprintPct": 35.12,
+            "sprintByWhyPct": {
+              "cross": 29.48,
+              "flank": 13.58,
+              "push": 41.25,
+              "retreat": 15.7
+            },
+            "exhaustedPct": 24.82,
+            "emptiedPerBotMin": 7.29,
+            "atEngageMedian": 25.75,
+            "atEngageP10": 1.25,
+            "engagesUnder20Pct": 41.95
+          }
+        }
+      },
+      "neonblock": {
+        "stamina off (29.0)": {
+          "matches": 4,
+          "matchSeconds": 378.45,
+          "killsPerMin": 16.98,
+          "quietPct": 30.98,
+          "firstEngagementMedian": 10.8,
+          "avgSpeed": 4.32,
+          "killRangeMedian": 10.35,
+          "ttkFromFirstHitMedian": 7.16,
+          "endgameSeconds": 57.88,
+          "stuck": 0,
+          "stamina": {
+            "sprintPct": 0,
+            "sprintByWhyPct": {
+              "cross": 0,
+              "flank": 0,
+              "push": 0,
+              "retreat": 0
+            },
+            "exhaustedPct": 0,
+            "emptiedPerBotMin": 0,
+            "atEngageMedian": 0,
+            "atEngageP10": 0,
+            "engagesUnder20Pct": 0
+          }
+        },
+        "stamina on (30.0)": {
+          "matches": 4,
+          "matchSeconds": 421.57,
+          "killsPerMin": 15.03,
+          "quietPct": 36.8,
+          "firstEngagementMedian": 12.75,
+          "avgSpeed": 3.74,
+          "killRangeMedian": 11.1,
+          "ttkFromFirstHitMedian": 8.45,
+          "endgameSeconds": 56.28,
+          "stuck": 0,
+          "stamina": {
+            "sprintPct": 28.43,
+            "sprintByWhyPct": {
+              "cross": 34.4,
+              "flank": 19.88,
+              "push": 30.62,
+              "retreat": 15.12
+            },
+            "exhaustedPct": 2.77,
+            "emptiedPerBotMin": 0.96,
+            "atEngageMedian": 41.75,
+            "atEngageP10": 12.25,
+            "engagesUnder20Pct": 15.82
+          }
+        },
+        "first version (reserve 35, run to 0)": {
+          "matches": 4,
+          "matchSeconds": 395.48,
+          "killsPerMin": 15.65,
+          "quietPct": 30.77,
+          "firstEngagementMedian": 12.53,
+          "avgSpeed": 3.85,
+          "killRangeMedian": 11.03,
+          "ttkFromFirstHitMedian": 7.48,
+          "endgameSeconds": 51.02,
+          "stuck": 0,
+          "stamina": {
+            "sprintPct": 32.9,
+            "sprintByWhyPct": {
+              "cross": 37.27,
+              "flank": 22.0,
+              "push": 28.65,
+              "retreat": 12.03
+            },
+            "exhaustedPct": 23.05,
+            "emptiedPerBotMin": 6.63,
+            "atEngageMedian": 25.25,
+            "atEngageP10": 1.5,
+            "engagesUnder20Pct": 42.1
+          }
+        }
+      }
+    }
+  },
+  "hud": {
+    "real GPU, Maglev, a match running (PerfProbe 5 s)": {
+      "bar idle (full)": {
+        "fps": 60,
+        "cpuMs": 2.19,
+        "gpuMs": 6.19
+      },
+      "bar changing every frame": {
+        "fps": 59.9,
+        "cpuMs": 2.21,
+        "gpuMs": 5.96
+      },
+      "idle again": {
+        "fps": 60,
+        "cpuMs": 2.33,
+        "gpuMs": 6.18
+      }
+    },
+    "headless, CDP metrics over 5 s (the match's HUD as the baseline)": {
+      "bar idle": {
+        "recalcsPerS": 10.8,
+        "layoutsPerS": 5.4
+      },
+      "bar draining every frame": {
+        "recalcsPerS": 10.2,
+        "layoutsPerS": 5.4
+      }
+    },
+    "csscheck": "the TDM HUD at rest: 0 recalcs, 0 layouts"
+  },
+  "perf": {
+    "bench3 (second runs)": {
+      "maglev": {
+        "alphaYard": [
+          60,
+          2.15,
+          6.38
+        ],
+        "trainAisle": [
+          60,
+          2.43,
+          6.25
+        ],
+        "platform1": [
+          60,
+          2.11,
+          6.26
+        ],
+        "trackBed": [
+          60,
+          2.25,
+          6.24
+        ],
+        "mezzanine": [
+          60,
+          2.03,
+          6.21
+        ],
+        "bridge": [
+          60,
+          2.39,
+          6.2
+        ],
+        "roofUp": [
+          60,
+          2.37,
+          6.01
+        ],
+        "platformCover": [
+          60,
+          2.05,
+          6.17
+        ],
+        "billboardClose": [
+          60,
+          1.99,
+          6.28
+        ],
+        "glassWall": [
+          60,
+          2.1,
+          6.24
+        ],
+        "wholeHall": [
+          60,
+          2.05,
+          6.14
+        ],
+        "firefight": [
+          60,
+          2.61,
+          5.91
+        ]
+      },
+      "neonblock": {
+        "alphaYard": [
+          60,
+          2.56,
+          6.21
+        ],
+        "mainStreet": [
+          60,
+          2.47,
+          6.16
+        ],
+        "lanternAlley": [
+          60,
+          2.59,
+          6.25
+        ],
+        "fireEscape": [
+          60,
+          2.81,
+          6.19
+        ],
+        "westRoofs": [
+          60,
+          2,
+          6.9
+        ],
+        "footbridge": [
+          60,
+          2.4,
+          5.84
+        ],
+        "eastRoofs": [
+          60,
+          2.66,
+          6.3
+        ],
+        "serviceAlley": [
+          60,
+          2.67,
+          6.34
+        ],
+        "wholeBlock": [
+          60,
+          2.72,
+          6.3
+        ],
+        "firefight": [
+          60,
+          2.65,
+          6
+        ]
+      }
+    }
+  },
+  "tests": 367
+}

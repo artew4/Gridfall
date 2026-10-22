@@ -53,6 +53,8 @@ The main menu asks for the mode first, then shows the maps that have it. Type yo
   | 3 | Jackal AR | the baseline: steady at mid and long range; wide from the hip |
   | 4 | Boar M12, pump shotgun | one shell drops a man inside 8 m and shoves him back; useless past 15 m, heavy to carry |
 
+- **Stamina (30.0):** sprinting and sliding cost breath, and what you carry decides how much: a full sprint lasts 9 s with the pistol, 5.5 s with the SMG, 3.5 s with the rifle or the shotgun, and the light guns get it back faster. Run dry and you walk until you've recovered a fifth. A thin bar under the crosshair shows it while it isn't full. Bots walk too, and sprint only to cross open ground, flank, push in with a close gun or get out of fire, keeping some in reserve for the fight.
+
   The bots carry the same four, and fight like them: pistol bots sprint and strafe, shotgun bots slide and hop from cover to close in, rifle bots hang back and aim. The story keeps its own gun (the Kitsune).
 - **Finishes by world (21.0):** the same guns wear the map's look, in your hands and the bots'. Neon worlds get dark metal and neon strips. Desert, jungle and port get matte black, olive and camo, nothing glowing, and every round is kinetic. The Maglev hall gets white polymer, carbon fibre and small cyan LEDs.
 - **Aim down sights (right mouse):** the view narrows by 15–28% (by weapon), and the gun comes up until its real sights line up with the centre of the screen: the rifle's red dot, the pistol's notch and post, the shotgun's bead.
@@ -116,7 +118,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **357 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **367 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;

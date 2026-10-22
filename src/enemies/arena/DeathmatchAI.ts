@@ -7,6 +7,7 @@ import type { Thinker } from '../tactics/Scheduler';
 import type { BarkKind, Voice } from '../tactics/Barks';
 import { rand } from '../../core/math';
 import { ARENA, type ArenaCtx } from './ArenaCtx';
+import { STAMINA, Stamina, WEIGHT, weightOf } from '../../combat/Stamina';
 import type { Seen, SenseAgent } from './Sensing';
 import type { ArenaContact } from './ArenaDirector';
 import { ARENA_SEE, contrastAt, densityOfSightRange, fogRange } from '../../world/Visibility';
@@ -216,8 +217,13 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   private retreatCd = -Infinity;
   private slideCd = -Infinity;
 
+  /** 30.0: its sprint's pool (its gun's weight class), and whether it is mid-sprint. */
+  readonly stamina: Stamina;
+  private sprintNow = false;
+
   constructor(readonly self: ArenaBody, persona?: Persona) {
     this.persona = persona ?? drawPersona();
+    this.stamina = new Stamina(WEIGHT[weightOf(self.arm.id)]);
     this.ammo = self.arm.mag;
     this.burstLeft = self.arm.burst;
   }
@@ -323,6 +329,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       A.director.releaseHold(this.self.uid);
       this.holdAt = null;
     }
+    if (s === 'engage' && STAMINA.on) A.stats.staminaAtEngage.push(Math.round(this.stamina.value));
     this.state = s;
     this.stateT = 0;
     this.goal = null;
@@ -687,6 +694,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       }
     }
     if (!why || !me.open(ctx, dx, dz, S.open)) return;
+    // 30.0: a slide comes only out of a sprint, and costs breath.
+    if (!this.sprintNow || !this.stamina.slide()) return;
     if (!me.slide()) return;
     A.stats.slides++;
     A.stats.slideWhy[why]++;
@@ -930,6 +939,33 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     return null;
   }
 
+  /**
+   * 30.0: why it would sprint now (or null: it walks). Retreating or diving for cover; flanking;
+   * pushing with a close gun (SMG, shotgun, pistol), or closing to range with one; moving across
+   * ground a hostile can see (in its own view, or seen by the team just now, near).
+   */
+  private sprintReason(A: ArenaCtx, T: Combatant | null, tv: boolean, gunner: boolean, now: number): 'cross' | 'flank' | 'push' | 'retreat' | null {
+    const st = this.state;
+    if (st === 'retreat' || st === 'break') return 'retreat';
+    if (st === 'flank') return 'flank';
+    const close = !gunner || this.self.arm.id !== 'ar';
+    if (st === 'push') return close ? 'push' : null;
+    if (st === 'engage') {
+      // Only to close a gap the gun can't shoot across (its strafe is a walk anyway).
+      const far = T && Math.hypot(T.pos.x - this.self.pos.x, T.pos.z - this.self.pos.z) > this.self.arm.maxRange;
+      return far && close ? 'push' : null;
+    }
+    // Hunting, patrolling, holding, advancing: only across ground a hostile can see.
+    if (tv) return 'cross';
+    for (const s of this.seen.values()) if (s.vis) return 'cross';
+    const S = ARENA.stamina;
+    const me = this.self;
+    for (const c of A.director.contacts.values()) {
+      if (now - c.seenT < S.exposedFor && Math.hypot(c.pos.x - me.pos.x, c.pos.z - me.pos.z) < S.exposedR) return 'cross';
+    }
+    return null;
+  }
+
   // ------------------------------------------------------------------ act
   /** Every frame: aim, fire, move. Fills `desired` (velocity) and returns the crouch it wants. */
   act(dt: number, ctx: EnemyCtx, desired: THREE.Vector3): number {
@@ -957,7 +993,15 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // 21.0: the gun in hand sets the pace (the pistol runs fastest, the shotgun is heaviest).
     const agile = gunner ? me.arm.agility.run : 1;
     const run = me.speed * (gunner ? ARENA.run : 1) * agile;
-    const sprint = me.speed * (gunner ? ARENA.sprint : 1.05) * agile;
+    // 30.0: the sprint needs a reason and the breath for it (Stamina.ts); otherwise it walks (`run`).
+    const full = me.speed * (gunner ? ARENA.sprint : 1.05) * agile;
+    const why = this.sprintReason(A, T, tv, gunner, now);
+    const S = ARENA.stamina;
+    // Optional sprints start with `reserve`, keep `floor` for the fight; a push keeps `pushFloor`.
+    const v = this.stamina.value;
+    const room = why === 'retreat' ? true : why === 'push' ? v > S.pushFloor : this.sprintNow ? v > S.floor : v >= S.reserve;
+    const ok = !STAMINA.on || (why !== null && this.stamina.canSprint && room);
+    const sprint = ok ? full : run;
     if (this.swing) {
       this.melee(dt, ctx, desired);
     } else if (this.state === 'engage' && gunner && T && Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > me.arm.maxRange) {
@@ -1057,6 +1101,19 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.probeT = 0.1;
       const h = me.wallAhead(ctx, desired.x / hs, desired.z / hs);
       if (h > 0) this.tryJump(ctx, true, Math.sqrt(2 * ARENA.gravity * (h + 0.3)));
+    }
+
+    // ---- 30.0: the pool. Sprinting means it chose to and is moving faster than its walk.
+    {
+      const hs = Math.hypot(desired.x, desired.z);
+      this.sprintNow = ok && STAMINA.on && hs > run * 1.05;
+      const emptied = this.stamina.stats.emptied;
+      this.stamina.step(dt, this.sprintNow, hs < 0.5 || crouch > 0.5);
+      if (STAMINA.on) {
+        if (this.sprintNow && why) A.stats.sprintWhy[why] += dt;
+        if (this.stamina.exhausted) A.stats.exhaustedT += dt;
+        if (this.stamina.stats.emptied > emptied) A.stats.emptied++;
+      }
     }
 
     // ---- Stats.

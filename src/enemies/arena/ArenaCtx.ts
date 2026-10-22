@@ -215,6 +215,17 @@ export const ARENA = {
    * radar limit, but at a run and never flanking alone; a kill resets the clock and it holds again.
    * Off: they fight on as before (the A/B).
    */
+  /**
+   * 30.0, stamina (Stamina.ts; each bot's pool is its gun's weight class). A bot walks (its `run`)
+   * unless it has a reason to sprint: retreating or diving for cover under fire, flanking, pushing
+   * with a close gun (SMG, shotgun, pistol: a rifle walks up to its range), or crossing ground a
+   * hostile can see (one in its own view, or one the team saw within `exposedFor` s and `exposedR` m).
+   * The optional sprints (crossing, flanking) only start with `reserve` or more in the pool and stop
+   * at `floor` (the fight they lead to starts with that much); a push stops at `pushFloor`; only a
+   * retreat may run the pool dry. (First version: start at 35, run to 0: 42% of fights started under
+   * 20, bots dry a quarter of their time.)
+   */
+  stamina: { reserve: 50, floor: 30, pushFloor: 10, exposedR: 40, exposedFor: 1.5 },
   lastStand: { on: true, near: 9, every: 8, drift: 6, radar: 25, pushHp: 0.25, pressAt: 30 },
   retreat: { on: true, unseenDmg: 0.3, window: 2, outnumbered: 2, outSeen: 3, friendR: 18, outHp: 0.6, joinR: 7, maxT: 6, corner: 8, cooldown: 10 },
   /**
@@ -296,6 +307,11 @@ export interface ArenaStats {
   flankArrive: number;
   /** 27.0: patrols that reached their area. */
   patrolArrive: number;
+  /** 30.0: seconds sprinting by reason, seconds run dry, times run dry; the pool when a fight starts (engage). */
+  sprintWhy: { cross: number; flank: number; push: number; retreat: number };
+  exhaustedT: number;
+  emptied: number;
+  staminaAtEngage: number[];
   /** 29.0: seconds spent in HOLD (the last stand), and holds that reached their spot. */
   holdT: number;
   holdArrive: number;
@@ -347,7 +363,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */
