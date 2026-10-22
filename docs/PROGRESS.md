@@ -1515,8 +1515,43 @@ Branch `feature/docks-desert-spawns-28.0`, from `main` @ `b2f1b14` (27.0, merged
 - `bench(3)` with new views (the depot, the sniper stack, the barges; the trench, the Anvil's top, the convoy): 60 FPS in every view of both maps, CPU 1.6–2.7 ms, GPU 4.8–6.4 ms.
 - `leakcheck.mjs 2 docks,desert,oldport`: 0 alive. Tests 343 (+6).
 
+## 29.0: Last Stand, sudden death, spectating
+
+Branch `feature/last-stand-29.0`, from `main` @ `b7c00bd` (28.0, merged and live). Full numbers: `docs/BENCH-29.0.json`.
+
+### The rules (`LastStand.ts`, pure, 12 unit tests)
+- **Tickets are respawns:** 50 a team on every map. A death with tickets left spends one at once (the respawn comes 3–5 s later); at 0 a death is final: OUT in the feed.
+- **Elimination wins:** a team is out when nobody of it stands (alive, or dead with a respawn granted). Decided once a frame after its deaths, with a 0.4 s trade window: if the other team is wiped out within it (a round already in flight), it is a **draw**.
+- **Sudden death:** a team at 0 tickets standing fewer than the other gets 60 s; each kill it scores resets it to 60; at 0 it loses. Both at 0 tickets and level: one clock for both, a draw at 0. A tie broken by a kill: the team left behind keeps its time.
+- **HUD:** the score shows tickets left; under each team, who stands (LAST STAND · n at 0 tickets, the number red); the clock under the score, pulsing (opacity and scale only), red for his team's, amber for the enemy's, white for a draw coming. The result screen can say DRAW, and how it ended (ELIMINATION, SUDDEN DEATH, THE LAST TWO TRADED).
+
+### Spectating
+- Out of the match (his team had no tickets when he died): no countdown, no loadout cards; the camera goes to the nearest teammate standing, at its eye (0.13 m from its head's centre; its body hidden while watched, so nothing clips), its facing and its aim's pitch damped so the bot's snap turns read like a player's. Left / right click: next / previous teammate. The watched one dies: 1.2 s on it, then the nearest. His own panels and the viewmodel are hidden; a panel shows the teammate's name, health and how many stand.
+- Real GPU: frame times while spectating as when alive (median 7.9 / 8.0 ms, p99 11.5 / 11.2 ms).
+
+### The last stand (AI)
+- A team at 0 tickets **holds**: a cover spot within 9 m of its living members' centre (claimed: one bot a spot), crouched, watching the freshest threat; no sprinting; the radar 25 m (no lone hunts); no solo flanks; a push only on a target under 25% health.
+- **On the sudden-death clock it holds until 30 s are left, then presses** as a group (no radar limit, at a run, still no solo flanks); a kill resets the clock and it holds again. The first version pressed as soon as the clock started: the last stand barely showed (a team at 0 tickets is behind at its first death).
+
+### Measured (bot-only; Maglev and Old Port, 4 matches each; the instincts off in brackets)
+| | last stand on | (off) | (v1: press at once) |
+|---|---|---|---|
+| endgame (first team out of tickets → end) | 69.9 s, 28–119 | 36.6 s | 38.0 s |
+| ended by sudden death | 2 of 8 | 0 of 8 | 0 of 8 |
+| comebacks (the team out of tickets first won) | 1 | 0 | 0 |
+| last-stand bots: nearest teammate | 8.2 m | 18.5 m | 15.3 m |
+| crouched / moving / holding | 38.4% / 60.5% / 61.0% | 7.2% / 92.7% / 0% | 12.3% / 88.2% / 22.6% |
+| longest sudden-death clock run | 38.6 s | 13.3 s | 14.7 s |
+
+(Before their last stand the same bots: nearest teammate 14.8 m, crouched 7.4%, moving 93.2%.) Neon Block (5v5, 4 matches) the same way: endgame 24–89 s, 1 ended by sudden death, 1 comeback. Over all 12: 2 comebacks; the winner ends with 5.1 standing on average, the loser 0.3.
+
+- **How it feels in self-play:** the ticket race decides most matches (the team out first lost 10 of 12); the endgame is where the tension is: the team behind hides together, the clock runs down to 30, it comes out as a pack, trades or doesn't, and a kill sends it back behind cover with a minute again (4–5 resets a match). Three of 12 ended on the clock, one of those a 1 v 5 hold that ran out; the longest endgame was two minutes.
+- **Edge cases (live):** the last two killed in one frame: a draw; 0.2 s apart: a draw (the trade window); 1.5 s apart: the survivor's team wins.
+- `bench(3)` Maglev: 60 FPS in all 12 views, CPU 2.2–2.9 ms, GPU 5.6–6.3 ms. `uicheck` 16/16. Tests 357 (+14).
+
 ## Next
 Human playtest:
+- 29.0 items: the last stand from your side (being the last man; does the clock feel fair or cruel; is 60 s the right length; 30 s of holding before the push); spectating (does following a bot's eye make you sick: the snap turns are damped, is it enough; would a shoulder camera be better); does the ticket race decide too much (the team out first lost 10 of 12 in self-play).
 - 28.0 items: the Desert's outer flanks (does the trench feel like a route or a trap; the Anvil and the Spine as perches: too strong in calm air?); the storm (is spawning in the dunes in a storm fair; should calm last longer so the outer perches matter?); Neon Docks' depot (dead ends: fun or annoying) and the barges (does anyone go out on the water; falling in).
 - 27.0 items: the spawn pads (do you notice them, does the flash read as "someone just spawned there"; is spawning next to a teammate good or confusing); spawn safety in your own play (killed right after spawning? spawned looking at a wall?); do matches feel like they happen all over the map, or aimless (bots wandering); Maglev's train still a shotgun lane?
 - 26.0 items: the three-corner HUD (is the team board in the way top left, is the score readable at a glance, does your gold row help); the reloads with headphones (does the pistol sound like a pistol, the SMG zip, the rifle's weight, the shotgun's shells and pump; is any too loud against the gunshots).

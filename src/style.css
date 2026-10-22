@@ -123,7 +123,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .pm-foot { margin-top: 1rem; font-size: 0.75rem; letter-spacing: 0.3em; color: var(--cyan-faint); font-family: var(--mono); }
 
 /* ---------- Zone toast ---------- */
-#zone { z-index: 6; display: flex; justify-content: center; align-items: flex-start; padding-top: 11vh; opacity: 0; transition: opacity 0.8s ease; }
+#zone { z-index: 6; display: flex; justify-content: center; align-items: flex-start; padding-top: max(11vh, 11.5rem); opacity: 0; transition: opacity 0.8s ease; }
 #zone.show { opacity: 1; }
 #zone .box { display: flex; align-items: baseline; gap: 1rem; padding: 0.375rem 1rem; border-top: 1px solid var(--cyan-faint); border-bottom: 1px solid var(--cyan-faint); background: linear-gradient(90deg, transparent, rgba(4, 10, 20, 0.45), transparent); }
 #zone .en { font-size: 0.75rem; letter-spacing: 0.55em; color: #e8fbff; }
@@ -724,3 +724,36 @@ html .map-card .mc-wm { font-size: 2.6rem !important; letter-spacing: 0.04em !im
 html .map-grid.sm .map-card .mc-wm { font-size: 2rem !important; }
 /* The survival death screen's next maps: one row of cards. */
 #death .next-maps { width: min(60rem, 92vw); }
+
+/* ---------- 29.0: last stand, sudden death, spectating ---------- */
+/*
+  Under each team's tickets, who still stands (LAST STAND once the tickets are gone: the side's number
+  red). The sudden-death clock under the score: big, pulsing (opacity and scale only: ADR-0067), red
+  when it is his team's, amber for the enemy's, white-hot for a draw coming. The spectator panel at the
+  bottom centre: the teammate watched, a health bar, how many still stand and the controls.
+*/
+.tdm-score .stand { grid-column: 1 / -1; margin-top: 0.25rem; font-family: var(--ui); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.2em; color: rgba(220, 238, 245, 0.75); white-space: nowrap; }
+.tdm-score.last-a .side.a b, .tdm-score.last-o .side.o b { color: var(--red); }
+.tdm-score.last-a .side.a .stand, .tdm-score.last-o .side.o .stand { color: #ffd0c8; }
+.tdm-sudden { position: absolute; left: 50%; top: 6.4rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.1rem; padding: 0.4rem 1.6rem 0.5rem; font-family: var(--ui); color: #ffd9a0; background: linear-gradient(90deg, rgba(40, 10, 4, 0), rgba(40, 10, 4, 0.78) 20%, rgba(40, 10, 4, 0.78) 80%, rgba(40, 10, 4, 0)); }
+.tdm-sudden.hidden { display: none; }
+.tdm-sudden .lbl { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.45em; padding-left: 0.45em; }
+.tdm-sudden b { font-family: var(--display); font-size: 2.6rem; font-weight: 700; line-height: 1; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; animation: sudden-pulse 1s ease-in-out infinite; }
+.tdm-sudden .who { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.25em; opacity: 0.85; }
+.tdm-sudden.ours { color: #ff8a7a; background: linear-gradient(90deg, rgba(60, 0, 0, 0), rgba(70, 4, 4, 0.85) 20%, rgba(70, 4, 4, 0.85) 80%, rgba(60, 0, 0, 0)); }
+.tdm-sudden.ours b { color: var(--red); }
+.tdm-sudden.both { color: #fff2e0; }
+@keyframes sudden-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.55; transform: scale(1.08); } }
+.tdm-spec { position: absolute; left: 50%; bottom: 7.2rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.35rem; padding: 0.5rem 1.4rem; font-family: var(--ui); color: #e8f4f8; background: rgba(4, 8, 16, 0.6); border-top: 2px solid var(--alpha); }
+.tdm-spec.hidden { display: none; }
+.tdm-spec .nm { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.35em; color: var(--cyan-dim); }
+.tdm-spec .nm b { font-size: 1.15rem; letter-spacing: 0.15em; color: var(--alpha); }
+.tdm-spec .hp { width: 12rem; height: 0.3rem; background: rgba(255, 255, 255, 0.12); }
+.tdm-spec .hp i { display: block; height: 100%; background: var(--alpha); transform-origin: left; transition: transform 0.2s; }
+.tdm-spec .hint { font-size: 0.75rem; letter-spacing: 0.2em; color: rgba(220, 238, 245, 0.65); }
+.tdm-feed .row i.out { margin-left: 0.6rem; padding: 0 0.3rem; font-size: 0.75rem; letter-spacing: 0.2em; color: #1a0402; background: var(--red); }
+@media (prefers-reduced-motion: reduce) { .tdm-sudden b { animation: none; } }
+.res-title.draw { color: #f4f0e6; text-shadow: 0 0 1.6rem rgba(255, 230, 180, 0.5); }
+.res-how { margin-top: 0.2rem; font-family: var(--ui); font-size: 0.9rem; font-weight: 700; letter-spacing: 0.45em; color: var(--cyan-dim); }
+#hud.spectating .health, #hud.spectating .ammo, #hud.spectating .crosshair, #hud.spectating .callsign, #hud.spectating .killfeed { display: none; }
+/* 29.0: the zone toast (padding-top above) sits under the score's standing line and the sudden-death clock. */

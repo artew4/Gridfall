@@ -50,7 +50,7 @@ import { ARMORY, type BotArm } from '../../entities/weapons/armory';
      ground with a contact close.
 */
 
-export type ArenaState = 'emerge' | 'advance' | 'patrol' | 'hunt' | 'engage' | 'push' | 'break' | 'flank' | 'retreat';
+export type ArenaState = 'emerge' | 'advance' | 'patrol' | 'hold' | 'hunt' | 'engage' | 'push' | 'break' | 'flank' | 'retreat';
 
 /** 12.0: a bot's temperament (ARENA.persona). */
 export interface Persona {
@@ -319,6 +319,10 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       A.director.patrolRelease(this.self.uid);
       this.hva = -1;
     }
+    if (this.state === 'hold') {
+      A.director.releaseHold(this.self.uid);
+      this.holdAt = null;
+    }
     this.state = s;
     this.stateT = 0;
     this.goal = null;
@@ -380,6 +384,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       // 27.0, patrol maps: the radar reaches patrol.radar m; a fight further off is left to those near
       // it (unless it is shooting at this bot), so a team doesn't all converge on one fight.
       if (!vis && dir.patrol && d > ARENA.patrol.radar && now - (this.alert.get(h.uid) ?? -Infinity) >= 1.5) continue;
+      // 29.0: on the last stand (and not on the clock) the radar shrinks: nobody wanders off alone.
+      if (!vis && holding(dir) && d > ARENA.lastStand.radar && now - (this.alert.get(h.uid) ?? -Infinity) >= 1.5) continue;
       let s = 12 / d;
       if (vis) {
         s += 1.5;
@@ -445,7 +451,10 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     else if (T && (tv || (contact && now - contact.t < ARENA.contactTtl))) {
       // 12.0: a bold bot pushes sooner (higher health, less damage dealt), a careful one later.
       const ag = this.persona.aggro;
-      const hurt = T.hpFrac <= (gunner ? ARENA.pushHp * ag : ARENA.runnerPushHp) || this.dealtTo(T.uid, now) >= ARENA.pushDamage / ag || (!gunner && T.reloading);
+      // 29.0: on the last stand only a nearly dead target is worth leaving the group for.
+      const LS = dir.lastStand && ARENA.lastStand.on;
+      const HOLD = holding(dir);
+      const hurt = HOLD ? T.hpFrac <= ARENA.lastStand.pushHp : T.hpFrac <= (gunner ? ARENA.pushHp * ag : ARENA.runnerPushHp) || this.dealtTo(T.uid, now) >= ARENA.pushDamage / ag || (!gunner && T.reloading);
       let pushing = this.state === 'push' && now < this.pushUntil;
       // A blade has one way to fight, close in; a claimed rush on someone hurt is a push (it counts,
       // it barks, two at most). A gunner pushes only what it can see.
@@ -456,9 +465,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
         pushing = true;
       }
       // 12.0: out of its sight but in a teammate's (the shared spotting): go round.
-      const flanking = !pushing && !tv && !!contact && this.wantsFlank(ctx, A, T, contact, now);
+      const flanking = !pushing && !tv && !!contact && !LS && this.wantsFlank(ctx, A, T, contact, now);
       next = pushing ? 'push' : tv ? 'engage' : flanking ? 'flank' : 'hunt';
-    } else next = A.director.patrol ? 'patrol' : 'advance';
+    } else next = holding(A.director) ? 'hold' : A.director.patrol ? 'patrol' : 'advance';
     this.setState(next, ctx, A);
     if (retreatWhy) {
       A.stats.retreats++;
@@ -483,6 +492,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     } else if (next === 'hunt' && T && !contact) this.goal = T.pos.clone();
     else if (next === 'advance') this.planLane(ctx, A);
     else if (next === 'patrol') this.planPatrol(ctx, A);
+    else if (next === 'hold') this.planHold(ctx, A);
 
     // A runner closing in leaps the last metres now and then.
     if (!gunner && tv && dT > 4 && dT < 9 && Math.random() < 0.08) this.tryJump(ctx, false);
@@ -722,6 +732,39 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
    * at it); else the area the director gave it (ArenaDirector.patrolPick), looked round for a moment on
    * arrival, then the next.
    */
+  /**
+   * 29.0, HOLD (the team's last stand): a cover spot near the team's centre, claimed, re-picked every
+   * lastStand.every s or when the centre has moved away; there, crouched, facing the freshest threat
+   * (or out from the centre). With no spot near, a place on a ring round the centre.
+   */
+  private planHold(ctx: EnemyCtx, A: ArenaCtx) {
+    const L = ARENA.lastStand;
+    const me = this.self;
+    const now = ctx.time;
+    const dir = A.director;
+    const c = dir.freshest(me.pos, now);
+    const moved = this.holdAt && Math.hypot(this.holdAt.x - dir.anchor.x, this.holdAt.z - dir.anchor.z) > L.near + L.drift;
+    if (!this.holdAt || moved || now - this.holdT > L.every) {
+      this.holdT = now;
+      const spot = dir.holdSpot(me.uid, ctx.coverPoints, L.near, this.seed);
+      this.holdAt = spot
+        ? spot.clone()
+        : new THREE.Vector3(dir.anchor.x + Math.cos(this.seed * 3) * 3, dir.anchor.y, dir.anchor.z + Math.sin(this.seed * 3) * 3);
+    }
+    const there = Math.hypot(this.holdAt.x - me.pos.x, this.holdAt.z - me.pos.z) < 1.2;
+    this.goal = there ? null : this.holdAt.clone();
+    if (there && !this.held) A.stats.holdArrive++;
+    this.held = there;
+    // Watching: the freshest threat, else outward from the team's centre.
+    const lookAt = c?.pos ?? _v.set(me.pos.x * 2 - dir.anchor.x, me.pos.y, me.pos.z * 2 - dir.anchor.z);
+    (this.scan ??= new THREE.Vector3()).set(lookAt.x, me.pos.y + 1.5, lookAt.z);
+  }
+
+  /** 29.0: the hold spot, when it was picked, whether it is there. */
+  private holdAt: THREE.Vector3 | null = null;
+  private holdT = -Infinity;
+  private held = false;
+
   private planPatrol(ctx: EnemyCtx, A: ArenaCtx) {
     const me = this.self;
     const now = ctx.time;
@@ -967,8 +1010,16 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
         // No spot: sidestep out of its line, away from it.
         this.strafe(dt, ctx, T, sprint, desired, -1);
       }
+    } else if (this.state === 'hold') {
+      // 29.0: no sprinting on the last stand; at the spot, down behind it.
+      A.stats.holdT += dt;
+      if (this.goal) me.steer(this.goal, run, ctx, dt, desired);
+      else crouch = 1;
     } else if ((this.state === 'hunt' || this.state === 'advance' || this.state === 'patrol' || this.state === 'flank' || this.state === 'retreat') && this.goal) {
-      const d = me.steer(this.goal, sprint, ctx, dt, desired);
+      // 29.0: on the last stand a hunt is walked, not sprinted (a retreat still runs flat out).
+      // (Pressing on the clock it still runs, not sprints: the group moves as one.)
+      const pace = A.director.lastStand && ARENA.lastStand.on && this.state !== 'retreat' ? run : sprint;
+      const d = me.steer(this.goal, pace, ctx, dt, desired);
       const at = this.state === 'flank' ? ARENA.flank.arrive : 2;
       if (d < at && Math.abs(this.goal.y - me.pos.y) < 1.5) {
         if (this.state === 'hunt' && T) A.director.cleared(T.uid, now);
@@ -992,7 +1043,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       if (Math.hypot(p.x - me.pos.x, p.z - me.pos.z) < 25) me.face(_v.set(p.x, p.y + 1.3, p.z), dt, 12);
       else if (Math.hypot(me.vel.x, me.vel.z) > 0.3) me.face(_v.copy(me.pos).add(me.vel), dt, 10);
     } else if (Math.hypot(me.vel.x, me.vel.z) > 0.3) me.face(_v.copy(me.pos).add(me.vel), dt, 10);
-    else if (this.scan && this.state === 'patrol') me.face(this.scan, dt, 5);
+    else if (this.scan && (this.state === 'patrol' || this.state === 'hold')) me.face(this.scan, dt, 5);
 
     // ---- Fire (gunner) and reload.
     if (gunner) this.gun(dt, ctx, A, tv && !fleeing ? T : null, strafing);
@@ -1129,7 +1180,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // Engaging, or a hunt or advance that just caught sight of it (the state follows at the next
     // decide, a frame or few later); never in a push, a break, the air, a reload or a swing.
     const st = this.state;
-    const can = gunner && T !== null && (st === 'engage' || st === 'hunt' || st === 'advance' || st === 'patrol' || st === 'flank') && !this.reloading && !me.airborne && !me.sliding && !this.swing;
+    const can = gunner && T !== null && (st === 'engage' || st === 'hunt' || st === 'advance' || st === 'patrol' || st === 'hold' || st === 'flank') && !this.reloading && !me.airborne && !me.sliding && !this.swing;
     if (can && tv) {
       this.lostT = 0;
       const d = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
@@ -1185,4 +1236,12 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.urgent = true;
     }
   }
+}
+
+/**
+ * 29.0: a team on its last stand holds cover together, unless it is on the sudden-death clock with
+ * lastStand.pressAt s or less left: then it presses (as a group: it still never flanks alone).
+ */
+export function holding(dir: { lastStand: boolean; sudden: number | null }) {
+  return ARENA.lastStand.on && dir.lastStand && (dir.sudden === null || dir.sudden > ARENA.lastStand.pressAt);
 }

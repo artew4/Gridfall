@@ -92,6 +92,16 @@ export class ArenaDirector {
   private mid = new THREE.Vector2();
   private half = 64;
   private laneProg: number[][] = [];
+  /**
+   * 29.0: the team's last stand (its tickets are gone; Tdm sets it each frame), the centre of its
+   * living members (the bots gather on it), and the cover spots claimed round it (bot uid → spot key).
+   */
+  lastStand = false;
+  /** 29.0: the team's sudden-death clock (s left), or null: on the clock it must attack, not hold. */
+  sudden: number | null = null;
+  anchor = new THREE.Vector3();
+  anchorN = 0;
+  private holds = new Map<number, string>();
   /** 27.0: patrol mode (TdmData.pads): the high-value areas, their activity, last visit and claims. */
   patrol = false;
   hvas: THREE.Vector3[] = [];
@@ -348,6 +358,32 @@ export class ArenaDirector {
     if (i >= 0 && i < this.hvaSeen.length) this.hvaSeen[i] = now;
   }
 
+  // ------------------------------------------------------------------ the last stand (29.0)
+  /** A cover spot for `uid` within `near` m of the anchor that no teammate holds (claimed), or null. */
+  holdSpot(uid: number, spots: readonly THREE.Vector3[], near: number, seed: number) {
+    const taken = new Set([...this.holds].filter(([u]) => u !== uid).map(([, k]) => k));
+    let best: THREE.Vector3 | null = null, bs = Infinity;
+    for (const p of spots) {
+      const d = Math.hypot(p.x - this.anchor.x, p.z - this.anchor.z);
+      if (d > near || Math.abs(p.y - this.anchor.y) > 3) continue;
+      const k = `${p.x.toFixed(1)},${p.z.toFixed(1)}`;
+      if (taken.has(k)) continue;
+      // Near the centre, spread by each bot's own seed (two bots don't race for one spot).
+      const s = d + ((p.x * 7.3 + p.z * 3.1 + seed * 11) % 3);
+      if (s < bs) {
+        bs = s;
+        best = p;
+      }
+    }
+    if (best) this.holds.set(uid, `${best.x.toFixed(1)},${best.z.toFixed(1)}`);
+    else this.holds.delete(uid);
+    return best;
+  }
+
+  releaseHold(uid: number) {
+    this.holds.delete(uid);
+  }
+
   // ------------------------------------------------------------------ deaths
   hostileDied(v: Combatant, now: number) {
     this.addHeat(v.pos, ARENA.lanePressure.death, now);
@@ -445,6 +481,12 @@ export class ArenaDirector {
     while (this.trades.length && now - this.trades[0][0] > D.tradeWindow) this.trades.shift();
     const alive = members.filter((m) => m.alive);
     const bots = alive.filter((m) => !m.isPlayer);
+    // 29.0: the centre of the team still standing (the human counts: they gather on him too).
+    this.anchor.set(0, 0, 0);
+    for (const m of alive) this.anchor.add(m.pos);
+    this.anchorN = alive.length;
+    if (alive.length) this.anchor.divideScalar(alive.length);
+    for (const [uid] of this.holds) if (!bots.some((b) => b.uid === uid)) this.holds.delete(uid);
     // 27.0: an area anyone of the team stands near has been looked at.
     if (this.patrol)
       for (const m of alive)

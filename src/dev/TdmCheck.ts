@@ -251,7 +251,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'dynamic' | 'bases'; cell?: number; sight?: number } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -296,7 +296,11 @@ export async function tdmSim(
   // 27.0 A/B: the pads (scored respawns, patrols) or the yards and the front.
   const spawns0 = TDM.spawns;
   if (opts.spawns) TDM.spawns = opts.spawns;
-  startMatch(game, true, opts.tickets ?? 25, ai, opts.size, opts.profile ?? true);
+  // 29.0 A/B: the last-stand instincts off (the bots fight on as before, under the same rules).
+  const ls0 = ARENA.lastStand.on;
+  if (opts.lastStand !== undefined) ARENA.lastStand.on = opts.lastStand;
+  // 29.0: the map's tickets unless told (50 since 29.0; 25 forced before).
+  startMatch(game, true, opts.tickets, ai, opts.size, opts.profile ?? true);
   // 25.0 A/B: `fog: false` plays Neon Block without its ground fog's sight cap and route bias.
   if (opts.fog === false) {
     if (game.tdm.sensing) game.tdm.sensing.fog = null;
@@ -379,6 +383,11 @@ export async function tdmSim(
   const band = (x: number) => Math.max(0, Math.min(BANDS - 1, Math.floor(((x - xb.min.x) / (xb.max.x - xb.min.x)) * BANDS)));
   const xTime = new Array(BANDS).fill(0), xFight = new Array(BANDS).fill(0), xKill = new Array(BANDS).fill(0);
   const FIGHT = new Set(['engage', 'push', 'break', 'flank']);
+  // 29.0, the endgame: bots of a team on its last stand vs everyone before (samples every 15 steps):
+  // the nearest living teammate (m), crouched, moving, holding; the standing counts when the first
+  // team ran out of tickets; how often a team ended 1 v 1 or 1 v many.
+  const eg = { last: { n: 0, mate: 0, crouch: 0, moving: 0, hold: 0, alone: 0 }, before: { n: 0, mate: 0, crouch: 0, moving: 0, hold: 0, alone: 0 } };
+  let firstLast: { t: number; team: string; standing: Record<string, number> } | null = null;
   const edgeOf = game.level.data.tdm?.edgeOf ?? null;
   const edgeN = { time: 0, timeIn: 0, fight: 0, fightIn: 0 };
   const wall0 = performance.now();
@@ -393,6 +402,7 @@ export async function tdmSim(
       steps++;
       const now = game.elapsed;
       if (firstContact === null && engaged(game)) firstContact = +(now - t0).toFixed(1);
+      if (!firstLast) for (const t of ['alpha', 'omega'] as const) if (tdm.tickets[t] === 0) firstLast = { t: +(now - t0).toFixed(1), team: t, standing: { ...tdm.standing() } };
       for (const b of tdm.bots) {
         if (!born.has(b.uid)) born.set(b.uid, now);
         if (!b.alive) {
@@ -431,6 +441,18 @@ export async function tdmSim(
           const zn = zoneOf(b.pos.x, b.pos.y, b.pos.z);
           zoneT[zn] = (zoneT[zn] ?? 0) + 1;
           flow.add(b.pos.x, b.pos.z, 'occ');
+          {
+            const onLast = tdm.tickets[b.team] === 0;
+            const e = onLast ? eg.last : eg.before;
+            let near = Infinity;
+            for (const o of tdm.bots) if (o !== b && o.alive && o.team === b.team) near = Math.min(near, Math.hypot(o.pos.x - b.pos.x, o.pos.z - b.pos.z));
+            e.n++;
+            if (near < Infinity) e.mate += Math.min(near, 80);
+            else e.alone++;
+            if (b.crouch > 0.5) e.crouch++;
+            if (Math.hypot(b.vel.x, b.vel.z) > 1.5) e.moving++;
+            if (b.tac.action === 'hold') e.hold++;
+          }
           xTime[band(b.pos.x)]++;
           if (FIGHT.has(b.tac.action)) xFight[band(b.pos.x)]++;
           // 28.0: the map's outer edges (TdmData.edgeOf).
@@ -451,7 +473,8 @@ export async function tdmSim(
         }
         if (steps % 60 === 0) {
           const r = track.get(b);
-          if (!r || Math.hypot(b.pos.x - r.x, b.pos.z - r.z) > 1.5) track.set(b, { x: b.pos.x, z: b.pos.z, t: now });
+          // 29.0: holding a spot on the last stand is still on purpose, not stuck.
+          if (!r || Math.hypot(b.pos.x - r.x, b.pos.z - r.z) > 1.5 || b.tac.action === 'hold') track.set(b, { x: b.pos.x, z: b.pos.z, t: now });
           else if (now - r.t > 15) {
             stuck.push(`${b.name} ${b.tac.action}/${b.tac.phase} @${b.pos.x.toFixed(1)},${b.pos.z.toFixed(1)} t${(now - t0).toFixed(0)}`);
             r.t = now;
@@ -466,6 +489,7 @@ export async function tdmSim(
   targets.hit = hit0;
   TDM.force.noForward = false;
   TDM.spawns = spawns0;
+  ARENA.lastStand.on = ls0;
   game.ctx.sightRange = sight0;
   if (fog0 !== undefined) (game.fog as { density: number }).density = fog0;
   game.timeScale = 1;
@@ -531,6 +555,23 @@ export async function tdmSim(
         rays: { mean: +(log.reduce((a, x) => a + x.rays, 0) / Math.max(1, log.length)).toFixed(1), max: Math.max(0, ...log.map((x) => x.rays)) },
         msPerPick: { mean: +(log.reduce((a, x) => a + x.ms, 0) / Math.max(1, log.length)).toFixed(3), max: +Math.max(0, ...log.map((x) => x.ms)).toFixed(3) },
         padUse: log.reduce<Record<number, number>>((a, x) => ((a[x.pad] = (a[x.pad] ?? 0) + 1), a), {}),
+      };
+    })(),
+    // 29.0: how the match ended and what its endgame looked like.
+    endgame: (() => {
+      const r = tdm.rules;
+      const avg = (e: typeof eg.last) => ({ samples: e.n, nearestMateM: +(e.mate / Math.max(1, e.n - e.alone)).toFixed(1), alonePct: +((100 * e.alone) / Math.max(1, e.n)).toFixed(1), crouchedPct: +((100 * e.crouch) / Math.max(1, e.n)).toFixed(1), movingPct: +((100 * e.moving) / Math.max(1, e.n)).toFixed(1), holdPct: +((100 * e.hold) / Math.max(1, e.n)).toFixed(1) });
+      return {
+        outcome: tdm.outcome,
+        firstLastStand: firstLast,
+        endgameSeconds: firstLast ? +(simT - firstLast.t).toFixed(1) : null,
+        // The team that ran out of tickets first won anyway: a comeback.
+        comeback: !!firstLast && tdm.outcome?.winner === firstLast.team,
+        finalStanding: tdm.standing(),
+        sudden: { starts: r.stats.suddenStarts, resets: r.stats.suddenResets, longest: +r.stats.longestSudden.toFixed(1) },
+        lastStandBots: avg(eg.last),
+        beforeBots: avg(eg.before),
+        holdSeconds: +tdm.arenaStats.holdT.toFixed(1),
       };
     })(),
     flow: (() => {

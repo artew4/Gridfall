@@ -25,6 +25,7 @@ import { dealCallsigns } from '../enemies/Callsigns';
 import { rand } from '../core/math';
 import type { BoardLine, TdmLine } from '../ui/TdmHud';
 import { SpawnManager, laneNeed, sideOf, type SpawnPad, type SpawnUnit } from './SpawnManager';
+import { MatchRules, type Outcome } from './LastStand';
 import { SpawnPads } from '../world/SpawnPads';
 
 /*
@@ -51,7 +52,8 @@ const _eye = new THREE.Vector3();
 const _eye2 = new THREE.Vector3();
 
 export const TDM = {
-  tickets: 25,
+  /** 29.0: respawns per team (a death with none left is final): 50, whatever the team size. */
+  tickets: 50,
   respawn: [3, 5] as [number, number],
   /** The player's respawn delay (inside the 3–5 s window; long enough to read the killer). */
   playerRespawn: 4,
@@ -158,9 +160,22 @@ export class TdmRules implements ModeRules {
   /** Every bot body in the world (both teams, the dying included). */
   bots: TacticalEnemy[] = [];
   slots: Slot[] = [];
-  tickets: Record<TeamId, number> = { alpha: TDM.tickets, omega: TDM.tickets };
+  /** 29.0: the win condition (tickets are respawns; elimination; sudden death): LastStand.ts. */
+  rules = new MatchRules(TDM.tickets);
+  /** Each team's respawns left (the rules' own). */
+  get tickets(): Record<TeamId, number> {
+    return this.rules.tickets;
+  }
   player = { kills: 0, deaths: 0 };
-  winner: TeamId | null = null;
+  winner: TeamId | 'draw' | null = null;
+  /** 29.0: how the match was decided. */
+  outcome: Outcome | null = null;
+  /** 29.0: the player is out (his team had no tickets when he died): he watches a teammate. */
+  spectating: TacticalEnemy | null = null;
+  private specOn = false;
+  private specLook = { yaw: 0, pitch: 0, init: false };
+  private specDeadAt: number | null = null;
+  private mousePrev = { l: false, r: false };
   private endT = 0;
   private startT = 0;
   playerRespawnAt = Infinity;
@@ -220,9 +235,11 @@ export class TdmRules implements ModeRules {
     this.clearBots();
     this.ticketMax = TDM.force.tickets ?? this.data.tickets ?? TDM.tickets;
     this.forwardStats = { forward: 0, yard: 0 };
-    this.tickets = { alpha: this.ticketMax, omega: this.ticketMax };
+    this.rules = new MatchRules(this.ticketMax);
     this.player = { kills: 0, deaths: 0 };
     this.winner = null;
+    this.outcome = null;
+    this.stopSpectate();
     this.kills = [];
     this.friendlyDamage = 0;
     this.playerRespawnAt = Infinity;
@@ -570,19 +587,24 @@ export class TdmRules implements ModeRules {
     return isArenaBot(c) && c.kind === 'gunner' ? c.arm : null;
   }
 
-  /** Someone died: a ticket off their team, the feed, kill credit, their respawn, maybe the end. */
-  private onDeath(v: Combatant, by: Combatant | null) {
+  /**
+   * Someone died: the feed, kill credit, and (29.0) a respawn if its team has a ticket to spend, else
+   * out of the match. True if a respawn was granted. The end is decided once a frame (update).
+   */
+  private onDeath(v: Combatant, by: Combatant | null): boolean {
     const g = this.game;
-    if (this.winner) return;
-    this.tickets[v.team] = Math.max(0, this.tickets[v.team] - 1);
+    if (this.winner) return false;
+    const granted = this.rules.died(v.team, this.now);
+    if (by && by.team !== v.team) this.rules.killed(by.team);
     this.spawner?.noteDeath(v.pos, this.now);
     const weapon = by ? this.armOf(by)?.tag : undefined;
-    g.tdmHud.kill(by, v, weapon);
+    // 29.0: a final death is marked OUT in the feed.
+    g.tdmHud.kill(by, v, weapon, !granted);
     const vs = this.slotOf(v);
     if (vs) {
       vs.deaths++;
       vs.bot = null;
-      vs.respawnAt = this.now + rand(TDM.respawn[0], TDM.respawn[1]);
+      vs.respawnAt = granted ? this.now + rand(TDM.respawn[0], TDM.respawn[1]) : Infinity;
     }
     if (by) {
       if (by.isPlayer) this.player.kills++;
@@ -624,7 +646,7 @@ export class TdmRules implements ModeRules {
         by.bark('kill', this.ctxs[by.team]);
       }
     } else this.squads[otherTeam(v.team)].hostileDied(v, by && !by.isPlayer ? (by as TacticalEnemy) : null);
-    if (this.tickets[v.team] <= 0) this.end(otherTeam(v.team));
+    return granted;
   }
 
   /** 26.0: his team's live board on the HUD (him and every alpha slot: name, kills, deaths). */
@@ -640,16 +662,30 @@ export class TdmRules implements ModeRules {
     const g = this.game;
     this.player.deaths++;
     this.killerName = g.playerAttacker?.name ?? null;
-    this.onDeath(g.playerUnit, g.playerAttacker);
-    this.playerRespawnAt = this.now + TDM.playerRespawn;
+    const granted = this.onDeath(g.playerUnit, g.playerAttacker);
+    this.playerRespawnAt = granted ? this.now + TDM.playerRespawn : Infinity;
+    // 29.0: out of the match: no countdown, he watches the teammates still standing.
+    if (!granted && !this.winner) this.startSpectate();
     return true;
   }
 
-  private end(winner: TeamId) {
-    this.winner = winner;
+  /** 29.0: who is still in it per team: alive, or dead with a respawn granted. */
+  standing(): Record<TeamId, number> {
+    const out: Record<TeamId, number> = { alpha: 0, omega: 0 };
+    for (const b of this.bots) if (b.alive) out[b.team]++;
+    for (const sl of this.slots) if (!sl.bot && sl.respawnAt < Infinity) out[sl.team]++;
+    if (!this.spectate && (this.game.player.alive || this.playerRespawnAt < Infinity)) out.alpha++;
+    return out;
+  }
+
+  private end(o: Outcome) {
+    this.outcome = o;
+    this.winner = o.winner;
     this.endT = this.now;
     this.game.timeScale = 0.4;
-    this.game.hud.bannerShow(winner === 'alpha' ? 'VICTORY' : 'DEFEAT', fl(winner === 'alpha' ? 'victory' : 'defeat'), 3);
+    const t = o.winner === 'draw' ? 'DRAW' : o.winner === 'alpha' ? 'VICTORY' : 'DEFEAT';
+    const why = o.why === 'sudden death' ? (o.winner === 'alpha' ? 'OMEGA RAN OUT OF TIME' : 'OUT OF TIME') : o.why === 'sudden death draw' ? 'NOBODY BROKE THE TIE' : o.why === 'trade' ? 'THE LAST TWO TRADED' : o.winner === 'alpha' ? 'OMEGA ELIMINATED' : 'ALPHA ELIMINATED';
+    this.game.hud.bannerShow(t, why, 3);
   }
 
   // ------------------------------------------------------------------ frame
@@ -678,14 +714,29 @@ export class TdmRules implements ModeRules {
       }
     }
     if (!this.winner) {
-      for (const s of this.slots) if (!s.bot && now >= s.respawnAt && this.tickets[s.team] > 0) this.spawn(s, true);
-      if (g.state === 'dead' && now >= this.playerRespawnAt && this.tickets.alpha > 0) this.respawnPlayer();
+      // 29.0: the frame's deaths are in: who stands, the sudden-death clocks, maybe the end.
+      const o = this.rules.update(now, dt, this.standing());
+      if (this.directors)
+        for (const t of TEAMS) {
+          this.directors[t].lastStand = this.rules.tickets[t] === 0;
+          this.directors[t].sudden = this.rules.sudden[t];
+        }
+      if (o) this.end(o);
+    }
+    if (!this.winner) {
+      // Respawns already paid for (a slot out of the match waits for ever).
+      for (const s of this.slots) if (!s.bot && now >= s.respawnAt) this.spawn(s, true);
+      if (g.state === 'dead' && now >= this.playerRespawnAt) this.respawnPlayer();
       // 7.0's callouts (rays from his camera); 12.0's arena has him in the sensing pass instead.
       if (!this.spectate && (!this.directors || !TDM.spotting)) this.spot(dt);
     } else if (g.state !== 'ending' && now - this.endT > 1.2) this.finish();
     this.padMesh?.update(dt);
     g.tdmHud.setTickets(this.tickets.alpha, this.tickets.omega);
-    g.tdmHud.setRespawn(g.state === 'dead' && !this.winner ? this.playerRespawnAt - now : null, this.killerName);
+    const st = this.standing();
+    g.tdmHud.setStanding(st.alpha, st.omega);
+    g.tdmHud.setSudden(this.winner ? null : this.rules.sudden.alpha, this.winner ? null : this.rules.sudden.omega);
+    g.tdmHud.setRespawn(g.state === 'dead' && !this.winner && this.playerRespawnAt < Infinity ? this.playerRespawnAt - now : null, this.killerName);
+    this.updateSpectate(dt);
     g.tdmHud.update(dt, g.camera, this.friends.alpha);
     if (this.directors && this.minimap && TDM.spotting) {
       const t0 = performance.now();
@@ -780,13 +831,115 @@ export class TdmRules implements ModeRules {
     this.killerName = null;
   }
 
+  // ------------------------------------------------------------------ 29.0: spectating
+  /** Out of the match: the camera goes to a teammate still standing (the nearest first). */
+  private startSpectate() {
+    const g = this.game;
+    this.specOn = true;
+    this.specLook.init = false;
+    g.tdmHud.setRespawn(null);
+    g.renderer.weaponPass.enabled = false;
+    // His own panels (health, ammo, crosshair, callsign) are not what he is watching.
+    g.hud.root.classList.add('spectating');
+    this.mousePrev = { l: g.input.mouseDown, r: g.input.aimDown };
+    this.spectateNext(0, g.player.pos);
+  }
+
+  private stopSpectate() {
+    if (this.spectating) this.spectating.rig.root.visible = true;
+    this.spectating = null;
+    if (!this.specOn) return;
+    this.specOn = false;
+    this.game.renderer.weaponPass.enabled = true;
+    this.game.hud.root.classList.remove('spectating');
+    this.game.tdmHud.setSpectate(null);
+    this.game.renderer.grade.uniforms.uFade.value = 0;
+  }
+
+  /** The next (dir 1) or previous (-1) living teammate; 0: the nearest to `near`. */
+  private spectateNext(dir: 1 | -1 | 0, near?: THREE.Vector3) {
+    const mates = this.bots.filter((b) => b.alive && b.team === 'alpha');
+    if (this.spectating) this.spectating.rig.root.visible = true;
+    if (!mates.length) {
+      this.spectating = null;
+      this.game.tdmHud.setSpectate(null);
+      return;
+    }
+    let next: TacticalEnemy;
+    if (dir === 0 || !this.spectating || !mates.includes(this.spectating)) {
+      const p = near ?? this.spectating?.pos ?? this.game.player.pos;
+      next = mates.reduce((a, b) => (b.pos.distanceTo(p) < a.pos.distanceTo(p) ? b : a));
+    } else {
+      const i = mates.indexOf(this.spectating);
+      next = mates[(i + dir + mates.length) % mates.length];
+    }
+    if (next !== this.spectating) this.specLook.init = false;
+    this.spectating = next;
+    // Its own body would fill the camera (the head is round the eye): hidden while watched.
+    next.rig.root.visible = false;
+  }
+
+  /**
+   * Each frame while out: follow the watched teammate's eye (its facing, and its aim's pitch), damped
+   * so the bot's snap turns read as a player's; left / right click for the next / previous teammate;
+   * when it dies, the next one after a beat.
+   */
+  private updateSpectate(dt: number) {
+    if (!this.specOn) return;
+    const g = this.game;
+    if (this.winner) return;
+    const inp = g.input;
+    if (inp.mouseDown && !this.mousePrev.l) this.spectateNext(1);
+    if (inp.aimDown && !this.mousePrev.r) this.spectateNext(-1);
+    this.mousePrev = { l: inp.mouseDown, r: inp.aimDown };
+    let b = this.spectating;
+    if (!b || !b.alive) {
+      // A beat on the body, then the next teammate standing.
+      this.specDeadAt ??= this.now;
+      if (!b || this.now - this.specDeadAt > 1.2) {
+        this.specDeadAt = null;
+        this.spectateNext(0, b?.pos);
+      }
+      b = this.spectating;
+      if (!b) return;
+    }
+    // The eye: its head's height, a little forward of the head's centre (inside nothing it renders).
+    const fx = Math.sin(b.yaw), fz = Math.cos(b.yaw);
+    _eye.set(b.pos.x + fx * 0.12, b.pos.y + b.headY + 0.05, b.pos.z + fz * 0.12);
+    const yaw = b.yaw + Math.PI;
+    let pitch = 0;
+    const aim = isArenaBot(b) ? b.brain.aimPoint : null;
+    if (aim && isArenaBot(b) && b.brain.target && aim.lengthSq() > 0) {
+      const dx = aim.x - _eye.x, dz = aim.z - _eye.z;
+      pitch = Math.max(-1, Math.min(1, Math.atan2(aim.y - _eye.y, Math.hypot(dx, dz))));
+    }
+    const L = this.specLook;
+    if (!L.init) {
+      L.yaw = yaw;
+      L.pitch = pitch;
+      L.init = true;
+    }
+    let dy = yaw - L.yaw;
+    dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+    const k = 1 - Math.exp(-dt * 14);
+    L.yaw += dy * k;
+    L.pitch += (pitch - L.pitch) * (1 - Math.exp(-dt * 8));
+    const cam = g.camera;
+    cam.position.copy(_eye);
+    cam.rotation.set(L.pitch, L.yaw, 0, 'YXZ');
+    cam.updateMatrixWorld();
+    g.renderer.grade.uniforms.uFade.value = 0;
+    g.tdmHud.setSpectate({ name: b.name, hp: b.alive ? b.hpFrac : 0, mates: this.bots.filter((m) => m.alive && m.team === 'alpha').length });
+  }
+
   private finish() {
     const g = this.game;
     const lines: TdmLine[] = [
       { name: g.playerUnit.name, team: 'alpha', you: true, kills: this.player.kills, deaths: this.player.deaths, weapon: this.playerArm().tag },
       ...this.slots.map((s) => ({ name: s.name, team: s.team, you: false, kills: s.kills, deaths: s.deaths, weapon: s.arm?.tag ?? '' })),
     ];
-    g.finishTdm(this.winner === 'alpha', { ...this.tickets }, lines, this.endT - this.startT);
+    this.stopSpectate();
+    g.finishTdm(this.winner === 'alpha' ? 'win' : this.winner === 'draw' ? 'draw' : 'loss', { ...this.tickets }, lines, this.endT - this.startT, this.outcome?.why);
   }
 
   updateEnding(dt: number) {
@@ -824,6 +977,7 @@ export class TdmRules implements ModeRules {
   }
 
   reset() {
+    this.stopSpectate();
     this.clearBots();
     this.padMesh?.dispose();
     this.padMesh = null;
@@ -883,6 +1037,9 @@ export class TdmRules implements ModeRules {
     return {
       tickets: { ...this.tickets },
       winner: this.winner,
+      outcome: this.outcome,
+      standing: this.standing(),
+      sudden: { ...this.rules.sudden },
       alive: { alpha: this.bots.filter((b) => b.alive && b.team === 'alpha').length, omega: this.bots.filter((b) => b.alive && b.team === 'omega').length },
       ai: this.ai,
       modes: this.directors ? { alpha: this.directors.alpha.stance, omega: this.directors.omega.stance } : { alpha: this.squads.alpha.mode, omega: this.squads.omega.mode },

@@ -205,6 +205,17 @@ export const ARENA = {
    * the nearest friend behind it (or back down its lane); done within `joinR` m of a friend, after
    * `maxT` s, or cornered (a hostile in sight within `corner` m: it fights). `cooldown` between.
    */
+  /**
+   * 29.0, the last stand (the team's tickets are gone: every death is final). Its bots stop sprinting
+   * (`run` instead), keep together: HOLD a cover spot within `near` m of the team's centre (claimed:
+   * one bot a spot), crouched, facing the freshest threat; re-picked every `every` s or when the centre
+   * moves `drift` m. They hunt only within `radar` m (or whoever shoots at them), never flank alone,
+   * and rush a wounded target only under `pushHp` of its health. On the sudden-death clock (behind, or
+   * tied) it holds too until `pressAt` s are left, then presses as a group (it must kill or lose): no
+   * radar limit, but at a run and never flanking alone; a kill resets the clock and it holds again.
+   * Off: they fight on as before (the A/B).
+   */
+  lastStand: { on: true, near: 9, every: 8, drift: 6, radar: 25, pushHp: 0.25, pressAt: 30 },
   retreat: { on: true, unseenDmg: 0.3, window: 2, outnumbered: 2, outSeen: 3, friendR: 18, outHp: 0.6, joinR: 7, maxT: 6, corner: 8, cooldown: 10 },
   /**
    * 12.0, slides (the player's model, Slide.ts): rushing a wounded target `push` m out, diving into a
@@ -285,6 +296,9 @@ export interface ArenaStats {
   flankArrive: number;
   /** 27.0: patrols that reached their area. */
   patrolArrive: number;
+  /** 29.0: seconds spent in HOLD (the last stand), and holds that reached their spot. */
+  holdT: number;
+  holdArrive: number;
   flankEngage: number;
   flankKills: number;
   /** 12.0: retreats (by why), those still alive `maxT` s on, deaths during one. */
@@ -333,7 +347,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

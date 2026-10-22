@@ -72,7 +72,31 @@ describe('27.0 patrol: searching a map without bases', () => {
 
   it('the brain: no contact means patrol on these maps, and the radar stops at patrol.radar m', () => {
     const src: string = readFileSync(new URL('./DeathmatchAI.ts', import.meta.url), 'utf8');
-    expect(src).toMatch(/next = A\.director\.patrol \? 'patrol' : 'advance'/);
+    // 29.0: on the last stand it holds instead.
+    expect(src).toMatch(/next = holding\(A\.director\) \? 'hold' : A\.director\.patrol \? 'patrol' : 'advance'/);
     expect(src).toMatch(/dir\.patrol && d > ARENA\.patrol\.radar/);
+  });
+});
+
+describe('29.0 the last stand: hold, then press on the clock', () => {
+  it('holds while the team is on its last stand, until the sudden-death clock is under pressAt', async () => {
+    const { holding } = await import('./DeathmatchAI');
+    expect(holding({ lastStand: false, sudden: null })).toBe(false);
+    expect(holding({ lastStand: true, sudden: null })).toBe(true);
+    expect(holding({ lastStand: true, sudden: ARENA.lastStand.pressAt + 5 })).toBe(true);
+    expect(holding({ lastStand: true, sudden: ARENA.lastStand.pressAt - 5 })).toBe(false);
+  });
+
+  it('the director gathers its last stand on the centre of the living, one bot a cover spot', () => {
+    const d = new ArenaDirector('alpha', v(0, 60), v(0, -60), []);
+    d.update(0, [member(1, v(0, 0)), member(2, v(10, 0))], 3, { own: 0, theirs: 5 });
+    expect(d.anchor.x).toBeCloseTo(5);
+    const spots = [v(5, 2), v(6, -2), v(40, 0)];
+    const a = d.holdSpot(1, spots, 9, 0), b = d.holdSpot(2, spots, 9, 0);
+    expect(a).not.toBe(null);
+    expect(b).not.toBe(null);
+    expect(a).not.toBe(b);
+    // Too far from the centre: not a hold spot.
+    expect(d.holdSpot(3, [v(40, 0)], 9, 0)).toBe(null);
   });
 });

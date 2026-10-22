@@ -513,7 +513,8 @@ export class Game {
       const z = this.spawnZone.update(this.player.pos, this.elapsed, this.stats.shots);
       return z === 'cards' ? 'swap' : z === 'prompt' ? 'zone' : null;
     }
-    if (this.state === 'dead' && this.respawning && this.rules === this.tdm && !this.tdm.winner) return 'queue';
+    // 29.0: not when he is out of the match (no respawn coming: he is spectating).
+    if (this.state === 'dead' && this.respawning && this.rules === this.tdm && !this.tdm.winner && this.tdm.playerRespawnAt < Infinity) return 'queue';
     return null;
   }
 
@@ -1119,14 +1120,14 @@ export class Game {
   }
 
   /** TDM is over: the result over the world in slow motion. */
-  finishTdm(won: boolean, tickets: Record<TeamId, number>, lines: TdmLine[], time: number) {
+  finishTdm(result: 'win' | 'loss' | 'draw', tickets: Record<TeamId, number>, lines: TdmLine[], time: number, why?: string) {
     this.state = 'ending';
     this.respawning = false;
     this.weapon.raiseTarget = 0;
     if (document.pointerLockElement) document.exitPointerLock();
     this.hud.show(this.hud.root, false);
     this.tdmHud.show(false);
-    this.tdmScreen.show(won, tickets, lines, time, nextMaps('tdm', this.setting, LEVEL_ORDER.map((id) => levelEntry(id).info)));
+    this.tdmScreen.show(result, tickets, lines, time, nextMaps('tdm', this.setting, LEVEL_ORDER.map((id) => levelEntry(id).info)), why);
   }
 
   /**

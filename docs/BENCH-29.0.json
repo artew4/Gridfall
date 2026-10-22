@@ -1,0 +1,221 @@
+{
+  "version": "29.0 (Ticket Bleed + Last Stand: tickets are respawns, elimination, sudden death, spectating, last-stand AI)",
+  "branch": "feature/last-stand-29.0 from main @ b7c00bd",
+  "machine": "Apple M5, Chrome, Balanced",
+  "selfPlay": {
+    "method": "__dev.tdmSim, bot-only, the maps' sizes (7v7 Maglev and Old Port, 5v5 Neon Block), 50 tickets (respawns), 4 matches a map. 'off' = the last-stand instincts off (lastStand: false), same rules. 'v1' = the first version (a team on the sudden-death clock pressed at once). Endgame: from the first team's tickets running out to the end. Last-stand bots: samples of bots whose team is at 0 tickets vs all bots before",
+    "results": {
+      "on (29.0, paced)": {
+        "matches": 12,
+        "matchSeconds": 317.1,
+        "endgameSeconds": 65.4,
+        "endgameRange": [
+          24.1,
+          118.6
+        ],
+        "how": {
+          "elimination": 9,
+          "sudden death": 3
+        },
+        "comebacks": 2,
+        "winnerStandingAtEnd": 5.1,
+        "loserStandingAtEnd": 0.3,
+        "suddenResets": 4.4,
+        "suddenLongest": 36.6,
+        "lastStandBots": {
+          "nearestMateM": 9.5,
+          "crouchedPct": 31.6,
+          "movingPct": 66.4,
+          "holdPct": 55.2
+        },
+        "beforeBots": {
+          "nearestMateM": 16.8,
+          "crouchedPct": 6.9,
+          "movingPct": 92.7
+        },
+        "stuck": 0,
+        "respawnDeathsWithin3s%": 0
+      },
+      "on maglev+oldport": {
+        "matches": 8,
+        "matchSeconds": 273.8,
+        "endgameSeconds": 69.9,
+        "endgameRange": [
+          27.8,
+          118.6
+        ],
+        "how": {
+          "elimination": 6,
+          "sudden death": 2
+        },
+        "comebacks": 1,
+        "winnerStandingAtEnd": 5.2,
+        "loserStandingAtEnd": 0.2,
+        "suddenResets": 5.4,
+        "suddenLongest": 38.6,
+        "lastStandBots": {
+          "nearestMateM": 8.2,
+          "crouchedPct": 38.4,
+          "movingPct": 60.5,
+          "holdPct": 61.0
+        },
+        "beforeBots": {
+          "nearestMateM": 14.8,
+          "crouchedPct": 7.4,
+          "movingPct": 93.2
+        },
+        "stuck": 0,
+        "respawnDeathsWithin3s%": 0
+      },
+      "off maglev+oldport": {
+        "matches": 8,
+        "matchSeconds": 244.4,
+        "endgameSeconds": 36.6,
+        "endgameRange": [
+          22,
+          48.1
+        ],
+        "how": {
+          "elimination": 8
+        },
+        "comebacks": 0,
+        "winnerStandingAtEnd": 5.9,
+        "loserStandingAtEnd": 0,
+        "suddenResets": 5.1,
+        "suddenLongest": 13.3,
+        "lastStandBots": {
+          "nearestMateM": 18.5,
+          "crouchedPct": 7.2,
+          "movingPct": 92.7,
+          "holdPct": 0
+        },
+        "beforeBots": {
+          "nearestMateM": 14.6,
+          "crouchedPct": 7.4,
+          "movingPct": 93.0
+        },
+        "stuck": 3,
+        "respawnDeathsWithin3s%": 0
+      },
+      "v1 on (press at once) maglev+oldport": {
+        "matches": 8,
+        "matchSeconds": 239.6,
+        "endgameSeconds": 38.0,
+        "endgameRange": [
+          19.5,
+          56
+        ],
+        "how": {
+          "elimination": 8
+        },
+        "comebacks": 0,
+        "winnerStandingAtEnd": 5.5,
+        "loserStandingAtEnd": 0,
+        "suddenResets": 5,
+        "suddenLongest": 14.7,
+        "lastStandBots": {
+          "nearestMateM": 15.3,
+          "crouchedPct": 12.3,
+          "movingPct": 88.2,
+          "holdPct": 22.6
+        },
+        "beforeBots": {
+          "nearestMateM": 14.8,
+          "crouchedPct": 7.5,
+          "movingPct": 92.8
+        },
+        "stuck": 6,
+        "respawnDeathsWithin3s%": 0
+      }
+    }
+  },
+  "edgeCases": {
+    "method": "live game (headless Chrome, bot-only), both teams set to 0 tickets and cut to one each",
+    "same frame": "draw ('trade')",
+    "0.2 s apart (a round in flight)": "draw ('trade')",
+    "1.5 s apart": "the survivor's team wins ('elimination')",
+    "tied 1 v 1": "one clock for both started at 60 s (the draw at 0 is a unit test)"
+  },
+  "spectator": {
+    "real GPU, Maglev": {
+      "frameMs before (alive)": {
+        "median": 8.0,
+        "p99": 11.2,
+        "max": 11.9
+      },
+      "frameMs spectating": {
+        "median": 7.9,
+        "p99": 11.5,
+        "max": 12.5
+      },
+      "camera to the watched head's centre": "0.13 m, its body hidden, near plane 0.05 m"
+    },
+    "headless": "left click next, right click previous; the watched teammate dies: the camera stays 1.2 s, then the nearest standing"
+  },
+  "perf": {
+    "bench3 maglev (second run)": {
+      "alphaYard": [
+        60,
+        2.17,
+        6.1
+      ],
+      "trainAisle": [
+        60,
+        2.67,
+        5.93
+      ],
+      "platform1": [
+        60,
+        2.17,
+        6.3
+      ],
+      "trackBed": [
+        60.2,
+        2.72,
+        5.59
+      ],
+      "mezzanine": [
+        60,
+        2.39,
+        6.22
+      ],
+      "bridge": [
+        60,
+        2.28,
+        6.19
+      ],
+      "roofUp": [
+        60,
+        2.65,
+        5.76
+      ],
+      "platformCover": [
+        60,
+        2.31,
+        5.99
+      ],
+      "billboardClose": [
+        60,
+        2.63,
+        5.79
+      ],
+      "glassWall": [
+        59.9,
+        2.86,
+        5.82
+      ],
+      "wholeHall": [
+        60,
+        2.71,
+        5.99
+      ],
+      "firefight": [
+        60,
+        2.55,
+        5.98
+      ]
+    }
+  },
+  "ui": "uicheck 16/16 at four sizes (the sudden-death clock and the zone toast in the overlap list)",
+  "tests": 357
+}

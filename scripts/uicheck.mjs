@@ -73,9 +73,9 @@ for (const [w, h] of SIZES) {
     __dev.start('tdm'); __dev.god(true); await sl(2500);
     const g = __game, bots = g.tdm.bots, me = g.playerUnit;
     const foe = bots.find((b) => b.team === 'omega'), mate = bots.find((b) => b.team === 'alpha');
-    g.tdmHud.kill(mate, foe, 'SMG'); g.tdmHud.kill(me, foe, 'AR'); g.tdm.player.kills = 12; g.tdm.player.deaths = 4; g.tdm.showStanding();
+    g.tdmHud.kill(mate, foe, 'SMG'); g.tdmHud.kill(me, foe, 'AR'); g.tdm.player.kills = 12; g.tdm.player.deaths = 4; g.tdm.showStanding(); g.tdmHud.setSudden(42, null); g.hud.zoneShow?.('ALPHA YARD', 'x');
     await sl(900);`));
-  await check('hud', ['#hud', '.tdm-hud'], ['.minimap.tdm-map', '#hud .health', '#hud .callsign', '#hud .ammo', '.tdm-board', '.tdm-score', '.tdm-feed']);
+  await check('hud', ['#hud', '.tdm-hud'], ['.minimap.tdm-map', '#hud .health', '#hud .callsign', '#hud .ammo', '.tdm-board', '.tdm-score', '.tdm-feed', '.tdm-sudden', '#zone .box']);
   // The result screen with the match's own lines.
   await ev(page(`
     const g = __game, t = g.tdm;
@@ -83,7 +83,7 @@ for (const [w, h] of SIZES) {
     const { nextMaps } = await import('/src/ui/MenuFlow.ts');
     const { LEVEL_ORDER, levelEntry } = await import('/src/levels/registry.ts');
     g.tdmHud.show(false);
-    g.tdmScreen.show(true, { alpha: 31, omega: 0 }, lines, 214, nextMaps('tdm', g.setting, LEVEL_ORDER.map((id) => levelEntry(id).info)));
+    g.tdmScreen.show('win', { alpha: 31, omega: 0 }, lines, 214, nextMaps('tdm', g.setting, LEVEL_ORDER.map((id) => levelEntry(id).info)));
     // Wait for its fade-in (at 4K the software renderer draws slowly: a fixed wait read it at opacity 0).
     for (let i = 0; i < 60 && +getComputedStyle(document.getElementById('tdmscreen')).opacity < 0.99; i++) await sl(250);`));
   await check('result', ['#tdmscreen']);

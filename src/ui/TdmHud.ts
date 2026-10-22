@@ -64,23 +64,53 @@ export class TdmHud {
   private respawn = el('div', 'tdm-respawn hidden');
   private tags = el('div', 'tdm-tags');
   private feedRows: { el: HTMLDivElement; t: number }[] = [];
+  // 29.0: under each team's tickets, who is still standing; the sudden-death clock; the spectator panel.
+  private aStand = document.createTextNode('');
+  private oStand = document.createTextNode('');
+  private sudden = el('div', 'tdm-sudden hidden');
+  private suddenT = document.createTextNode('');
+  private suddenWho = document.createTextNode('');
+  private spec = el('div', 'tdm-spec hidden');
+  private specName = document.createTextNode('');
+  private specHp = el('i');
+  private specMates = document.createTextNode('');
+  private last29 = { aS: -1, oS: -1, lastA: false, lastO: false, sud: '', spec: '' };
   private tagEls = new Map<Combatant, { el: HTMLDivElement; hp: HTMLElement }>();
   private max = 25;
 
   constructor(parent: HTMLElement) {
-    // Top centre: ALPHA 24 - 18 OMEGA, each team's tickets left a bar under its name.
-    const side = (t: 'a' | 'o', name: string, num: Text, bar: HTMLElement) => {
+    // Top centre: ALPHA 24 - 18 OMEGA. 29.0: the tickets (respawns) each team has left, a bar of them
+    // under its name, and under that who is still standing (LAST STAND once its tickets are gone).
+    const side = (t: 'a' | 'o', name: string, num: Text, bar: HTMLElement, stand: Text) => {
       const s = el('div', `side ${t}`, `<span>${name}${flSpan(t === 'a' ? 'ally' : 'enemy', 'em', '')}</span>`);
       const b = el('b');
       b.appendChild(num);
       const track = el('div', `bar ${t}`);
       track.appendChild(bar);
-      s.append(b, track);
+      const st = el('small', 'stand');
+      st.appendChild(stand);
+      s.append(b, track, st);
       return s;
     };
-    this.score.append(side('a', 'ALPHA', this.aNum, this.aBar), el('div', 'vs', '<i>—</i>'), side('o', 'OMEGA', this.oNum, this.oBar));
+    this.score.append(side('a', 'ALPHA', this.aNum, this.aBar, this.aStand), el('div', 'vs', '<i>—</i>'), side('o', 'OMEGA', this.oNum, this.oBar, this.oStand));
+    // 29.0: the sudden-death clock (under the score) and the spectator panel (bottom centre).
+    const sl = el('div', 'lbl', 'SUDDEN DEATH');
+    const st = el('b');
+    st.appendChild(this.suddenT);
+    const sw = el('div', 'who');
+    sw.appendChild(this.suddenWho);
+    this.sudden.append(sl, st, sw);
+    const sn = el('div', 'nm', 'SPECTATING ');
+    const snb = el('b');
+    snb.appendChild(this.specName);
+    sn.appendChild(snb);
+    const hp = el('div', 'hp');
+    hp.appendChild(this.specHp);
+    const sm = el('div', 'hint');
+    sm.appendChild(this.specMates);
+    this.spec.append(sn, hp, sm);
     this.board.append(el('div', 'head', `<span class="nm">ALPHA${flSpan('ally', 'em', '')}</span><span>K</span><span>D</span><span class="sc">SCORE</span>`), this.boardRows);
-    this.root.append(this.tags, this.board, this.score, this.feed, this.respawn);
+    this.root.append(this.tags, this.board, this.score, this.sudden, this.feed, this.respawn, this.spec);
     parent.appendChild(this.root);
   }
 
@@ -144,8 +174,9 @@ export class TdmHud {
   /** The tickets each team has left; the score shown is what each took off the other (its kills). */
   setTickets(a: number, o: number) {
     if (a === this.last.a && o === this.last.o) return;
-    if (o !== this.last.o) this.aNum.data = String(Math.max(0, this.max - o));
-    if (a !== this.last.a) this.oNum.data = String(Math.max(0, this.max - a));
+    // 29.0: tickets are respawns: the numbers are what each team has left.
+    if (a !== this.last.a) this.aNum.data = String(a);
+    if (o !== this.last.o) this.oNum.data = String(o);
     this.last.a = a;
     this.last.o = o;
     this.aBar.style.transform = `scaleX(${Math.max(0, a / this.max)})`;
@@ -154,13 +185,63 @@ export class TdmHud {
     this.score.classList.toggle('low-o', o <= 5);
   }
 
-  /** One line of the feed. 13.0: with the killer's gun between the names (SMG, AR, SG). */
-  kill(killer: Combatant | null, victim: Combatant, weapon?: string) {
+  /**
+   * 29.0: who is still in it per team (alive or about to respawn). At 0 tickets a side reads LAST
+   * STAND and its number goes red.
+   */
+  setStanding(a: number, o: number) {
+    const lastA = this.last.a === 0, lastO = this.last.o === 0;
+    const L = this.last29;
+    if (a === L.aS && o === L.oS && lastA === L.lastA && lastO === L.lastO) return;
+    if (a !== L.aS || lastA !== L.lastA) this.aStand.data = lastA ? `LAST STAND · ${a}` : `${a} STANDING`;
+    if (o !== L.oS || lastO !== L.lastO) this.oStand.data = lastO ? `LAST STAND · ${o}` : `${o} STANDING`;
+    if (lastA !== L.lastA) this.score.classList.toggle('last-a', lastA);
+    if (lastO !== L.lastO) this.score.classList.toggle('last-o', lastO);
+    Object.assign(L, { aS: a, oS: o, lastA, lastO });
+  }
+
+  /**
+   * 29.0: the sudden-death clocks (s left, null: not running): ALPHA's (his team's) pulses red, OMEGA's
+   * shows as the enemy's, both together as a draw coming.
+   */
+  setSudden(a: number | null, o: number | null) {
+    const both = a !== null && o !== null;
+    const t = a ?? o;
+    const key = t === null ? '' : `${both ? 'b' : a !== null ? 'a' : 'o'}${Math.ceil(t)}`;
+    if (key === this.last29.sud) return;
+    const was = this.last29.sud[0];
+    this.last29.sud = key;
+    this.sudden.classList.toggle('hidden', t === null);
+    if (t === null) return;
+    const s = Math.max(0, Math.ceil(t));
+    this.suddenT.data = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    const kind = key[0];
+    if (kind !== was) {
+      this.suddenWho.data = kind === 'b' ? 'BOTH TEAMS · A KILL OR A DRAW' : kind === 'a' ? 'ALPHA · KILL OR LOSE' : 'OMEGA MUST KILL';
+      this.sudden.classList.toggle('ours', kind === 'a');
+      this.sudden.classList.toggle('both', kind === 'b');
+    }
+  }
+
+  /** 29.0: the spectator panel (the teammate watched: name, health, how many still stand), or null. */
+  setSpectate(v: { name: string; hp: number; mates: number } | null) {
+    const key = v ? `${v.name}|${v.hp.toFixed(2)}|${v.mates}` : '';
+    if (key === this.last29.spec) return;
+    this.last29.spec = key;
+    this.spec.classList.toggle('hidden', !v);
+    if (!v) return;
+    this.specName.data = v.name;
+    this.specHp.style.transform = `scaleX(${Math.max(0, Math.min(1, v.hp)).toFixed(2)})`;
+    this.specMates.data = `${v.mates} STANDING · LEFT CLICK NEXT · RIGHT CLICK PREVIOUS`;
+  }
+
+  /** One line of the feed. 13.0: with the killer's gun between the names (SMG, AR, SG). 29.0: `out`: a final death. */
+  kill(killer: Combatant | null, victim: Combatant, weapon?: string, out = false) {
     // 24.0: his kills pop out (gold), his deaths are tinted.
     const row = el('div', `row${killer?.isPlayer ? ' mine' : victim.isPlayer ? ' died' : ''}`);
     const name = (c: Combatant) => `<span class="${c.team === 'alpha' ? 'a' : 'o'}${c.isPlayer ? ' you' : ''}">${c.name}</span>`;
     const how = weapon ? `<i class="gun">${weapon}</i>` : '<i>▸</i>';
-    row.innerHTML = killer ? `${name(killer)}${how}${name(victim)}` : `${name(victim)}<i>✕</i>`;
+    row.innerHTML = (killer ? `${name(killer)}${how}${name(victim)}` : `${name(victim)}<i>✕</i>`) + (out ? '<i class="out">OUT</i>' : '');
     this.feed.prepend(row);
     this.feedRows.unshift({ el: row, t: 0 });
     while (this.feedRows.length > FEED_MAX) this.feedRows.pop()!.el.remove();
@@ -177,6 +258,10 @@ export class TdmHud {
 
   clear() {
     this.last.a = this.last.o = -1;
+    this.last29 = { aS: -1, oS: -1, lastA: false, lastO: false, sud: '', spec: '' };
+    this.score.classList.remove('last-a', 'last-o');
+    this.setSudden(null, null);
+    this.setSpectate(null);
     for (const r of this.rows) r.el.remove();
     this.rows = [];
     for (const r of this.feedRows) r.el.remove();
@@ -270,7 +355,12 @@ export class TdmScreen {
    * both teams side by side in wide columns (#, name and gun, K, D, SCORE), his row lit, and the next
    * map as cards.
    */
-  show(won: boolean, tickets: Record<TeamId, number>, lines: TdmLine[], time: number, next: { info: LevelInfo; again: boolean }[]) {
+  show(result: 'win' | 'loss' | 'draw' | boolean, tickets: Record<TeamId, number>, lines: TdmLine[], time: number, next: { info: LevelInfo; again: boolean }[], why?: string) {
+    // 29.0: a draw (the last two traded, or nobody broke a tie in sudden death); how it was decided.
+    const res = result === true ? 'win' : result === false ? 'loss' : result;
+    const won = res === 'win';
+    const title = res === 'draw' ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
+    const how = why === 'sudden death' ? 'SUDDEN DEATH' : why === 'sudden death draw' ? 'SUDDEN DEATH · TIED' : why === 'trade' ? 'THE LAST TWO TRADED' : why === 'elimination' ? 'ELIMINATION' : '';
     const mm = Math.floor(time / 60), ss = String(Math.floor(time % 60)).padStart(2, '0');
     const team = (t: TeamId) =>
       lines
@@ -285,8 +375,9 @@ export class TdmScreen {
       `<table class="res-board ${t === 'alpha' ? 'a' : 'o'}"><thead><tr><th class="n">#</th><th class="nm">${name}</th><th>K</th><th>D</th><th class="sc">SCORE</th></tr></thead><tbody>${team(t)}</tbody></table>`;
     this.root.innerHTML = `
       <div class="res">
-        <div class="end-title res-title ${won ? 'win' : 'lose'}">${won ? 'VICTORY' : 'DEFEAT'}${flSpan(won ? 'victory' : 'defeat')}</div>
-        <div class="res-score"><span class="a">ALPHA <b>${tickets.alpha}</b></span><span class="vs">TICKETS · ${mm}:${ss}</span><span class="o"><b>${tickets.omega}</b> OMEGA</span></div>
+        <div class="end-title res-title ${res === 'draw' ? 'draw' : won ? 'win' : 'lose'}">${title}${res === 'draw' ? '' : flSpan(won ? 'victory' : 'defeat')}</div>
+        ${how ? `<div class="res-how">${how}</div>` : ''}
+        <div class="res-score"><span class="a">ALPHA <b>${tickets.alpha}</b></span><span class="vs">TICKETS LEFT · ${mm}:${ss}</span><span class="o"><b>${tickets.omega}</b> OMEGA</span></div>
         <div class="res-boards">${board('alpha', 'ALPHA')}${board('omega', 'OMEGA')}</div>
         <div class="res-note">SCORE · 100 A KILL · −25 A DEATH</div>
         ${nextMapsHtml(next)}
