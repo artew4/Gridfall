@@ -271,6 +271,7 @@ export class TdmRules implements ModeRules {
     g.tdmHud.clear();
     g.tdmHud.setMax(this.ticketMax);
     g.tdmHud.show(true);
+    g.tdmHud.setMe(1, teamSizeOf(g.level.info), 0, 0);
     g.hud.root.classList.add('tdm');
     this.slots = [];
     const size = teamSizeOf(g.level.info);
@@ -459,6 +460,7 @@ export class TdmRules implements ModeRules {
         if (ks) ks.kills++;
       }
     }
+    this.showStanding();
     // The record (for the report): who, how far, from where.
     const facing = v.facing(new THREE.Vector2());
     const flank = by ? facing.x * (by.pos.x - v.pos.x) + facing.y * (by.pos.z - v.pos.z) < 0 : false;
@@ -492,6 +494,14 @@ export class TdmRules implements ModeRules {
       }
     } else this.squads[otherTeam(v.team)].hostileDied(v, by && !by.isPlayer ? (by as TacticalEnemy) : null);
     if (this.tickets[v.team] <= 0) this.end(otherTeam(v.team));
+  }
+
+  /** 24.0: the player's standing on the HUD: his rank in his team (by kills, then fewer deaths), kills, deaths. */
+  private showStanding() {
+    const p = this.player;
+    const mates = this.slots.filter((s) => s.team === 'alpha');
+    const ahead = mates.filter((s) => s.kills > p.kills || (s.kills === p.kills && s.deaths < p.deaths)).length;
+    this.game.tdmHud.setMe(ahead + 1, mates.length + 1, p.kills, p.deaths);
   }
 
   /** The player died: the mode respawns him (Game shows the countdown instead of the death screen). */

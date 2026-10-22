@@ -1,3 +1,4 @@
+import { CanvasFit } from './canvasFit';
 import type * as THREE from 'three';
 import type { Collider } from '../world/Collision';
 
@@ -35,14 +36,15 @@ export class TdmMinimap {
   private px: number;
   private dpr = Math.min(2, window.devicePixelRatio || 1);
   private drawnAt = -Infinity;
+  private fit: CanvasFit;
 
   constructor(parent: HTMLElement, colliders: readonly Collider[], bounds: THREE.Box2) {
     this.root.className = 'minimap tdm-map';
-    this.canvas.width = this.canvas.height = SIZE * this.dpr;
-    this.canvas.style.width = this.canvas.style.height = `${SIZE}px`;
     this.g = this.canvas.getContext('2d')!;
     this.root.append(this.canvas);
     parent.appendChild(this.root);
+    // 24.0: drawn in SIZE units, shown at the HUD's (rem) size.
+    this.fit = new CanvasFit(this.canvas, this.root, SIZE, this.dpr);
     this.x0 = bounds.min.x;
     this.z0 = bounds.min.y;
     const w = bounds.max.x - bounds.min.x, d = bounds.max.y - bounds.min.y;
@@ -51,6 +53,7 @@ export class TdmMinimap {
   }
 
   dispose() {
+    this.fit.dispose();
     this.root.remove();
   }
 
@@ -100,7 +103,7 @@ export class TdmMinimap {
     if (now - this.drawnAt < 1000 / 30 - 1) return;
     this.drawnAt = now;
     const g = this.g;
-    g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    g.setTransform(this.fit.scale, 0, 0, this.fit.scale, 0, 0);
     g.clearRect(0, 0, SIZE, SIZE);
     g.save();
     g.beginPath();

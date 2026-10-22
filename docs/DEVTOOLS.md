@@ -83,6 +83,9 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Old Port (17.1):
   - `?setting=oldport`. `bench(3)` has an Old Port set: nine views (the hall, the upper floor in the skylight shafts, the yard, the stacks, the dock floor, the bridge, the sea quay into the sun side, the whole port) and a firefight. `tdmSim` lanes: warehouse, yard, dock.
   - `__game.level.debug()`: nav nodes and drops, skylight shafts, indoors, `drowned` (the sea fence should keep it 0).
+- UI checks (24.0):
+  - `node scripts/uicheck.mjs [out-dir]` (Node 22+, Google Chrome; `URL=`, `SIZES=1440x900,3840x2160`): headless Chrome at 1440×900, 1920×1080, 2560×1440 and 3840×2160. It checks the menu, the maps screen, a TDM HUD (a kill of the player's in the feed) and the result screen: the smallest visible text, anything off screen, overlaps among the minimap, health, callsign, ammo and live scoreboard. Screenshots go to `out-dir`. Exit 1 on a spill, an overlap or text under 11 px.
+  - `node scripts/csscheck.mjs [seconds]` also measures a hovered button, a hovered map card (a hover must settle) and the TDM HUD after a kill, and stops the logo's glitch for the hover rows.
 - Old Port overhaul (23.0):
   - `await __dev.sightlines({ band: [x0, x1] })`: lists the spawn-side to spawn-side lines whose middle lies in that x band (up to 40), to find what carries them.
   - `tdmSim({ directRise })`: the arena bots' straight-walk limit for this run (Infinity is the 22.0 bot; Old Port's profile sets 1).

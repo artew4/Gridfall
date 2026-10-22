@@ -1,3 +1,4 @@
+import { CanvasFit } from './canvasFit';
 import type * as THREE from 'three';
 import type { R } from '../world/Rects';
 import type { ConeBlip } from '../stealth/PlayerIntel';
@@ -34,20 +35,22 @@ export class Minimap {
   private label = document.createElement('div');
   private dpr = Math.min(2, window.devicePixelRatio || 1);
   private drawnAt = -Infinity;
+  private fit!: CanvasFit;
 
   /** Level unloaded: remove the map from the HUD. */
   dispose() {
+    this.fit.dispose();
     this.root.remove();
   }
 
   constructor(parent: HTMLElement, data: MapData) {
     this.root.className = 'minimap';
-    this.canvas.width = this.canvas.height = SIZE * this.dpr;
-    this.canvas.style.width = this.canvas.style.height = `${SIZE}px`;
     this.ctx = this.canvas.getContext('2d')!;
     this.label.className = 'floor';
     this.root.append(this.canvas, this.label);
     parent.appendChild(this.root);
+    // 24.0: drawn in SIZE units, shown at the HUD's (rem) size.
+    this.fit = new CanvasFit(this.canvas, this.root, SIZE, this.dpr);
     const plan = (rects: R[], fill: string, stroke: string, extra?: (g: CanvasRenderingContext2D) => void) => {
       const c = document.createElement('canvas');
       c.width = W * PX;
@@ -100,7 +103,7 @@ export class Minimap {
     if (now - this.drawnAt < 1000 / 30 - 1) return;
     this.drawnAt = now;
     const g = this.ctx;
-    const s = this.dpr;
+    const s = this.fit.scale;
     g.setTransform(s, 0, 0, s, 0, 0);
     g.clearRect(0, 0, SIZE, SIZE);
     const floor: Floor = player.y < -2 ? 'under' : player.y > 3 ? 'upper' : 'street';

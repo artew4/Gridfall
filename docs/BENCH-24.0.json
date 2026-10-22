@@ -1,0 +1,35 @@
+{
+  "version": "24.0 (UI/UX overhaul: scaling, map cards, the TDM HUD, the result screen)",
+  "machine": "Apple M5 laptop, Chrome (headless for the checks below: SwiftShader, device scale 1)",
+  "branch": "feature/ui-ux-overhaul-24.0 from main @ 03c4b8c (23.0)",
+  "scaling": {
+    "rule": "html { font-size: clamp(15px, min(0.42vw, 0.75vh) + 8.6px, 28px) }; the stylesheet in rem (492 sizes converted, hairlines, the crosshair and the hit marker kept in px); font sizes floored at 0.75rem",
+    "before": "123 font sizes, 68 of them 8-11 px fixed (the same at 4K as on a laptop)",
+    "rootPx": { "1440x900": 15, "1920x1080": 16.66, "2560x1440": 19.35, "3840x2160": 24.73 }
+  },
+  "uicheck": {
+    "method": "node scripts/uicheck.mjs: headless Chrome at each viewport; the title's root menu, the maps screen, a TDM match's HUD (a kill of the player's in the feed), the result screen; the smallest visible text, anything off screen, overlaps of the minimap, health, callsign, ammo and live scoreboard",
+    "minFontPx": { "1440x900": 11.3, "1920x1080": 12.5, "2560x1440": 14.5, "3840x2160": 18.5 },
+    "result": "16 of 16 (4 sizes x 4 screens): no text off screen, no HUD overlap",
+    "foundAndFixed": ["the callsign over the health panel (both moved beside the minimap)", "long names wrapping into the watermark on the small cards", "the biome flavor rule (1.12em) shrinking the watermark", "the survival death screen's next maps wrapping 3 + 1"]
+  },
+  "csscheck": {
+    "method": "node scripts/csscheck.mjs 4: the game loop stopped, what the page does per second (main-thread task ms, style recalcs, layouts); hovers held for the whole window",
+    "columns": "taskMsPerS, styleMsPerS, layoutMsPerS, recalcsPerS, layoutsPerS",
+    "before_24.0_title": [8.3, 2.3, 0, 59.3, 0],
+    "24.0": {
+      "title (root, stage)": [1.8, 0.4, 0, 5.5, 0],
+      "title, logo glitch off": [0.1, 0, 0, 0, 0],
+      "title, a button hovered": [0.3, 0.1, 0, 0.5, 0],
+      "maps, a map card hovered": [0.5, 0.1, 0, 0.5, 0],
+      "pause menu over a match": [0.1, 0, 0, 0, 0],
+      "the TDM HUD (a kill of his in the feed)": [3.1, 0, 0, 0, 0]
+    },
+    "notes": [
+      "the title's logo glitch was an endless 7 s step animation of clip-path: a style recalc every frame (59/s) on an open menu; now a 0.42 s one-shot every 7 s",
+      "16.0's button hover ran an endless text-shadow animation (a repaint every frame the pointer rested); now a static split",
+      "the TDM HUD rewrote the ticket numbers every frame; now only on change"
+    ]
+  },
+  "tests": 289
+}

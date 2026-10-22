@@ -1328,8 +1328,46 @@ Branch `feature/old-port-overhaul-23.0`, from `main` @ `a2548ec` (22.0: already 
 - `bench(3)` on Old Port at 7v7: 60 FPS in all 10 views, CPU 2.1–2.5 ms, GPU 5.3–6.4 ms. `leakcheck.mjs 2 oldport,maglev,desert`: 0 alive. Tests 281 (+11).
 - **Elsewhere:** Maglev unchanged (29–31 kills a minute, 0 stuck). The steering rule cost Crash Site pace in an A/B, so it is off there (and everywhere but Old Port).
 
+## 24.0: UI/UX overhaul
+
+Branch `feature/ui-ux-overhaul-24.0`, from `main` @ `03c4b8c` (23.0, merged and deployed by the owner). Full numbers: `docs/BENCH-24.0.json`.
+
+### Scaling for big screens
+- **One fluid root size:** `clamp(15px, min(0.42vw, 0.75vh) + 8.6px, 28px)`, 15 px on a 1440×900 laptop, about 17 at 1080p, 19 at 1440p, 25 at 4K. The smaller of width and height decides, so a short ultrawide doesn't blow it up.
+- **rem everywhere:** the stylesheet's sizes are converted to rem (492 values; hairlines, the crosshair and the hit marker stay px), with font sizes floored at 0.75rem. The minimaps' canvases follow their CSS box (`CanvasFit`: a ResizeObserver, nothing measured per frame).
+- **Measured** (`uicheck.mjs`): the smallest text is 11.3 px at 1440×900, 12.5 at 1080p, 14.5 at 1440p, 18.5 at 4K. Before, 68 of 123 font sizes were a fixed 8–11 px at any size.
+
+### Map cards
+`ui/MapCard.ts`: one component for the maps screen, the TDM result screen and the survival death screen.
+- **Thumbnail:** painted in CSS per map: neon rain and a skyline for Tokyo, dunes under a sun for the Desert, brick and a grey sky for Old Port, a white glass roof for Maglev.
+- **Text:** the map's name in its own script as a watermark, a large name, the flavor line, the blurb and mode chips.
+- **States:** a hover lifts the card and fades in a pre-drawn frame; the selected card holds a magenta frame.
+
+### The TDM HUD
+- **Bottom left:** the minimap, with the health and callsign beside it.
+- **Top right, the live scoreboard:** the tickets (ALPHA vs OMEGA, with bars), the player's rank in his team (1ST / 7, gold when first), his kills and deaths; the kill feed under it.
+- **His kills** in the feed: a gold panel, bold and larger, popping in once; his deaths tinted red.
+- **Numbers written only on change:** the tickets were rewritten every frame.
+
+### The result screen
+- **Layout:** a large VICTORY / DEFEAT, the tickets and time in team colours, both teams in wide tables (#, name and gun, K, D, SCORE: 100 a kill, −25 a death), his row a gold band.
+- **Next map:** a row of map cards.
+
+### Repaints
+- **Hovers settle:** a hovered button or map card costs ~0 once its transition ends (0.5 recalcs/s). The 16.0 button hover ran an endless text-shadow animation.
+- **The title's logo glitch** (an endless clip-path step animation, 59 style recalcs/s on an open menu, 8.3 ms of main thread a second) is now a one-shot every 7 s: 1.8 ms/s.
+- **The TDM HUD in a match:** 0 recalcs, 0 layouts from CSS (`csscheck.mjs`, extended).
+- **A test keeps the rule:** every endless animation may animate only transform and opacity.
+
+### Validation
+- **UI check:** `uicheck.mjs`, 16 of 16 (4 sizes × 4 screens): no text off screen, no HUD overlap.
+- **CSS check:** `csscheck.mjs`, all rows idle.
+- **Tests:** 289 (+8: the scaling rules, the animation rule, the card markup, the ranks and the score).
+- **Real browser:** checked by eye: the maps screen, a card hovered, the survival death screen.
+
 ## Next
 Human playtest:
+- 24.0 items: is the text the right size on your monitor (too big at 4K?), do the map cards read at a glance, is the live scoreboard in the way of the kill feed, does your gold kill row feel rewarding or noisy.
 - 23.0 items: Old Port (is it still sniped from end to end anywhere; does the spine read as a maze you go through or over; are the dock scaffolds in the way or good cover; is 7v7 too busy for the warehouse); the spawn swap (is 12 m the right size; is the prompt noticed; does closing on a shot feel right).
 - 22.0 items: can you tell friend from foe at a glance on Maglev now (the ice-blue and sand blocks, the chevrons); do the bots look like they hold their guns (the hands, the bladed stance, the aimed hold); the new silhouettes at 20–40 m.
 - 21.0 items: the four guns (does the pistol feel like a mobility gun or a peashooter; is the SMG's climb fun or annoying; does one shotgun shell feel fair to die to; is the rifle's wide hip fire too punishing), the finishes (the white Maglev guns in the bright hall, camo on the military maps), the sounds (the shotgun's cannon, the SMG's buzz).

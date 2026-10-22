@@ -3,8 +3,9 @@ import { MODE_LABEL, MODE_ORDER, canDeploy, mapsFor, type MenuState } from './Me
 import { NAME_MAX } from '../gameplay/PlayerName';
 import { ARMORY, ARMORY_ORDER, type WeaponId } from '../entities/weapons/armory';
 import { nextMapsHtml } from './TdmHud';
+import { mapCardHtml } from './MapCard';
 
-import { LANG, fl, flSpan, flWave, prewarmFlavor } from './Flavor';
+import { fl, flSpan, flWave, prewarmFlavor } from './Flavor';
 
 export { jpNumber } from './jpNumber';
 
@@ -110,7 +111,7 @@ export class Hud {
         </div>
         <div class="mm-screen hidden" data-screen="maps">
           <div class="mm-label mm-mode-title"></div>
-          <div class="settings-row"></div>
+          <div class="settings-row map-grid"></div>
           <div class="mm-note"></div>
           <div class="mm-actions">
             <button class="pm-btn" data-act="back">BACK${flSpan('back')}</button>
@@ -146,6 +147,14 @@ export class Hud {
   setReady() {
     this.title.querySelector('.loading')?.remove();
     this.title.querySelector('.mainmenu')!.classList.remove('hidden');
+    // 24.0: the logo's glitch, a one-shot every 7 s while the title is shown (no endless CSS loop).
+    window.setInterval(() => {
+      const h = this.title.querySelector('h1');
+      if (!h || this.title.classList.contains('hidden') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      h.classList.remove('logo-glitch');
+      void h.offsetWidth;
+      h.classList.add('logo-glitch');
+    }, 7000);
   }
 
   /** 13.0: the levels the menu offers (registry order), and the mode buttons with their map counts. */
@@ -193,12 +202,8 @@ export class Hud {
     const key = maps.map((m) => m.id).join(',');
     if (row.getAttribute('data-for') !== key) {
       row.setAttribute('data-for', key);
-      row.innerHTML = maps
-        .map(
-          (l) => `<button class="set-card" data-setting="${l.id}"><b>${l.name}</b><span class="jp" lang="${LANG[l.biome]}">${l.jp}</span>
-        <span class="blurb">${l.blurb}</span><span class="modes">${l.modes.map((m) => (m === 'story' ? 'STORY' : m === 'tdm' ? `${l.teamSize ?? 5}v${l.teamSize ?? 5} TDM` : 'SURVIVAL')).join(' · ')}</span></button>`,
-        )
-        .join('');
+      // 24.0: the map cards (MapCard.ts), a grid.
+      row.innerHTML = maps.map((l) => mapCardHtml(l, { data: 'setting' })).join('');
     }
     for (const b of Array.from(row.querySelectorAll<HTMLElement>('[data-setting]'))) b.classList.toggle('on', b.dataset.setting === st.map);
     const loaded = (this.loaded?.id ?? 'tokyo') as SettingId;
