@@ -346,7 +346,8 @@ async function benchMaglev(game: Game, dev: Dev, m: (name: string) => Promise<vo
 /**
  * Tokyo: Neon Block (14.0, a TDM arena): the match running (nine bots, the player in god mode), the
  * three lanes at eye level, the roofs, the footbridge, the worst view (the whole block from Block W's
- * roof: every facade, sign and light in frame), then a firefight from the street.
+ * roof: every facade, sign and light in frame), 34.0's flanks and the view down into the smog, then a
+ * firefight from the street.
  */
 async function benchNeonBlock(game: Game, dev: Dev, m: (name: string) => Promise<void>, out: Record<string, unknown>) {
   dev.start('tdm', 'neonblock');
@@ -361,6 +362,12 @@ async function benchNeonBlock(game: Game, dev: Dev, m: (name: string) => Promise
     ['eastRoofs', [22, 4.5, 40], [24, 4, -30]],
     ['serviceAlley', [34.5, 0, 44], [34, 2, -30]],
     ['wholeBlock', [-28, 7.2, 44], [10, 0, -30]],
+    // 34.0: the flanks (the Lantern Bridge over the crossing, the Transit Rail's deck and car, the
+    // Lantern Market's holograms) and the roof's view down into the smog.
+    ['lanternBridge', [-32.2, 4.5, -6], [-32.2, 4.5, 20]],
+    ['transitRail', [36.4, 4.5, -20], [36.4, 4.5, 20]],
+    ['lanternMarket', [-33.8, 0, 6.5], [-36, 1.2, 17]],
+    ['roofDown', [-13.65, 7.2, 22], [8, 0.5, 8]],
   ];
   for (const [name, p, l] of views) {
     dev.tp(p[0], p[1], p[2], 0, 0);

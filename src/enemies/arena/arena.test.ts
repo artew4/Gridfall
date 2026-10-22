@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ARENA_SEE } from '../../world/Visibility';
 import wavesSrc from '../Waves.ts?raw';
 import squadSrc from '../tactics/Squad.ts?raw';
 import arcadeSrc from '../../levels/Arcade.ts?raw';
@@ -491,6 +492,20 @@ describe('12.0: a bot with a temperament', () => {
     expect(brain.urgent).toBe(false);
     expect(brain.nextThink).toBeGreaterThanOrEqual(5 + 0.2 * 0.8);
     expect(brain.nextThink).toBeLessThanOrEqual(5 + 0.2 * 1.25);
+  });
+});
+
+describe('34.0: recognising a figure in the ground fog takes longer', () => {
+  it('at the edge of sight the reaction is (1 + fogReact)× the clear-air one', () => {
+    const t = (clarity: number) => {
+      const { brain } = rig(v(0, 0, 0), { persona: { react: 0.2 } });
+      brain.nextThink = 100;
+      brain.onSight(unit(v(0, 0, -8), 'omega'), 5, clarity);
+      return brain.nextThink - 5;
+    };
+    expect(t(1)).toBeLessThanOrEqual(0.2 * 1.25 + 1e-9);
+    expect(t(ARENA_SEE)).toBeGreaterThanOrEqual(0.2 * (1 + ARENA.fogReact) * 0.8 - 1e-9);
+    expect(t(0.6)).toBeGreaterThan(0.2 * 0.8);
   });
 });
 

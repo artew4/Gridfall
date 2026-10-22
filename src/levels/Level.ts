@@ -60,7 +60,8 @@ export interface TdmData {
    * 25.0: a ground fog that limits sight (Neon Block): when both the viewer's and the target's feet are
    * under `below` m, nobody sees further than `range` m (Sensing; the player's spotting included).
    */
-  groundFog?: { below: number; range: number };
+  /** 25.0: a ground fog (34.0: its dense layer's top, for the reports and the route bias; the sight is the live fog's). */
+  groundFog?: { below: number };
   /**
    * 25.0: a nav link's cost multiplier by the route's kind (Nav.route's `bias`): 'low' for the close
    * guns (SMG, shotgun), 'high' for the rifle; nodes at body height. Neon Block: the fog's links.

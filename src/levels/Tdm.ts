@@ -1,5 +1,6 @@
 import { fl } from '../ui/Flavor';
 import * as THREE from 'three';
+import { heightFogAt } from '../world/HeightFog';
 import type { Game } from '../core/Game';
 import type { ModeRules, TdmData } from './Level';
 import { Gunner, Runner, type EnemyCtx, type TacticalEnemy } from '../enemies/Enemy';
@@ -332,7 +333,8 @@ export class TdmRules implements ModeRules {
       conceal ? (a, b) => conceal(a, b) < 0.35 : undefined,
     );
     // 25.0: the map's ground fog caps sight; its routing bias by gun.
-    this.sensing.fog = d.groundFog ?? null;
+    // 34.0: the bots see the ground fog as the picture draws it (HeightFog.heightFogAt, the live fog).
+    this.sensing.fog = d.groundFog ? (eye, chest) => heightFogAt(eye, chest) : null;
     g.nav.bias = d.navBias ?? null;
     this.arenaStats = newArenaStats();
     this.brains = [];

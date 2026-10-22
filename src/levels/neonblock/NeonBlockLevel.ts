@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildNeonBlock, type NeonBlockResult } from './NeonBlock';
-import { BASE, GROUND_FOG, X_OUT, Z_END, groundFogBias, inBase, lanesOf, SPAWN_PADS, SPAWN_ZONES } from './NeonBlockLayout';
+import { BASE, GROUND_FOG, MID, NEONBLOCK_AI, X_OUT, Z_END, groundFogBias, inBase, lanesOf, SPAWN_PADS, SPAWN_ZONES } from './NeonBlockLayout';
 import { DesertIntro } from '../desert/DesertIntro';
 import { clearHeightFog, setHeightFog } from '../../world/HeightFog';
 import { ReflectionCatchers } from '../../world/ReflectionCatchers';
@@ -119,17 +119,21 @@ export class NeonBlockLevel implements LevelRuntime {
         start,
         laneOf: (x, _y, z) => (Math.abs(z) > 50 ? null : x < -12 ? 0 : x > 12 ? 2 : 1),
         laneNames: ['west', 'centre', 'east'],
-        // 25.0: the bots' sight in the ground fog (Sensing): both below `below` m, `range` at most.
-        groundFog: GROUND_FOG.cap,
+        // 25.0: the ground fog (34.0: its dense top for the reports and the route bias; the bots see the live fog).
+        groundFog: { below: GROUND_FOG.dense },
+        arena: NEONBLOCK_AI,
         // 25.0: SMG and shotgun bots route through the fog, riflemen over it (Nav bias).
         navBias: groundFogBias,
+        // 34.0: the patrols' high-value areas beyond the zones and the lanes: the flanks' new places (on
+        // the rail's deck its centre line, clear of the car at |z| < 2).
+        hvas: [[-32.2, MID, 0], [-35, 0, 13], [-35, 0, -13], [36.4, MID, 6], [36.4, MID, -6], [36.4, MID, 14], [36.4, MID, -14], [34.5, 0, 38], [34.5, 0, -38]].map(([x, y, z]) => new THREE.Vector3(x, y, z)),
       },
     };
   }
 
   attach() {
     const game = this.game;
-    setHeightFog(GROUND_FOG.density, GROUND_FOG.top, GROUND_FOG.color, GROUND_FOG.opacity);
+    setHeightFog(GROUND_FOG);
     game.ctx.sightRange = fogRange(game.fog.density);
     game.weapon.setLights({ sky: 0x5a6aa8, ground: 0x2a1c2c, hemi: 0.9, key: 0xffc890, keyI: 1.6, rim: 0xff4ad8, rimI: 0.9 });
   }

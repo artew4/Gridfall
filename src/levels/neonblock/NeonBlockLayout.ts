@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Zone } from '../Level';
+import type { ArenaProfile } from '../../enemies/arena/ArenaCtx';
 import { mirrorPads } from '../SpawnManager';
 
 /*
@@ -59,6 +60,18 @@ export const FOOT = { x0: -2, x1: 2, end: 15.6, arm: [13, 15.6] as [number, numb
 export const SKY = { x0: -25, x1: -19 };
 export const PLANK = { x0: 22, x1: 26 };
 
+/**
+ * 34.0, the flanks (ALPHA's half; mirrored). West, the Lantern Bridge: a catwalk at MID (x0…x1, along
+ * Block W's corner) over the crossing, up a stair from `foot` to CROSS + 1.2 a half, a drop gap in its
+ * west rail at |z| `drop`; the Lantern Market beside the stair's foot. East, the Transit Rail: a deck
+ * at MID from x0 to the boundary wall, |z| ≤ `end`, up a stair (from `stairX0`) from `foot` a half,
+ * a bridge to E1's roof at |z| `bridge`, a drop gap at |z| `drop`, a transit car (x ≥ carX0, |z| ≤ car).
+ */
+export const FLANKS = {
+  lanternBridge: { x0: -33.2, x1: -31.2, foot: 18.2, drop: [3, 5] as [number, number] },
+  transitRail: { x0: 34.8, stairX0: 35.6, end: 22, foot: 31, bridge: [10, 12.4] as [number, number], drop: [18.4, 20] as [number, number], carX0: 36.2, car: 2 },
+};
+
 /** z → -z for the north half. */
 export const mz = (z: number, flip: boolean) => (flip ? -z : z);
 
@@ -100,6 +113,11 @@ export function lanesOf(team: 'alpha' | 'omega'): THREE.Vector3[][] {
 const Z = (id: string, name: string, jp: string, rects: [number, number, number, number][]): Zone => ({ id, name, jp, rects });
 /** Rects x0, z0, x1, z1. Raised zones are tested first (by height), then the street-level ones. */
 export const ZONES = {
+  // 34.0, the flanks.
+  lanternBridge: Z('lanternBridge', 'LANTERN BRIDGE', '提灯橋', [[-X_OUT, -CROSS - 1.5, BW.x0, CROSS + 1.5]]),
+  transitRail: Z('transitRail', 'TRANSIT RAIL', '環状線', [[BE.x1, -23, X_OUT, 23]]),
+  lanternMarket: Z('lanternMarket', 'LANTERN MARKET', 'ナイトマーケット', [[-X_OUT, 9, BW.x0, 18.5], [-X_OUT, -18.5, BW.x0, -9]]),
+  junction: Z('junction', 'THE JUNCTION', '乗換口', [[BE.x1, 32.5, X_OUT, COURT], [BE.x1, -COURT, X_OUT, -32.5]]),
   skybridge: Z('skybridge', 'SKYBRIDGE', 'スカイブリッジ', [[SKY.x0, -CROSS, SKY.x1, CROSS]]),
   roofsW: Z('roofsW', 'WEST ROOFS', '西の屋上', [[-X_OUT, -COURT, BW.x1 + 2.6, COURT]]),
   footbridge: Z('footbridge', 'FOOTBRIDGE', '歩道橋', [[BW.x1, -26, BE.x0 + 0.2, 26]]),
@@ -119,6 +137,9 @@ export const ZONES = {
 export function zoneAt(x: number, y: number, z: number): Zone | null {
   const inR = (r: [number, number, number, number]) => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
   if (y > TOP - 1 && ZONES.skybridge.rects.some(inR)) return ZONES.skybridge;
+  // 34.0: the flanks' raised routes, then their pockets (below).
+  if (y > 2.5 && ZONES.lanternBridge.rects.some(inR) && x > -33.5) return ZONES.lanternBridge;
+  if (y > 2.5 && ZONES.transitRail.rects.some(inR) && (x > 34.6 || (Math.abs(z) > 9.8 && Math.abs(z) < 12.6))) return ZONES.transitRail;
   if (y > MID + 1.5 && ZONES.roofsW.rects.some(inR)) return ZONES.roofsW;
   if (y > 2.5) {
     // The mid level: the fire escape and street landing belong to the west roofs' climb, the
@@ -129,27 +150,37 @@ export function zoneAt(x: number, y: number, z: number): Zone | null {
     if (ZONES.roofsE.rects.some(inR)) return ZONES.roofsE;
     if (x > PLANK.x0 - 1 && x < PLANK.x1 + 1) return ZONES.roofsE;
   }
-  for (const zone of [ZONES.alphaSpawn, ZONES.omegaSpawn, ZONES.alphaCourt, ZONES.omegaCourt, ZONES.crossing, ZONES.arcade, ZONES.gapAlley, ZONES.lanternAlley, ZONES.street, ZONES.serviceAlley]) {
+  for (const zone of [ZONES.alphaSpawn, ZONES.omegaSpawn, ZONES.alphaCourt, ZONES.omegaCourt, ZONES.crossing, ZONES.arcade, ZONES.gapAlley, ZONES.lanternMarket, ZONES.junction, ZONES.lanternAlley, ZONES.street, ZONES.serviceAlley]) {
     if (zone.rects.some(inR)) return zone;
   }
   return null;
 }
 
 /**
- * 25.0, the ground fog: the rain has stopped and a fog lies in the streets, thickest on the ground
- * and gone by the mid level (4.5 m: the fire-escape landings, the footbridge, Block E's roofs). It
- * is a gameplay layer, not only a look: in the street a figure is 85% hidden at 13 m, and the bots'
- * sight follows it (TdmData.groundFog: both below 3 m, nobody sees past 13 m); from the roofs a
- * street target at 15 m is ~14% veiled, and roof to roof is clear. Close fights below, long ones above.
+ * 34.0, Neon Block's AI profile: the Transit Rail's deck and the Lantern Bridge are reached only by
+ * their stairs, so never straight up at a goal (Old Port's 23.0 rule, the docks' 32.0): a patrol bound
+ * for the deck stood under its edge, in sight of the goal, for a minute (self-play, 6 stuck reports).
  */
-export const GROUND_FOG = { density: 0.256, top: 4.5, color: 0x62597f, opacity: 0.96, cap: { below: 3, range: 13 } };
+export const NEONBLOCK_AI: ArenaProfile = { directRise: 1 };
+
+/**
+ * 25.0, the ground fog: the rain has stopped and a fog lies in the streets. A gameplay layer, not only a
+ * look: the bots see it as the picture draws it (Sensing.fog: HeightFog.heightFogAt).
+ * 34.0: a neon-lit smog filling the street canyon (was thinnest-at-the-top and gone by 4.5 m: from the
+ * roofs a street target 15 m off was 14% veiled, and the high ground saw into the street). Dense to
+ * `dense` (6.2 m: the street and the mid level, 4.5 m, are in it), densest at the ground, gone by
+ * `top` (7.0 m: Block W's roofs and the skybridge, 7.2 m, stand clear of it). In the street a standing
+ * figure is 82% hidden (the bots' sight, ARENA_SEE) at 10.5 m; from a roof a street target 5 m out is
+ * 41% hidden, 10 m out 64%, 15 m out 84%, 20 m out 95%; roof to roof is clear.
+ */
+export const GROUND_FOG = { density: 0.105, dense: 6.2, top: 7.0, ground: 0.25, color: 0x62597f, opacity: 1 };
 
 /**
  * 25.0: a link's cost multiplier by the gun (Nav bias): 'low' (SMG, shotgun) finds the fog's links
  * cheap and the clear ones dear, 'high' (rifle) the other way; nodes are at body height (feet + 1).
  */
 export function groundFogBias(a: { y: number }, b: { y: number }, kind: 'low' | 'high') {
-  const inFog = (p: { y: number }) => p.y - 1 < GROUND_FOG.cap.below;
+  const inFog = (p: { y: number }) => p.y - 1 < GROUND_FOG.dense;
   const both = inFog(a) && inFog(b), neither = !inFog(a) && !inFog(b);
   if (kind === 'low') return both ? 0.7 : neither ? 1.25 : 1;
   return neither ? 0.6 : both ? 1.35 : 1;

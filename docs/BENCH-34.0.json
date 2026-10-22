@@ -1,0 +1,477 @@
+{
+  "version": "34.0 (Night Tokyo overhaul: a neon smog in Neon Block's street canyon, the bots' sight from the same fog, the flanks: the Lantern Bridge, the Transit Rail, the Lantern Market, the Junction)",
+  "branch": "feature/night-tokyo-34.0 from main @ a0f7d1c",
+  "machine": "Apple M5, Chrome, Balanced",
+  "fog": {
+    "model": "density rho(y) = D*(1 + g*(1 - y/H0)) up to H0, then a linear fade to 0 at H1; tau = integral of rho along the camera-fragment segment (closed form); hidden = 1 - exp(-tau^2); HDR fade: rgb = mix(min(rgb,1), rgb, T) before the fog mix",
+    "neonBlock": {
+      "D": 0.105,
+      "H0_dense": 6.2,
+      "H1_top": 7.0,
+      "g_ground": 0.25,
+      "colour": "#62597f",
+      "opacity": 1
+    },
+    "was25": {
+      "model": "D*clamp(1-y/H,0,1)^2, D 0.256, H 4.5; bots: a binary 13 m cap with both feet under 3 m"
+    },
+    "hiddenShare_model": {
+      "street 10.5 m": 0.82,
+      "roof to street 5 m": 0.41,
+      "10 m": 0.64,
+      "15 m": 0.84,
+      "20 m": 0.95,
+      "roof to roof": 0
+    },
+    "botSight": "Sensing pre-filter: clarity = 1 - heightFogAt(eye, chest); under ARENA_SEE (0.18) not seen (no ray); reaction x (1 + 1.5*lost), lost = (1-clarity)/(1-ARENA_SEE); aim spread = max(distance fog term, fogSpread*(1-clarity))",
+    "renderedVsModel": {
+      "method": "vis34.mjs: a light grey mannequin at each distance, the projected box's pixels that differ from the no-fog frame by > 60, against the CPU twin (1 - hidden)",
+      "rows": [
+        {
+          "pair": "street 4",
+          "rendered": 0.788,
+          "model": 0.777,
+          "botSees": true
+        },
+        {
+          "pair": "street 8",
+          "rendered": 0.493,
+          "model": 0.366,
+          "botSees": true
+        },
+        {
+          "pair": "street 10.5",
+          "rendered": 0.26,
+          "model": 0.177,
+          "botSees": false
+        },
+        {
+          "pair": "street 14",
+          "rendered": 0.059,
+          "model": 0.046,
+          "botSees": false
+        },
+        {
+          "pair": "roof→street 12",
+          "rendered": 0.203,
+          "model": 0.266,
+          "botSees": true
+        },
+        {
+          "pair": "roof→street 15",
+          "rendered": 0.112,
+          "model": 0.155,
+          "botSees": false
+        },
+        {
+          "pair": "roof→street 20",
+          "rendered": 0.074,
+          "model": 0.048,
+          "botSees": false
+        },
+        {
+          "pair": "roof→street 25",
+          "rendered": 0.04,
+          "model": 0.011,
+          "botSees": false
+        },
+        {
+          "pair": "roof→roof 28",
+          "rendered": 0.969,
+          "model": 1,
+          "botSees": true
+        }
+      ],
+      "reading": "agreement within ~0.15; the picture's edge in the street (~0.18 visible) at ~11.9 m against the bots' 10.4 m: the bots give up a metre and a half early. A mid-level target (4.5 m) seen from a roof stays mostly visible (~15% hidden at 15 m)."
+    }
+  },
+  "checks": {
+    "levelAI": "runners 224/224 (was 216/224 on the new map, 152/160 on 33.1's: the goal (-30, 0, -50) behind the forecourt car, no nodes in that strip since 14.0; now a row at |z| 52.5), graph ok, gunners 8/8",
+    "world": "clean",
+    "stress": {
+      "runs": 16000,
+      "failures": 0,
+      "fixed": "3 'ended inside geometry' in the 0.4-0.6 m slot between the bus shelter's end and Block E's wall (shelter, roof and bench now run to the wall)"
+    },
+    "tests": 388
+  },
+  "selfPlay": {
+    "method": "tdmSim 5v5, 4 matches a cell",
+    "33.1 (baseline)": {
+      "n": 4,
+      "kpm": 13.8,
+      "quiet": 37.1,
+      "stuck": 0,
+      "wallPress": 2,
+      "died3s": 0,
+      "ai": [
+        0.052,
+        0.4
+      ],
+      "firstEng": null,
+      "lane_west": 32.2,
+      "lane_centre": 37.5,
+      "lane_east": 30.2,
+      "kills": 415,
+      "flankKills": 53,
+      "kz": {
+        "THE CROSSING": 26,
+        "WEST ROOFS": 45,
+        "FOOTBRIDGE": 125,
+        "SERVICE ALLEY": 28,
+        "MAIN STREET": 90,
+        "LANTERN ALLEY": 25,
+        "EAST ROOFS": 66,
+        "NOODLE GAP": 5,
+        "ARCADE": 2,
+        "SKYBRIDGE": 2,
+        "ALPHA FORECOURT": 1
+      },
+      "fog_ground": [
+        142,
+        7.9,
+        11.3
+      ],
+      "fog_roof": [
+        192,
+        16.2,
+        31.4
+      ],
+      "fog_across": [
+        81,
+        11.9,
+        25.6
+      ],
+      "sightCut": 1097638
+    },
+    "34.0 first build": {
+      "n": 4,
+      "kpm": 11.6,
+      "quiet": 45.9,
+      "stuck": 6,
+      "wallPress": 4,
+      "died3s": 0,
+      "ai": [
+        0.096,
+        0.6
+      ],
+      "firstEng": null,
+      "lane_west": 34.2,
+      "lane_centre": 34.5,
+      "lane_east": 31.3,
+      "kills": 410,
+      "flankKills": 31,
+      "kz": {
+        "THE CROSSING": 6,
+        "FOOTBRIDGE": 139,
+        "EAST ROOFS": 81,
+        "MAIN STREET": 62,
+        "WEST ROOFS": 74,
+        "SERVICE ALLEY": 8,
+        "LANTERN MARKET": 6,
+        "LANTERN ALLEY": 10,
+        "TRANSIT RAIL": 5,
+        "ARCADE": 2,
+        "SKYBRIDGE": 8,
+        "ALPHA FORECOURT": 3,
+        "LANTERN BRIDGE": 2,
+        "OMEGA FORECOURT": 2,
+        "NOODLE GAP": 2
+      },
+      "fog_ground": [
+        324,
+        7.6,
+        10.4
+      ],
+      "fog_roof": [
+        57,
+        11.4,
+        27.0
+      ],
+      "fog_across": [
+        29,
+        17.4,
+        32.1
+      ],
+      "sightCut": 3801600
+    },
+    "34.0 + directRise 1": {
+      "n": 4,
+      "kpm": 10.8,
+      "quiet": 51.1,
+      "stuck": 3,
+      "wallPress": 2,
+      "died3s": 0,
+      "ai": [
+        0.063,
+        0.425
+      ],
+      "firstEng": null,
+      "lane_west": 32.8,
+      "lane_centre": 37.4,
+      "lane_east": 29.8,
+      "kills": 417,
+      "flankKills": 48,
+      "kz": {
+        "LANTERN ALLEY": 18,
+        "EAST ROOFS": 83,
+        "SERVICE ALLEY": 9,
+        "FOOTBRIDGE": 134,
+        "WEST ROOFS": 72,
+        "MAIN STREET": 61,
+        "THE CROSSING": 12,
+        "TRANSIT RAIL": 6,
+        "LANTERN MARKET": 10,
+        "NOODLE GAP": 4,
+        "LANTERN BRIDGE": 2,
+        "ARCADE": 2,
+        "SKYBRIDGE": 1,
+        "THE JUNCTION": 3
+      },
+      "fog_ground": [
+        337,
+        7.5,
+        11.2
+      ],
+      "fog_roof": [
+        52,
+        11.4,
+        27.0
+      ],
+      "fog_across": [
+        28,
+        19.6,
+        35.9
+      ],
+      "sightCut": 4205963
+    },
+    "34.0 final (patrol offset fixed)": {
+      "n": 4,
+      "kpm": 12.3,
+      "quiet": 45.8,
+      "stuck": 0,
+      "wallPress": 1,
+      "died3s": 0,
+      "ai": [
+        0.06,
+        0.45
+      ],
+      "firstEng": null,
+      "lane_west": 34.1,
+      "lane_centre": 34.3,
+      "lane_east": 31.6,
+      "kills": 402,
+      "flankKills": 29,
+      "kz": {
+        "WEST ROOFS": 88,
+        "FOOTBRIDGE": 128,
+        "EAST ROOFS": 72,
+        "LANTERN ALLEY": 12,
+        "ALPHA FORECOURT": 1,
+        "THE CROSSING": 12,
+        "SKYBRIDGE": 4,
+        "SERVICE ALLEY": 7,
+        "MAIN STREET": 58,
+        "ARCADE": 6,
+        "NOODLE GAP": 1,
+        "LANTERN MARKET": 7,
+        "THE JUNCTION": 2,
+        "OMEGA FORECOURT": 3,
+        "TRANSIT RAIL": 1
+      },
+      "fog_ground": [
+        302,
+        7.3,
+        10.8
+      ],
+      "fog_roof": [
+        60,
+        11.9,
+        26.4
+      ],
+      "fog_across": [
+        40,
+        13.7,
+        30.4
+      ],
+      "sightCut": 3596291
+    },
+    "34.0 final, directRise Infinity (A/B)": {
+      "n": 4,
+      "kpm": 12.1,
+      "quiet": 45.1,
+      "stuck": 0,
+      "wallPress": 0,
+      "died3s": 0,
+      "ai": [
+        0.056,
+        0.4
+      ],
+      "firstEng": null,
+      "lane_west": 33.9,
+      "lane_centre": 34.7,
+      "lane_east": 31.4,
+      "kills": 410,
+      "flankKills": 41,
+      "kz": {
+        "FOOTBRIDGE": 104,
+        "SKYBRIDGE": 6,
+        "EAST ROOFS": 92,
+        "MAIN STREET": 63,
+        "THE CROSSING": 16,
+        "SERVICE ALLEY": 7,
+        "WEST ROOFS": 70,
+        "LANTERN BRIDGE": 4,
+        "OMEGA FORECOURT": 2,
+        "THE JUNCTION": 5,
+        "LANTERN MARKET": 6,
+        "LANTERN ALLEY": 16,
+        "NOODLE GAP": 2,
+        "ARCADE": 6,
+        "TRANSIT RAIL": 3,
+        "ALPHA FORECOURT": 8
+      },
+      "fog_ground": [
+        323,
+        7.0,
+        10.2
+      ],
+      "fog_roof": [
+        54,
+        12.1,
+        29.1
+      ],
+      "fog_across": [
+        33,
+        19.3,
+        33.0
+      ],
+      "sightCut": 3669575
+    },
+    "flankMovingTimePct": {
+      "33.1": 21.8,
+      "34.0": 23.4
+    },
+    "notes": [
+      "fog bands differ: 33.1's report split ground/roof at 3 m, 34.0's at 6.2 m (the landings now count as ground)",
+      "the first build's 6 stuck reports: a patrol point 0.7 m from the rail deck's edge, its 0.8 m offset in the air beside the deck; fixed by the deck's centre line and a 0.3 m offset on raised areas"
+    ]
+  },
+  "perf": {
+    "bench3 neonblock [fps, cpuMs, gpuMs, drawCalls, frameP99]": {
+      "alphaYard": [
+        60,
+        2.7,
+        6.43,
+        322,
+        18
+      ],
+      "mainStreet": [
+        60,
+        2.88,
+        6.41,
+        290,
+        23.3
+      ],
+      "lanternAlley": [
+        60,
+        2.54,
+        6.55,
+        328,
+        24.9
+      ],
+      "fireEscape": [
+        60,
+        2.61,
+        6.11,
+        311,
+        24.9
+      ],
+      "westRoofs": [
+        60,
+        2.24,
+        6.1,
+        331,
+        23.2
+      ],
+      "footbridge": [
+        60,
+        2.95,
+        6.04,
+        250,
+        24.7
+      ],
+      "eastRoofs": [
+        60,
+        2.7,
+        6.29,
+        288,
+        17.9
+      ],
+      "serviceAlley": [
+        60,
+        2.77,
+        6.1,
+        305,
+        25.4
+      ],
+      "wholeBlock": [
+        60.3,
+        2.35,
+        6.09,
+        382,
+        17.5
+      ],
+      "lanternBridge": [
+        60,
+        2.6,
+        6.15,
+        168,
+        18.4
+      ],
+      "transitRail": [
+        59.6,
+        2.36,
+        6.01,
+        258,
+        25.1
+      ],
+      "lanternMarket": [
+        60,
+        2.6,
+        6.27,
+        143,
+        18.3
+      ],
+      "roofDown": [
+        60,
+        2.07,
+        6.26,
+        289,
+        18
+      ],
+      "firefight": [
+        60,
+        2.47,
+        5.94,
+        220,
+        25.3
+      ]
+    },
+    "benchNote": "a first run read CPU 6-8 ms and 55 FPS in Lantern Alley while a console call polled the page every second; the rerun without it is above",
+    "leakcheck": {
+      "maps": "neonblock, docks, crashsite (2 laps) and docks, neonblock",
+      "aliveAfterGC": 0,
+      "neonblock": "237 geometries, 71-73 textures lap over lap (the first map loaded in a run shows fewer: shared caches)"
+    },
+    "vramCycle": {
+      "laps": 3,
+      "growthLastLap": "0 at every stop",
+      "neonblock": [
+        223,
+        74,
+        77
+      ]
+    }
+  }
+}

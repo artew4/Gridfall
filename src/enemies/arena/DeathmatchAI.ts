@@ -245,10 +245,11 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   }
 
   // ------------------------------------------------------------------ events
-  onSight(_h: Combatant, now: number) {
+  onSight(_h: Combatant, now: number, clarity = 1) {
     // 12.0: a new face in view is decided after its reaction time (7.0: on the same frame, which made
-    // a squad turn as one).
-    this.react(now);
+    // a squad turn as one). 34.0: slower for a figure the ground fog half hides (ARENA.fogReact).
+    const lost = Math.min(1, Math.max(0, (1 - clarity) / (1 - ARENA_SEE)));
+    this.react(now, 1 + ARENA.fogReact * lost);
   }
 
   /** Hit by `by`: look at it now, maybe jump out of the line. */
@@ -894,7 +895,10 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       h = this.hva >= 0 ? A.director.hvas[this.hva] : null;
       if (!h) return;
     }
-    this.goal = new THREE.Vector3(h.x + Math.cos(this.seed) * 0.8, h.y, h.z + Math.sin(this.seed) * 0.8);
+    // 34.0: less off a raised area (as a lane's waypoints): 0.8 m off a 3 m deck's patrol point put
+    // some bots' goals in the air beside it, and they stood under it (self-play, Neon Block's rail).
+    const off = h.y > 0.5 ? 0.3 : 0.8;
+    this.goal = new THREE.Vector3(h.x + Math.cos(this.seed) * off, h.y, h.z + Math.sin(this.seed) * off);
   }
 
   /** No contact: walk the lane towards the director's front, then patrol a step either side of it. */
@@ -1301,6 +1305,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       }
       fog = ARENA.fogSpread * (1 - contrastAt(rho, d));
     }
+    // 34.0: and with what the ground fog leaves of it (Sensing's last check of this pair).
+    const clarity = this.seen.get(T.uid)?.clarity ?? 1;
+    fog = Math.max(fog, ARENA.fogSpread * (1 - clarity));
     // Aimed: pinpoint (no bloom; a walking strafe adds a touch). Hip: the 7.0 cone, wider by hipSpread.
     const spread = this.aiming
       ? ARENA.ads.spread + this.jitter + fog + (strafing ? ARENA.strafeSpread * 0.3 : 0)

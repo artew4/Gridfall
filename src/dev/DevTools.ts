@@ -188,6 +188,19 @@ export function installDevTools(game: Game) {
     async stairGaps() {
       return (await import('./WorldCheck')).stairGapProbe(game);
     },
+    /**
+     * 34.0, the live ground fog: the share of a target at `to` hidden from an eye at `from` (the bots'
+     * model, HeightFog.heightFogAt), and the fog switched off (`on(false)`) or back on, for render checks.
+     */
+    async fog() {
+      const H = await import('../world/HeightFog');
+      const d = H.HFOG.x || (window as unknown as { __fogD?: number }).__fogD || 0;
+      (window as unknown as { __fogD?: number }).__fogD = d;
+      return {
+        at: (from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }) => H.heightFogAt(from, to, { density: d, dense: H.HFOG.y, top: H.HFOG.w, ground: H.HFOG_SHAPE.x, opacity: H.HFOG.z }),
+        on: (v: boolean) => void (H.HFOG.x = v ? d : 0),
+      };
+    },
     /** 33.0: how much the undergrowth blocks sight at standing and crouched height (geometric, every plant instance). */
     async foliageSight(opts: { n?: number; seed?: number } = {}) {
       return (await import('./FoliageCheck')).foliageSight(game, opts);

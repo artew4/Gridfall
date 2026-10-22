@@ -1745,8 +1745,84 @@ Branch `feature/deep-jungle-33.1`, from `main` @ `04c55e3` (33.0, merged). Full 
 - **Measured:** `levelAI` 192/192 in three runs of three, every node reachable, gunners 8/8; `world` clean; `stress` 16,000 runs, 0 failures. Self-play 7v7 (4 matches): no stuck bots, 11 wall-presses (33.0: 17), kills a minute 25.4 (24.5), the tunnels 15% of lane time (9%). `leakcheck` 0 alive.
 - **Frame cost:** `bench(3)` on Deep Jungle: 60 FPS in all 14 views, GPU 6.1–6.6 ms, CPU 2.2–3.6 ms (33.0: 6.0–6.6, 2.4–3.1); a run before it saw CPU 4–5 ms from mid-run on, transient (the rims are the same boxes, 0.32 m taller).
 
+## 34.0: Night Tokyo overhaul (Neon Block)
+
+Branch `feature/night-tokyo-34.0`, from `main` @ `a0f7d1c` (33.1, merged). Full numbers: `docs/BENCH-34.0.json`.
+
+### The smog (`world/HeightFog.ts`)
+- **The profile:** 25.0's fog was thickest at the ground and gone by 4.5 m. From a roof, a street target 15 m off was only 14% veiled, so the high ground saw straight into the street. Now a smog fills the street canyon:
+  - density D·(1 + g·(1 − y/H0)) up to `dense` (6.2 m: the street, the landings and the footbridge at 4.5 m are in it), densest at the ground;
+  - a linear fade to nothing at `top` (7.0 m: the roofs and the skybridge at 7.2 m stand clear).
+  - Its optical depth along the camera–fragment segment is still integrated in closed form. `GroundFog { density, dense, top, ground, opacity, color }`, `setHeightFog(f)`.
+- **What it hides** (the CPU twin, `heightFogAt`):
+  - in the street a standing figure is 82% hidden at 10.5 m;
+  - from a roof, a street target is 41% hidden at 5 m, 64% at 10 m, 84% at 15 m and 95% at 20 m;
+  - roof to roof is clear.
+- **Glows bloom in it:** HDR colour is clamped to 1 as the fog thickens (`mix(min(rgb, 1), rgb, T)` before the fog mix), so a neon sign deep in the smog diffuses into a glow instead of punching through it.
+
+### The bots see what the picture shows (`arena/Sensing.ts`, `DeathmatchAI.ts`)
+- 25.0's rule was binary: no sight past 13 m with both feet under 3 m.
+- **The new rule:** Sensing's pre-filter asks the fog itself, `clarity = 1 − heightFogAt(eye, chest)`, with no ray. Under `ARENA_SEE` (0.18) the pair isn't seen.
+- **Clarity scales the reaction and the aim:**
+  - it rides on the sighting (`Seen.clarity`, `onSight(h, now, clarity)`);
+  - the reaction time grows ×(1 + `ARENA.fogReact` 1.5 × the share lost);
+  - the aim's fog spread is the larger of the distance term and `fogSpread` × (1 − clarity).
+  - A half-hidden figure is seen late and shot at wide; a clear one as before.
+- **Rendered vs model** (`vis34`): a light grey mannequin at each distance; counted are the pixels of its projected box that differ from the frame without fog.
+
+  | Pair | Rendered | Model |
+  |---|---|---|
+  | Street 4 m | 0.79 | 0.78 |
+  | Street 8 m | 0.49 | 0.37 |
+  | Street 10.5 m | 0.26 | 0.18 |
+  | Street 14 m | 0.06 | 0.05 |
+  | Roof → street 12 m | 0.20 | 0.27 |
+  | Roof → street 15 m | 0.11 | 0.16 |
+  | Roof → street 20 m | 0.07 | 0.05 |
+  | Roof → roof 28 m | 0.97 | 1 |
+
+  - The two agree within about 0.15. The bots lose a street figure at about 10.4 m, the picture at about 11.9 m.
+  - A mid-level target (4.5 m) seen from a roof stays mostly visible (about 15% hidden at 15 m): the smog thins towards its top.
+
+### The flanks (`NeonBlock.ts`, flanks section; `FLANKS` in the layout)
+- **Lantern Bridge** (west): a 2 m catwalk at the landings' height (4.5 m) over the crossing's west mouth, along Block W's corner. A stair climbs to it at each end, and its west rail has a drop gap.
+- **Lantern Market** (beside the bridge stair's foot): the alley narrowed to 4.8 m. A stall counter, a vaultable cart, and a two-high stack of AC units that splits it into two 1.6–1.7 m ways. Warm lamps, with a CanvasTexture hologram over it (additive, flickering).
+- **Transit Rail** (east): an elevated deck at 4.5 m along the boundary wall over the crossing, with a stair at each end and an inner rail with drop gaps. A transit car stands on it at the crossing (1.4 m to pass it; window strip, track decals). In each half a bridge comes from E1's roof through a gap in its parapet. The service lamp that crossed the deck hangs under it now.
+- **The Junction** (by E2's stair): an AC stack, a vending machine and a hologram.
+- Everything is primitives and canvas textures, built into the static batches or instanced; the holograms dispose with the level.
+- **Nav:** chains up the stairs, drops through the rail gaps, the decks' nodes. 8 new `testGoals`. Patrol areas on the new places (`hvas`); on the rail deck they sit on its centre line, clear of the car.
+
+### Fixed on the way
+- **Stress:** 3 of 16,000 sprint-jumps ended inside geometry in the 0.4–0.6 m slot between the bus shelter's end and Block E's wall. The shelter's wall, roof and bench now run to the wall; the bench is a step, not a vault.
+- **levelAI:** the goal (−30, 0, −50), behind the forecourt car, had failed since 14.0: there were no nodes in the strip behind the cars, so runners stalled at the alley's end. Now there is a row at |z| 52.5. 224/224.
+- **Patrol goals on a raised area** (engine-wide) are offset 0.3 m, not 0.8 m, as lane waypoints already were. On the rail's 3 m deck, 0.8 m put some bots' goals in the air beside it, and they stood under it; the first build had 6 stuck reports in 4 matches.
+- **Neon Block's AI profile:** `directRise` 1 (the stairs, never straight up at a goal). Pace is the same as Infinity (12.3 vs 12.1 kills a minute).
+
+### Checks
+- `levelAI` 224/224 runners, every node reachable, gunners 8/8.
+- `world` clean; `stress` 16,000 runs, 0 failures.
+- Tests 388: the fog model's street and roof shares, the shared uniforms, the reaction scaling.
+
+### Measured (bot-only, 5v5, 4 matches a cell)
+| | 33.1's map | 34.0 |
+|---|---|---|
+| kills a minute | 13.8 | 12.3 |
+| quiet seconds | 37% | 46% |
+| stuck / wall-presses | 0 / 2 | 0 / 1 |
+| lanes west / centre / east | 32 / 38 / 30% | 34 / 34 / 32% |
+| moving time in the flank zones | 21.8% | 23.4% |
+| kills in the flank zones | 53 of 415 | 29 of 402 |
+| kills on the roofs (West + East) | 111 | 160 |
+| street kills: median / p90 | 7.9 / 11.3 m | 7.3 / 10.8 m |
+| deaths within 3 s of spawning | 0 | 0 |
+| AI ms a step (avg / p99) | 0.05 / 0.40 | 0.06 / 0.45 |
+- **What changed in play:** the smog cost about 11% of the pace and made the street shorter. The fights it took went up: roof kills rose about 45%, because the roofs are the only clear air. The bots walk the flanks more but fight in them less: the smog hides them there, and the new decks are routes more than arenas. If the flanks should be killing grounds, the next lever is the patrols (more weight on them), not thinner smog.
+- **Frame cost:** `bench(3)` on Neon Block: 60 FPS in all 14 views (4 new: the bridge, the rail, the market, the roof looking down); CPU 2.1–3.0 ms, GPU 5.9–6.6 ms (25.0: 5.4–6.4).
+- **Leaks:** `leakcheck` (Neon Block, Neon Docks, Deep Jungle): 0 alive after GC, Neon Block steady lap over lap. `vramCycle` (3 laps): 0 growth at every stop.
+
 ## Next
 Human playtest:
+- 34.0 items: Neon Block's smog (does looking down from a roof feel blinding, or just murky; is about 11 m in the street too short; do the glows read as smog or as blur); do the bots feel fair in it (seen late when half hidden: does it match what you can see); the Lantern Bridge and the Transit Rail (do you find them, do the rail gaps work as drop-downs, the car as cover); the Lantern Market (does it play as a close-quarters room; the holograms: charming or noise); are the roofs now too strong (most of the long fights went up there).
 - 33.1 items: the ravine's end ramps (do you walk out at the ends without catching on anything; do the taller rims along them read as walls).
 - 33.0 items: Deep Jungle's outpost (does the lab on stilts read as a place; the roof: too strong a perch?), the tunnels (do you find and use them; the pits and the ravine mouths; too dark?), the plants (can you see enemies now, is it still a jungle), the overgrown containers, do bots still run into walls.
 - 32.0 items: Neon Docks' new palette (easier on the eyes, or too dull now?), the rain (still atmospheric?), the roofed warehouse (a fortress again?), 9v9 (busy or chaotic; can you read the team board), the forward zone B (spawning near the fight: fair?), do the bots still bunch up where you play.

@@ -56,6 +56,11 @@ export const ARENA = {
    */
   fogSpread: 0.06,
   /**
+   * 34.0: recognising a figure in the ground fog takes longer: the reaction × (1 + fogReact × the
+   * contrast lost, 0 in clear air, 1 at the edge of sight ARENA_SEE): 2.5× there.
+   */
+  fogReact: 1.5,
+  /**
    * 11.0, human-like shot choice by range (see DeathmatchAI `wantAim`):
    *  - close (under `exit` m, or under `enter` m if not already aiming): hip fire on the move, full
    *    speed strafing, `hipSpread` wider than before (and the bloom of a fresh target);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Combatant } from '../../combat/Team';
 import { ARENA } from './ArenaCtx';
+import { ARENA_SEE } from '../../world/Visibility';
 
 /*
   Attention-driven line of sight for the arena bots (7.0). Nobody scans the map: every frame the
@@ -32,6 +33,8 @@ export interface Seen {
   last: number;
   at: number;
   next: number;
+  /** 34.0: the share of its contrast the ground fog left it at the last check (1: clear). */
+  clarity?: number;
 }
 
 /** A viewer: the bot's body, what it fights, and when each hostile last alerted it (uid → time). */
@@ -40,8 +43,8 @@ export interface SenseAgent {
   readonly target: Combatant | null;
   readonly alert: Map<number, number>;
   readonly seen: Map<number, Seen>;
-  /** Told the moment a hostile comes into view (it decides on the same frame). */
-  onSight(h: Combatant, now: number): void;
+  /** Told the moment a hostile comes into view (34.0: with what the fog left of it, 0..1). */
+  onSight(h: Combatant, now: number, clarity?: number): void;
   /**
    * 12.0: a viewer with a field of view (cos of its half-angle; nothing outside it is seen, alerted
    * or not) and one re-check interval for everything inside it (the human).
@@ -93,9 +96,13 @@ export class Sensing {
    * `los`: the collision query (the caller counts it against the frame budget). `hidden`: soft
    * concealment along a sightline (the jungle's undergrowth), if any.
    */
-  /** 25.0: a ground fog's sight cap (TdmData.groundFog): both feet under `below` m, no further than `range`. */
-  fog: { below: number; range: number } | null = null;
-  /** 25.0 (DEV): pairs the fog cut (in range otherwise, both in the fog, beyond its range). */
+  /**
+   * 34.0: the ground fog as the picture draws it (HeightFog.heightFogAt: the share of a target hidden
+   * from an eye, along the actual line between them, any heights). A pair the fog leaves less than
+   * ARENA_SEE of its contrast is not seen (25.0: a cap, 13 m with both feet under 3 m, nothing else).
+   */
+  fog: ((eye: THREE.Vector3, chest: THREE.Vector3) => number) | null = null;
+  /** 25.0 (DEV): pairs the fog cut (in range otherwise, the fog hid them). */
   fogCut = 0;
 
   constructor(
@@ -145,12 +152,16 @@ export class Sensing {
           s.vis = false;
           continue;
         }
-        // 25.0: in the ground fog both ways, nobody sees past its range (a figure 85% hidden).
-        const F = this.fog;
-        if (F && d > F.range && me.pos.y < F.below && h.pos.y < F.below) {
-          s.vis = false;
-          this.fogCut++;
-          continue;
+        // 34.0: the ground fog along the line, eye (crouch-aware) to chest: what the player would see.
+        if (this.fog) {
+          _eye.set(me.pos.x, me.pos.y + 1.55 - 0.55 * me.crouch, me.pos.z);
+          _to.set(h.pos.x, h.pos.y + h.chestY, h.pos.z);
+          s.clarity = 1 - this.fog(_eye, _to);
+          if (s.clarity < ARENA_SEE) {
+            s.vis = false;
+            this.fogCut++;
+            continue;
+          }
         }
         const alertT = a.alert.get(h.uid) ?? -Infinity;
         const alerted = now - alertT < S.alertFor;
@@ -232,7 +243,7 @@ export class Sensing {
         s.since = now;
         s.vis = true;
         s.last = now;
-        a.onSight(h, now);
+        a.onSight(h, now, s.clarity ?? 1);
       }
       s.last = now;
     } else s.vis = false;

@@ -8,7 +8,7 @@ import { applyWet } from '../../world/Ground';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import type { RainAreas } from '../../world/Rain';
 import { asphaltTexture, concreteTexture, facadeTexture, grilleTexture, lanternTexture, pavingTexture, perforatedTexture, shutterTexture, storefrontTexture, vendingTexture } from '../../world/Textures';
-import { BASE, BE, BW, COURT, CROSS, FOOT, MID, PLANK, SKY, TOP, X_OUT, Z_END, lanesOf, mz, spawnsOf, zoneAt } from './NeonBlockLayout';
+import { BASE, BE, BW, COURT, CROSS, FLANKS, FOOT, MID, PLANK, SKY, TOP, X_OUT, Z_END, lanesOf, mz, spawnsOf, zoneAt } from './NeonBlockLayout';
 import type { Zone } from '../Level';
 
 /*
@@ -332,7 +332,8 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   edge2(false, CROSS, BE.gap[0], BE.x0, BE.x0 + PT, MID, EH, [[FOOT.arm[0], FOOT.arm[1]]], m.concrete);
   edge2(true, BE.x0 + PT, BE.x1, CROSS, CROSS + PT, MID, EH, [[PLANK.x0, PLANK.x1]], m.concrete);
   edge2(true, BE.x0 + PT, BE.x1, BE.gap[0] - PT, BE.gap[0], MID, EH, [[18, 22], [26, 28.4]], m.concrete);
-  edge2(false, CROSS + PT, BE.gap[0] - PT, BE.x1 - PT, BE.x1, MID, EH, [[14, 16.4]], m.concrete);
+  // 34.0: and the Transit Rail's bridge (FLANKS.transitRail.bridge).
+  edge2(false, CROSS + PT, BE.gap[0] - PT, BE.x1 - PT, BE.x1, MID, EH, [[FLANKS.transitRail.bridge[0], FLANKS.transitRail.bridge[1]], [14, 16.4]], m.concrete);
   // E2: the gap bridge (north), the service-alley stair's top and a drop (east), a drop to the street (west).
   edge2(true, BE.x0, BE.x1, BE.gap[1], BE.gap[1] + PT, MID, EH, [[18, 22]], m.concrete);
   edge2(false, BE.gap[1] + PT, COURT, BE.x1 - PT, BE.x1, MID, EH, [[BE.gap[1] + PT, 32.4], [43, 45.4]], m.concrete);
@@ -375,9 +376,12 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   // truck west and a bus shelter east in each half, staggered with the van, and the police box at
   // the crossing: no standing line runs the street's length any more.
   solid2(-10, 0, 31, -7.5, 2.7, 38, m.van, 'metal', 1);
-  solid2(9, 0, 18.4, 12.6, 2.6, 18.7, m.steel, 'metal', 1);
-  solid2(9, 2.6, 17, 12.6, 2.75, 18.7, m.steel, 'metal', 1);
-  vault2(9.2, 17.95, 12.4, 18.4, 0.45, m.wood, 'wood');
+  // The shelter's back wall, roof and bench run on to Block E's wall: the 0.4-0.6 m slot at their end
+  // trapped a sprint-jumping body (34.0 stress test). The bench is a step (0.45 m), not a vault: a vault
+  // along it would push a body into the wall.
+  solid2(9, 0, 18.4, BE.x0, 2.6, 18.7, m.steel, 'metal', 1);
+  solid2(9, 2.6, 17, BE.x0, 2.75, 18.7, m.steel, 'metal', 1);
+  solid2(9.2, 0, 17.95, BE.x0, 0.45, 18.4, m.wood, 'wood', 1);
   // The koban (police box) under the footbridge: 3 m, clear of the deck's 4.25 m underside.
   solid(-6, 0, -3, 6, 3, 3, m.concrete, 'concrete', 2);
   // The crossing (authored once, it is its own mirror): a taxi, planters.
@@ -424,6 +428,58 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   solid2(36.4, 0, 12, X_OUT, 1.0, 14.2, m.dumpster, 'metal', 1);
   solid2(36.4, 0, 36, X_OUT, 1.0, 38.2, m.dumpster, 'metal', 1);
   solid2(36, 0, 18, 37.8, 1.6, 19.8, m.wood, 'wood', 1);
+  // ---------------------------------------------------------------- 34.0: the flanks
+  // 14.0–33.0 the alleys were straight 38 m runs with a few props: 12% of the kills between them. Now
+  // each has a raised route over the crossing and a close-quarters pocket that breaks its sightline.
+  //
+  // WEST, the Lantern Bridge: a catwalk at MID over the crossing's west mouth along Block W's corner,
+  // up a stair at each end (plated both sides; 0.2 m off the block's wall), a drop gap in its west rail
+  // a half. The Lantern Market beside the stair's foot: the alley narrowed to 4.8 m, a stall counter, a
+  // cart, a two-high stack of AC units splitting the alley in two 1.6–1.7 m ways, a hologram over it.
+  const LB = FLANKS.lanternBridge;
+  stair2(LB.x0, CROSS + 1.2, LB.x1, LB.foot, 'z', -1, 0, MID, m.steel, ['lo', 'hi']);
+  solid(LB.x0, MID - 0.25, -(CROSS + 1.2), LB.x1, MID, CROSS + 1.2, m.deck, 'metal', 1);
+  for (const [z0, z1] of [[-CROSS - 1.2, -LB.drop[1]], [-LB.drop[0], LB.drop[0]], [LB.drop[1], CROSS + 1.2]] as const) solid(LB.x0, MID, z0, LB.x0 + 0.08, MID + 1.05, z1, m.rail, 'metal', 1).vault = false;
+  solid(LB.x1 - 0.08, MID, -CROSS, LB.x1, MID + 1.05, CROSS, m.rail, 'metal', 1).vault = false;
+  for (const z of [-6.5, 6.5]) solid((LB.x0 + LB.x1) / 2 - 0.12, 0, z - 0.12, (LB.x0 + LB.x1) / 2 + 0.12, MID - 0.25, z + 0.12, m.steel, 'metal', 1);
+  solid2(-X_OUT, 0, 10, -36.8, 1.0, 12, m.wood, 'wood', 1);
+  vault2(-36.1, 13.6, -34.9, 14.4, 1.0, m.wood, 'wood');
+  acStack2(-35.6, 16.6);
+  //
+  // EAST, the Transit Rail: an elevated rail deck at MID along the boundary wall over the crossing, up a
+  // stair at each end, joined to E1's roof by a bridge a half, a drop gap a half; a transit car stands
+  // on it at the crossing against the wall (1.4 m passes it). The Junction by E2's stair: an AC stack,
+  // vending machines, a hologram.
+  const TR = FLANKS.transitRail;
+  solid(TR.x0, MID - 0.25, -TR.end, X_OUT, MID, TR.end, m.deck, 'metal', 1);
+  stair2(TR.stairX0, TR.end, X_OUT - STAIR_GAP, TR.foot, 'z', -1, 0, MID, m.steel, ['lo']);
+  // Its inner rail: gaps for the bridges to E1 and the drops; across the deck's ends beside the stairs.
+  {
+    const gaps: [number, number][] = [[-TR.bridge[1], -TR.bridge[0]], [TR.bridge[0], TR.bridge[1]], [-TR.drop[1], -TR.drop[0]], [TR.drop[0], TR.drop[1]]].sort((p, q) => p[0] - q[0]) as [number, number][];
+    let cur = -TR.end;
+    for (const [g0, g1] of gaps) {
+      solid(TR.x0, MID, cur, TR.x0 + 0.08, MID + 1.05, g0, m.rail, 'metal', 1).vault = false;
+      cur = g1;
+    }
+    solid(TR.x0, MID, cur, TR.x0 + 0.08, MID + 1.05, TR.end, m.rail, 'metal', 1).vault = false;
+  }
+  plate2(TR.x0, TR.end - 0.08, TR.stairX0, TR.end, MID, 1.05);
+  for (const z of [6, 16]) post2(X_OUT - 0.4, z, MID - 0.25);
+  post2(X_OUT - 0.4, 0, MID - 0.25);
+  deck2(BE.x1, TR.bridge[0], TR.x0, TR.bridge[1], MID);
+  plate2(BE.x1, TR.bridge[0], TR.x0, TR.bridge[0] + 0.08, MID, 1.05);
+  plate2(BE.x1, TR.bridge[1] - 0.08, TR.x0, TR.bridge[1], MID, 1.05);
+  // The car (cover on the line), its windows, the tracks (decals flush with the deck).
+  solid(TR.carX0, MID, -TR.car, X_OUT, MID + 2.4, TR.car, m.van, 'metal', 1);
+  b.add(new THREE.PlaneGeometry(3.4, 0.7), m.strip, TR.carX0 - 0.02, MID + 1.6, 0, 0, -Math.PI / 2, 0);
+  for (const x of [36.6, 37.5]) b.add(new THREE.PlaneGeometry(0.08, 2 * TR.end), m.steel, x, MID + 0.01, 0, -Math.PI / 2, 0, 0);
+  acStack2(35.8, 33.6);
+  vending2(X_OUT, 44, 'w', 'red');
+  // Holograms: a text in a scanlined frame, additive, flickering (the glows drive their colour).
+  holo2('ナイトマーケット', 'NIGHT MARKET', '#ff7ad9', -34.6, 3.6, 13, 2.6, Math.PI / 2);
+  holo2('乗換', 'TRANSIT', '#6fe3ff', 35.0, 3.7, 40, 2.2, Math.PI / 2);
+  holo('環状線', 'LOOP LINE', '#ffd36a', 36.9, MID + 3.1, 0, 3.2, Math.PI / 2);
+
   // Forecourts: planters (vault), a taxi, crates.
   vault2(-10, 48.6, -6, 49.2, 0.9, m.planter);
   vault2(6, 48.6, 10, 49.2, 0.9, m.planter);
@@ -454,6 +510,16 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
       c.vault = true;
     }
   }
+  /** 34.0: a stack of two AC units on the ground (2 m: cover a body can't see over or vault). */
+  function acStack2(x: number, z: number) {
+    for (const s of [1, -1]) {
+      for (const y of [0, 1]) {
+        inst.add('acRoof', AC_ROOF, acBody, x, y + 0.5, z * s);
+        inst.add('acRoofGrille', AC_ROOF_FRONT, grille, x, y + 0.5, z * s + 0.56 * s, s > 0 ? 0 : Math.PI);
+      }
+      col.addCentered(x, 1, z * s, 1.4, 2, 1.1, 'metal');
+    }
+  }
   // Wall AC units, high up the facades (out of reach: decoration, no collision).
   for (const s of [1, -1]) {
     for (let z = 10; z < 46; z += 3.7) {
@@ -468,6 +534,45 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   }
   // Rubbish bags along the alleys' walls (low, decoration).
   for (const s of [1, -1]) for (const [x, z] of [[-37.5, 20], [-37.4, 33], [37.5, 26], [37.6, 41], [37.4, 9.5]]) inst.add('bag', BAG, bagMat, x, 0.28, z * s, z);
+
+  /**
+   * 34.0, a hologram: `text` and `sub` on a scanlined canvas, a double-sided additive plane (seen
+   * only: out of reach, no collision), its colour flickered by a glow. `holo2` also the mirror.
+   */
+  function holo(text: string, sub: string, color: string, x: number, y: number, z: number, w: number, ry: number) {
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 176;
+    const g = c.getContext('2d')!;
+    g.strokeStyle = color;
+    g.lineWidth = 4;
+    g.globalAlpha = 0.9;
+    g.strokeRect(6, 6, 500, 164);
+    g.fillStyle = color;
+    g.textAlign = 'center';
+    g.font = 'bold 74px sans-serif';
+    g.fillText(text, 256, 92);
+    g.font = '600 34px sans-serif';
+    g.fillText(sub, 256, 146);
+    // Scanlines.
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'destination-out';
+    for (let yy = 0; yy < 176; yy += 4) g.fillRect(0, yy, 512, 1.5);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(1.6, 1.6, 1.6), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, (w * 176) / 512), mat);
+    mesh.position.set(x, y, z);
+    mesh.rotation.y = ry;
+    mesh.renderOrder = 5;
+    scene.add(mesh);
+    const gl = glows.add({ pos: v(x, y, z), color: new THREE.Color(color), radius: 3, base: 0.9, mode: 'flicker', haloSize: 1.2, haloStrength: 0.15 });
+    gl.materials.push({ mat, base: mat.color.clone() });
+  }
+  function holo2(text: string, sub: string, color: string, x: number, y: number, z: number, w: number, ry: number) {
+    holo(text, sub, color, x, y, z, w, ry);
+    holo(text, sub, color, x, y, -z, w, ry);
+  }
 
   // ---------------------------------------------------------------- light: competitive, not decorative
   // 14.0: lights go where people fight (lanes, stairs, roofs, landings), warm and even, none pointing
@@ -530,7 +635,11 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
     lamp(-35.8, 4.2, 37 * s, m.warm, 0xffb070, 220, 18, 0, { wallX: -X_OUT });
     // Service Alley: cold work lights, three a half (two left the Noodle Gap's mouth dark: a body
     // there read as nothing at 20 m).
-    for (const z of [12, 27, 42]) lamp(34.5, 5, z * s, m.cold, 0xd8e8ff, 220, 18, 0, { wallX: X_OUT });
+    // 34.0: the one at z 12 hangs under the Transit Rail's deck now (its arm crossed the deck).
+    for (const z of [27, 42]) lamp(34.5, 5, z * s, m.cold, 0xd8e8ff, 220, 18, 0, { wallX: X_OUT });
+    lamp(35.8, MID - 0.55, 12 * s, m.cold, 0xd8e8ff, 200, 16);
+    // The Lantern Market and the Junction: a warm lamp each (pooled).
+    lamp(-35.6, 3.2, 12.2 * s, m.warm, 0xffb070, 140, 12, 0, { wallX: -X_OUT });
     // The roofs: one flood each (W at TOP, E at MID), high enough not to glare.
     lamp(-22, TOP + 3.4, 37 * s, m.warm, 0xffd8b0, 380, 26, TOP, { pole: true });
     lamp(22, MID + 3.4, 44 * s, m.warm, 0xffd8b0, 320, 24, MID, { pole: true });
@@ -617,7 +726,22 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
     drops.push([N(29.1, MID, Z(44.2)), N(32.6, 0, Z(44.2))]);
     drops.push([N(13.9, MID, Z(37.2)), N(11.2, 0, Z(37.2))]);
     drops.push([N(27.2, MID, Z(21.1)), N(27.2, 0, Z(24.3))]);
+    // 34.0, the flanks: the Lantern Bridge's stair (foot, middle, top) and its drop into the crossing;
+    // the Transit Rail's stair, its bridge from E1, its drop into the alley.
+    const LB = FLANKS.lanternBridge, TR = FLANKS.transitRail;
+    const lbx = (LB.x0 + LB.x1) / 2;
+    chain(N(lbx, 0, Z(LB.foot + 0.9)), N(lbx, MID / 2, Z((LB.foot + CROSS + 1.2) / 2)), N(lbx, MID, Z(CROSS + 0.6)));
+    drops.push([N(LB.x0 + 0.6, MID, Z((LB.drop[0] + LB.drop[1]) / 2)), N(LB.x0 - 1.8, 0, Z((LB.drop[0] + LB.drop[1]) / 2))]);
+    const trx = (TR.stairX0 + X_OUT) / 2;
+    chain(N(trx, 0, Z(TR.foot + 0.9)), N(trx, MID / 2, Z((TR.foot + TR.end) / 2)), N(trx, MID, Z(TR.end - 0.6)));
+    const bz = (TR.bridge[0] + TR.bridge[1]) / 2;
+    chain(N(BE.x1 - 1.2, MID, Z(bz)), N((BE.x1 + TR.x0) / 2, MID, Z(bz)), N(TR.x0 + 0.7, MID, Z(bz)));
+    drops.push([N(TR.x0 + 0.6, MID, Z((TR.drop[0] + TR.drop[1]) / 2)), N(TR.x0 - 1.6, 0, Z((TR.drop[0] + TR.drop[1]) / 2))]);
+    for (const z of [4, 8, 16, 20]) N(TR.x0 + 0.7, MID, Z(z));
   }
+  // The Lantern Bridge's deck and the Transit Rail's line past the car.
+  for (const z of [-4, 0, 4]) N((FLANKS.lanternBridge.x0 + FLANKS.lanternBridge.x1) / 2, MID, z);
+  N(FLANKS.transitRail.x0 + 0.7, MID, 0);
   for (const z of [0]) {
     N(-22, TOP, z);
     N(24, MID, z);
@@ -644,6 +768,9 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   latt(range(-11, 11, 5.5), range(-COURT, COURT, 5), 0, ground);
   latt(range(-36, 36, 6), range(-6, 6, 6), 0, ground);
   latt(range(-36, 36, 6), [-50, -47.5, 47.5, 50], 0, ground);
+  // 34.0: the strip behind the forecourts' cars (no node there; a runner sent behind one stalled at the
+  // alley's end, levelAI since 14.0).
+  latt(range(-33, 33, 6), [-52.5, 52.5], 0, ground);
   latt(range(-18, 18, 6), [-63, -59, 59, 63], 0, ground);
   latt(range(-29.5, -14.5, 3.75), range(-COURT + 1.5, COURT - 1.5, 4), TOP, (x, z) => Math.abs(z) > CROSS + 0.5);
   latt(range(14.5, 28.5, 3.5), range(-COURT + 1.5, COURT - 1.5, 4), MID, (x, z) => Math.abs(z) > CROSS + 0.5 && (Math.abs(z) < BE.gap[0] - 0.5 || Math.abs(z) > BE.gap[1] + 0.5));
@@ -659,6 +786,8 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
     v(-11.7, MID, 14.3), v(-11.7, TOP, -24), v(0, MID, 0), v(8, MID, -14.3), v(24, MID, 0),
     v(20, MID, 26), v(22, MID, -18), v(22, MID, 40), v(31.4, MID, -31.4),
     v(-35, 0, 0), v(-22, 0, 26), v(20, 0, -26), v(34, 0, 30), v(0, 0, 40), v(-30, 0, -50),
+    // 34.0: the flanks' new places.
+    v(-32.2, MID, 0), v(-32.2, MID, -6), v(35.5, MID, 6), v(35.5, MID, -16), v(-36.5, 0, 13), v(-33.2, 0, -16), v(34, 0, 38), v(33.6, 0, -44),
   ];
 
   const rain: RainAreas = {
