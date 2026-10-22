@@ -76,15 +76,18 @@ function meter(game: Game) {
 
 type Ai = 'arena' | 'tactical';
 
-function startMatch(game: Game, spectate: boolean, tickets?: number, ai: Ai = 'arena') {
-  const before = TDM.tickets, beforeAi = TDM.ai;
-  if (tickets) TDM.tickets = tickets;
+function startMatch(game: Game, spectate: boolean, tickets?: number, ai: Ai = 'arena', size?: number, profile = true) {
+  const before = { ...TDM.force }, beforeAi = TDM.ai;
+  if (tickets) TDM.force.tickets = tickets;
+  // 19.0: a team size for this match (self-play density tests), the map's AI profile on or off.
+  if (size) TDM.force.size = size;
+  TDM.force.noProfile = !profile;
   TDM.ai = ai;
   game.tdm.spectate = spectate;
   // The loaded level if it has an arena (8.0: the docks), else the desert.
   dev().start('tdm', game.level.data.tdm ? game.setting : 'desert');
   dev().god(true);
-  TDM.tickets = before;
+  Object.assign(TDM.force, before);
   TDM.ai = beforeAi;
   const st = game.level.data.tdm!.start;
   dev().tp(st.x, st.y, st.z + 4, 0, 0);
@@ -165,11 +168,11 @@ export async function tdmSoak(game: Game, opts: { seconds?: number; timeScale?: 
  * frame, and the frame probe (FPS, CPU, GPU). `withPlayer`: he stands at the centre lane's mouth and
  * shoots the nearest OMEGA bot every 0.6 s (more targets, suppression, hits); otherwise he spectates.
  */
-export async function tdmBench(game: Game, opts: { seconds?: number; settle?: number; withPlayer?: boolean; ai?: Ai; spotting?: boolean } = {}) {
+export async function tdmBench(game: Game, opts: { seconds?: number; settle?: number; withPlayer?: boolean; ai?: Ai; spotting?: boolean; size?: number } = {}) {
   // 12.0 A/B: `spotting: false` runs the match without the human's spotting and the minimap.
   const spot0 = TDM.spotting;
   if (opts.spotting !== undefined) TDM.spotting = opts.spotting;
-  startMatch(game, !opts.withPlayer, 999, opts.ai);
+  startMatch(game, !opts.withPlayer, 999, opts.ai, opts.size);
   const tdm = game.tdm;
   const met = meter(game);
   let shooter = 0;
@@ -248,7 +251,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   const dt = opts.dt ?? 1 / 60;
@@ -286,8 +289,28 @@ export async function tdmSim(
     ARENA.retreat.on = false;
     ARENA.slide.on = false;
   }
-  startMatch(game, true, opts.tickets ?? 25, ai);
+  // 19.0: `size` (players a team; the match is bot-vs-bot, so all bots), `profile: false` (the map's AI tuning off).
+  startMatch(game, true, opts.tickets ?? 25, ai, opts.size, opts.profile ?? true);
+  // Forward respawns are read at each respawn: held off for the whole match (A/B), restored below.
+  TDM.force.noForward = opts.forward === false;
   const tdm = game.tdm;
+  // 19.0, downtime: each life's time from spawn to its first round (time to first engagement), lives
+  // that died without firing, and the map's quiet seconds (whole seconds in which nobody fired).
+  const born = new Map<number, number>();
+  const firstShot: number[] = [];
+  const fired = new Set<number>();
+  let silentDeaths = 0;
+  const shotSec = new Set<number>();
+  const onFire0 = game.projectiles.onFire;
+  game.projectiles.onFire = (from, by) => {
+    onFire0(from, by);
+    const now = game.elapsed;
+    shotSec.add(Math.floor(now));
+    if (by && !by.isPlayer && !fired.has(by.uid) && born.has(by.uid)) {
+      fired.add(by.uid);
+      firstShot.push(now - born.get(by.uid)!);
+    }
+  };
   const g = game as unknown as { time: { value: number } };
   const met = meter(game);
   game.timeScale = 0;
@@ -324,7 +347,14 @@ export async function tdmSim(
       const now = game.elapsed;
       if (firstContact === null && engaged(game)) firstContact = +(now - t0).toFixed(1);
       for (const b of tdm.bots) {
-        if (!b.alive) continue;
+        if (!born.has(b.uid)) born.set(b.uid, now);
+        if (!b.alive) {
+          if (!fired.has(b.uid)) {
+            fired.add(b.uid);
+            silentDeaths++;
+          }
+          continue;
+        }
         const sp = Math.hypot(b.vel.x, b.vel.z);
         smp.n++;
         smp.speed += sp;
@@ -365,6 +395,8 @@ export async function tdmSim(
     await wait(0);
   }
   met.stop();
+  game.projectiles.onFire = onFire0;
+  TDM.force.noForward = false;
   game.timeScale = 1;
   TDM.roster = roster0;
   ARENA.laneLeave = lane0;
@@ -389,6 +421,25 @@ export async function tdmSim(
     firstContact,
     kills: k.length,
     killsPerMin: +((k.length / simT) * 60).toFixed(1),
+    // 19.0: the self-play density metrics.
+    teamSize: tdm.slots.filter((x) => x.team === 'omega').length,
+    forwardSpawns: { ...tdm.forwardStats },
+    firstEngagement: {
+      lives: firstShot.length + silentDeaths,
+      median: +q(firstShot, 0.5).toFixed(1),
+      p90: +q(firstShot, 0.9).toFixed(1),
+      mean: +(firstShot.reduce((a, x) => a + x, 0) / Math.max(1, firstShot.length)).toFixed(1),
+      diedWithoutFiring: silentDeaths,
+    },
+    quietPct: +((100 * (1 - Math.min(shotSec.size, Math.ceil(simT)) / Math.max(1, Math.ceil(simT))))).toFixed(1),
+    longestQuiet: (() => {
+      let best = 0, run = 0;
+      for (let t = Math.floor(t0); t < Math.ceil(t0 + simT); t++) {
+        run = shotSec.has(t) ? 0 : run + 1;
+        best = Math.max(best, run);
+      }
+      return best;
+    })(),
     byKillerKind: k.reduce<Record<string, number>>((a, x) => ((a[x.killerKind] = (a[x.killerKind] ?? 0) + 1), a), {}),
     victimDoing: k.reduce<Record<string, number>>((a, x) => ((a[x.victimAction.split('/')[0]] = (a[x.victimAction.split('/')[0]] ?? 0) + 1), a), {}),
     // 13.0: each gun's kills and the range they were made at (does each fight where it should?).

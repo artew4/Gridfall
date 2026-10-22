@@ -22,6 +22,13 @@ export interface NavLayout {
    * shortest ways pass through it. Survival and arena routes alike.
    */
   cost?: (a: THREE.Vector3, b: THREE.Vector3) => number;
+  /**
+   * 19.0: reject automatic links that cross a vertical face (the floor jumping more than 0.45 m
+   * between samples 0.75 m apart: terrain under 22° never does). Needed where `slope` lets links
+   * climb and built terraces stand on the terrain (Crash Site's temple): without it a T1 node linked to
+   * a stair's middle across its side. Default off (the other maps' graphs as they were).
+   */
+  faces?: boolean;
 }
 
 /** Probe height above the floor for walkability rays, plus a knee-high ray for low obstacles. */
@@ -50,6 +57,13 @@ export class Nav {
   private b = new THREE.Vector3();
   private d = new THREE.Vector3();
 
+  /**
+   * 19.0: nodes on hand links that climb (stairs, ramps, ladders of nodes). A walker never skips one:
+   * from beside a low stair (1–1.5 m) the node beyond it looks level and clear over the steps' edge,
+   * and a body heading straight for it walks into the stair's side (L-127, levelAI on Crash Site's temple).
+   */
+  climb = new Set<number>();
+  private climbLinks: [number, number][] = [];
   private slope: number;
   private cost: ((a: THREE.Vector3, b: THREE.Vector3) => number) | null;
 
@@ -66,12 +80,22 @@ export class Nav {
     for (let i = 0; i < this.nodes.length; i++) {
       for (let j = i + 1; j < this.nodes.length; j++) {
         const ni = this.nodes[i], nj = this.nodes[j];
-        const rise = 0.5 + (layout.slope ?? 0) * Math.hypot(ni.x - nj.x, ni.z - nj.z);
+        // 19.0 (`faces`): the slope allowance is for the terrain's hummocks; between built floors (a
+        // terrace, a stair) a link climbs no more than anywhere else.
+        const terrain = !layout.faces || (this.onTerrain(ni) && this.onTerrain(nj));
+        const rise = 0.5 + (terrain ? (layout.slope ?? 0) * Math.hypot(ni.x - nj.x, ni.z - nj.z) : 0);
         if (Math.abs(ni.y - nj.y) > rise) continue;
-        if (ni.distanceTo(nj) < 14 && this.clear(ni, nj) && this.walkable(ni, nj)) link(i, j);
+        if (ni.distanceTo(nj) < 14 && this.clear(ni, nj) && this.walkable(ni, nj) && (!layout.faces || this.faceless(ni, nj))) link(i, j);
       }
     }
-    for (const [i, j] of layout.links) link(i, j);
+    for (const [i, j] of layout.links) {
+      link(i, j);
+      // 19.0: a hand link that climbs (a stair's foot, middle and top) must be walked node by node.
+      if (Math.abs(this.nodes[i].y - this.nodes[j].y) > 0.3) {
+        this.climb.add(i).add(j);
+        this.climbLinks.push([i, j]);
+      }
+    }
     this.dropsOut = this.nodes.map(() => []);
     this.dropsIn = this.nodes.map(() => []);
     for (const [i, j] of layout.drops ?? []) {
@@ -159,6 +183,28 @@ export class Nav {
    * There is floor all the way between two body-height points (no alley, stairwell or roof edge in
    * between). Line of sight alone would happily link two rooftops across a street.
    */
+  /** 19.0: a node standing on the terrain itself (not on a built floor above it). */
+  private onTerrain(n: THREE.Vector3) {
+    const t = this.col.terrain;
+    return !!t && Math.abs(t.height(n.x, n.z) - (n.y - BODY)) < 0.08;
+  }
+
+  /** 19.0: no vertical face along a → b (the floor never jumps more than 0.45 m between samples). */
+  faceless(a: THREE.Vector3, b: THREE.Vector3) {
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    const n = Math.max(1, Math.ceil(len / 0.75));
+    let prev = a.y - BODY;
+    for (let i = 1; i <= n; i++) {
+      const t = i / n;
+      const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
+      const feet = a.y + (b.y - a.y) * t - BODY;
+      const g = this.col.groundHeightAt(x, z, 0.2, feet, 0.8);
+      if (Math.abs(g - prev) > 0.45) return false;
+      prev = g;
+    }
+    return true;
+  }
+
   walkable(a: THREE.Vector3, b: THREE.Vector3) {
     const len = Math.hypot(b.x - a.x, b.z - a.z);
     const n = Math.max(1, Math.ceil(len / 0.75));
@@ -334,15 +380,31 @@ export class Nav {
     cand.sort((x, y) => x.s - y.s);
     // 7.0: a caller may cap the entry search (rays); the best few entries are almost always it.
     const tries = opts.tries ?? Infinity;
+    const onStair = this.onClimb(from);
     for (let k = 0; k < cand.length && k < tries; k++) {
       const c = cand[k];
       const n = this.nodes[c.i];
+      // 19.0: a stair is entered at its foot or its top (level with the walker), never in its middle
+      // from beside it (the corridor rays clear the steps' edge; the body walks into its side), unless
+      // the walker is on the stair already.
+      if (this.climb.has(c.i) && Math.abs(n.y - from.y) > 0.35 && !onStair) continue;
       if (!(this.clear(from, n) || (vault && from.distanceTo(n) < 14 && this.clearVault(from, n))) || !this.walkable(from, n)) continue;
       const out: number[] = [];
       for (let v = c.i; v >= 0 && out.length < 200; v = next[v]) out.push(v);
       return out;
     }
     return [];
+  }
+
+  /** 19.0: within 0.9 m (across) of a climbing hand link, at its height there (±0.6 m): on that stair. */
+  private onClimb(p: THREE.Vector3) {
+    for (const [i, j] of this.climbLinks) {
+      const a = this.nodes[i], b = this.nodes[j];
+      const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / L2));
+      if (Math.hypot(p.x - (a.x + dx * t), p.z - (a.z + dz * t)) < 0.9 && Math.abs(p.y - (a.y + (b.y - a.y) * t)) < 0.6) return true;
+    }
+    return false;
   }
 
   /** Opens or closes hand links (e.g. a shuttered stairwell). */

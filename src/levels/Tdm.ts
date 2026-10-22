@@ -8,7 +8,7 @@ import { ThinkScheduler } from '../enemies/tactics/Scheduler';
 import { ArenaGunner, ArenaRunner, isArenaBot } from '../enemies/arena/ArenaBots';
 import { ArenaDirector } from '../enemies/arena/ArenaDirector';
 import { Sensing } from '../enemies/arena/Sensing';
-import { ARENA, newArenaStats, type ArenaCtx, type ArenaStats } from '../enemies/arena/ArenaCtx';
+import { ARENA, applyProfile, newArenaStats, type ArenaCtx, type ArenaStats } from '../enemies/arena/ArenaCtx';
 import type { DeathmatchBrain } from '../enemies/arena/DeathmatchAI';
 import type { Spot } from '../enemies/arena/ArenaDirector';
 import { PlayerSense } from '../enemies/arena/PlayerSense';
@@ -43,6 +43,9 @@ import type { TdmLine } from '../ui/TdmHud';
   minimap that fades 2.5 s after the last sighting, and a contact on the bots' board (which they push
   and flank on). OMEGA's bots share theirs the same way.
 */
+
+const _eye = new THREE.Vector3();
+const _eye2 = new THREE.Vector3();
 
 export const TDM = {
   tickets: 25,
@@ -83,7 +86,14 @@ export const TDM = {
   skins: 'operators' as 'operators' | 'legacy',
   /** 13.0: the loadout picker stays up (and a pick swaps at once) this long into a match (s). */
   loadoutGrace: 3,
+  /** 19.0 (DEV, self-play): force the team size, the tickets, or the map's AI profile off, whatever the map says. */
+  force: { size: null as number | null, tickets: null as number | null, noProfile: false, noForward: false },
 };
+
+/** 19.0: the team size of the loaded map (the player counts on ALPHA). */
+export function teamSizeOf(info: { teamSize?: number }) {
+  return TDM.force.size ?? info.teamSize ?? 5;
+}
 
 /** The 5.0 scheduler defaults (the tactical path restores them). */
 const TACTICAL_SCHED = { maxPerFrame: 3, rayBudget: 30, routesPerFrame: 2 };
@@ -101,14 +111,15 @@ interface Slot {
 }
 
 /**
- * The kind each slot was designed as (6.0). What actually spawns is this filtered through
- * `TDM.roster` (8.0: the blades fight with rifles). 13.0: the names are no longer fixed: every match
- * deals ten different callsigns from one pool to both teams (enemies/Callsigns.ts).
+ * The kind each slot was designed as (6.0): gunners and one runner a team. What actually spawns is
+ * this filtered through `TDM.roster` (8.0: the blades fight with rifles). 13.0: the names are no
+ * longer fixed: every match deals callsigns from one pool to both teams (enemies/Callsigns.ts).
+ * 19.0: sized by the map (`LevelInfo.teamSize`); ALPHA's bots leave a place for the player, unless
+ * he only watches (self-play: then a bot takes it, and the sides are even).
  */
-const ROSTER: Record<TeamId, RosterSlot[]> = {
-  alpha: [['', 'gunner'], ['', 'gunner'], ['', 'gunner'], ['', 'runner']],
-  omega: [['', 'gunner'], ['', 'gunner'], ['', 'gunner'], ['', 'gunner'], ['', 'runner']],
-};
+function roster(bots: number): RosterSlot[] {
+  return Array.from({ length: bots }, (_, i) => ['', i === bots - 1 ? 'runner' : 'gunner'] as RosterSlot);
+}
 
 /** One kill, for the report and the checks. */
 export interface KillRecord {
@@ -193,10 +204,17 @@ export class TdmRules implements ModeRules {
   }
 
   // ------------------------------------------------------------------ match
+  /** 19.0: this match's tickets per team (the map's, else TDM.tickets; a DEV force beats both). */
+  ticketMax = TDM.tickets;
+  /** 19.0: puts back the ARENA values the map's profile changed (set while a match runs). */
+  private unprofile: (() => void) | null = null;
+
   begin() {
     const g = this.game;
     this.clearBots();
-    this.tickets = { alpha: TDM.tickets, omega: TDM.tickets };
+    this.ticketMax = TDM.force.tickets ?? this.data.tickets ?? TDM.tickets;
+    this.forwardStats = { forward: 0, yard: 0 };
+    this.tickets = { alpha: this.ticketMax, omega: this.ticketMax };
     this.player = { kills: 0, deaths: 0 };
     this.winner = null;
     this.kills = [];
@@ -211,6 +229,8 @@ export class TdmRules implements ModeRules {
     this.ai = TDM.ai;
     Object.assign(this.sched, this.ai === 'arena' ? ARENA.sched : TACTICAL_SCHED);
     this.sched.resetStats();
+    this.unprofile?.();
+    this.unprofile = this.ai === 'arena' && !TDM.force.noProfile ? applyProfile(this.data.arena) : null;
     if (this.ai === 'arena') this.beginArena();
     else {
       // Back to the 6.0 path (an A/B after an arena match): nothing of the arena may linger.
@@ -250,13 +270,15 @@ export class TdmRules implements ModeRules {
     g.weapon.setHolstered(false, true);
     g.storyHud.show(false);
     g.tdmHud.clear();
-    g.tdmHud.setMax(TDM.tickets);
+    g.tdmHud.setMax(this.ticketMax);
     g.tdmHud.show(true);
     g.hud.root.classList.add('tdm');
     this.slots = [];
-    const n = TEAMS.reduce((k, t) => k + ROSTER[t].length, 0);
+    const size = teamSizeOf(g.level.info);
+    const rosters: Record<TeamId, RosterSlot[]> = { alpha: roster(this.spectate ? size : size - 1), omega: roster(size) };
+    const n = TEAMS.reduce((k, t) => k + rosters[t].length, 0);
     const names = dealCallsigns(n, [g.playerUnit.name]);
-    for (const team of TEAMS) for (const [, kind] of filterRoster(ROSTER[team], TDM.roster)) this.slots.push({ team, name: names.shift()!, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0, arm: null });
+    for (const team of TEAMS) for (const [, kind] of filterRoster(rosters[team], TDM.roster)) this.slots.push({ team, name: names.shift()!, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0, arm: null });
     for (const s of this.slots) this.spawn(s);
     g.hud.bannerShow('TEAM DEATHMATCH', fl('tdmBanner'), 2.6);
   }
@@ -311,9 +333,9 @@ export class TdmRules implements ModeRules {
     return c;
   }
 
-  private spawn(s: Slot) {
+  private spawn(s: Slot, respawn = false) {
     const g = this.game;
-    const at = this.spawnPoint(s.team);
+    const at = (respawn && this.forwardPoint(s.team)) || this.spawnPoint(s.team);
     const look = TDM.skins === 'operators' ? OPERATORS[s.team] : s.team === 'alpha' ? DESERT_GARRISON : g.level.info.enemies;
     const arena = this.ai === 'arena';
     // 13.0: a gun from the armory for this life (the 6.0 tactical bodies keep their own rifle).
@@ -344,6 +366,42 @@ export class TdmRules implements ModeRules {
   }
 
   /** The base spawn furthest from every hostile, not on top of a body. */
+  /** 19.0 (DEV): respawns taken at a forward point, and in the yard, this match. */
+  forwardStats = { forward: 0, yard: 0 };
+
+  /**
+   * 19.0: a forward respawn point (TdmData.forward), or null: the most forward of the team's points
+   * that no hostile is within `safe` m of, nor sees from within `sight` m (one ray per hostile near
+   * enough; respawns are rare). Never a point someone stands on.
+   */
+  private forwardPoint(team: TeamId): THREE.Vector3 | null {
+    const F = this.data.forward;
+    if (!F || TDM.force.noForward) return null;
+    const own = team === 'alpha' ? 1 : -1;
+    const hostiles = this.hostilesNow(team);
+    let best: THREE.Vector3 | null = null, bz = Infinity;
+    for (const p of F.points[team]) {
+      if (this.bots.some((b) => b.alive && Math.hypot(b.pos.x - p.x, b.pos.z - p.z) < 1.4)) continue;
+      let ok = true;
+      for (const h of hostiles) {
+        const d = h.pos.distanceTo(p);
+        if (d < F.safe || (d < F.sight && this.game.col.lineOfSight(_eye.set(h.pos.x, h.pos.y + 1.6, h.pos.z), _eye2.set(p.x, p.y + 1.4, p.z)))) {
+          ok = false;
+          break;
+        }
+      }
+      // The most forward safe point (towards the other base); a little noise between equals.
+      const z = p.z * own + Math.random() * 2;
+      if (ok && z < bz) {
+        bz = z;
+        best = p;
+      }
+    }
+    if (best) this.forwardStats.forward++;
+    else this.forwardStats.yard++;
+    return best ? best.clone() : null;
+  }
+
   private spawnPoint(team: TeamId): THREE.Vector3 {
     const pts = this.data.spawns[team];
     let best = pts[0], bs = -Infinity;
@@ -475,7 +533,7 @@ export class TdmRules implements ModeRules {
       }
     }
     if (!this.winner) {
-      for (const s of this.slots) if (!s.bot && now >= s.respawnAt && this.tickets[s.team] > 0) this.spawn(s);
+      for (const s of this.slots) if (!s.bot && now >= s.respawnAt && this.tickets[s.team] > 0) this.spawn(s, true);
       if (g.state === 'dead' && now >= this.playerRespawnAt && this.tickets.alpha > 0) this.respawnPlayer();
       // 7.0's callouts (rays from his camera); 12.0's arena has him in the sensing pass instead.
       if (!this.spectate && (!this.directors || !TDM.spotting)) this.spot(dt);
@@ -566,7 +624,7 @@ export class TdmRules implements ModeRules {
 
   private respawnPlayer() {
     const g = this.game;
-    const p = this.spawnPoint('alpha');
+    const p = this.forwardPoint('alpha') ?? this.spawnPoint('alpha');
     g.revive(p, 0);
     g.playerInvulnUntil = this.now + TDM.protect;
     this.playerRespawnAt = Infinity;
@@ -618,6 +676,8 @@ export class TdmRules implements ModeRules {
 
   reset() {
     this.clearBots();
+    this.unprofile?.();
+    this.unprofile = null;
     for (const t of TEAMS) this.squads[t].reset();
     this.directors = null;
     this.sensing = null;

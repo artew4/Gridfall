@@ -196,7 +196,7 @@ export class Hud {
       row.innerHTML = maps
         .map(
           (l) => `<button class="set-card" data-setting="${l.id}"><b>${l.name}</b><span class="jp" lang="${LANG[l.biome]}">${l.jp}</span>
-        <span class="blurb">${l.blurb}</span><span class="modes">${l.modes.map((m) => (m === 'story' ? 'STORY' : m === 'tdm' ? '5v5 TDM' : 'SURVIVAL')).join(' · ')}</span></button>`,
+        <span class="blurb">${l.blurb}</span><span class="modes">${l.modes.map((m) => (m === 'story' ? 'STORY' : m === 'tdm' ? `${l.teamSize ?? 5}v${l.teamSize ?? 5} TDM` : 'SURVIVAL')).join(' · ')}</span></button>`,
         )
         .join('');
     }

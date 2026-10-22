@@ -278,6 +278,21 @@ How it fits:
 - **Step height:** anything walked onto is ≤ 0.3 m: rim tops, trunk decks, the hull's deck. Taller needs a jump.
 - **Foliage:** `buildFoliage` takes a `FoliageSite` (height, forest density, extents). Firebase's default reproduces 14.0 exactly (plant counts and concealment checked against `main`).
 
+## Crash Site 2.0: the temple, 7v7 (19.0)
+
+- **The centre is an overgrown stepped temple with the dropship lying across its top** (`CrashLayout.ts`: `T1`, `T2`, `GATE`, `WRECK`, `SHRINE`):
+  - the outer terrace (1.3 m) and the upper terrace (2.8 m) either side of the hull, with walled stairs (stone cheeks, 3 cm off the run) from the plaza and between them;
+  - **under the ship:** the undercroft (ground level, the hull's belly 2.2 m over it), reached by a gate cut through both terraces (open between T1's halves, roofed by T2's bridge slab) and from the west under the shrine's lintel; the hull's deck has a hole you drop through into it;
+  - **inside the ship:** the hull's deck is level with T2; side doors and the breach open onto it;
+  - **above it:** the hull's roof (6.4 m), up the wings from T2, joined by a fallen lintel to the shrine (7.2 m), a ruined prang with stairs down both flanks and a plinth at T1's level round them;
+  - micro-cover: roots lying along the terraces and the plaza, broken columns, fallen drums, cargo pods from the ship.
+- **Denser forest:** 13 giant trees, 44 slim ones, 18 boulders a half (were 9, 26, 12); `FoliageSite.density` 1.5 (every plant count × 1.5, all instanced). The forest keeps off the ridge's foot, the shrine's and the ridge's stair feet (trunks there boxed in nav nodes).
+- **7v7, 50 tickets** (`LevelInfo.teamSize`, `TdmData.tickets`), from self-play (`docs/BENCH-19.0.json`): at 5v5 the jungle was quiet 33–53% of the time; 7v7 brings it to 14–18% (8v8 is no quieter).
+- **Forward respawns** (`TdmData.forward`): five points on each team's approach about 20 m short of the temple; a respawn takes the most forward one no hostile is within 22 m of or sees from within 45 m, else the yard. First engagement per life: 16 s → 9–10 s.
+- **The jungle AI** (`TdmData.arena`, `JUNGLE_AI`): a closer range band (5–13 m), rifles moving up beyond 26 m, pushes sooner and from 30 m, three flankers on a contact from 9 m, lane hunts from 16 m, less retreating, and the cover-hop push for SMGs and shotguns (`ARENA.coverPush`: they sprint from cover to cover the target can't see, wall, trunk or undergrowth, instead of down its sights).
+- **Nav (engine, 19.0):** stairs are walked node by node (`Nav.climb`: never skipped, never entered mid-flight from beside them); `NavLayout.faces` (on here) rejects automatic links across a vertical face and keeps the terrain's slope allowance for terrain-to-terrain links. Crash Site's stair fill is standable (a sprint-jump onto a stair's side stands on the step).
+- **Honestly:** the temple lane carries 70% of lane time and two thirds of the kills; the ridge and the ravine about 15% each. Flank-weighted forward points balanced it (22–25% each) but brought back 24–48% quiet seconds: the brief's priority (constant action) won.
+
 ## Neon Docks rework (15.0)
 
 - **Warehouse:** roofless, walls 10 m → 7 m, main doors 8 m → 4 m, the tall crate stacks and the container removed (low cover only).

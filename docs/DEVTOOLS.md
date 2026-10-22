@@ -83,6 +83,10 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Old Port (17.1):
   - `?setting=oldport`. `bench(3)` has an Old Port set: nine views (the hall, the upper floor in the skylight shafts, the yard, the stacks, the dock floor, the bridge, the sea quay into the sun side, the whole port) and a firefight. `tdmSim` lanes: warehouse, yard, dock.
   - `__game.level.debug()`: nav nodes and drops, skylight shafts, indoors, `drowned` (the sea fence should keep it 0).
+- Self-play density (19.0):
+  - `tdmSim({ size, tickets, profile, forward })`: `size` players a team (bot vs bot: the player's slot is filled, so NvN; until 18.0 the sims ran (N-1)vN), `profile: false` turns the map's AI tuning off, `forward: false` the forward respawns. New in the result: `teamSize`, `firstEngagement` (median, p90, mean of each life's spawn-to-first-round time; lives that died without firing), `quietPct` (seconds nobody fired), `longestQuiet`, `forwardSpawns` (forward / yard respawns).
+  - `tdmBench({ size })`: the frame cost with that many a side (the player in the match: `withPlayer`).
+  - `bench(3)` on Crash Site: the temple's front, the undercroft, inside the hull, its roof, the shrine.
 - Maglev Terminal (18.0):
   - `?setting=maglev`. `bench(3)` has a Maglev set: nine views (the train's aisle, platform 1 to the far end, the track bed, the mezzanine, the bridge, looking up through the glass roof, along the curtain wall, the whole hall from the balcony) and a firefight. `tdmSim` lanes: west, train, east; the zones name each car (CAR 1–3, GANGWAY).
   - `__game.level.setVisual(false)` hides the glass (for an A/B of its cost with `perf()`); `__game.level.debug()`: nav nodes, hand links, drops, point lights.

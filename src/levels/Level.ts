@@ -10,6 +10,7 @@ import type { WeaponId } from '../entities/weapons/armory';
 import type { LookGrade } from '../core/Renderer';
 import type { TeamId } from '../combat/Team';
 import type { TrackId } from '../audio/music/MusicManager';
+import type { ArenaProfile } from '../enemies/arena/ArenaCtx';
 
 /** What Team Deathmatch needs from a level (6.0): each team's spawn zone, spawns and lanes. */
 export interface TdmData {
@@ -38,6 +39,19 @@ export interface TdmData {
    * Default: none (every lane yields to the radar, 7.0–17.1).
    */
   laneStrict?: [boolean, boolean, boolean];
+  /**
+   * 19.0: forward respawn points per team (absent: everyone respawns in the yard). A respawn takes
+   * the most forward one no hostile is within `safe` m of, or can see from within `sight` m; with none
+   * safe, the yard. The match's first spawn is always the yard.
+   */
+  forward?: { points: Record<TeamId, THREE.Vector3[]>; safe: number; sight: number };
+  /** 19.0: tickets per team on this map (default TDM.tickets, 25: five a player at 5v5). */
+  tickets?: number;
+  /**
+   * 19.0: the arena AI's tuning on this map (applied at the match's start, restored at its end), e.g.
+   * Crash Site's: flank more, fight closer, push sooner. Absent: the global ARENA as it is.
+   */
+  arena?: ArenaProfile;
 }
 
 export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock' | 'crashsite' | 'oldport' | 'maglev';
@@ -84,6 +98,11 @@ export interface LevelInfo {
   storyWeapon?: WeaponId;
   /** 9.0: the setting's music track (MusicManager). */
   music: TrackId;
+  /**
+   * 19.0: Team Deathmatch's team size on this map (the player counts on ALPHA). Default 5. Here, not
+   * in TdmData: the menu card shows it before the level is built.
+   */
+  teamSize?: number;
 }
 
 /**

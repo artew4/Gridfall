@@ -160,6 +160,8 @@ export interface FoliageSite {
   /** Where the canopy and the vines may hang (Firebase: never right over the compound). */
   canopyOk(x: number, z: number): boolean;
   vineOk(x: number, z: number): boolean;
+  /** 19.0: a multiplier on every plant count (default 1). Instanced: one draw call per kind at any count. */
+  density?: number;
 }
 
 /** Firebase Viper's site (the 3.6–14.0 behaviour exactly). */
@@ -269,7 +271,7 @@ export function buildFoliage(
   };
   const tint = (h: number, s: number, l: number) => _c.clone().setHSL(h, s, l);
 
-  const q = Math.max(0.35, quality);
+  const q = Math.max(0.35, quality) * (site.density ?? 1);
   // ------------------------------------------------------------------ bushes
   const bushPts = scatter(Math.round(1100 * q), STRIP - 1, (x, z) => rnd() < density(x, z) && !blockedSpot(x, z, 0.5))
     .map((p) => ({ p, s: 0.9 + rnd() * 1.3, yaw: rnd() * 6.28, color: tint(0.22 + rnd() * 0.08, 0.45 + rnd() * 0.2, 0.17 + rnd() * 0.1) }));

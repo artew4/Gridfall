@@ -10,7 +10,7 @@ import type { TreeInfo } from '../jungle/Base';
 import type { FoliageSite } from '../jungle/Foliage';
 import { noise } from '../jungle/Terrain';
 import {
-  BASE, BRIDGES, COURT, RAVINE, RIDGE, STEP, TRENCHES, WRECK, X_OUT, Z_END, crashHeight, lanesOf, ravineFloor, spawnsOf, trenchDist, zoneAt,
+  BASE, BRIDGES, COURT, GATE, RAVINE, RIDGE, SHRINE, STEP, T1, T2, TRENCHES, WRECK, X_OUT, Z_END, crashHeight, lanesOf, ravineFloor, spawnsOf, trenchDist, zoneAt,
 } from './CrashLayout';
 import type { Zone } from '../Level';
 
@@ -22,7 +22,7 @@ import type { Zone } from '../Level';
 */
 
 export interface CrashResult {
-  nav: { nodes: THREE.Vector3[]; links: [number, number][]; drops: [number, number][]; slope: number };
+  nav: { nodes: THREE.Vector3[]; links: [number, number][]; drops: [number, number][]; slope: number; faces: boolean };
   spawns: { alpha: THREE.Vector3[]; omega: THREE.Vector3[] };
   coverPoints: THREE.Vector3[];
   testGoals: THREE.Vector3[];
@@ -73,6 +73,13 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     solid(x0, y0, z0, x1, y1, z1, mat, surface, tile),
     solid(x0, y0, -z1, x1, y1, -z0, mat, surface, tile),
   ];
+  /** Seen only (inside a collider, or out of reach). */
+  const deco = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material, tile = 2) =>
+    b.add(worldBox(Math.abs(x1 - x0), Math.abs(y1 - y0), Math.abs(z1 - z0), tile), mat, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  const cyl = (x: number, z: number, r: number, y0: number, hh: number, mat: THREE.Material, surface: Collider['surface'] = 'concrete', seg = 14) => {
+    b.add(new THREE.CylinderGeometry(r, r, hh, seg), mat, x, y0 + hh / 2, z);
+    return col.addCylinder(x, z, r, y0, y0 + hh, surface);
+  };
   /** Something standing on the floor: from under its lowest corner to `h` above its highest. */
   const ground2 = (x0: number, z0: number, x1: number, z1: number, h: number, mat: THREE.Material, surface: Collider['surface'] = 'concrete', vault = true) => {
     for (const s of [1, -1]) {
@@ -92,8 +99,10 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     const H = top - base;
     const steps = Math.max(2, Math.round(H / 0.25));
     const run = L / steps;
-    const w0 = (along ? z0 : x0) + (rails.includes('lo') ? STAIR_GAP : 0);
-    const w1 = (along ? z1 : x1) - (rails.includes('hi') ? STAIR_GAP : 0);
+    // 19.0: the side plates stand just outside the run (the steps fill it): no step drawn into a plate,
+    // no sliver between them a body reads as open.
+    const w0 = along ? z0 : x0;
+    const w1 = along ? z1 : x1;
     for (let i = 0; i < steps; i++) {
       const hTop = ((i + 1) * H) / steps;
       const a = rise > 0 ? i * run : L - (i + 1) * run;
@@ -109,7 +118,10 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
       const c = along
         ? col.add(rise > 0 ? x0 + a : x1 - a2, base, z0, (rise > 0 ? x0 + a : x1 - a2) + (a2 - a), base + h, z1, 'concrete')
         : col.add(x0, base, rise > 0 ? z0 + a : z1 - a2, x1, base + h, (rise > 0 ? z0 + a : z1 - a2) + (a2 - a), 'concrete');
-      c.floor = false;
+      // 19.0: standable (Crash Site's stairs stand free, unplated: a sprint-jump onto a stair's side
+      // landed in non-floor fill and was pushed through it; on a floor it stands on the step). The
+      // ramp above is always the higher floor where both are.
+      c.floor = true;
     }
     for (const side of rails) {
       const n = 6;
@@ -119,12 +131,13 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
         const hi = base + H * k1 + 1.0;
         const lo0 = rise > 0 ? (along ? x0 : z0) + L * k0 : (along ? x1 : z1) - L * k1;
         const lo1 = lo0 + L * (k1 - k0);
-        const t = 0.3;
+        // 19.0: thin plates (8 cm, as Old Port's and Maglev's): a 0.3 m one stood in the steps (the world check).
+        const t = 0.08;
         if (along) {
-          const f = side === 'lo' ? z0 : z1 - t;
+          const f = side === 'lo' ? z0 - t : z1;
           solid(lo0, base, f, lo1, hi, f + t, m.rock, 'concrete', 1);
         } else {
-          const f = side === 'lo' ? x0 : x1 - t;
+          const f = side === 'lo' ? x0 - t : x1;
           solid(f, base, lo0, f + t, hi, lo1, m.rock, 'concrete', 1);
         }
       }
@@ -207,9 +220,10 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
   }
   // Rock steps up the face at z ±22 (along x, from the clearing to the plateau).
   stair2(RIDGE.x1, 20.6, RIDGE.x1 + 8.6, 23.4, 'x', -1, 0, RT, m.stone);
-  // The fallen tree at mid-field: a trunk leaning from the clearing onto the plateau (a ramp).
+  // The fallen tree at mid-field: a trunk leaning from the clearing onto the plateau (a ramp). 19.0:
+  // steeper and shorter (6.5 m), its foot clear of the shrine.
   {
-    const x0 = RIDGE.x1, x1 = RIDGE.x1 + 9;
+    const x0 = RIDGE.x1, x1 = RIDGE.x1 + 6.5;
     col.addRamp(x0, -0.8, x1, 0.8, 'x', RT, 0);
     const len = Math.hypot(x1 - x0, RT), ang = Math.atan2(RT, x1 - x0);
     const g = new THREE.CylinderGeometry(0.75, 0.9, len + 1.2, 12);
@@ -266,18 +280,57 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
   }
   clear(RAVINE.x0 - RAVINE.rim - 1, -RAVINE.end, RAVINE.x1 + RAVINE.rim + 1, RAVINE.end);
 
-  // ---------------------------------------------------------------- the wreck (centre)
-  // A dropship's hull lying across the middle: a deck (0.4), walls with a breach and two side doors
-  // each side, a roof (3.9) broken over the breach; the cockpit east, the open tail west; a broken
-  // wing each side as a ramp from the clearing up onto the roof.
+  // ---------------------------------------------------------------- the temple and the wreck (centre)
+  // 19.0: an overgrown stepped temple, the dropship lying across its top. Three levels to fight on:
+  // the undercroft under the ship (ground level, reached by the gates through both terraces), the hull
+  // (level with the upper terrace; side doors, the breach, a hole in its deck down to the undercroft),
+  // and above it the wreck's roof (the wings are ramps up from the terrace) joined by a fallen lintel
+  // to the shrine, the highest point (7.2 m), with stairs down both its flanks.
   const W = WRECK;
-  solid(W.x0, -0.3, -W.z, W.x1, W.floor, W.z, m.hullDark, 'metal', 2);
+  const G2 = GATE;
+  /**
+   * A temple stair's cheeks: solid stone walls either side of the run (outside it), `over` m above
+   * the stair's top. A low stair's open side was cut into by walkers from beside it (levelAI).
+   */
+  const cheeks2 = (x0: number, z0: number, x1: number, z1: number, axis: 'x' | 'z', base: number, top: number, w = 0.6, over = 0.5) => {
+    // 3 cm off the run (9.1: a stair is never flush with a wall).
+    const g = STAIR_GAP;
+    if (axis === 'z') for (const [a, c] of [[x0 - w - g, x0 - g], [x1 + g, x1 + w + g]]) solid2(a, base - 0.3, z0, c, top + over, z1, m.rock, 'concrete', 1);
+    else for (const [a, c] of [[z0 - w - g, z0 - g], [z1 + g, z1 + w + g]]) solid2(x0, base - 0.3, a, x1, top + over, c, m.rock, 'concrete', 1);
+  };
+  // Outer terrace (1.3): two halves either side of the open gate; its front stairs, walled; carved trim.
+  for (const [x0, x1] of [[T1.x0, -G2], [G2, T1.x1]] as const) solid2(x0, -0.3, T1.zIn, x1, T1.y, T1.zOut, m.stone, 'concrete', 3);
+  for (const x0 of [-11, 7]) {
+    stair2(x0, T1.zOut, x0 + 4, T1.zOut + 4.5, 'z', -1, 0, T1.y, m.stone);
+    cheeks2(x0, T1.zOut, x0 + 4, T1.zOut + 4.5, 'z', 0, T1.y);
+  }
+  // Upper terrace (2.8): solid either side of the gate, a bridge slab over it.
+  for (const [x0, x1] of [[T2.x0, -G2], [G2, T2.x1]] as const) solid2(x0, -0.3, T2.zIn, x1, T2.y, T2.zOut, m.moss, 'concrete', 3);
+  solid2(-G2, T2.y - T2.slab, T2.zIn, G2, T2.y, T2.zOut, m.stone, 'concrete', 2);
+  // Stairs from the outer terrace up to the upper one (on T1, rising to T2's face).
+  stair2(-10.5, T2.zOut, -8, T2.zOut + 4.5, 'z', -1, T1.y, T2.y, m.stone);
+  stair2(8, T2.zOut, 10.5, T2.zOut + 4.5, 'z', -1, T1.y, T2.y, m.stone);
+  cheeks2(-10.5, T2.zOut, -8, T2.zOut + 4.5, 'z', T1.y, T2.y);
+  cheeks2(8, T2.zOut, 10.5, T2.zOut + 4.5, 'z', T1.y, T2.y);
+  // East: stairs up T2's end from the ground (the shrine's side is west).
+  stair2(T2.x1 + 0.03, 5, T2.x1 + 5.6, 7.5, 'x', -1, 0, T2.y, m.stone);
+  // Its cheeks: the south one, and on the north a wall to T1's end (no slot between them).
+  solid2(T2.x1, -0.3, 4.4, T2.x1 + 5.6, T2.y + 0.5, 5 - STAIR_GAP, m.rock, 'concrete', 1);
+  solid2(T2.x1, -0.3, 7.5 + STAIR_GAP, T2.x1 + 5.6, T2.y + 0.5, T1.zIn, m.rock, 'concrete', 1);
+  // The gate's lintels on T1's front (seen over the open cut, out of reach), the terraces' cornices.
+  for (const sz of [1, -1]) deco(-G2 - 0.3, T2.y + 0.0, sz > 0 ? T2.zOut - 0.3 : -T2.zOut, G2 + 0.3, T2.y + 0.25, sz > 0 ? T2.zOut : -T2.zOut + 0.3, m.rock, 1);
+
+  // The hull: belly and deck (with the hole to the undercroft), walls with doors and the breach, the
+  // roof (open over the breach), the cockpit propped on a stone pillar, the tail open over the passage.
+  const h = W.hole;
+  for (const [x0, z0, x1, z1] of [[W.x0, -W.z, -h, W.z], [h, -W.z, W.x1, W.z], [-h, -W.z, h, -h], [-h, h, h, W.z]] as const) {
+    solid(x0, W.belly, z0, x1, W.floor, z1, m.hullDark, 'metal', 2);
+  }
   const hullWall = (z0: number, z1: number) => {
     const piece = (x0: number, x1: number, y0: number, y1: number) => {
       if (x1 - x0 > 0.01 && y1 - y0 > 0.01) solid(x0, y0, z0, x1, y1, z1, m.hull, 'metal', 3);
     };
     const R0 = W.floor, R1 = W.roof - 0.3;
-    // Openings: side doors at x ±7.8 (1.6 m, 2.2 m high), the breach x ±2 (full height).
     const [d0, d1] = W.doors;
     piece(W.x0, d0 - 0.8, R0, R1);
     piece(d0 - 0.8, d0 + 0.8, R0 + 2.2, R1);
@@ -288,50 +341,120 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
   };
   hullWall(W.z - 0.3, W.z);
   hullWall(-W.z, -W.z + 0.3);
-  solid(W.x0, W.roof - 0.3, -W.z, -2, W.roof, W.z, m.hull, 'metal', 3);
-  solid(2, W.roof - 0.3, -W.z, W.x1, W.roof, W.z, m.hull, 'metal', 3);
-  // The cockpit: a solid nose, its canopy glowing faintly.
-  solid(W.x1, 0, -2.4, W.x1 + 3.5, 2.8, 2.4, m.hull, 'metal', 2);
+  // The ends: the cockpit bulkhead (east) closed; the tail (west) open in the middle (a drop to the passage).
+  solid(W.x1 - 0.3, W.floor, -W.z + 0.3, W.x1, W.roof - 0.3, W.z - 0.3, m.hull, 'metal', 2);
+  solid(W.x0, W.floor, -W.z + 0.3, W.x0 + 0.3, W.roof - 0.3, -1.2, m.hull, 'metal', 2);
+  solid(W.x0, W.floor, 1.2, W.x0 + 0.3, W.roof - 0.3, W.z - 0.3, m.hull, 'metal', 2);
+  solid(W.x0, W.floor + 2.2, -1.2, W.x0 + 0.3, W.roof - 0.3, 1.2, m.hull, 'metal', 2);
+  solid(W.x0, W.roof - 0.3, -W.z, -W.breach, W.roof, W.z, m.hull, 'metal', 3);
+  solid(W.breach, W.roof - 0.3, -W.z, W.x1, W.roof, W.z, m.hull, 'metal', 3);
+  // The cockpit: a solid nose raised on the wreck's line, its canopy glowing faintly; a stone pillar
+  // it came down on (cover at the undercroft's east mouth).
+  solid(W.x1, W.belly, -2.4, W.x1 + 3.5, W.belly + 2.8, 2.4, m.hull, 'metal', 2);
   {
     const glass = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.05, 3.6), m.cyan);
-    glass.position.set(W.x1 + 1.6, 2.83, 0);
+    glass.position.set(W.x1 + 1.6, W.belly + 2.83, 0);
     scene.add(glass);
   }
-  // Tail fin (over the roof, out of reach).
-  solid(W.x0, W.roof, -0.15, W.x0 + 2, W.roof + 2.6, 0.15, m.hullDark, 'metal', 1);
-  // Inside: two cargo crates (vault) and a fallen locker.
+  cyl(W.x1 + 2.2, 0, 0.75, -0.2, W.belly + 0.2, m.stone, 'concrete');
+  // Inside: cargo crates (vault) and a fallen locker; a tail fin over the roof (out of the walkway).
   solid(-6.6, W.floor, -0.6, -5.4, W.floor + 1.0, 0.6, m.plank, 'wood', 1).vault = true;
   solid(4.4, W.floor, -W.z + 0.3, 5.6, W.floor + 1.0, -W.z + 1.3, m.plank, 'wood', 1).vault = true;
   solid(4.4, W.floor, W.z - 1.3, 5.6, W.floor + 1.0, W.z - 0.3, m.plank, 'wood', 1).vault = true;
-  // The wings: ramps from the clearing up to the roof's edge, a tilted plate drawn over each.
+  solid(W.x0 + 0.5, W.roof, W.z - 0.3, W.x0 + 2.5, W.roof + 2.6, W.z, m.hullDark, 'metal', 1);
+  // The wings: ramps from the upper terrace to the roof's edge, a tilted plate over each, filled under.
   {
-    const run = W.wing.z1 - W.z;
-    const ang = Math.atan2(W.roof, run), len = Math.hypot(run, W.roof);
-    for (const s of [1, -1]) {
-      const z0 = s > 0 ? W.z : -W.wing.z1, z1 = s > 0 ? W.wing.z1 : -W.z;
-      col.addRamp(W.wing.x0, z0, W.wing.x1, z1, 'z', s > 0 ? W.roof : 0, s > 0 ? 0 : W.roof);
+    const run = W.wing.z1 - W.z, rise = W.roof - T2.y;
+    const ang = Math.atan2(rise, run), len = Math.hypot(run, rise);
+    for (const sz of [1, -1]) {
+      const z0 = sz > 0 ? W.z : -W.wing.z1, z1 = sz > 0 ? W.wing.z1 : -W.z;
+      col.addRamp(W.wing.x0, z0, W.wing.x1, z1, 'z', sz > 0 ? W.roof : T2.y, sz > 0 ? T2.y : W.roof);
       const plate = new THREE.BoxGeometry(W.wing.x1 - W.wing.x0, 0.16, len);
-      b.add(plate, m.hull, (W.wing.x0 + W.wing.x1) / 2, W.roof / 2 - 0.08, s * (W.z + run / 2), s * ang, 0, 0);
+      b.add(plate, m.hull, (W.wing.x0 + W.wing.x1) / 2, T2.y + rise / 2 - 0.08, sz * (W.z + run / 2), sz * ang, 0, 0);
       plate.dispose();
-      // Filled underneath (nobody walks under a wing, and rounds stop at it).
+      // Thin plates along both edges where the wing stands over a step high (a sprint-jump at its side
+      // crossed the fill under it: the stress test), as a stair's.
+      for (const px of [W.wing.x0, W.wing.x1 - 0.08]) {
+        for (let i = 0; i < 6; i++) {
+          const k0 = i / 6, k1 = (i + 1) / 6;
+          // Open over the last metre or so (the foot is stepped onto from the terrace beside it).
+          if (rise * (1 - k1) < 0.5) continue;
+          const za = W.z + run * k0, zc = W.z + run * k1;
+          const c = solid(px, T2.y, sz > 0 ? za : -zc, px + 0.08, T2.y + rise * (1 - k0) + 0.6, sz > 0 ? zc : -za, m.hullDark, 'metal', 1);
+          c.vault = false;
+        }
+      }
       for (let i = 1; i < 8; i++) {
-        const h = (W.roof * (8 - i)) / 8;
+        const hh = T2.y + (rise * (8 - i)) / 8;
         const a = W.z + (run * (i - 1)) / 8, c = W.z + (run * i) / 8;
-        const f = col.add(W.wing.x0, -0.2, s > 0 ? a : -c, W.wing.x1, h, s > 0 ? c : -a, 'metal');
+        const f = col.add(W.wing.x0, T2.y - 0.2, sz > 0 ? a : -c, W.wing.x1, hh, sz > 0 ? c : -a, 'metal');
         f.floor = false;
       }
     }
   }
-  // The engines, torn off beside the hull (cover), scorch marks.
-  for (const [x, z] of [[-12.5, 6.5], [10.5, 6.8]] as const) {
-    for (const s of [1, -1]) {
-      b.add(new THREE.CylinderGeometry(1.1, 1.25, 2.4, 14), m.hullDark, x, 1.2, z * s);
-      col.addCylinder(x, z * s, 1.25, -0.2, 2.4, 'metal');
-      taken.push([x, z * s, 1.6]);
+  // The shrine: a ruined prang (stone, mossy courses), its flank stairs from the ground, the fallen
+  // lintel from its top down to the wreck's roof (over the passage between them).
+  const SH = SHRINE;
+  solid(SH.x0, -0.3, -SH.z, SH.x1, SH.top, SH.z, m.stone, 'concrete', 3);
+  // Its plinth: terrace 1 carried round the shrine's flanks to T2's west end (the pocket there was a
+  // dead corner bots stalled in: levelAI), 3 cm off the shrine stairs.
+  solid2(SH.stair.x1 + STAIR_GAP, -0.3, W.z, T2.x0, T1.y, T1.zIn, m.stone, 'concrete', 3);
+  for (const y of [1.6, 3.6, 5.6]) deco(SH.x0 - 0.06, y, -SH.z - 0.06, SH.x1 + 0.06, y + 0.3, SH.z + 0.06, m.moss, 2);
+  stair2(SH.stair.x0, SH.z, SH.stair.x1, SH.stair.foot, 'z', -1, 0, SH.top, m.stone);
+  // Its crown: a broken spire (out of reach, at the west edge), low parapet blocks (cover on top).
+  b.add(new THREE.CylinderGeometry(0.6, 1.9, 6, 8), m.stone, SH.x0 + 2.4, SH.top + 3, 0);
+  col.addCylinder(SH.x0 + 2.4, 0, 1.9, SH.top, SH.top + 6, 'concrete');
+  for (const z of [-2.6, 2.6]) solid(SH.x1 - 2.2, SH.top, z - 0.4, SH.x1 - 1.0, SH.top + 0.95, z + 0.4, m.moss, 'concrete', 1).vault = true;
+  {
+    const x0 = SH.x1, x1 = W.x0;
+    col.addRamp(x0, -SH.lintel, x1, SH.lintel, 'x', SH.top, W.roof);
+    const len = Math.hypot(x1 - x0, SH.top - W.roof), ang = Math.atan2(W.roof - SH.top, x1 - x0);
+    b.add(worldBox(len + 0.3, 0.5, 2 * SH.lintel, 1), m.stone, (x0 + x1) / 2, (SH.top + W.roof) / 2 - 0.25, 0, 0, 0, ang);
+  }
+  // Broken columns on the terraces (cover, some to head height), fallen drums (vaulted), cargo pods
+  // from the ship (upright canisters), giant roots over the outer terrace and round the plaza.
+  for (const [x, z, r, hh, y] of [[14, 10.2, 0.5, 1.6, T1.y], [-4.6, 11.0, 0.45, 1.1, T1.y], [5.2, 13.8, 0.45, 2.3, T1.y], [-10.4, 6.4, 0.45, 1.0, T2.y], [9.5, 5.8, 0.45, 2.4, T2.y]] as const) {
+    for (const sz of [1, -1]) {
+      const c = cyl(x, sz * z, r, y - 0.05, hh, m.stone, 'concrete', 12);
+      c.vault = hh <= 1.05;
+      taken.push([x, sz * z, r + 0.4]);
     }
   }
-  // Debris panels round the wreck (low cover).
-  for (const [x0, z0, x1, z1] of [[-15, 4, -12.5, 4.6], [12.5, 7, 15, 7.6], [-3, 13, 0, 13.6], [16, 2, 16.6, 4.5]] as const) ground2(x0, z0, x1, z1, 0.9, m.hullDark, 'metal');
+  const pod = (x: number, z: number, yIn: number, tall: boolean) => {
+    for (const sz of [1, -1]) {
+      const y = yIn || Math.max(crashHeight(x - 0.75, sz * z), crashHeight(x + 0.75, sz * z), crashHeight(x, sz * z - 0.75), crashHeight(x, sz * z + 0.75));
+      const c = cyl(x, sz * z, 0.75, y - 0.05, tall ? 1.7 : 1.0, m.hull, 'metal', 14);
+      c.vault = !tall;
+      deco(x - 0.78, y + (tall ? 1.2 : 0.6), sz * z - 0.06, x + 0.78, y + (tall ? 1.3 : 0.7), sz * z + 0.06, m.cyan, 1);
+      taken.push([x, sz * z, 1.2]);
+    }
+  };
+  pod(-3.5, 24.5, 0, false);
+  pod(13.4, 13.9, T1.y, true);
+  pod(-6.6, 22.5, 0, true);
+  pod(4.2, 21.5, 0, false);
+  pod(18.5, 12, 0, false);
+  pod(-23, 9, 0, true);
+  // Roots: long horizontal trunks lying along x or z (a box collider, the root drawn round it).
+  const root = (x0: number, z0: number, x1: number, z1: number, yIn: number, r: number) => {
+    for (const sz of [1, -1]) {
+      const za = sz > 0 ? z0 : -z1, zb = sz > 0 ? z1 : -z0;
+      // On the ground: from under its lowest corner to its height over the highest (the plaza's hummocks).
+      const ys = yIn ? [yIn] : [crashHeight(x0, za), crashHeight(x1, za), crashHeight(x0, zb), crashHeight(x1, zb)];
+      const lo = Math.min(...ys), hi = Math.max(...ys);
+      const c = solid(x0, lo - 0.2, za, x1, hi + 2 * r - 0.1, zb, m.bark, 'wood', 1);
+      c.vault = hi + 2 * r - 0.1 - lo <= 1.05;
+    }
+  };
+  root(-14.8, 12, -12.2, 12.8, T1.y, 0.4);
+  root(12.2, 11.2, 14.8, 12, T1.y, 0.4);
+  root(-27, 15.4, -21.5, 16.3, 0, 0.45);
+  root(19, 19.5, 20, 26, 0, 0.45);
+  root(-8, 27.6, -1.5, 28.5, 0, 0.45);
+  // Vines over the shrine and the terraces' faces (drawn on them).
+  for (const [x0, x1, z] of [[-15.5, -12, T1.zOut], [4, 8, T1.zOut]] as const) {
+    for (const sz of [1, -1]) deco(x0, 0.2, sz > 0 ? z : -z - 0.04, x1, T1.y - 0.1, sz > 0 ? z + 0.04 : -z, m.tarp, 1);
+  }
   // Warning beacons on the hull (glow and a weak red light each), the cockpit's cyan.
   const beacon = (x: number, y: number, z: number) => {
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), m.red);
@@ -343,9 +466,9 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     const g = glows.add({ pos: v(x, y, z), color: new THREE.Color(1, 0.15, 0.1), radius: 4, base: 1, light, lightBase: 6, haloSize: 0.9, haloStrength: 0.4, mode: 'blink' });
     g.materials.push({ mat: m.red, base: m.red.color.clone() });
   };
-  beacon(W.x0 + 1, W.roof + 2.7, 0);
+  beacon(W.x0 + 1.5, W.roof + 2.7, W.z - 0.15);
   beacon(W.x1 - 0.5, W.roof + 0.15, 0);
-  clear(-16, -12, 16, 12);
+  clear(-21, -T1.zOut - 5, 18, T1.zOut + 5);
 
   // ---------------------------------------------------------------- trenches
   // Sandbags on the rim at each trench's bends (vault them; cover for whoever holds the bend).
@@ -382,12 +505,18 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
   clear(BASE.x0 - 2, BASE.z0 - 6, BASE.x1 + 2, Z_END);
   clear(-X_OUT, COURT, X_OUT, BASE.z0 - 4);
 
+  // 19.0: the denser forest keeps off the ridge's foot (a path: its drops land there, its side stairs
+  // start there) and the shrine's stair feet (trunks boxed in nav nodes there: levelAI).
+  clear(RIDGE.x1, 0, RIDGE.x1 + 7.5, COURT);
+  clear(SHRINE.stair.x0 - 2, SHRINE.stair.foot - 1, SHRINE.stair.x1 + 2, SHRINE.stair.foot + 4);
+  clear(RIDGE.ramp.x0 - 2, RIDGE.z, RIDGE.ramp.x1 + 3, RIDGE.ramp.z1 + 2);
+
   // ---------------------------------------------------------------- trees, logs, boulders
   const forestAt = (x: number, z: number) => {
     if (keepClear.some(([a0, b0, a1, b1]) => x > a0 && x < a1 && z > b0 && z < b1)) return 0;
     const td = trenchDist(x, z);
     const trench = THREE.MathUtils.smoothstep(td, 3, 9);
-    const wreck = THREE.MathUtils.smoothstep(Math.hypot(x / 1.3, z), 16, 24);
+    const wreck = THREE.MathUtils.smoothstep(Math.hypot(x / 1.3, z), 21, 28);
     const ravineSide = x > RAVINE.x1 + RAVINE.rim ? 1 : x > RAVINE.x0 - RAVINE.rim - 3 ? 0.4 : 0.85;
     return trench * wreck * ravineSide * (0.55 + noise(x * 0.06 + 3, Math.abs(z) * 0.06 - 7) * 0.6);
   };
@@ -429,10 +558,11 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
       made++;
     }
   };
-  place(9, 0.5, 0.8, 1.3, 3.5, giant);
-  place(26, 0.35, 0.26, 0.45, 1.6, slim);
+  // 19.0: a denser forest (sightline breakers): more giants and slim trunks, more boulders.
+  place(13, 0.45, 0.8, 1.3, 3.2, giant);
+  place(44, 0.3, 0.26, 0.45, 1.4, slim);
   // Mossy boulders (cover in the clearing's edges and the east bank).
-  place(12, 0.25, 0.7, 1.1, 1.8, (x, z, r) => {
+  place(18, 0.22, 0.7, 1.1, 1.6, (x, z, r) => {
     const w = r * 2, d = r * 1.6;
     const ys = [crashHeight(x - w / 2, z - d / 2), crashHeight(x + w / 2, z - d / 2), crashHeight(x - w / 2, z + d / 2), crashHeight(x + w / 2, z + d / 2)];
     const lo = Math.min(...ys), hi = Math.max(...ys);
@@ -474,13 +604,28 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     chain(G(-39, Z(RIDGE.ramp.z1 + 1)), N(-39, RT / 2, Z((RIDGE.z + RIDGE.ramp.z1) / 2)), N(-39, RT, Z(RIDGE.z - 1)));
     chain(G(RIDGE.x1 + 9.4, Z(22)), N(RIDGE.x1 + 4.3, RT / 2, Z(22)), N(RIDGE.x1 - 1.2, RT, Z(22)));
     for (const z of [10, 30]) drops.push([N(RIDGE.x1 - 1.4, RT, Z(z)), G(RIDGE.x1 + 2.6, Z(z))]);
-    // The wreck: the wings (foot, middle, roof edge), the doors (both sides), inside.
+    // 19.0, the temple: the front stairs, the terrace stairs, the east stair up T2's end, the wings
+    // (foot on T2, middle, roof edge), the hull's doors and breach (on T2 outside, on the deck inside),
+    // the gate (open cut, under the bridge), the shrine's flank stairs, a drop off the roof onto T2.
+    for (const x of [-9, 9]) chain(G(x, Z(T1.zOut + 5.2)), N(x, T1.y / 2, Z(T1.zOut + 2.25)), N(x, T1.y, Z(T1.zOut - 1)));
+    for (const x of [-9.25, 9.25]) chain(N(x, T1.y, Z(T2.zOut + 5.3)), N(x, (T1.y + T2.y) / 2, Z(T2.zOut + 2.25)), N(x, T2.y, Z(T2.zOut - 0.9)));
+    chain(G(T2.x1 + 6.6, Z(6.25)), N(T2.x1 + 2.8, T2.y / 2, Z(6.25)), N(T2.x1 - 0.9, T2.y, Z(6.25)));
     const wx = (W.wing.x0 + W.wing.x1) / 2;
-    chain(G(wx, Z(W.wing.z1 + 1.2)), N(wx, W.roof / 2, Z((W.z + W.wing.z1) / 2)), N(wx, W.roof, Z(W.z - 0.6)));
-    for (const x of [...W.doors, 0]) {
-      G(x, Z(W.z + 1.4));
-      N(x, W.floor, Z(W.z - 1.2));
-    }
+    chain(N(wx, T2.y + 0.2, Z(W.wing.z1 - 0.6)), N(wx, (T2.y + W.roof) / 2, Z((W.z + W.wing.z1) / 2)), N(wx, W.roof, Z(W.z - 0.6)));
+    for (const x of [...W.doors, 0]) chain(N(x, T2.y, Z(W.z + 1.4)), N(x, W.floor, Z(W.z - 1.2)));
+    for (const z of [3.8, 6, 8.2, 10.5, 13, 15.6]) G(0, Z(z));
+    chain(G(-18.8, Z(SHRINE.stair.foot + 1.2)), N(-18.8, SHRINE.top / 2, Z((SHRINE.z + SHRINE.stair.foot) / 2)), N(-18.8, SHRINE.top, Z(SHRINE.z - 0.9)));
+    drops.push([N(-5.5, W.roof, Z(W.z - 0.5)), N(-5.5, T2.y, Z(W.z + 1.6))]);
+    // The wings' feet from the terrace either side (their edge plates stop the automatic links).
+    for (const x of [W.wing.x0 - 0.9, W.wing.x1 + 1.1]) links.push([N(x, T2.y, Z(W.wing.z1 - 0.45)), N(wx, T2.y + 0.2, Z(W.wing.z1 - 0.6))]);
+    // The shrine's plinth (T1's level) from T1's west end.
+    chain(N(-14.4, T1.y, Z(10.4)), N(-15, T1.y, Z(7.4)), N(-15, T1.y, Z(5)));
+    drops.push([N(T1.x0 + 0.6, T1.y, Z(13.8)), G(T1.x0 - 0.8, Z(13.8))]);
+    // Terrace 1's inner areas (between the terrace stairs' cheeks and the gate; the east end beyond them)
+    // from the strip in front of the terrace stairs.
+    chain(N(-9, T1.y, Z(14.3)), N(-6.4, T1.y, Z(14.3)), N(-4, T1.y, Z(13.2)), N(-3.2, T1.y, Z(10.2)));
+    chain(N(9, T1.y, Z(14.3)), N(6.6, T1.y, Z(14.5)), N(4, T1.y, Z(12.4)), N(3.4, T1.y, Z(10)));
+    chain(N(9, T1.y, Z(14.3)), N(11.8, T1.y, Z(14.2)), N(12.6, T1.y, Z(12.6)), N(15.4, T1.y, Z(12.6)), N(15.4, T1.y, Z(10.2)));
     // The ravine: down its end ramps; the drops off the rims.
     chain(N(28.5, 0, Z(RAVINE.end + 1.5)), N(28.5, ravineFloor(Z(45.5)), Z(45.5)), N(28.5, RAVINE.floor, Z(RAVINE.z - 1)));
     for (const z of [12, 30]) {
@@ -489,10 +634,22 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     }
   }
   // The fallen tree onto the ridge, the bridges over the ravine (deck 0.45).
-  chain(G(RIDGE.x1 + 9.8, 0), N(RIDGE.x1 + 4.5, RT / 2, 0), N(RIDGE.x1 - 1.2, RT, 0));
+  chain(G(RIDGE.x1 + 7.3, 0), N(RIDGE.x1 + 3.3, RT / 2, 0), N(RIDGE.x1 - 1.2, RT, 0));
   for (const z of BRIDGES) chain(G(RAVINE.x0 - RAVINE.rim - 2.2, z), N(RAVINE.x0 + 1.5, STEP, z), N(RAVINE.x1 - 1.5, STEP, z), G(RAVINE.x1 + RAVINE.rim + 2.2, z));
-  for (const x of [-8, -4, 0, 4, 8]) N(x, W.floor, 0);
-  for (const x of [-7, -4.5, 4.5, 8]) N(x, W.roof, 0);
+  // The hull (round the hole in its deck), its roof, the drops through the hole and off the open tail,
+  // the fallen lintel up to the shrine, the undercroft under it all.
+  for (const x of [-8.3, -6, -4, -2.2, 2.2, 4, 6, 8.3]) for (const z of [-1.5, 0, 1.5]) if (open(x, W.floor, z)) N(x, W.floor, z);
+  for (const x of [-9, -6.5, -4, 3.5, 6, 8.5]) for (const z of [-1.6, 0, 1.6]) if (open(x, W.roof, z)) N(x, W.roof, z);
+  for (const x of [-2.2, 2.2]) drops.push([N(x, W.floor, 0), N(0, 0, 0)]);
+  drops.push([N(W.x0 + 0.9, W.floor, 0), N(W.x0 - 1.6, 0, 0)]);
+  chain(N(SHRINE.x1 - 0.8, SHRINE.top, 0), N((SHRINE.x1 + W.x0) / 2, (SHRINE.top + W.roof) / 2, 0), N(W.x0 + 1, W.roof, 0));
+  for (let x = -11.6; x <= 11.6; x += 2.4) for (const z of [-1.6, 0, 1.6]) if (open(x, 0, z)) N(x, 0, z);
+  // The terraces and the shrine's top.
+  for (const sz of [1, -1]) {
+    for (let x = -15; x <= 15; x += 2) for (let z = T1.zIn + 0.8; z < T1.zOut - 0.4; z += 1.6) if (Math.abs(x) > GATE + 0.7 && open(x, T1.y, sz * z)) N(x, T1.y, sz * z);
+    for (let x = -11; x <= 11; x += 2) for (let z = T2.zIn + 0.9; z < T2.zOut - 0.4; z += 1.6) if ((x < W.wing.x0 - 0.5 || x > W.wing.x1 + 0.5) && open(x, T2.y, sz * z)) N(x, T2.y, sz * z);
+  }
+  for (let x = SHRINE.x0 + 0.6; x < SHRINE.x1 - 0.4; x += 1.4) for (let z = -SHRINE.z + 0.6; z < SHRINE.z - 0.4; z += 1.4) if (open(x, SHRINE.top, z)) N(x, SHRINE.top, z);
   for (const L of lanesOf('alpha')) for (const p of L) N(p.x, p.y, p.z);
   // Lattices: the ground (4 m), the ridge top (4 m), the ravine floor (3 m along it).
   for (let x = -X_OUT + 2; x <= X_OUT - 2; x += 4) {
@@ -513,7 +670,8 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
   for (const t of ['alpha', 'omega'] as const) for (const L of lanesOf(t)) for (const p of L) if (!open(p.x, p.y, p.z)) laneProblems.push(`${t} ${p.x},${p.y},${p.z}`);
 
   const testGoals = [
-    v(-39, RT, 0), v(-39, RT, 28), v(-32, RT, -22), v(0, W.roof, 0), v(-6, W.floor, 0), v(6, W.floor, 0),
+    v(-39, RT, 0), v(-39, RT, 28), v(-32, RT, -22), v(-6, W.roof, 0), v(-6, W.floor, 0), v(6, W.floor, 0),
+    v(0, 0, 0), v(-8, 0, -1.5), v(0, 0, 12), v(-12.5, T1.y, 13.8), v(12, T1.y, -13.6), v(-6, T2.y, 6), v(9, T2.y, -5), v(-16, SHRINE.top, 2.5), v(4.5, W.roof, -1.5),
     v(28.5, RAVINE.floor, 0), v(28.5, RAVINE.floor, -30), v(40, crashHeight(40, 10), 10), v(-12, crashHeight(-12, 23), 23),
     v(11, crashHeight(11, -22), -22), v(0, 0, 48), v(-26, crashHeight(-26, -10), -10),
   ];
@@ -531,10 +689,12 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     mistSize: 2 * Z_END + 30,
     canopyOk: (x, z) => Math.hypot(x / 1.3, z) > 14,
     vineOk: (x, z) => forestAt(x, z) > 0.3,
+    // 19.0: half again as many plants (all instanced: the same draw calls).
+    density: 1.5,
   };
 
   return {
-    nav: { nodes, links, drops, slope: 0.18 },
+    nav: { nodes, links, drops, slope: 0.18, faces: true },
     spawns: { alpha: spawnsOf('alpha'), omega: spawnsOf('omega') },
     coverPoints: [],
     testGoals,

@@ -34,7 +34,7 @@ export type MenuEvent =
 
 /** `fl`: the mode's flavor line (Flavor.ts, in the loaded biome's script). */
 export const MODE_LABEL: Record<Mode, { name: string; fl: FlavorKey; line: string }> = {
-  tdm: { name: 'TEAM DEATHMATCH 5v5', fl: 'modeTdm', line: 'Two squads of five. First to run out of tickets loses.' },
+  tdm: { name: 'TEAM DEATHMATCH', fl: 'modeTdm', line: 'Two squads (five a side; seven in the jungle). First to run out of tickets loses.' },
   arcade: { name: 'ARCADE SURVIVAL', fl: 'modeArcade', line: 'Endless waves. How long can you last?' },
   story: { name: 'STORY ESCAPE', fl: 'modeStory', line: 'Get out of Shinjuku before the last train.' },
 };

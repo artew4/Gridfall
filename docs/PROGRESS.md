@@ -1164,8 +1164,43 @@ Branch `feature/maglev-terminal-18.0`, from `main` @ `6e5044e` (17.1, deployed f
 - **Leaks:** `leakcheck.mjs 2 maglev,oldport,neonblock`: lap 1 = lap 2, 0 alive after a forced GC.
 - **Tests:** 242 (+12: Maglev's layout, lanes, carve, zones, the glass rule; lane weights).
 
+## 19.0: Jungle: Crash Site 2.0 (the temple), self-play density, 7v7
+
+Branch `feature/jungle-rework-19.0`, from `main` @ `5e10623` (18.0, deployed first). Full numbers: `docs/BENCH-19.0.json`; the map in `docs/LEVELS.md` (*Crash Site 2.0*).
+
+### The map
+- An overgrown stepped temple in the middle with the dropship lying across its top: fight under the ship (the undercroft, gates through the terraces, a hole in the deck), inside it (deck level with the upper terrace), above it (its roof, a fallen lintel, the shrine at 7.2 m). Roots, broken columns, fallen drums, cargo pods. Denser forest and undergrowth (×1.5, instanced).
+
+### Self-play (`tdmSim`, bot vs bot, tickets 5 a player, three matches a cell)
+| | kills/min | first engagement (median) | quiet seconds |
+|---|---|---|---|
+| 15.0 map, 5v5 | 12.7–19.9 | 13.9–14.9 s | 29–41% |
+| 15.0 map, 8v8 | 24.3–29.5 | 14.4–15.9 s | 16–25% |
+| temple, 5v5 | 14.2–14.3 | 16.4–17.4 s | 37–41% |
+| temple, 8v8 | 23.7–27.4 | 14.8–16.3 s | 20–24% |
+| temple + forward respawns, 5v5 | 10.3–19.0 | 11.1–13.7 s | 33–53% |
+| temple + forward respawns, 6v6 | 22.9–29.7 | 8.9–10.8 s | 15–27% |
+| **temple + forward respawns, 7v7** | **29.0–29.9** | **9.3–10.5 s** | **14–18%** |
+| temple + forward respawns, 8v8 | 32.9–38.6 | 8.8–9.4 s | 13–21% |
+
+- **More bots** cut the quiet seconds; **forward respawns** cut the walk (the first engagement was the spawn-to-temple walk at every size). 7v7 is the knee: as little downtime as 8v8, the steadiest cell. Shipped: 7v7, 50 tickets (2.6–2.9 min at 45).
+- **The jungle AI profile** (7v7, 45 tickets, on vs off): 30–32 vs 26–30 kills a minute, first engagement 8.4–10 vs 9.4–12.1 s, bots dying without firing 2–4 vs 3–8 a match. SG kills at a 6.8–7.4 m median, SMG 11 m, rifles 10–12 m (the band moved in).
+- **Lanes:** the temple lane 70–73% of lane time and two thirds of the kills; under, inside and above the ship together ~13% of bot time and 21 kills in a match. Balancing the flanks brought the downtime back (not shipped).
+
+### Engine (all opt-in per map unless noted)
+- `LevelInfo.teamSize`, `TdmData.tickets`, `TdmData.arena` (an ARENA profile applied at the match's start, restored at its end), `TdmData.forward` (forward respawns), `FoliageSite.density`, `NavLayout.faces`; `ARENA.coverPush` (off by default). The menu card and the briefing read the team size (`7v7 TDM`).
+- **For every map:** self-play is now NvN (the spectating player's slot is filled by a bot); stairs are walked (`Nav.climb`: a walker never skips a climbing hand link's node, and a route never enters one mid-flight from beside it). `levelAI` on the other seven maps equals `main` (no regressions; Docks 145 vs 144 of 160).
+
+### Validation
+- **`bench(3)`** at 7v7 (13 bots and the player), Balanced, through the menu: 60 FPS in all 12 views; CPU 1.5–2.1 ms, GPU 4.7–5.9 ms; 288k triangles, 2 point lights.
+- **`tdmBench`** with the player, 5v5 → 10v10: 60 FPS throughout, CPU 2.3–2.5 ms, AI 0.55–0.69 ms a frame (P99 ≤ 2.3), 10–19 rays a frame, nothing deferred or late. The 7.0 budgets are per frame, not per bot, so cost grows sub-linearly: no new LOS throttle was needed.
+- **World:** `world()` 74,052 cells, 0 findings standing and crouched; `stress()` 0 in 256,000 runs; `stairGaps()` 20 stairs, 0 drops; `levelAI()` 176/176 runners, 8/8 gunners (twice), graph connected. Fixed on the way: a crate 0.3 m off a hull wall, narrow gaps by columns, unplated stairs' fill crossed by side jumps (standable fill), nodes linked across stair sides by the terrain slope allowance (`faces`), a pocket by the shrine (the plinth), trunks boxing in drop landings.
+- **Leaks:** `leakcheck.mjs 2 crashsite,maglev,oldport`: lap 1 = lap 2, 0 alive.
+- **Tests:** 249 (+6: profiles, team size, the climb and face rules).
+
 ## Next
 Human playtest:
+- 19.0 items: Crash Site at 7v7 (is it constant action or chaos; do forward respawns feel fair or like spawning into fights; the undercroft, the hull and the shrine: do the three levels read; is the undergrowth too thick to see bots through), the jungle bots (do shotgun and SMG bots really come at you from cover).
 - 18.0 items: Maglev Terminal (does the train feel like a shotgun lane or a death trap, are the cab doors too strong as the straight way, do the platforms' duels work past the kiosks and columns, is the white too bright or flat, the glass), the terminal ambience.
 - 17.1 items: Old Port (is the daylight pleasant or flat, is the warehouse's inside bright enough, do the stacks and the ship's bridge pay off, is the yard too open), the random name on a first visit.
 - 17.0 items: does the machine stay cool (fans, temperature) in a Neon Block match and on the pause menu; does Neon Block still look right with its lights pooled (any light popping when you turn?); is the menu stage still crisp enough at 1.0×.

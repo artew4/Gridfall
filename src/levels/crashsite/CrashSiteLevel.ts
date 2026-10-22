@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildCrashSite, type CrashResult } from './CrashSite';
-import { BASE, CRASH_TERRAIN, RAVINE, X_OUT, Z_END, inBase, laneOf, lanesOf } from './CrashLayout';
+import { BASE, CRASH_TEAM_SIZE, CRASH_TERRAIN, JUNGLE_AI, RAVINE, X_OUT, Z_END, forwardOf, inBase, laneOf, lanesOf } from './CrashLayout';
 import { buildFoliage, type FoliageResult } from '../jungle/Foliage';
 import { buildGodRays, type GodRays } from '../jungle/GodRays';
 import { applyMud } from '../jungle/Mud';
@@ -16,18 +16,20 @@ export const CRASHSITE_INFO: LevelInfo = {
   name: 'JUNGLE: CRASH SITE',
   biome: 'jungle',
   jp: 'จุดเครื่องตก',
-  blurb: 'A dropship down in the rainforest, built for 5v5: the ridge, the wreck and its mud trenches, the ravine.',
+  blurb: 'A dropship down on an overgrown temple in the rainforest, 7v7: under the ship, inside it and above it on the ruins; the ridge and the ravine on the flanks.',
   modes: ['tdm'],
   loading: 'CLEARING THE CRASH SITE…',
   windowTitle: 'Gridfall — Jungle: Crash Site',
   enemies: JUNGLE_GUARDS,
   music: 'jungle_theme',
-  tagline: 'THE RIDGE · THE WRECK · THE RAVINE',
+  // 19.0: self-play (docs/BENCH-19.0.json): 7v7 is the knee (quiet seconds 14–18%, as 8v8; 5v5 33–53%).
+  teamSize: CRASH_TEAM_SIZE,
+  tagline: 'THE RIDGE · THE TEMPLE · THE RAVINE',
   jpLine: 'ป่าลึก · 47P QS 441 882 · ๐๖:๑๒',
   place: 'CRASH SITE · 47P QS 441 882',
   clock: '06:12',
   cine: {
-    tdm: { t1: 'GRIDFALL', t2: 'จุดเครื่องตก · CRASH SITE', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>THE RIDGE · THE WRECK · THE RAVINE' },
+    tdm: { t1: 'GRIDFALL', t2: 'จุดเครื่องตก · CRASH SITE', t3: 'TEAM DEATHMATCH 7v7 · ALPHA vs OMEGA<br/>THE RIDGE · THE TEMPLE · THE RAVINE' },
   },
 };
 
@@ -94,7 +96,7 @@ export class CrashSiteLevel implements LevelRuntime {
 
     // Light shafts: onto the wreck's breach, the ridge's mid-field and the ravine's middle bridge.
     this.rays = buildGodRays(s, this.sun.position, [
-      { x: 0, y: 3.9, z: 0, r: 2.6, k: 1.0 },
+      { x: 0, y: 2.8, z: 0, r: 2.4, k: 1.0 },
       { x: -38, y: 3.6, z: 0, r: 2.6, k: 0.85 },
       { x: 28.5, y: 0.45, z: 0, r: 2.2, k: 0.8 },
     ], new THREE.Color(0.95, 1.0, 0.6).multiplyScalar(0.16));
@@ -110,6 +112,7 @@ export class CrashSiteLevel implements LevelRuntime {
 
     const d = this.site;
     const start = { x: 0, z: 59, yaw: 0, y: 0 };
+    const open = (p: THREE.Vector3) => !game.col.blocked(p, 0.6);
     this.data = {
       start,
       bounds: new THREE.Box2(new THREE.Vector2(-X_OUT - 0.5, -Z_END - 0.5), new THREE.Vector2(X_OUT + 0.5, Z_END + 0.5)),
@@ -129,7 +132,11 @@ export class CrashSiteLevel implements LevelRuntime {
         inBase: (team, p) => inBase(p, team),
         start,
         laneOf,
-        laneNames: ['ridge', 'wreck', 'ravine'],
+        laneNames: ['ridge', 'temple', 'ravine'],
+        // 50 tickets: about 3-minute matches at 7v7 (45 gave 2.6–2.9 min).
+        tickets: 50,
+        arena: JUNGLE_AI,
+        forward: { points: { alpha: forwardOf('alpha').filter(open), omega: forwardOf('omega').filter(open) }, safe: 22, sight: 45 },
       },
     };
   }

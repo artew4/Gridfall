@@ -3,6 +3,7 @@ import type { Terrain } from '../../world/Collision';
 import type { Zone } from '../Level';
 import { smoothstep } from '../../core/math';
 import { noise } from '../jungle/Terrain';
+import type { ArenaProfile } from '../../enemies/arena/ArenaCtx';
 
 /*
   Jungle: Crash Site (15.0): a Team Deathmatch arena built for 5v5 in Deep Jungle's biome, not a
@@ -28,6 +29,10 @@ import { noise } from '../jungle/Terrain';
   Lane 3, east (THE RAVINE): a rock-lined ravine 4 m deep, its floor the low road end to end (close
   quarters), and the east bank above it (open jungle); fallen giant trees bridge it at z 0 and ±18.
 
+  19.0, Crash Site 2.0 (played 7v7): the wreck now lies across an overgrown stepped temple (T1, T2,
+  the gate, the undercroft under the hull, the shrine and its lintel to the hull's roof); the trenches
+  end short of the temple's front stairs; the forest is denser. See docs/LEVELS.md.
+
   Rules that keep a heightfield honest (the terrain is always floor: the foot circle stands on its
   highest point, so a steep face of terrain would be walked straight up):
    - the trenches' banks are gentle (1.4 m over 4 m: 19°): walked in and out anywhere;
@@ -45,18 +50,35 @@ export const RIDGE = { x0: -48, x1: -30, z: 34, top: 3.6, ramp: { x0: -44, x1: -
 /** Rim tops, trunk decks and the hull's deck are all ≤ 0.3 m: a box is walked onto only up to that (more must be jumped). */
 export const STEP = 0.28;
 export const RAVINE = { x0: 24, x1: 33, z: 40, end: 51, floor: -4, rim: 1.5, rimTop: STEP };
-/** The wreck: the dropship's hull across the middle (floor 0.4, roof 3.9) and its wings (ramps to the roof). */
-export const WRECK = { x0: -10, x1: 10, z: 2.8, floor: STEP, roof: 3.9, wing: { x0: 2.4, x1: 6.6, z1: 10 }, doors: [-7.8, 7.8], breach: 2 };
+/**
+ * 19.0: the wreck lies across the temple's upper terrace: its belly from `belly`, its deck (`floor`)
+ * level with the terrace, its roof; the wings are ramps from the terrace to the roof; a hole in the
+ * deck (`hole`) drops into the undercroft below. Side doors at x ±7.8, the breach x ±2 (full height).
+ */
+export const WRECK = { x0: -10, x1: 10, z: 2.8, belly: 2.2, floor: 2.8, roof: 6.4, wing: { x0: 2.4, x1: 6.6, z1: 9 }, doors: [-7.8, 7.8], breach: 2, hole: 1.2 };
+/**
+ * 19.0, the temple (mirrored, ALPHA's half authored): the outer terrace T1 (a band in front of the
+ * upper one), the upper terrace T2 (from the hull's side to T1), both cut by the gate (|x| < GATE) at
+ * ground level: open between T1's halves, roofed by T2's bridge slab, then under the hull (the
+ * undercroft: ground level, ceiling the hull's belly).
+ */
+export const T1 = { x0: -16, x1: 16, zIn: 9, zOut: 15, y: 1.3 };
+export const T2 = { x0: -12, x1: 12, zIn: WRECK.z, zOut: 9, y: WRECK.floor, slab: 0.4 };
+export const GATE = 2;
+/** The shrine (a ruined prang) west of the wreck, its stairs up both flanks, the fallen lintel to the wreck's roof. */
+export const SHRINE = { x0: -20, x1: -13.2, z: 4, top: 7.2, stair: { x0: -20, x1: -17.6, foot: 17 }, lintel: 1.0 };
 /** ALPHA's landing zone (OMEGA's is the mirror): a sandbag yard, two exits. */
 export const BASE = { x0: -16, x1: 16, z0: 54, z1: 63 };
 /** The approaches (in front of the yards) start here. */
 export const COURT = 44;
 /** Mud trenches (south half, mirrored): polylines and their profile. */
 /** Banks 5.5 m: a smoothstep's steepest point is 1.5× its mean, so 1.4 m over 5.5 m peaks at 21°. */
-export const TRENCH = { depth: 1.4, floor: 1.3, bank: 5.5, endFade: 6 };
+// 19.0: endFade 6 → 7 (the trenches' new ends, short of the temple, peaked at 22.2° with 6).
+export const TRENCH = { depth: 1.4, floor: 1.3, bank: 5.5, endFade: 7 };
 export const TRENCHES: [number, number][][] = [
-  [[-12, 47], [-17, 35], [-11, 23], [-9, 12.5]],
-  [[11, 46], [16, 34], [10, 22], [9, 12.5]],
+  // 19.0: they end short of the temple's front stairs (they ran into the old wreck's clearing).
+  [[-12, 47], [-17, 35], [-14, 25.5]],
+  [[11, 46], [16, 34], [14, 25.5]],
 ];
 /** Fallen giant trees across the ravine (z of each). */
 export const BRIDGES = [0, 18, -18];
@@ -104,7 +126,8 @@ export function crashHeight(x: number, z: number): number {
   }
   // Hummocks, faded out where the arena needs flat ground.
   const yard = Math.abs(z) > COURT - 2 ? smoothstep(COURT + 2, COURT - 2, Math.abs(z)) : 1;
-  const wreck = smoothstep(14, 20, Math.hypot(x / 1.4, z));
+  // 19.0: flat round the temple and its stairs (they stand on y = 0).
+  const wreck = smoothstep(22, 28, Math.hypot(x / 1.3, z));
   const ridge = smoothstep(-31, -26, x);
   const bank = x > RAVINE.x1 ? smoothstep(RAVINE.x1 + RAVINE.rim, RAVINE.x1 + RAVINE.rim + 4, x) : x < RAVINE.x0 ? smoothstep(RAVINE.x0 - RAVINE.rim, RAVINE.x0 - RAVINE.rim - 4, x) : 0;
   // |z|: mirror-symmetric, like everything else on the map.
@@ -135,10 +158,21 @@ export function spawnsOf(team: 'alpha' | 'omega') {
   return out;
 }
 
+/**
+ * 19.0: forward respawn points (TdmData.forward), on the team's own approach about 20 m short of the
+ * temple: one behind each lane's mouth (the ridge's foot, the trenches' starts, the ravine's bank).
+ */
+export function forwardOf(team: 'alpha' | 'omega') {
+  const s = team === 'alpha' ? 1 : -1;
+  return ([[-26, 40], [-8, 43], [3, 43], [12.5, 40.5], [19.5, 41]] as const).map(([x, z]) => new THREE.Vector3(x, crashHeight(x, z * s), z * s));
+}
+
 /** Lanes, as ALPHA faces north: the ridge (west), the wreck (centre), the ravine (east). */
 const LANES_ALPHA: [number, number, number?][][] = [
   [[-18, 57.2], [-26, 52], [-39, 47], [-39, 30, RIDGE.top], [-39, 15, RIDGE.top], [-39, 0, RIDGE.top], [-39, -15, RIDGE.top], [-39, -30, RIDGE.top], [-39, -47], [-26, -52]],
-  [[-18, 57.2], [-12, 48], [-12, 44], [-16, 34], [-11, 22], [-3.5, 8.5], [-3.5, 0, WRECK.floor], [-3.5, -8.5], [-11, -22], [-16, -34], [-12, -44], [-12, -48]],
+  // 19.0: up the temple's front stair, the terrace stair, through the hull by its side doors, down the far side.
+  [[-18, 57.2], [-12, 48], [-12, 44], [-16, 34], [-12, 26], [-9, 20.5], [-9, 14, T1.y], [-9.25, 11.5, (T1.y + T2.y) / 2], [-8.5, 7, T2.y], [-7.8, 4.2, T2.y], [-7.8, 0, WRECK.floor],
+    [-7.8, -4.2, T2.y], [-8.5, -7, T2.y], [-9.25, -11.5, (T1.y + T2.y) / 2], [-9, -14, T1.y], [-9, -20.5], [-12, -26], [-16, -34], [-12, -44], [-12, -48]],
   [[18, 57.2], [24, 54], [28.5, 52.5], [28.5, 30, RAVINE.floor], [28.5, 12, RAVINE.floor], [28.5, -6, RAVINE.floor], [28.5, -24, RAVINE.floor], [28.5, -40, RAVINE.floor], [28.5, -52.5], [24, -54]],
 ];
 
@@ -159,15 +193,21 @@ export function laneOf(x: number, _y: number, z: number): 0 | 1 | 2 | null {
 }
 
 const Z = (id: string, name: string, jp: string, rects: [number, number, number, number][]): Zone => ({ id, name, jp, rects });
+const both = (x0: number, z0: number, x1: number, z1: number): [number, number, number, number][] => [[x0, z0, x1, z1], [x0, -z1, x1, -z0]];
 export const ZONES = {
+  hull: Z('hull', 'THE HULL', 'ในลำเรือ', [[WRECK.x0, -WRECK.z, WRECK.x1, WRECK.z]]),
+  undercroft: Z('undercroft', 'UNDERCROFT', 'ใต้ซากเครื่อง', [[WRECK.x0 - 3.2, -WRECK.z, WRECK.x1 + 2, WRECK.z], ...both(-GATE, WRECK.z, GATE, T1.zOut)]),
+  terrace: Z('terrace', 'TEMPLE TERRACE', 'ลานวิหาร', [...both(T1.x0, T1.zIn, T1.x1, T1.zOut), ...both(SHRINE.stair.x1, WRECK.z, T2.x0, T1.zIn)]),
+  upperTerrace: Z('upperTerrace', 'UPPER TERRACE', 'ลานบน', both(T2.x0, T2.zIn, T2.x1, T2.zOut)),
+  shrine: Z('shrine', 'THE SHRINE', 'ปรางค์', [[SHRINE.x0, -SHRINE.z, SHRINE.x1, SHRINE.z]]),
   ridge: Z('ridge', 'THE RIDGE', 'สันเขา', [[-X_OUT, -COURT - 2, -29, COURT + 2]]),
-  wreckRoof: Z('wreckRoof', 'WRECK ROOF', 'หลังคาซากเครื่อง', [[WRECK.x0 - 1, -WRECK.wing.z1, WRECK.x1 + 1, WRECK.wing.z1]]),
+  wreckRoof: Z('wreckRoof', 'WRECK ROOF', 'หลังคาซากเครื่อง', [[WRECK.x0 - 3.2, -WRECK.wing.z1, WRECK.x1 + 1, WRECK.wing.z1]]),
   ravine: Z('ravine', 'THE RAVINE', 'หุบเหว', [[RAVINE.x0, -RAVINE.end, RAVINE.x1, RAVINE.end]]),
   alphaSpawn: Z('alphaSpawn', 'ALPHA LZ', 'จุดลงจอดอัลฟา', [[BASE.x0, BASE.z0, BASE.x1, Z_END]]),
   omegaSpawn: Z('omegaSpawn', 'OMEGA LZ', 'จุดลงจอดโอเมกา', [[BASE.x0, -Z_END, BASE.x1, -BASE.z0]]),
   alphaCourt: Z('alphaCourt', 'ALPHA APPROACH', 'ทางเข้าอัลฟา', [[-X_OUT, COURT, X_OUT, Z_END]]),
   omegaCourt: Z('omegaCourt', 'OMEGA APPROACH', 'ทางเข้าโอเมกา', [[-X_OUT, -Z_END, X_OUT, -COURT]]),
-  wreck: Z('wreck', 'THE WRECK', 'ซากเครื่องบิน', [[-15, -11, 15, 11]]),
+  wreck: Z('wreck', 'THE TEMPLE', 'วิหาร', [[-21, -T1.zOut - 4, 18, T1.zOut + 4]]),
   westTrench: Z('westTrench', 'WEST TRENCH', 'สนามเพลาะตะวันตก', [[-24, -COURT, -2, COURT]]),
   eastTrench: Z('eastTrench', 'EAST TRENCH', 'สนามเพลาะตะวันออก', [[-2, -COURT, RAVINE.x0, COURT]]),
   eastBank: Z('eastBank', 'EAST BANK', 'ฝั่งตะวันออก', [[RAVINE.x1, -COURT, X_OUT, COURT]]),
@@ -177,10 +217,37 @@ export const ZONES = {
 export function zoneAt(x: number, y: number, z: number): Zone | null {
   const inR = (r: [number, number, number, number]) => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
   if (y > 1.5 && ZONES.ridge.rects.some(inR) && x < -29.5) return ZONES.ridge;
-  if (y > 2.2 && ZONES.wreckRoof.rects.some(inR)) return ZONES.wreckRoof;
+  // 19.0: the temple's levels, top down: the shrine, the wreck's roof, the hull, the terraces, the undercroft.
+  if (y > SHRINE.top - 0.8 && ZONES.shrine.rects.some(inR)) return ZONES.shrine;
+  if (y > WRECK.roof - 0.8 && ZONES.wreckRoof.rects.some(inR)) return ZONES.wreckRoof;
+  if (y > WRECK.floor - 0.3 && ZONES.hull.rects.some(inR)) return ZONES.hull;
+  if (y > T2.y - 0.4 && ZONES.upperTerrace.rects.some(inR)) return ZONES.upperTerrace;
+  if (y > T1.y - 0.4 && y < T2.y - 0.4 && ZONES.terrace.rects.some(inR)) return ZONES.terrace;
+  if (y < WRECK.belly && ZONES.undercroft.rects.some(inR)) return ZONES.undercroft;
   if (y < -0.6 && ZONES.ravine.rects.some(inR)) return ZONES.ravine;
   for (const zone of [ZONES.alphaSpawn, ZONES.omegaSpawn, ZONES.alphaCourt, ZONES.omegaCourt, ZONES.wreck, ZONES.ravine, ZONES.ridge, ZONES.eastBank, ZONES.ridgeFoot, ZONES.westTrench, ZONES.eastTrench]) {
     if (zone.rects.some(inR)) return zone;
   }
   return null;
 }
+
+/** 19.0: the team size here (self-play: docs/BENCH-19.0.json). */
+export const CRASH_TEAM_SIZE = 7;
+
+/**
+ * 19.0: the arena AI in the jungle. Long-range play fails here (fog, trunks, undergrowth): fight
+ * closer (the range band, rifles moving up beyond 26 m), push sooner and from further, flank more
+ * (three on a contact, from 9 m), hunt along the lane only from 16 m, shrug off a little more unseen
+ * damage before retreating, and close-range guns hop cover to cover when they push.
+ */
+export const JUNGLE_AI: ArenaProfile = {
+  band: [5, 13],
+  ads: { maxRange: 26 },
+  pushRange: 30,
+  pushHp: 0.55,
+  pushDamage: 30,
+  flank: { per: 3, min: 9, dist: 8, maxT: 10 },
+  laneLeave: 16,
+  retreat: { unseenDmg: 0.45 },
+  coverPush: { on: true },
+};

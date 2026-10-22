@@ -201,6 +201,14 @@ export const ARENA = {
    * for flanks and slides drawn per bot.
    */
   persona: { react: [0.17, 0.045] as [number, number], reactClamp: [0.09, 0.32] as [number, number], jitter: 0.25, aggro: [0.8, 1.25] as [number, number], patience: [0.85, 1.2] as [number, number], flank: [0.35, 1] as [number, number], slide: [0.4, 1] as [number, number] },
+  /**
+   * 19.0, the cover-hop push (off by default; Crash Site turns it on): a close-range gun (`arms`)
+   * pushing a target it can see further than `minDist` m doesn't sprint straight down its sights. It
+   * hops: every `every` s it picks a cover spot within `hop` m, at least `gain` m nearer the target and
+   * out of its sight (a wall, a trunk, or the undergrowth's concealment), and sprints there; with no
+   * such spot it rushes as before. Two rays at most per pick.
+   */
+  coverPush: { on: false, arms: ['smg', 'shotgun'] as string[], minDist: 9, hop: 9, gain: 2.5, every: 0.6 },
   director: {
     every: 0.25,
     tradeWindow: 12,
@@ -262,6 +270,35 @@ export interface ArenaStats {
   /** 12.0: slides (by why). */
   slides: number;
   slideWhy: { push: number; dive: number; exposed: number };
+}
+
+/**
+ * 19.0: a map's tuning of the arena AI: any of ARENA's entries, objects merged one level deep
+ * (`{ flank: { per: 3 } }` changes `per` and keeps the rest).
+ */
+export type ArenaProfile = { [K in keyof typeof ARENA]?: (typeof ARENA)[K] extends readonly unknown[] ? (typeof ARENA)[K] : (typeof ARENA)[K] extends object ? Partial<(typeof ARENA)[K]> : (typeof ARENA)[K] };
+
+/** Applies a profile to ARENA; returns the function that puts every value it changed back. */
+export function applyProfile(profile: ArenaProfile | undefined): () => void {
+  const undo: (() => void)[] = [];
+  const A = ARENA as unknown as Record<string, unknown>;
+  for (const [k, v] of Object.entries(profile ?? {})) {
+    const cur = A[k];
+    if (v && typeof v === 'object' && !Array.isArray(v) && cur && typeof cur === 'object' && !Array.isArray(cur)) {
+      const o = cur as Record<string, unknown>;
+      for (const [k2, v2] of Object.entries(v as Record<string, unknown>)) {
+        const was = o[k2];
+        o[k2] = v2;
+        undo.push(() => (o[k2] = was));
+      }
+    } else {
+      A[k] = v;
+      undo.push(() => (A[k] = cur));
+    }
+  }
+  return () => {
+    for (let i = undo.length - 1; i >= 0; i--) undo[i]();
+  };
 }
 
 export function newArenaStats(): ArenaStats {

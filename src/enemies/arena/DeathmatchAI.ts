@@ -185,6 +185,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   private swing: 'windup' | 'strike' | 'recover' | null = null;
   private swingT = 0;
   private zig = rand(0.8, 1.4);
+  /** 19.0, the cover-hop push: the spot it is sprinting to (out of the target's sight), and when it picks again. */
+  private hop: THREE.Vector3 | null = null;
+  private hopT = 0;
   private seed = Math.random() * 100;
   /** 11.0: aiming (long range), how long it has focused on the target, and how long it needs. */
   aiming = false;
@@ -712,6 +715,54 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     this.goal = new THREE.Vector3(w.x + Math.cos(this.seed) * off, w.y, w.z + Math.sin(this.seed) * off);
   }
 
+  /**
+   * 19.0, the cover-hop push (ARENA.coverPush, a map's profile turns it on): a close-range gun pushing
+   * a target it sees more than `minDist` m away keeps a hop: a cover spot within `hop` m of it, at
+   * least `gain` m nearer the target, that the target can't see (a wall or a trunk: one ray; or the
+   * undergrowth: the concealment field, no ray). Re-picked every `every` s or on arrival. False: no
+   * spot (or not this gun, or close enough): it rushes straight in.
+   */
+  private hopping(ctx: EnemyCtx, A: ArenaCtx, T: Combatant, now: number): boolean {
+    const C = ARENA.coverPush;
+    const me = this.self;
+    if (!C.on || !C.arms.includes(me.arm.id)) return false;
+    const dT = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
+    if (dT < C.minDist) {
+      this.hop = null;
+      return false;
+    }
+    // Picked (or found nothing) a moment ago: keep that answer (the scan and its rays are rationed).
+    if (now - this.hopT < C.every) return this.hop !== null;
+    this.hopT = now;
+    this.hop = null;
+    const cands: [number, THREE.Vector3][] = [];
+    for (const p of ctx.coverPoints) {
+      const d = Math.hypot(p.x - me.pos.x, p.z - me.pos.z);
+      if (d < 1.5 || d > C.hop || Math.abs(p.y - me.pos.y) > 1.2) continue;
+      const toT = Math.hypot(p.x - T.pos.x, p.z - T.pos.z);
+      if (toT > dT - C.gain || toT < 3) continue;
+      // Nearer the target is better; a long detour sideways is worse.
+      cands.push([toT + d * 0.5, p]);
+    }
+    cands.sort((a, b) => a[0] - b[0]);
+    const eye = _v.set(T.pos.x, T.pos.y + 1.6, T.pos.z);
+    for (let k = 0; k < Math.min(2, cands.length); k++) {
+      const p = cands[k][1];
+      const chest = new THREE.Vector3(p.x, p.y + 1.1, p.z);
+      if (ctx.concealment && ctx.concealment(eye, chest) < 0.35) {
+        this.hop = p.clone();
+        return true;
+      }
+      if (!A.sched.canAfford(1)) break;
+      A.sched.spend(1);
+      if (!ctx.col.lineOfSight(eye, chest)) {
+        this.hop = p.clone();
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** The nearest spot within 7 m the threat can't see (one ray each, two tries), else null (it strafes out). */
   private breakSpot(ctx: EnemyCtx, A: ArenaCtx, T: Combatant): THREE.Vector3 | null {
     const me = this.self;
@@ -772,6 +823,13 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       // Aiming: feet planted while it focuses, then a walking strafe; from the hip, the full run.
       const sp = this.aiming ? run * (this.focusT < this.focusNeed ? ARENA.ads.focusMove : ARENA.ads.walk) : run;
       this.strafe(dt, ctx, T, sp, desired);
+    } else if (this.state === 'push' && gunner && T && tv && this.hopping(ctx, A, T, now)) {
+      // 19.0: hop from cover to cover towards it (the spot is out of its sight), firing on the way.
+      if (me.steer(this.hop!, sprint, ctx, dt, desired) < 1) {
+        // Arrived: the next hop at once.
+        this.hop = null;
+        this.hopT = -Infinity;
+      }
     } else if ((this.state === 'push' || this.state === 'engage') && T) {
       // Rush: straight at it (a runner zig-zags while it is being watched).
       const goal = tv ? T.pos : (A.director.contacts.get(T.uid)?.pos ?? T.pos);
