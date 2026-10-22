@@ -193,6 +193,24 @@ export const ARENA = {
    */
   patrol: { radar: 40, halfLife: 20, radius: 22, spawn: 0.6, near: 5, heat: 0.6, heatCap: 1.5, lane: 0.8, stale: 1.4, staleT: 40, distM: 110, claim: 0.7, jitter: 0.25, minGap: 9, dwell: [0.5, 1.4] as [number, number] },
   /**
+   * 32.0, space (anti-clustering): a team uses the map's width instead of moving as one blob.
+   *  - fights: a bot with a teammate within `engageR` m strafes away from it, and eases away from it
+   *    (`engagePush` of its speed, more the closer it is);
+   *  - patrols: an area's score loses `patrol` × crowd, the crowd being every teammate standing within
+   *    `patrolR` m of it and every area a teammate has claimed within that (each 1 − d / patrolR); and
+   *    gains `width` × its lane's need (ArenaDirector.laneNeed: 1 for a lane nobody is in or headed to,
+   *    below 0 for one with more than its share), so the team covers the map's width;
+   *  - hunts: the bots after one contact are numbered as they join (forgotten after `huntTtl` s): the
+   *    first goes straight, the next ones to approach points `approach` m to either side of the line
+   *    to it (alternating, further for each pair), snapped to the nav; within `direct` m of the
+   *    contact (or `arrive` m of its point) a bot goes straight in;
+   *  - crowds: a bot fighting a target it sees with `crowd` or more teammates within `crowdR` m, the
+   *    group's highest uid, with `crowdHp` of its health or more, goes round (a flank claim, ARENA.flank's point and limits, the group's centre
+   *    as the line it leaves) and keeps shooting on the way; `crowdCd` s before it does again.
+   * Off by default (the 31.0 bots); a map's profile turns it on (Neon Docks, 32.0: measured there only).
+   */
+  space: { on: false, engageR: 10, engagePush: 0.8, patrol: 1.2, patrolR: 22, width: 0.9, huntTtl: 3, approach: 12, direct: 16, arrive: 4, crowd: 2, crowdR: 10, crowdCd: 8, crowdHp: 0.6 },
+  /**
    * 14.0, high ground: a flank's spot may be a floor up to `up` m above the contact (a landing, a
    * roof's edge), each metre of height worth `perM` m of distance, within `reach` m of the flank point.
    * Off (A/B): flank spots on the contact's own level, as 12.0.
@@ -307,6 +325,9 @@ export interface ArenaStats {
   flankArrive: number;
   /** 27.0: patrols that reached their area. */
   patrolArrive: number;
+  /** 32.0: hunts sent round to a side approach, and crowded fighters sent round (ARENA.space). */
+  approaches: number;
+  crowdFlanks: number;
   /** 30.0: seconds sprinting by reason, seconds run dry, times run dry; the pool when a fight starts (engage). */
   sprintWhy: { cross: number; flank: number; push: number; retreat: number };
   exhaustedT: number;
@@ -363,7 +384,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

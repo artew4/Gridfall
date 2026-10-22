@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildDocks, type DocksResult } from './Docks';
-import { BARGES, BASE, DEPOT, QUAY_X, SPAWN_PADS, SPAWN_ZONES, WEST_X, inBase, lanesOf } from './DocksLayout';
+import { BARGES, BASE, DEPOT, DOCKS_AI, DOCKS_TEAM_SIZE, QUAY_X, SPAWN_PADS, SPAWN_ZONES, WEST_X, inBase, lanesOf } from './DocksLayout';
 import { DesertIntro } from '../desert/DesertIntro';
 import { Rain } from '../../world/Rain';
 import { ReflectionCatchers } from '../../world/ReflectionCatchers';
@@ -17,7 +17,10 @@ export const DOCKS_INFO: LevelInfo = {
   name: 'NEON DOCKS',
   biome: 'docks',
   jp: 'НЕОНОВЫЕ ДОКИ',
-  blurb: 'A rain-soaked container harbour at night, built for 5v5: the stacks, the warehouse, the quay.',
+  blurb: 'A rain-soaked container harbour at night, 9v9: the stacks, the roofed warehouse, the quay, the depot and the barges.',
+  // 32.0: 9v9 (was 5v5: the emptiest map, 27 walkable 8 m cells a player and 44% quiet seconds).
+  // Self-play over 5–10 a side (docs/BENCH-32.0.json): 9 is the knee (quiet seconds 10%, as 10v10).
+  teamSize: DOCKS_TEAM_SIZE,
   modes: ['tdm'],
   loading: 'LIGHTING THE DOCKS…',
   windowTitle: 'Gridfall — Neon Docks',
@@ -29,11 +32,13 @@ export const DOCKS_INFO: LevelInfo = {
   place: 'DOCK 7, KAWASAKI',
   clock: '03:12',
   cine: {
-    tdm: { t1: 'GRIDFALL', t2: 'ДОК-7 · NEON DOCKS', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>THE STACKS · THE WAREHOUSE · THE QUAY' },
+    tdm: { t1: 'GRIDFALL', t2: 'ДОК-7 · NEON DOCKS', t3: 'TEAM DEATHMATCH 9v9 · ALPHA vs OMEGA<br/>THE STACKS · THE WAREHOUSE · THE QUAY' },
   },
 };
 
 const FOG = 0x0b0d17;
+/** 32.0: the docks' rain (Rain's defaults are Tokyo's). */
+export const DOCKS_RAIN = { drops: 6000, width: 0.6, length: 0.9, alpha: 0.5, glow: 1.1, nearFade: [2, 5.5] as [number, number], splash: 0.6 };
 
 /**
  * Neon Docks (8.0): a Team Deathmatch arena, three lanes on a wet harbour at night. Tokyo's 4.0
@@ -43,12 +48,15 @@ const FOG = 0x0b0d17;
 export class DocksLevel implements LevelRuntime {
   readonly info = DOCKS_INFO;
   data: LevelData;
+  // 32.0: muted (was bloom 0.7 over 1.0, warm 1.14 / 0.96 / 0.8, saturation 1.15): a softer bloom from
+  // brighter sources only, the warm split nearly neutral, deeper blues in the shadows, saturation below 1.
+  // Exposure 1.12 → 1.24: the rain's own glow is mostly gone, and 8.1's lesson was "too dark to play".
   readonly look: LevelLook = {
-    exposure: 1.12,
-    bloom: { strength: 0.7, radius: 0.85, threshold: 1.0 },
+    exposure: 1.24,
+    bloom: { strength: 0.5, radius: 0.85, threshold: 1.15 },
     shadows: false,
-    shadowTint: [0.004, 0.01, 0.028],
-    grade: { split: 1, teal: [0.0, 0.014, 0.024], warm: [1.14, 0.96, 0.8], sat: 1.15 },
+    shadowTint: [0.004, 0.01, 0.03],
+    grade: { split: 1, teal: [0.0, 0.012, 0.03], warm: [1.05, 0.98, 0.93], sat: 0.9 },
     legacy: { exposure: 1.0, bloom: { strength: 0.85, radius: 0.65, threshold: 0.92 }, shadows: false, shadowTint: [0.012, 0.01, 0.03] },
   };
   flash = 0;
@@ -67,8 +75,9 @@ export class DocksLevel implements LevelRuntime {
     game.fog.color.set(FOG);
     // ~90% at 95 m: the quay's long sightlines read, the far end fades into the rain.
     game.fog.density = 0.016;
-    s.add(new THREE.HemisphereLight(0x46559a, 0x24182c, 1.0));
-    const moon = new THREE.DirectionalLight(0x5868a8, 0.3);
+    // 32.0: the sky's light a greyer, deeper blue (was 0x46559a / 0x24182c, moon 0x5868a8).
+    s.add(new THREE.HemisphereLight(0x3f4a6c, 0x1e1a26, 1.0));
+    const moon = new THREE.DirectionalLight(0x56628c, 0.3);
     moon.position.set(40, 60, -30);
     s.add(moon);
 
@@ -117,6 +126,7 @@ export class DocksLevel implements LevelRuntime {
         zones: SPAWN_ZONES,
         // 28.0: the quay and the barges are long open lines: pressure from a little further off.
         spawnTuning: { near: 50, hardMin: 20, sight: 80 },
+        arena: DOCKS_AI,
         inBase: (team, p) => inBase(p, team),
         start,
         // 15.0: the containers (west), the warehouse and its alley (centre), the quay (east); the
@@ -139,10 +149,12 @@ export class DocksLevel implements LevelRuntime {
   attach() {
     const game = this.game;
     // After the engine built the halos: the rain lights its drops from the same glows.
-    this.rain = new Rain(game.scene, game.glows, game.time, game.fog, { ...this.docks.rain, holes: game.col.holes });
+    // 32.0: lighter rain ("unplayable"): 6,000 streaks (was 14,000), 60% as wide, at half the opacity,
+    // lit half as hard by the lamps, and none within 2 m of the eye (they crossed the screen).
+    this.rain = new Rain(game.scene, game.glows, game.time, game.fog, { ...this.docks.rain, holes: game.col.holes }, DOCKS_RAIN);
     // The rain and the floods: enemies see as far as you do (the fog's 90% distance, ~95 m).
     game.ctx.sightRange = fogRange(game.fog.density);
-    game.weapon.setLights({ sky: 0x5a6aa8, ground: 0x2a1c2c, hemi: 0.9, key: 0xffc890, keyI: 1.6, rim: 0xff4ad8, rimI: 0.9 });
+    game.weapon.setLights({ sky: 0x56628c, ground: 0x241e2a, hemi: 0.9, key: 0xe8cfb0, keyI: 1.6, rim: 0x8a78d0, rimI: 0.8 });
   }
 
   startAudio() {
@@ -188,7 +200,7 @@ export class DocksLevel implements LevelRuntime {
 
   lightWeapon(weapon: Weapon) {
     weapon.setKey(1.5 - this.indoors * 0.3);
-    weapon.fillLight.color.setRGB(1, 0.6, 0.9);
+    weapon.fillLight.color.setRGB(0.75, 0.7, 0.95);
     weapon.fillLight.intensity = 0.5;
   }
 
@@ -227,6 +239,7 @@ export class DocksLevel implements LevelRuntime {
     WET4.value = 1;
     this.catchers.dispose();
     this.env.dispose();
+    this.rain?.dispose();
     game.audio.setUnderground(0);
   }
 

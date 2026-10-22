@@ -3,7 +3,7 @@ import wavesSrc from '../Waves.ts?raw';
 import squadSrc from '../tactics/Squad.ts?raw';
 import arcadeSrc from '../../levels/Arcade.ts?raw';
 import enemySrc from '../Enemy.ts?raw';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ArenaDirector } from './ArenaDirector';
 import { Sensing, type Seen, type SenseAgent } from './Sensing';
 import { stepAir, vaultAhead, vaultSpeed } from './Locomotion';
@@ -565,5 +565,49 @@ describe('12.0: flanking a contact a teammate is fighting', () => {
     see(a.brain, h, false);
     a.brain.decide(a.ctx);
     expect(a.brain.state).toBe('hunt');
+  });
+});
+
+describe('32.0: space, the crowd flank', () => {
+  // Off by default (a map's profile turns it on: the docks).
+  beforeEach(() => void (ARENA.space.on = true));
+  afterEach(() => void (ARENA.space.on = false));
+  it('three fighting from one spot: the highest uid goes round (a flank point off the line), the others fight on', () => {
+    const h = unit(v(0, 0, -25), 'omega');
+    // Friends made before the rig's bot: it has the highest uid of the three.
+    const a = rig(v(0, 0, 0), { hostiles: [h], friends: [unit(v(3, 0, 1), 'alpha'), unit(v(-3, 0, 1), 'alpha')] });
+    see(a.brain, h, true);
+    a.brain.decide(a.ctx);
+    expect(a.brain.state).toBe('flank');
+    expect(a.stats.crowdFlanks).toBe(1);
+    expect(Math.abs(a.brain.goal!.x)).toBeGreaterThan(5);
+    // Its teammates made after it (higher uids): it stays.
+    const b = rig(v(0, 0, 0), { hostiles: [h] });
+    (b.ctx.friends as Combatant[]).push(unit(v(3, 0, 1), 'alpha'), unit(v(-3, 0, 1), 'alpha'));
+    see(b.brain, h, true);
+    b.brain.decide(b.ctx);
+    expect(b.brain.state).toBe('engage');
+  });
+
+  it('one teammate near is no crowd; a hurt bot stays with its friends; the space off (A/B) never flanks', () => {
+    const h = unit(v(0, 0, -25), 'omega');
+    const one = rig(v(0, 0, 0), { hostiles: [h], friends: [unit(v(3, 0, 1), 'alpha')] });
+    see(one.brain, h, true);
+    one.brain.decide(one.ctx);
+    expect(one.brain.state).toBe('engage');
+    const hurt = rig(v(0, 0, 0), { hostiles: [h], friends: [unit(v(3, 0, 1), 'alpha'), unit(v(-3, 0, 1), 'alpha')] });
+    hurt.me.hpFrac = ARENA.space.crowdHp - 0.05;
+    see(hurt.brain, h, true);
+    hurt.brain.decide(hurt.ctx);
+    expect(hurt.brain.state).toBe('engage');
+    ARENA.space.on = false;
+    try {
+      const off = rig(v(0, 0, 0), { hostiles: [h], friends: [unit(v(3, 0, 1), 'alpha'), unit(v(-3, 0, 1), 'alpha')] });
+      see(off.brain, h, true);
+      off.brain.decide(off.ctx);
+      expect(off.brain.state).toBe('engage');
+    } finally {
+      ARENA.space.on = true;
+    }
   });
 });

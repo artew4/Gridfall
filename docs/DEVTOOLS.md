@@ -95,6 +95,10 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Flanks (28.0):
   - `tdmSim(...)` also reports `edge` (the share of bot time, combat time and kills on the map's outer edges, `TdmData.edgeOf`) and `xBands` (bot time, combat time and kills in 12 bands across the map's width), and takes `sight` (a fixed sight range for the match, the fog density with it: the desert's storm doesn't run in a sim; 24.5 is its peak).
   - `bench(3)` gains views of the new pieces: the depot, the sniper stack and the barges (docks); the trench, the Anvil's top and the convoy (desert, calm).
+- Neon Docks overhaul (32.0):
+  - `tdmSim(...)` reports `spread`: bots with 2+ teammates within 10 m (`groupedPct`), one within 6 m (`pairedPct`), in a convoy (2+ within 15 m moving the same way, `convoyPct`), each by state (`groupedBy`, `convoyBy`); the nearest teammate (median, p25); the share of the main lanes a team covers (`laneCoverPct`) and its width (`widthPct`); hunts sent to a side approach. Teams of 3+ alive with tickets left, every 15 steps. `space: false` is 31.0's bots (the A/B; `ARENA.space` the knobs, off by default and on through the docks' profile, `DOCKS_AI`).
+  - `TDM.force.size` / `tdmSim({ size })` as before; the docks' own size is 9 (`DOCKS_TEAM_SIZE`).
+  - `Rain` takes a `RainLook` (streaks, width, length, opacity, glow, near fade, splashes); `DOCKS_RAIN` is the docks'.
 - Deployment zones (31.0):
   - `TDM.spawns`: `'zones'` (the default: 2–3 zones a team, `TdmData.zones`), `'dynamic'` (27.0's map-wide pads, DEV only now), `'bases'` (the yards). `tdmSim({ spawns })` takes all three; `spawnSafety.mode` names the one that ran.
   - `tdmSim(...)` reports `zones` (picks, zone-safety rays, picks with no safe zone, uses per `team-zone`) and `zBands` (bot time, combat time and kills in 12 bands from one side's back to the other's).

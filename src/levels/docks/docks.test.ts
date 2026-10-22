@@ -20,9 +20,12 @@ describe('Neon Docks layout', () => {
     expect(Math.min(...mid(a[4]).map((p) => p.x))).toBeGreaterThan(QUAY_X + 2);
   });
 
-  it('15.0: the yards open only to the flanks (no centre exit), the warehouse is roofless and 7 m', () => {
+  it('15.0: the yards open only to the flanks (no centre exit); 32.0: the 7 m warehouse roofed, its parapet out of reach', () => {
     expect(EXITS).toEqual([-17, 17]);
     expect(WH.h).toBe(7);
+    expect(WH.roof).toBeGreaterThan(WH.h);
+    // The highest stand near it: the quay gantry's armoured rail (deck + 1.1 m); a jump adds 1 m.
+    expect(WH.parapet).toBeGreaterThan(QG.y + 1.1 + 1 + 0.3);
     expect(zoneAt(19.2, QG.y, 10)?.name).toBe('QUAY GANTRY');
     expect(zoneAt(21.3, QG.y, 0)?.name).toBe('CRANE NEST');
     expect(zoneAt(-45, CG.y, 10)?.name).toBe('CONTAINER GANTRY');
@@ -92,5 +95,30 @@ describe('28.0: the wider docks', () => {
     expect(zoneAt(-64, DEPOT.stack.top, 18)?.name).toBe('SNIPER STACK');
     expect(zoneAt(-64, 0, 18)?.name).toBe('OLD DEPOT');
     expect(zoneAt(52, BARGES.deck, 20)?.name).toBe('THE BARGES');
+  });
+});
+
+describe('32.0: the docks overhaul', () => {
+  it('9v9; the spread (ARENA.space) on through the docks profile only; never straight up at a goal', async () => {
+    const { DOCKS_AI, DOCKS_TEAM_SIZE } = await import('./DocksLayout');
+    const { ARENA, applyProfile } = await import('../../enemies/arena/ArenaCtx');
+    expect(DOCKS_TEAM_SIZE).toBe(9);
+    expect(ARENA.space.on).toBe(false);
+    const undo = applyProfile(DOCKS_AI);
+    expect(ARENA.space.on).toBe(true);
+    expect(ARENA.directRise).toBe(1);
+    undo();
+    expect(ARENA.space.on).toBe(false);
+  });
+
+  it('the centre zone is forward on the forecourt, off the main door\'s axis; the flanks kept', async () => {
+    const { SPAWN_ZONES } = await import('./DocksLayout');
+    const [a, b, c] = SPAWN_ZONES.half;
+    expect(b.z).toBeLessThan(BASE.z0);
+    expect(b.z).toBeGreaterThan(WH.z1);
+    // The main doors (x -2 … 2) line up: a centre on that line sees its mirror's through both.
+    expect(Math.abs(b.x)).toBeGreaterThan(2);
+    expect(a.x).toBeLessThan(MAZE_WEST);
+    expect(c.x).toBeGreaterThan(WH.x1);
   });
 });

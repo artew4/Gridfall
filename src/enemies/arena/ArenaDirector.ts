@@ -109,6 +109,9 @@ export class ArenaDirector {
   private hvaSeen: number[] = [];
   private hvaClaim = new Map<number, number>();
   private hvaT = 0;
+  /** 32.0, spread: the members as last updated (patrol crowding), and the bots after each contact in order. */
+  private mates: readonly ArenaMember[] = [];
+  private hunters = new Map<number, Map<number, number>>();
   /** 27.0 (DEV): patrol picks, and how many went to an area with activity. */
   patrolStats = { picks: 0, active: 0, spawnsHeard: 0 };
   /** Event log for checks: [time, what, detail]. Bounded. */
@@ -174,6 +177,8 @@ export class ArenaDirector {
     this.heatT = 0;
     this.moveT = -Infinity;
     this.laneMoves = 0;
+    this.mates = [];
+    this.hunters.clear();
   }
 
   private note(now: number, what: string, detail = '') {
@@ -324,13 +329,15 @@ export class ArenaDirector {
     this.hvaClaim.delete(uid);
     const claims = this.hvas.map(() => 0);
     for (const i of this.hvaClaim.values()) claims[i]++;
+    const need = this.laneNeed(uid);
     let best = -1, bs = -Infinity;
     for (let i = 0; i < this.hvas.length; i++) {
       const h = this.hvas[i];
       const d = Math.hypot(h.x - p.x, h.z - p.z);
       if (i === prev || d < P.minGap) continue;
       const own = this.lanes.length ? this.hvaLane[i] === this.laneFor(uid, p) : false;
-      const s = this.patrolScore(i, d, claims[i], now, own) + rand() * P.jitter;
+      const wide = ARENA.space.on && need.length ? ARENA.space.width * need[this.hvaLane[i]] : 0;
+      const s = this.patrolScore(i, d, claims[i], now, own, this.crowd(i, uid)) + wide + rand() * P.jitter;
       if (s > bs) {
         bs = s;
         best = i;
@@ -343,10 +350,72 @@ export class ArenaDirector {
     return best;
   }
 
-  /** An area's patrol score for a bot `d` m away (see the header), without the jitter. */
-  patrolScore(i: number, d: number, claimants: number, now: number, ownLane = false) {
+  /** An area's patrol score for a bot `d` m away (see the header), without the jitter. 32.0: less its crowd. */
+  patrolScore(i: number, d: number, claimants: number, now: number, ownLane = false, crowd = 0) {
     const P = ARENA.patrol;
-    return P.heat * Math.min(P.heatCap, this.hvaHeat[i]) + P.stale * Math.min(1, (now - this.hvaSeen[i]) / P.staleT) + (ownLane ? P.lane : 0) - d / P.distM - P.claim * claimants;
+    const S = ARENA.space;
+    return P.heat * Math.min(P.heatCap, this.hvaHeat[i]) + P.stale * Math.min(1, (now - this.hvaSeen[i]) / P.staleT) + (ownLane ? P.lane : 0) - d / P.distM - P.claim * claimants - (S.on ? S.patrol * crowd : 0);
+  }
+
+  /**
+   * 32.0: how crowded area `i` is for bot `uid`: its living teammates near the area, and the areas its
+   * teammates have claimed near it (each 1 − d / space.patrolR; the area's own claims are `claim`'s).
+   */
+  crowd(i: number, uid: number) {
+    const R = ARENA.space.patrolR;
+    const h = this.hvas[i];
+    let c = 0;
+    for (const m of this.mates) {
+      if (!m.alive || m.uid === uid) continue;
+      const d = Math.hypot(m.pos.x - h.x, m.pos.z - h.z);
+      if (d < R) c += 1 - d / R;
+    }
+    for (const [b, j] of this.hvaClaim) {
+      if (b === uid || j === i) continue;
+      const d = Math.hypot(this.hvas[j].x - h.x, this.hvas[j].z - h.z);
+      if (d < R) c += 1 - d / R;
+    }
+    return c;
+  }
+
+  /**
+   * 32.0, the width: how short each lane is of the team (bot `uid` left out): its fair share (1 / lanes)
+   * less the share of the others in it, by where they are headed (a claimed area's lane) or else where
+   * they stand, scaled so an empty lane is 1. [] with no lanes.
+   */
+  laneNeed(uid: number) {
+    const n = this.lanes.length;
+    if (!n) return [];
+    const count = new Array(n).fill(0);
+    let all = 0;
+    for (const m of this.mates) {
+      if (!m.alive || m.uid === uid) continue;
+      const c = this.hvaClaim.get(m.uid);
+      count[c !== undefined ? this.hvaLane[c] : this.nearestLane(m.pos)]++;
+      all++;
+    }
+    return count.map((c) => (all ? (1 / n - c / all) * n : 0));
+  }
+
+  /**
+   * 32.0: bot `bot` is hunting `victim`: its place among the bots after it (0 = the first), in the order
+   * they joined; a bot not heard from for space.huntTtl s leaves the list, and a bot is on one list only.
+   */
+  huntSlot(bot: number, victim: number, now: number) {
+    const ttl = ARENA.space.huntTtl;
+    for (const [v, m] of this.hunters) {
+      for (const [b, t] of m) if (now - t > ttl || (b === bot && v !== victim)) m.delete(b);
+      if (!m.size) this.hunters.delete(v);
+    }
+    let m = this.hunters.get(victim);
+    if (!m) this.hunters.set(victim, (m = new Map()));
+    m.set(bot, now);
+    let k = 0;
+    for (const b of m.keys()) {
+      if (b === bot) return k;
+      k++;
+    }
+    return k;
   }
 
   patrolRelease(uid: number) {
@@ -479,6 +548,7 @@ export class ArenaDirector {
     const D = ARENA.director;
     for (const [k, c] of this.contacts) if (now - c.t > ARENA.contactTtl * 2 || !c.who.alive) this.contacts.delete(k);
     while (this.trades.length && now - this.trades[0][0] > D.tradeWindow) this.trades.shift();
+    this.mates = members;
     const alive = members.filter((m) => m.alive);
     const bots = alive.filter((m) => !m.isPlayer);
     // 29.0: the centre of the team still standing (the human counts: they gather on him too).

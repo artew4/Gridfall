@@ -1,0 +1,609 @@
+{
+  "version": "32.0 (Neon Docks overhaul: a muted palette, lighter rain, the warehouse roofed and dry, 9v9, a forward centre zone, bots that spread out)",
+  "branch": "feature/neon-docks-32.0 from main @ e31cdf4",
+  "machine": "Apple M5, Chrome, Balanced",
+  "look": {
+    "method": "scratch docksshot.mjs: eight fixed views, headless Chrome 1280x720, bots out of view; colour stats over the frame with rain; the rain's share from the same frame with the rain meshes hidden; colourfulness (Hasler-Susstrunk) and mean chroma over the top 80% (no HUD)",
+    "before (31.0)": {
+      "forecourt": {
+        "lum": 0.0766,
+        "sat": 0.67,
+        "acidPct": 0.32,
+        "rain": {
+          "meanAdd": 0.0187,
+          "coveredPct": 6
+        }
+      },
+      "signs": {
+        "lum": 0.0778,
+        "sat": 0.688,
+        "acidPct": 0.25,
+        "rain": {
+          "meanAdd": 0.0272,
+          "coveredPct": 7.61
+        }
+      },
+      "stacks": {
+        "lum": 0.1142,
+        "sat": 0.678,
+        "acidPct": 0.2,
+        "rain": {
+          "meanAdd": 0.0136,
+          "coveredPct": 3.61
+        }
+      },
+      "warehouseFloor": {
+        "lum": 0.1257,
+        "sat": 0.671,
+        "acidPct": 0.83,
+        "rain": {
+          "meanAdd": 0.0329,
+          "coveredPct": 12.28
+        }
+      },
+      "catwalk": {
+        "lum": 0.1052,
+        "sat": 0.577,
+        "acidPct": 0.63,
+        "rain": {
+          "meanAdd": 0.038,
+          "coveredPct": 17.28
+        }
+      },
+      "quay": {
+        "lum": 0.0991,
+        "sat": 0.684,
+        "acidPct": 0.52,
+        "rain": {
+          "meanAdd": 0.0159,
+          "coveredPct": 5.67
+        }
+      },
+      "quayGantry": {
+        "lum": 0.0839,
+        "sat": 0.729,
+        "acidPct": 0.12,
+        "rain": {
+          "meanAdd": 0.0117,
+          "coveredPct": 3.3
+        }
+      },
+      "depot": {
+        "lum": 0.0696,
+        "sat": 0.67,
+        "acidPct": 0,
+        "rain": {
+          "meanAdd": 0.0103,
+          "coveredPct": 2.71
+        }
+      }
+    },
+    "after (32.0)": {
+      "forecourt": {
+        "lum": 0.0939,
+        "sat": 0.724,
+        "acidPct": 0.07,
+        "rain": {
+          "meanAdd": 0.0141,
+          "coveredPct": 2.85
+        }
+      },
+      "signs": {
+        "lum": 0.0733,
+        "sat": 0.738,
+        "acidPct": 0.06,
+        "rain": {
+          "meanAdd": 0.0098,
+          "coveredPct": 0.77
+        }
+      },
+      "stacks": {
+        "lum": 0.1068,
+        "sat": 0.589,
+        "acidPct": 0.02,
+        "rain": {
+          "meanAdd": 0.007,
+          "coveredPct": 0.44
+        }
+      },
+      "warehouseFloor": {
+        "lum": 0.1348,
+        "sat": 0.549,
+        "acidPct": 0.15,
+        "rain": {
+          "meanAdd": 0.0079,
+          "coveredPct": 0.23
+        }
+      },
+      "catwalk": {
+        "lum": 0.1061,
+        "sat": 0.527,
+        "acidPct": 0.1,
+        "rain": {
+          "meanAdd": 0.0062,
+          "coveredPct": 0.1
+        }
+      },
+      "quay": {
+        "lum": 0.0994,
+        "sat": 0.597,
+        "acidPct": 0.08,
+        "rain": {
+          "meanAdd": 0.0102,
+          "coveredPct": 1.84
+        }
+      },
+      "quayGantry": {
+        "lum": 0.0715,
+        "sat": 0.7,
+        "acidPct": 0,
+        "rain": {
+          "meanAdd": 0.0071,
+          "coveredPct": 0.41
+        }
+      },
+      "depot": {
+        "lum": 0.0665,
+        "sat": 0.779,
+        "acidPct": 0,
+        "rain": {
+          "meanAdd": 0.0069,
+          "coveredPct": 0.38
+        }
+      }
+    },
+    "colourfulness_chroma": [
+      "before [[\"catwalk\",41.2,28.8],[\"depot\",20.3,20.7],[\"forecourt\",34.1,24.1],[\"quay\",45.1,33.6],[\"quayGantry\",39.3,28.3],[\"signs\",33.8,24.8],[\"stacks\",42.8,38.6],[\"warehouseFloor\",57.6,45.8]] mean colourfulness 39.3 chroma 30.6",
+      "after3 [[\"catwalk\",26.1,21],[\"depot\",18.5,25.6],[\"forecourt\",30.8,26.5],[\"quay\",28.7,25],[\"quayGantry\",22.7,21.5],[\"signs\",20.5,23.3],[\"stacks\",29.2,25.4],[\"warehouseFloor\",34.2,29]] mean colourfulness 26.3 chroma 24.7"
+    ]
+  },
+  "teamSize": {
+    "method": "tdmSim({ size }) on the 32.0 layout before the spread, 2 matches each",
+    "results": {
+      "5": {
+        "n": 2,
+        "size": 5,
+        "sec": 462.95,
+        "kpm": 13.35,
+        "quiet": 43.85,
+        "firstEng": 12.0,
+        "d3": 0,
+        "d5": 1,
+        "resp": 200,
+        "shot3": 1.5,
+        "grouped": 2.65,
+        "paired": 10.15,
+        "convoy": 0.7,
+        "mateMed": 21.6,
+        "laneCover": 77.2,
+        "width": 51.45,
+        "approaches": 0.0,
+        "lanes": {
+          "containers": 45.55,
+          "warehouse": 35.1,
+          "waterfront": 19.35
+        },
+        "gini": 0.84,
+        "cover": 75.15,
+        "edge": 28.8,
+        "aiMs": 0.06,
+        "aiP99": 0.5,
+        "stuck": 0,
+        "noSafe": 9
+      },
+      "7": {
+        "n": 2,
+        "size": 7,
+        "sec": 317.4,
+        "kpm": 21.05,
+        "quiet": 28.05,
+        "firstEng": 10.95,
+        "d3": 0,
+        "d5": 0,
+        "resp": 200,
+        "shot3": 1.5,
+        "grouped": 8.1,
+        "paired": 18.25,
+        "convoy": 3.4,
+        "mateMed": 14.45,
+        "laneCover": 80.6,
+        "width": 53.95,
+        "approaches": 0.0,
+        "lanes": {
+          "containers": 42.1,
+          "warehouse": 35.7,
+          "waterfront": 22.2
+        },
+        "gini": 0.83,
+        "cover": 76.5,
+        "edge": 28.85,
+        "aiMs": 0.09,
+        "aiP99": 0.6,
+        "stuck": 1,
+        "noSafe": 14
+      },
+      "8": {
+        "n": 2,
+        "size": 8,
+        "sec": 288.35,
+        "kpm": 23.1,
+        "quiet": 27.35,
+        "firstEng": 11.5,
+        "d3": 0,
+        "d5": 2,
+        "resp": 200,
+        "shot3": 2.5,
+        "grouped": 9.5,
+        "paired": 19.55,
+        "convoy": 5.8,
+        "mateMed": 13.2,
+        "laneCover": 83.65,
+        "width": 56.85,
+        "approaches": 0.0,
+        "lanes": {
+          "containers": 38.65,
+          "warehouse": 38.75,
+          "waterfront": 22.65
+        },
+        "gini": 0.84,
+        "cover": 75.2,
+        "edge": 24.8,
+        "aiMs": 0.1,
+        "aiP99": 0.65,
+        "stuck": 0,
+        "noSafe": 4
+      },
+      "9": {
+        "n": 2,
+        "size": 9,
+        "sec": 205.5,
+        "kpm": 32.85,
+        "quiet": 10.45,
+        "firstEng": 12.0,
+        "d3": 0,
+        "d5": 2,
+        "resp": 200,
+        "shot3": 2.0,
+        "grouped": 14.2,
+        "paired": 23.95,
+        "convoy": 7.55,
+        "mateMed": 11.3,
+        "laneCover": 85.7,
+        "width": 57.2,
+        "approaches": 0.0,
+        "lanes": {
+          "containers": 39.75,
+          "warehouse": 35.3,
+          "waterfront": 24.95
+        },
+        "gini": 0.85,
+        "cover": 75.2,
+        "edge": 23.95,
+        "aiMs": 0.13,
+        "aiP99": 0.75,
+        "stuck": 0,
+        "noSafe": 15
+      },
+      "10": {
+        "n": 2,
+        "size": 10,
+        "sec": 209.9,
+        "kpm": 32.45,
+        "quiet": 12.35,
+        "firstEng": 12.85,
+        "d3": 0,
+        "d5": 0,
+        "resp": 200,
+        "shot3": 1.5,
+        "grouped": 15.85,
+        "paired": 26.3,
+        "convoy": 7.6,
+        "mateMed": 10.8,
+        "laneCover": 84.95,
+        "width": 55.55,
+        "approaches": 0.0,
+        "lanes": {
+          "containers": 42.85,
+          "warehouse": 36.95,
+          "waterfront": 20.25
+        },
+        "gini": 0.85,
+        "cover": 75.0,
+        "edge": 24.55,
+        "aiMs": 0.14,
+        "aiP99": 0.7,
+        "stuck": 0,
+        "noSafe": 11
+      }
+    },
+    "chosen": 9
+  },
+  "selfPlay": {
+    "method": "tdmSim, bot-only, 50 tickets, 8 matches a cell at 9v9; 31.0's docks at 5v5 3 matches",
+    "31.0 docks (5v5)": {
+      "n": 3,
+      "size": 5,
+      "sec": 503.93,
+      "kpm": 12.47,
+      "quiet": 39.1,
+      "firstEng": 16.87,
+      "d3": 0,
+      "d5": 5,
+      "resp": 298,
+      "shot3": 2.0,
+      "grouped": 2.27,
+      "paired": 9.4,
+      "convoy": 0.53,
+      "mateMed": 24.1,
+      "laneCover": 76.37,
+      "width": 56.33,
+      "approaches": 0.0,
+      "lanes": {
+        "containers": 47.4,
+        "warehouse": 24.7,
+        "waterfront": 27.9
+      },
+      "gini": 0.8,
+      "cover": 87.3,
+      "edge": 28.7,
+      "aiMs": 0.07,
+      "aiP99": 0.6,
+      "stuck": 0,
+      "noSafe": 1
+    },
+    "9v9, space off": {
+      "n": 8,
+      "size": 9,
+      "sec": 265.09,
+      "kpm": 26.32,
+      "quiet": 26.6,
+      "firstEng": 11.15,
+      "d3": 0,
+      "d5": 4,
+      "resp": 799,
+      "shot3": 2.25,
+      "grouped": 14.04,
+      "paired": 25.4,
+      "convoy": 7.06,
+      "mateMed": 11.06,
+      "laneCover": 86.64,
+      "width": 57.65,
+      "approaches": 0.0,
+      "lanes": {
+        "containers": 43.74,
+        "warehouse": 35.83,
+        "waterfront": 20.45
+      },
+      "gini": 0.84,
+      "cover": 74.62,
+      "edge": 24.21,
+      "aiMs": 0.11,
+      "aiP99": 0.66,
+      "stuck": 0,
+      "noSafe": 55
+    },
+    "9v9, space v1 (7 m fight spacing, no width term, no profile)": {
+      "n": 8,
+      "size": 9,
+      "sec": 213.0,
+      "kpm": 31.68,
+      "quiet": 12.72,
+      "firstEng": 10.91,
+      "d3": 0,
+      "d5": 5,
+      "resp": 799,
+      "shot3": 2.5,
+      "grouped": 12.62,
+      "paired": 21.34,
+      "convoy": 6.15,
+      "mateMed": 11.99,
+      "laneCover": 85.41,
+      "width": 57.5,
+      "approaches": 101.0,
+      "lanes": {
+        "containers": 41.14,
+        "warehouse": 35.73,
+        "waterfront": 23.12
+      },
+      "gini": 0.84,
+      "cover": 75.75,
+      "edge": 24.91,
+      "aiMs": 0.13,
+      "aiP99": 0.69,
+      "stuck": 0,
+      "noSafe": 83
+    },
+    "9v9, space v2 (no profile)": {
+      "n": 8,
+      "size": 9,
+      "sec": 274.21,
+      "kpm": 25.06,
+      "quiet": 31.14,
+      "firstEng": 11.12,
+      "d3": 0,
+      "d5": 5,
+      "resp": 800,
+      "shot3": 2.25,
+      "grouped": 10.88,
+      "paired": 19.07,
+      "convoy": 6.09,
+      "mateMed": 12.82,
+      "laneCover": 87.41,
+      "width": 58.19,
+      "approaches": 164.38,
+      "lanes": {
+        "containers": 39.98,
+        "warehouse": 36.71,
+        "waterfront": 23.32
+      },
+      "gini": 0.83,
+      "cover": 75.56,
+      "edge": 20.56,
+      "aiMs": 0.12,
+      "aiP99": 0.71,
+      "stuck": 1,
+      "noSafe": 53
+    },
+    "32.0 final (9v9)": {
+      "n": 8,
+      "size": 9,
+      "sec": 238.91,
+      "kpm": 28.73,
+      "quiet": 20.86,
+      "firstEng": 11.06,
+      "d3": 0,
+      "d5": 4,
+      "resp": 800,
+      "shot3": 3.62,
+      "grouped": 10.25,
+      "paired": 18.16,
+      "convoy": 5.11,
+      "mateMed": 13.0,
+      "laneCover": 88.88,
+      "width": 58.94,
+      "approaches": 88.0,
+      "lanes": {
+        "containers": 38.83,
+        "warehouse": 36.14,
+        "waterfront": 25.02
+      },
+      "gini": 0.84,
+      "cover": 76.1,
+      "edge": 22.05,
+      "aiMs": 0.12,
+      "aiP99": 0.67,
+      "stuck": 0,
+      "noSafe": 71
+    },
+    "note": "single matches at 9v9 range 20-34 kills a minute; pace differences between cells are within that"
+  },
+  "perf": {
+    "bench3 docks 9v9 (second run) [fps, cpuMs, gpuMs, drawCalls]": {
+      "alphaYard": [
+        60,
+        2.35,
+        6.5,
+        484
+      ],
+      "stacks": [
+        59.6,
+        2.68,
+        6.27,
+        272
+      ],
+      "stacksTop": [
+        60.3,
+        2.51,
+        6.16,
+        286
+      ],
+      "warehouseFloor": [
+        60,
+        2.6,
+        5.42,
+        302
+      ],
+      "catwalk": [
+        60,
+        2.22,
+        6.28,
+        386
+      ],
+      "quay": [
+        60.2,
+        2.46,
+        6.2,
+        397
+      ],
+      "crane": [
+        59.9,
+        2.93,
+        5.7,
+        111
+      ],
+      "quayGantry": [
+        60,
+        3.01,
+        5.91,
+        289
+      ],
+      "craneNest": [
+        60,
+        2.5,
+        5.61,
+        362
+      ],
+      "containerGantry": [
+        60.3,
+        2.72,
+        5.82,
+        300
+      ],
+      "depot": [
+        60,
+        2.68,
+        6.59,
+        364
+      ],
+      "sniperStack": [
+        59.9,
+        2.5,
+        6.01,
+        439
+      ],
+      "barges": [
+        60,
+        2.96,
+        6.4,
+        236
+      ],
+      "firefight": [
+        60,
+        2.91,
+        6.17,
+        370
+      ]
+    },
+    "vs28.0 (5v5)": "CPU 2.22-3.01 ms (28.0: 1.85-2.61), GPU 5.42-6.59 (4.97-6.38)",
+    "aiMsPerStep (tdmSim)": {
+      "31.0 5v5": [
+        0.07,
+        0.6
+      ],
+      "32.0 9v9": [
+        0.12,
+        0.67
+      ]
+    }
+  },
+  "leaks": {
+    "leakcheck": {
+      "command": "node scripts/leakcheck.mjs 2 docks,maglev,neonblock",
+      "aliveAfterGC": 0
+    },
+    "vramCycle_laps3": {
+      "stops": {
+        "neonblock": [
+          213,
+          69,
+          71,
+          565
+        ],
+        "crashsite": [
+          109,
+          35,
+          59,
+          530
+        ],
+        "docks": [
+          179,
+          52,
+          69,
+          821
+        ]
+      },
+      "note": "every level stop the same on all three laps; the menu reads 106 or 140 geometries by timing (BENCH-17.0, BENCH-31.0), 140 on the last lap here, so ok: false on that reading alone; a first attempt timed out waiting for a result screen while a level loaded"
+    }
+  },
+  "tests": 381
+}

@@ -1639,8 +1639,58 @@ Branch `feature/spawn-zones-31.0`, from `main` @ `a30ed95` (30.0, merged and liv
 - **Frame cost:** the zones are 11–15 draw objects a map (7–9 instanced parts, a sprite a letter, the vines or the dust). `bench(3)`: Maglev 60 FPS, CPU 1.8–2.4 ms, GPU 5.6–6.4 ms (30.0: 2.0–2.6, 5.9–6.4); Desert 60 FPS, CPU 1.6–2.1, GPU 5.5–6.0 (the dust included); Deep Jungle 60 FPS, CPU 1.6–2.1, GPU 5.7–6.3 (the vines included).
 - **Leaks:** `leakcheck` over all six maps: 0 alive after GC. `vramCycle` (3 laps, twice): geometries, textures and programs the same lap over lap at every level stop; 0 growth. Tests 373 (+6).
 
+## 32.0: Neon Docks overhaul
+
+Branch `feature/neon-docks-32.0`, from `main` @ `e31cdf4` (31.0, merged). Full numbers: `docs/BENCH-32.0.json`.
+
+### The look
+- **Palette:** the neon accents soft violet and deep blue (were full magenta and cyan), the signs muted and dimmer (neon 3.2 → 1.8), the sodium lamps' light keeping its strength but losing most of its orange, the lamp heads dimmer, the stacks' callout colours a little greyer, the bridge paint brass. The sky light a greyer, deeper blue. The grade: saturation 1.15 → 0.9, the warm split nearly neutral, deeper blue shadows; bloom 0.7 over 1.0 → 0.5 over 1.15; exposure 1.12 → 1.24 (the rain's own glow is mostly gone).
+- **Rain** (`Rain.ts` takes a level's `RainLook`; Tokyo's unchanged): 6,000 streaks (was 14,000), 60% as wide, at half the opacity, lit half as hard by the lamps, none within 2 m of the eye; the rings and crowns at 60%. `Rain.dispose()` (new) frees it with the level.
+- **Measured** (eight fixed views, headless, before → after): colourfulness (Hasler–Süsstrunk) 39.3 → 26.3, mean chroma 30.6 → 24.7, vivid pixels (saturation > 0.7 and value > 0.7) 0–1.3% → 0–0.15%; the screen the rain covers 2.5–17% → 0.1–2.9%; brightness within ±15% of before in seven views (the forecourt +23%: zone B's glow is in it now).
+
+### The warehouse roof
+- A steel deck (`BoxGeometry` through the level's builder, seen and solid) on the trusses at 7 m, top 7.3, and the walls on up to a 9 m parapet round it: from the quay gantry's armoured rail (7.6 m) a jump reaches 8.6, so nobody stands on the roof (a test holds it).
+- **No rain inside:** the roof is a rain shelter (no drops, rings or crowns under 7.3 m over it) and a surface (the rain lands and splashes on it); the warehouse floor left the open ground. Indoors again for the audio (the rain muffled) and the viewmodel's light, as before 15.0.
+- 15.0 opened it so the gantries saw in; with the roof the warehouse takes 36% of bot time (31.0: 25%), the containers 39% (47%), the waterfront 25% (28%).
+
+### 9v9
+- The docks were the emptiest map: 27 walkable 8 m cells a player at 5v5 (the 7v7 maps 8–14), 39–44% quiet seconds, 8.4-minute matches.
+- Self-play over 5–10 a side on the new layout (2 matches each): quiet seconds 44% (5v5), 28% (7v7), 27% (8v8), 10% (9v9), 12% (10v10); kills a minute 13 → 21 → 23 → 33 → 32. 9 is the knee: 15 cells a player (Neon Block's density), 3.4–4-minute matches on the same 50 tickets.
+- The team board holds the nine rows (it reaches about 29% of the screen's height).
+
+### Deployment zones
+- The centre zone moved forward out of the yard onto the forecourt (4, 40; 14 m short of the warehouse's main door, off its axis so it can't see its mirror through both end doors); the flanks (the depot, the quay) kept. 12 points; no enemy zone sees it.
+- 0 deaths within 3 s of spawning over 800 respawns; within 5 s 4 (0.5%); shot within 3 s 3.6% (spawn protection absorbs it); a respawn with no safe zone 9% (the furthest-from-enemies zone).
+
+### Spread (anti-clustering, `ARENA.space`, 6 unit tests; on through the docks' AI profile only: measured there)
+- **Fights:** a bot with a teammate within 10 m strafes away from it and eases off it.
+- **Crowds:** a healthy bot fighting a target it sees with two or more teammates within 10 m, the group's highest uid, goes round: a flank claim and point off the group's line, shooting on the way.
+- **Patrols:** an area loses score for teammates near it and teammates' claimed areas near it, and gains for a lane the team is short of (the width term).
+- **Hunts:** the 2nd, 3rd … bot after one contact goes to a point 12 m to alternate sides of the line to it (snapped to the nav), straight in only within 16 m.
+- **The docks' AI profile:** never straight up at a goal more than 1 m higher (Old Port's 23.0 rule): two self-play bots had stuck in the pocket by the catwalk landing's block; none in the 8 matches since.
+
+### Measured (bot-only, 9v9, 8 matches a cell)
+| | 9v9, spread off | 9v9, 32.0 |
+|---|---|---|
+| bots with 2+ teammates within 10 m | 14.0% | 10.3% (−27%) |
+| with one within 6 m | 25.4% | 18.2% (−29%) |
+| in a convoy (2+ within 15 m moving the same way) | 7.1% | 5.1% (−28%) |
+| nearest teammate, median | 11.1 m | 13.0 m |
+| main lanes covered (of what the team's count could) | 86.6% | 88.9% |
+| lanes, time: containers / warehouse / waterfront | 44 / 36 / 20 | 39 / 36 / 25 |
+| kills a minute | 26.3 | 28.7 |
+| quiet seconds | 26.6% | 20.9% |
+| AI ms a step (avg / p99) | 0.11 / 0.66 | 0.12 / 0.67 |
+
+- Against 31.0's docks (5v5, 3 matches): kills a minute 12.5 → 28.7, matches 8.4 → 4.0 minutes, quiet seconds 39% → 21%, first engagement 16.9 → 11.1 s.
+- At 5v5 the bots were not bunched (2.3% in groups); the groups came with the bigger teams (9v9 without the spread: 14%), and most of them fighting side by side (engage a third, patrol a quarter).
+- Pace varies a lot between matches at 9v9 (single matches 20–34 kills a minute); the spread's effect on it is within that.
+- **Frame cost at 9v9:** `bench(3)` on the docks: 60 FPS in all 14 views, CPU 2.2–3.0 ms (28.0 at 5v5: 1.9–2.6), GPU 5.4–6.6 ms (5.0–6.4); the AI 0.12 ms a step (5v5: 0.07), p99 0.67.
+- **Leaks:** `leakcheck` (docks, Maglev, Neon Block): 0 alive after GC. `vramCycle` (3 laps): every level stop the same lap over lap (the docks 179 geometries, 52 textures); only the menu's known timing reading (106 or 140) differs. Tests 381 (+8).
+
 ## Next
 Human playtest:
+- 32.0 items: Neon Docks' new palette (easier on the eyes, or too dull now?), the rain (still atmospheric?), the roofed warehouse (a fortress again?), 9v9 (busy or chaotic; can you read the team board), the forward zone B (spawning near the fight: fair?), do the bots still bunch up where you play.
 - 31.0 items: the deployment zones (can you tell your zones from theirs at a glance; do the letters help you call "they're at B"; is the walk from home too long now (bots' pace fell on most maps); does any zone feel camped); the five themes (the dust, the vines, the stripes, the glass: charming or noisy; is the beam distracting); `TDM.spawns = 'dynamic'` for the 30.0 pads side by side.
 - 30.0 items: the stamina (does a 3.5 s rifle sprint feel punishing or right; the pistol as the mobile gun; the forced walk at 0: frustrating?); the bar under the crosshair (noticed? in the way?); do bots feel less frantic, or too slow?
 - 29.0 items: the last stand from your side (being the last man; does the clock feel fair or cruel; is 60 s the right length; 30 s of holding before the push); spectating (does following a bot's eye make you sick: the snap turns are damped, is it enough; would a shoulder camera be better); does the ticket race decide too much (the team out first lost 10 of 12 in self-play).

@@ -53,9 +53,10 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   applyWet(whFloor, time, { puddles: false, wet: 0.3 });
   const steel = (paint: string) => std(steelTexture(paint, 14), 0xffffff, 0.55, 0.35, 0.7);
   const m = {
-    blue: steel('#22508f'),
-    yellow: steel('#c49416'),
-    red: steel('#922a20'),
+    // 32.0: the stacks' callout colours kept, a little greyer (were #22508f, #c49416, #922a20).
+    blue: steel('#2a4f80'),
+    yellow: steel('#b0903a'),
+    red: steel('#83342c'),
     rust: steel('#6a4632'),
     green: steel('#2d5a43'),
     wall: std(corrugatedTexture(), 0x8c939b, 0.65, 0.5, 0.6),
@@ -63,20 +64,22 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     concrete: std(concreteTexture('#6c6f6c', 2), 0xffffff, 0.85, 0, 0.6),
     jersey: std(concreteTexture('#9a9a92', 1), 0xffffff, 0.8, 0, 0.6),
     darkMetal: std(null, 0x2a2d31, 0.5, 0.7, 0.7),
-    paint: std(null, 0xd0a21c, 0.45, 0.45, 0.7),
+    paint: std(null, 0xa88c45, 0.45, 0.45, 0.7),
     deck: std(perforatedTexture(), 0x9aa0a6, 0.55, 0.6, 0.7),
     crate: std(crateTexture('DOCK 7', 'ДОК-7 · ГРУЗ', '#3b4a5a', '#d6d2c4'), 0xffffff, 0.8, 0, 0.5),
     pallet: std(crateTexture('PALLET', 'ЭКСПОРТ · EXPORT', '#5a4a36', '#d9cfae'), 0xffffff, 0.85, 0, 0.4),
     fence: new THREE.MeshStandardMaterial({ map: chainLinkTexture(), color: 0xb8c0c8, roughness: 0.5, metalness: 0.6, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, envMapIntensity: 0.6 }),
     water: std(null, 0x05090f, 0.05, 0.25, 1.4),
     hull: std(steelTexture('#1d2430', 20), 0xffffff, 0.7, 0.4, 0.3),
-    amber: hdr(5.5, 3.6, 1.4),
+    // 32.0: the lamp heads dimmer and less orange, the neon accents soft violet and deep blue (8.0–31.0:
+    // full magenta and cyan, sodium orange: "acidic", eye strain).
+    amber: hdr(4.2, 3.1, 1.8),
     white: hdr(4.2, 4.5, 5.0),
-    warm: hdr(5.5, 4.4, 2.4),
+    warm: hdr(4.2, 3.6, 2.5),
     alphaLamp: hdr(1.6, 3.4, 6.0),
     omegaLamp: hdr(6.0, 1.2, 1.0),
-    magenta: hdr(4.5, 0.6, 3.8),
-    cyan: hdr(0.5, 3.8, 4.5),
+    magenta: hdr(1.7, 1.0, 2.8),
+    cyan: hdr(0.6, 1.3, 3.0),
   };
   const stacks = { blue: m.blue, yellow: m.yellow, red: m.red };
 
@@ -364,8 +367,13 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   wall(false, WH.z0 + T, WH.z1 - T, WH.x0, WH.x0 + T, WH.h, m.wall, sideOpen([12], 3, 0, 2.6));
   wall(false, WH.z0 + T, WH.z1 - T, WH.x1 - T, WH.x1, WH.h, m.wall, [...sideOpen([6.5], 3, 0, 2.6), ...sideOpen([20.3], 2.4, DECK, 6.8)]);
   // 15.0: no roof. Open trusses across it (out of reach: 6.8 m and up over a 4.5 m catwalk), so the
-  // floor and the catwalks are seen from the quay gantry and the crane nest.
+  // floor and the catwalks are seen from the quay gantry and the crane nest (until 32.0: the roof).
   for (let z = -20; z <= 20.01; z += 8) solid(WH.x0 + 0.4, WH.h - 0.2, z - 0.15, WH.x1 - 0.4, WH.h, z + 0.15, m.darkMetal, 'metal', 1);
+  // 32.0: the roof back on (a steel deck on the trusses), and the walls on up round it to the parapet:
+  // the rain stays outside (Rain's shelter below), and nobody stands on it (WH.parapet).
+  solid(WH.x0, WH.h, WH.z0, WH.x1, WH.roof, WH.z1, m.roof, 'metal', 4);
+  for (const zs of [1, -1]) solid(WH.x0, WH.h, zs > 0 ? WH.z1 - T : WH.z0, WH.x1, WH.parapet, zs > 0 ? WH.z1 : WH.z0 + T, m.wall, 'metal', 3);
+  for (const [x0, x1] of [[WH.x0, WH.x0 + T], [WH.x1 - T, WH.x1]]) solid(x0, WH.h, WH.z0 + T, x1, WH.parapet, WH.z1 - T, m.wall, 'metal', 3);
   // Catwalks along both long walls, landings at the ends, a bridge across the middle.
   const DT = DECK - 0.25;
   for (const sx of [-1, 1]) {
@@ -454,7 +462,7 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
 
   // ---------------------------------------------------------------- 15.0: the quay gantry and the crane nest
   // A 6.5 m walk along the warehouse's east side (4 m out from its 7 m wall): from it you see the
-  // east doors below and over the wall into the roofless floor and the west catwalk. At mid-field it
+  // east doors below (15.0–31.0 also over the wall into the roofless floor). At mid-field it
   // widens east into the crane nest between the crane's legs, a low wall on its warehouse side.
   // Stairs at both ends, and from the quay straight up to the nest (z ±22 → ±9: the first cut had
   // only the end stairs, and bots on the waterfront lane, already at mid-field, never turned back to
@@ -498,28 +506,30 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     return g;
   }
   const lamps: Glow[] = [];
+  // 32.0: the lamps' light keeps its strength (8.1's illuminance) but loses most of its orange.
+  const SODIUM = 0xe8b88a;
   // Quay: amber sodium floods; maze: cold white LED floods against the west wall.
   // 8.1, "too dark for competitive play": warm light over every lane, measured as illuminance at
   // chest height on the floor nav nodes of each zone (I / d², the shader's own falloff) — mean and
   // the darkest 10%. The sky, the water and the distance stay dark: lights only where people fight.
   // (Intensities in candela with physical decay: a head 11–13 m up needs ~600 to light the ground.)
-  for (const z of [18, 46]) for (const s of [1, -1]) lamps.push(mast(44, z * s, 13, m.amber, 0xffa040, 650, 48));
+  for (const z of [18, 46]) for (const s of [1, -1]) lamps.push(mast(44, z * s, 13, m.amber, SODIUM, 650, 48));
   // West wall floods: warm white now (8.0: cold LED), stronger.
-  for (const z of [24, 48]) for (const s of [1, -1]) lamps.push(mast(WEST_X + 0.2, z * s, 11, m.warm, 0xffd9a0, 520, 44));
+  for (const z of [24, 48]) for (const s of [1, -1]) lamps.push(mast(WEST_X + 0.2, z * s, 11, m.warm, 0xe6d6c0, 520, 44));
   // Quay, warehouse side: two more sodium masts (the quay's middle was lit only from the water's edge).
-  for (const s of [1, -1]) mast(22.8, 34 * s, 12, m.amber, 0xffa040, 560, 44);
+  for (const s of [1, -1]) mast(22.8, 34 * s, 12, m.amber, SODIUM, 560, 44);
   // Forecourts: one mast each (8.0: unlit, the darkest 10% at zero).
-  for (const s of [1, -1]) mast(-3, 46 * s, 12, m.warm, 0xffc880, 600, 44);
+  for (const s of [1, -1]) mast(-3, 46 * s, 12, m.warm, 0xe8cba8, 600, 44);
   // Work lights strung over the maze's crossings, warm (the stacks' colours are the callouts).
   const work = (x: number, z: number) => {
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.18, 0.4), m.warm);
     head.position.set(x, 7, z);
     scene.add(head);
     b.add(new THREE.BoxGeometry(0.03, 3, 0.03), m.darkMetal, x, 8.5, z);
-    const light = new THREE.PointLight(0xffd090, 200, 26, 2);
+    const light = new THREE.PointLight(0xe6cfae, 200, 26, 2);
     light.position.set(x, 6.8, z);
     scene.add(light);
-    const g = glows.add({ pos: v(x, 6.8, z), color: new THREE.Color(1, 0.8, 0.5), radius: 10, base: 1, light, lightBase: 200, haloSize: 2.6, haloStrength: 0.35, mode: 'steady', reflect: { width: 1.4, anchor: v(x, 0, z), length: 6, map: null } });
+    const g = glows.add({ pos: v(x, 6.8, z), color: new THREE.Color(0.95, 0.84, 0.68), radius: 10, base: 1, light, lightBase: 200, haloSize: 2.6, haloStrength: 0.35, mode: 'steady', reflect: { width: 1.4, anchor: v(x, 0, z), length: 6, map: null } });
     g.materials.push({ mat: m.warm, base: m.warm.color.clone() });
   };
   work(-37, 0);
@@ -530,13 +540,13 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   }
   // Under the crane's hanging container: a work light over the quay's middle.
   {
-    const light = new THREE.PointLight(0xffc070, 320, 30, 2);
+    const light = new THREE.PointLight(0xe6c49a, 320, 30, 2);
     light.position.set(35, 8.5, 0);
     scene.add(light);
     const head = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.15, 0.6), m.warm);
     head.position.set(35, 8.9, 0);
     scene.add(head);
-    const g = glows.add({ pos: v(35, 8.5, 0), color: new THREE.Color(1, 0.75, 0.42), radius: 12, base: 1, light, lightBase: 320, haloSize: 3, haloStrength: 0.35, reflect: { width: 2, anchor: v(35, 0, 0), length: 8, map: null } });
+    const g = glows.add({ pos: v(35, 8.5, 0), color: new THREE.Color(0.95, 0.8, 0.62), radius: 12, base: 1, light, lightBase: 320, haloSize: 3, haloStrength: 0.35, reflect: { width: 2, anchor: v(35, 0, 0), length: 8, map: null } });
     g.materials.push({ mat: m.warm, base: m.warm.color.clone() });
   }
   // Warehouse: sodium lamps hung from the roof trusses (two real lights, the rest glow only).
@@ -546,11 +556,11 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     scene.add(lamp);
     let light: THREE.PointLight | undefined;
     if (real) {
-      light = new THREE.PointLight(0xffb060, 150, 28, 2);
+      light = new THREE.PointLight(0xe2b88c, 150, 28, 2);
       light.position.set(x, WH.h - 1, z);
       scene.add(light);
     }
-    const g = glows.add({ pos: v(x, WH.h - 0.9, z), color: new THREE.Color(1, 0.62, 0.3), radius: 9, base: 1, light, lightBase: real ? 150 : 0, haloSize: 2.4, haloStrength: 0.3, mode: real ? 'steady' : 'flicker' });
+    const g = glows.add({ pos: v(x, WH.h - 0.9, z), color: new THREE.Color(0.95, 0.75, 0.55), radius: 9, base: 1, light, lightBase: real ? 150 : 0, haloSize: 2.4, haloStrength: 0.3, mode: real ? 'steady' : 'flicker' });
     g.materials.push({ mat: m.amber, base: m.amber.color.clone() });
   };
   // Four real lamps on the floor fight (8.0: two), the rest glow only.
@@ -568,8 +578,9 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     glows.add({ pos: mesh.position.clone(), color, radius: 6, base: 0.8, mode: 'buzz', haloSize: 1.6, haloStrength: 0.25 });
   };
   for (const s of [1, -1]) {
-    tube(-12, WH.h - 0.4, s * (WH.z1 + 0.06), 12, WH.h - 0.32, s * (WH.z1 + 0.14), s > 0 ? m.magenta : m.cyan, s > 0 ? new THREE.Color(1, 0.15, 0.85) : new THREE.Color(0.1, 0.85, 1));
-    for (const x of [WH.x0 - 0.1, WH.x1 + 0.1]) tube(x - 0.04, 0.4, s * (WH.z1 + 0.1) - 0.04, x + 0.04, WH.h - 0.4, s * (WH.z1 + 0.1) + 0.04, s > 0 ? m.magenta : m.cyan, s > 0 ? new THREE.Color(1, 0.15, 0.85) : new THREE.Color(0.1, 0.85, 1));
+    const tc = s > 0 ? new THREE.Color(0.6, 0.42, 1) : new THREE.Color(0.3, 0.5, 1);
+    tube(-12, WH.h - 0.4, s * (WH.z1 + 0.06), 12, WH.h - 0.32, s * (WH.z1 + 0.14), s > 0 ? m.magenta : m.cyan, tc);
+    for (const x of [WH.x0 - 0.1, WH.x1 + 0.1]) tube(x - 0.04, 0.4, s * (WH.z1 + 0.1) - 0.04, x + 0.04, WH.h - 0.4, s * (WH.z1 + 0.1) + 0.04, s > 0 ? m.magenta : m.cyan, tc);
   }
   // Ship lights (glows only): masthead whites and port reds.
   for (const z of [-80, -40, 0, 40, 80]) {
@@ -581,11 +592,12 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // Neon signs (canvas textures, HDR, wet streaks): the callouts you can see from each lane.
   const ctx: BuildCtx = { scene, builder: b, col, glows, time, mats: { darkMetal: m.darkMetal } as unknown as Mats, fog };
   const signs: SignSpec[] = [
-    { text: 'NEON DOCKS', color: '#ff2bd6', style: 'neon', vertical: false, mount: 'wall', face: 's', wall: WH.z1, x: -7.5, y: 5.6, z: WH.z1 + 0.12, size: 7, floorY: 0, light: 40, lightDist: 18 },
-    { text: 'ДОК-7', color: '#19e6ff', style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: WH.z0, x: 7.5, y: 5.6, z: WH.z0 - 0.12, size: 6, floorY: 0, light: 40, lightDist: 18 },
-    { text: 'ПОРТ', color: '#ffb000', style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: 19, size: 3.4, floorY: 0, mode: 'flicker' },
-    { text: 'СКЛАД', color: '#ffb000', style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: -19, size: 3.4, floorY: 0, mode: 'flicker' },
-    { text: 'CARGO', color: '#39ff88', style: 'box', vertical: false, mount: 'wall', face: 'e', wall: WH.x1, x: WH.x1 + 0.12, y: 2.8, z: 0, size: 4, floorY: 0 },
+    // 32.0: muted (soft violet, deep blue, old brass, sea green) and dimmer (neon 3.2 → 1.8).
+    { text: 'NEON DOCKS', color: '#a27bd6', brightness: 1.8, style: 'neon', vertical: false, mount: 'wall', face: 's', wall: WH.z1, x: -7.5, y: 5.6, z: WH.z1 + 0.12, size: 7, floorY: 0, light: 40, lightDist: 18 },
+    { text: 'ДОК-7', color: '#5a8de0', brightness: 1.8, style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: WH.z0, x: 7.5, y: 5.6, z: WH.z0 - 0.12, size: 6, floorY: 0, light: 40, lightDist: 18 },
+    { text: 'ПОРТ', color: '#c9a06a', brightness: 1.7, style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: 19, size: 3.4, floorY: 0, mode: 'flicker' },
+    { text: 'СКЛАД', color: '#c9a06a', brightness: 1.7, style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: -19, size: 3.4, floorY: 0, mode: 'flicker' },
+    { text: 'CARGO', color: '#6fb59a', style: 'box', vertical: false, mount: 'wall', face: 'e', wall: WH.x1, x: WH.x1 + 0.12, y: 2.8, z: 0, size: 4, floorY: 0 },
     { text: 'ALPHA', color: '#3aa0ff', style: 'box', vertical: false, mount: 'wall', face: 'n', wall: BASE.z0, x: 0, y: 2.6, z: BASE.z0 - 0.12, size: 3.2, floorY: 0 },
     { text: 'OMEGA', color: '#ff3040', style: 'box', vertical: false, mount: 'wall', face: 's', wall: -BASE.z0, x: 0, y: 2.6, z: -BASE.z0 + 0.12, size: 3.2, floorY: 0 },
   ];
@@ -704,8 +716,6 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
       [GX0, WH.z1, GX1, GZ],
       [GX0, WH.z0, WH.x0, WH.z1],
       [WH.x1, WH.z0, GX1, WH.z1],
-      // 15.0: the warehouse is open to the sky.
-      [WH.x0, WH.z0, WH.x1, WH.z1],
       // 28.0: the harbour over the barges.
       [GX1, -GZ, 60, GZ],
     ],
@@ -723,8 +733,12 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
       { ...BARGES.middle, y: BARGES.pontoon },
       { x0: DEPOT.stack.x0, z0: DEPOT.stack.z0, x1: DEPOT.stack.x1, z1: DEPOT.stack.z1, y: DEPOT.stack.top },
       { x0: DEPOT.stack.x0, z0: -DEPOT.stack.z1, x1: DEPOT.stack.x1, z1: -DEPOT.stack.z0, y: DEPOT.stack.top },
+      // 32.0: the warehouse roof (the rain lands on it).
+      { x0: WH.x0, z0: WH.z0, x1: WH.x1, z1: WH.z1, y: WH.roof },
     ],
     shelters: [
+      // 32.0: no rain (drops, rings, crowns) under the warehouse roof.
+      { x0: WH.x0, z0: WH.z0, x1: WH.x1, z1: WH.z1, y: WH.roof },
       { x0: QG.x0, z0: -QG.z, x1: QG.x1, z1: QG.z, y: QG.y - 0.25 },
       { x0: CG.x0, z0: -CG.z, x1: CG.x1, z1: CG.z, y: CG.y - 0.2 },
     ],
@@ -740,8 +754,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     catcherPicks: [
       ...lamps.slice(0, 4).map((g) => [g.pos.x, g.pos.y, g.pos.z] as [number, number, number]),
     ],
-    // 15.0: roofless: no longer indoors (no muffled rain, no shaded viewmodel).
-    indoor: { x0: WH.x0, z0: WH.z0, x1: WH.x1, z1: WH.z1, y0: 0, h: 0 },
+    // 15.0: roofless: no longer indoors (no muffled rain, no shaded viewmodel). 32.0: roofed: indoors again.
+    indoor: { x0: WH.x0, z0: WH.z0, x1: WH.x1, z1: WH.z1, y0: 0, h: WH.h },
     laneProblems,
   };
 }

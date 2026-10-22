@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ArenaDirector, type ArenaMember } from './ArenaDirector';
 import { ARENA } from './ArenaCtx';
 // @ts-ignore: node's fs in the test runner (the app's tsconfig has no node types)
@@ -98,5 +98,57 @@ describe('29.0 the last stand: hold, then press on the clock', () => {
     expect(a).not.toBe(b);
     // Too far from the centre: not a hold spot.
     expect(d.holdSpot(3, [v(40, 0)], 9, 0)).toBe(null);
+  });
+});
+
+describe('32.0 space: a team spread over the map, not one blob', () => {
+  // Off by default (a map's profile turns it on: the docks).
+  beforeEach(() => void (ARENA.space.on = true));
+  afterEach(() => void (ARENA.space.on = false));
+  const update = (d: ArenaDirector, members: ArenaMember[]) => d.update(0, members, 5, { own: 50, theirs: 50 });
+
+  it('an area with teammates standing near it scores lower, by space.patrol per crowd', () => {
+    const d = director();
+    update(d, [member(1, v(0, 0)), member(2, v(-45, 50)), member(3, v(-50, 45))]);
+    expect(d.crowd(0, 1)).toBeGreaterThan(1.3);
+    expect(d.crowd(1, 1)).toBe(0);
+    // Bot 1 doesn't crowd itself.
+    expect(d.crowd(0, 2)).toBeCloseTo(1 - 5 / ARENA.space.patrolR, 5);
+    expect(d.patrolScore(0, 50, 0, 0, false, d.crowd(0, 1))).toBeLessThan(d.patrolScore(0, 50, 0, 0, false, 0));
+    // From the middle the two top areas are as near; the crowded one loses.
+    expect(d.patrolPick(1, v(0, 40), 0, fixed)).toBe(1);
+  });
+
+  it("a teammate's claim near an area crowds it too (not only the same area)", () => {
+    const d = new ArenaDirector('alpha', v(0, 60), v(0, -60), []);
+    d.setPatrol([v(-50, 50), v(-36, 50), v(50, 50)]);
+    update(d, [member(1, v(0, 80)), member(2, v(0, 80))]);
+    expect(d.patrolPick(2, v(-30, 70), 0, fixed)).toBe(1);
+    // Area 0 is 14 m from the claimed area 1: crowded; area 2 isn't.
+    expect(d.crowd(0, 1)).toBeCloseTo(1 - 14 / ARENA.space.patrolR, 5);
+    expect(d.crowd(2, 1)).toBe(0);
+  });
+
+  it('the space off (A/B): crowding scores nothing', () => {
+    const d = director();
+    ARENA.space.on = false;
+    try {
+      expect(d.patrolScore(0, 50, 0, 0, false, 3)).toBe(d.patrolScore(0, 50, 0, 0, false, 0));
+    } finally {
+      ARENA.space.on = true;
+    }
+  });
+
+  it('hunters of one contact are numbered as they join; a bot is on one list; a silent one drops off', () => {
+    const d = director();
+    expect(d.huntSlot(10, 99, 0)).toBe(0);
+    expect(d.huntSlot(11, 99, 0.1)).toBe(1);
+    expect(d.huntSlot(12, 99, 0.2)).toBe(2);
+    expect(d.huntSlot(11, 99, 0.3)).toBe(1);
+    // Bot 10 switches to another contact: it leaves the first list.
+    expect(d.huntSlot(10, 77, 0.4)).toBe(0);
+    expect(d.huntSlot(11, 99, 0.5)).toBe(0);
+    // Bot 12 not heard from for more than huntTtl s: gone; a newcomer is second after 11.
+    expect(d.huntSlot(13, 99, 0.3 + ARENA.space.huntTtl + 0.1)).toBe(1);
   });
 });

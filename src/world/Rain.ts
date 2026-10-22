@@ -20,6 +20,22 @@ export interface RainAreas {
   shelters: { x0: number; z0: number; x1: number; z1: number; y: number }[];
 }
 
+/**
+ * 32.0, how heavy the rain looks (a level's choice; the defaults are Tokyo's, unchanged since 4.0):
+ * the streak count, their width and length, their opacity, how strongly the glows light them, where
+ * the drops nearest the eye fade in (m), and the opacity of the rings and crowns where they land.
+ */
+export interface RainLook {
+  drops: number;
+  width: number;
+  length: number;
+  alpha: number;
+  glow: number;
+  nearFade: [number, number];
+  splash: number;
+}
+export const RAIN_LOOK: RainLook = { drops: 14000, width: 1, length: 1, alpha: 1, glow: 2.2, nearFade: [0.5, 2.8], splash: 1 };
+
 /** Shelter and surface tests shared by rain and splashes (walkways and the overpass keep what's below dry). */
 const AREA_GLSL = /* glsl */ `
   uniform vec4 uShel[${MAX_AREAS}]; // xmin, zmin, xmax, zmax
@@ -60,7 +76,10 @@ export class Rain {
   uniforms: Record<string, THREE.IUniform>;
   meshes: THREE.Mesh[] = [];
 
-  constructor(scene: THREE.Scene, glows: Glows, time: { value: number }, fog: THREE.FogExp2, areas: RainAreas) {
+  readonly look: RainLook;
+
+  constructor(scene: THREE.Scene, glows: Glows, time: { value: number }, fog: THREE.FogExp2, areas: RainAreas, look: Partial<RainLook> = {}) {
+    this.look = { ...RAIN_LOOK, ...look };
     if (areas.shelters.length > MAX_AREAS || areas.surfaces.length > MAX_AREAS || areas.open.length > MAX_AREAS) {
       console.warn('Rain: too many areas, extra ones ignored');
     }
@@ -76,6 +95,11 @@ export class Rain {
       uOpen: { value: rectArray(areas.open) },
       uHole: { value: rectArray(areas.holes ?? []).slice(0, 4) },
       uIntensity: { value: 1 },
+      uAlpha: { value: this.look.alpha },
+      uSplash: { value: this.look.splash },
+      uDropGlow: { value: this.look.glow },
+      uNear: { value: new THREE.Vector2(...this.look.nearFade) },
+      uShape: { value: new THREE.Vector2(this.look.width, this.look.length) },
       ...glows.uniforms,
     };
     this.meshes.push(this.buildDrops(), this.buildRings(), this.buildCrowns());
@@ -100,9 +124,9 @@ export class Rain {
     return geo;
   }
 
-  /** ~14k streaks, wrapped around the camera entirely on the GPU: one draw call, zero CPU. */
+  /** ~14k streaks (a level's `drops`), wrapped around the camera entirely on the GPU: one draw call, zero CPU. */
   private buildDrops() {
-    const geo = this.instanced(14000, (_i, a) => {
+    const geo = this.instanced(this.look.drops, (_i, a) => {
       a[0] = Math.random();
       a[1] = Math.random();
       a[2] = Math.random();
@@ -112,9 +136,9 @@ export class Rain {
       uniforms: this.uniforms,
       vertexShader: /* glsl */ `
         attribute vec4 aSeed;
-        uniform float uTime, uFogDensity, uIntensity;
+        uniform float uTime, uFogDensity, uIntensity, uAlpha, uDropGlow;
         uniform vec3 uCam;
-        uniform vec2 uWind;
+        uniform vec2 uWind, uNear, uShape;
         varying float vAlpha;
         varying vec3 vCol;
         varying vec2 vUv;
@@ -130,22 +154,22 @@ export class Rain {
           p.z = uCam.z + mod(raw.z - uCam.z, box.z) - box.z * 0.5;
           p.y = mod(raw.y, box.y) - 0.5;
           vec3 dir = normalize(vel);
-          float len = 0.45 + aSeed.w * 0.6;
+          float len = (0.45 + aSeed.w * 0.6) * uShape.y;
           // Build the streak in view space: long axis along the fall direction, width across it on screen.
           vec4 mv = viewMatrix * vec4(p, 1.0);
           vec3 dV = (viewMatrix * vec4(dir, 0.0)).xyz;
           vec2 perp = vec2(-dV.y, dV.x);
           perp = dot(perp, perp) > 1e-6 ? normalize(perp) : vec2(1.0, 0.0);
           float dist = -mv.z;
-          float width = 0.008 + abs(dist) * 0.0012; // keep distant drops from vanishing to sub-pixel
+          float width = (0.008 + abs(dist) * 0.0012) * uShape.x; // keep distant drops from vanishing to sub-pixel
           mv.xyz -= dV * position.y * len;
           mv.xy += perp * position.x * width;
           vUv = uv;
-          float near = smoothstep(0.5, 2.8, dist);
+          float near = smoothstep(uNear.x, uNear.y, dist);
           float fogF = exp(-uFogDensity * uFogDensity * dist * dist * 0.7);
           float alive = (1.0 - sheltered(p)) * step(groundY(p.xz) - 0.02, p.y);
-          vAlpha = near * fogF * alive * uIntensity;
-          vCol = vec3(0.16, 0.17, 0.22) + glowLight(p) * 2.2;
+          vAlpha = near * fogF * alive * uIntensity * uAlpha;
+          vCol = vec3(0.16, 0.17, 0.22) + glowLight(p) * uDropGlow;
           gl_Position = projectionMatrix * mv;
         }
       `,
@@ -182,7 +206,7 @@ export class Rain {
       uniforms: this.uniforms,
       vertexShader: /* glsl */ `
         attribute vec4 aSeed;
-        uniform float uTime, uFogDensity, uIntensity;
+        uniform float uTime, uFogDensity, uIntensity, uSplash;
         uniform vec3 uCam;
         varying float vAlpha;
         varying float vPh;
@@ -206,7 +230,7 @@ export class Rain {
           vPh = ph;
           float dist = length(cameraPosition - p);
           float fogF = exp(-uFogDensity * uFogDensity * dist * dist);
-          vAlpha = fogF * openGround(p.xz) * (1.0 - sheltered(p)) * uIntensity;
+          vAlpha = fogF * openGround(p.xz) * (1.0 - sheltered(p)) * uIntensity * uSplash;
           vCol = vec3(0.12, 0.13, 0.17) + glowLight(p + vec3(0.0, 0.5, 0.0)) * 1.2;
           gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
         }
@@ -245,7 +269,7 @@ export class Rain {
       uniforms: this.uniforms,
       vertexShader: /* glsl */ `
         attribute vec4 aSeed;
-        uniform float uTime, uFogDensity, uIntensity;
+        uniform float uTime, uFogDensity, uIntensity, uSplash;
         uniform vec3 uCam;
         varying float vAlpha;
         varying vec3 vCol;
@@ -269,7 +293,7 @@ export class Rain {
           vUv = uv;
           float dist = length(toCam);
           float fogF = exp(-uFogDensity * uFogDensity * dist * dist);
-          vAlpha = life * fogF * openGround(p.xz) * (1.0 - sheltered(p)) * smoothstep(0.5, 2.0, dist) * uIntensity;
+          vAlpha = life * fogF * openGround(p.xz) * (1.0 - sheltered(p)) * smoothstep(0.5, 2.0, dist) * uIntensity * uSplash;
           vCol = vec3(0.14, 0.15, 0.2) + glowLight(p + vec3(0.0, 0.5, 0.0)) * 1.4;
           gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
         }
@@ -296,6 +320,16 @@ export class Rain {
     mesh.frustumCulled = false;
     mesh.renderOrder = 4;
     return mesh;
+  }
+
+  /** 32.0: off the scene, and its buffers and shaders freed (the level's teardown would free them too). */
+  dispose() {
+    for (const m of this.meshes) {
+      m.removeFromParent();
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+    }
+    this.meshes = [];
   }
 
   update(t: number, camPos: THREE.Vector3) {

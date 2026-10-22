@@ -473,7 +473,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       }
       // 12.0: out of its sight but in a teammate's (the shared spotting): go round.
       const flanking = !pushing && !tv && !!contact && !LS && this.wantsFlank(ctx, A, T, contact, now);
-      next = pushing ? 'push' : tv ? 'engage' : flanking ? 'flank' : 'hunt';
+      // 32.0: one of a crowd fighting from one spot goes round, shooting as it goes (ARENA.space).
+      const going = !pushing && tv && !LS && this.crowdFlank(ctx, A, T, now);
+      next = pushing ? 'push' : going ? 'flank' : tv ? 'engage' : flanking ? 'flank' : 'hunt';
     } else next = holding(A.director) ? 'hold' : A.director.patrol ? 'patrol' : 'advance';
     this.setState(next, ctx, A);
     if (retreatWhy) {
@@ -494,8 +496,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.flankGoal = null;
     } else if (next === 'break' && !this.goal && (this.evading && this.snipedBy ? this.snipedBy : T)) this.goal = this.breakSpot(ctx, A, (this.evading && this.snipedBy ? this.snipedBy : T)!);
     else if (next === 'hunt' && contact) {
-      this.goal = this.laneGoal(ctx, A, contact.pos) ?? _v.copy(contact.pos).addScaledVector(contact.vel, ARENA.huntLead).clone();
-      if (!this.laneTo) this.goal.y = contact.pos.y;
+      this.goal = this.laneGoal(ctx, A, contact.pos) ?? this.approach(ctx, A, T!, contact.pos) ?? _v.copy(contact.pos).addScaledVector(contact.vel, ARENA.huntLead).clone();
+      if (!this.laneTo && !this.approaching) this.goal.y = contact.pos.y;
     } else if (next === 'hunt' && T && !contact) this.goal = T.pos.clone();
     else if (next === 'advance') this.planLane(ctx, A);
     else if (next === 'patrol') this.planPatrol(ctx, A);
@@ -646,6 +648,53 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   }
 
   /**
+   * 32.0, the crowd flank (ARENA.space): it sees its target, `crowd`+ teammates are within `crowdR` m,
+   * it is the group's highest uid and has `crowdHp` of its health or more: it claims a flank on the target and goes round to ARENA.flank's
+   * point off the group's line (the group's centre as the spotter). Already going: until it gets there,
+   * the claim times out, or ARENA.flank.maxT.
+   */
+  private crowdFlank(ctx: EnemyCtx, A: ArenaCtx, T: Combatant, now: number) {
+    const S = ARENA.space;
+    const F = ARENA.flank;
+    if (this.state === 'flank' && this.crowdGoing) return this.stateT < F.maxT && !!this.goal;
+    this.crowdGoing = false;
+    const me = this.self;
+    // A hurt bot stays with its friends (ARENA.retreat's company); only a healthy one leaves the group.
+    if (!S.on || !ctx.friends || now < this.crowdCd || me.hpFrac < S.crowdHp) return false;
+    let n = 0, cx = me.pos.x, cz = me.pos.z, top = true;
+    for (const f of ctx.friends) {
+      if (f === me || !f.alive || Math.hypot(f.pos.x - me.pos.x, f.pos.z - me.pos.z) >= S.crowdR) continue;
+      n++;
+      cx += f.pos.x;
+      cz += f.pos.z;
+      if (f.uid > me.uid && !f.isPlayer) top = false;
+    }
+    if (n < S.crowd || !top) return false;
+    const d = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
+    if (d < F.min || d > F.max) return false;
+    const from = { x: cx / (n + 1), z: cz / (n + 1) };
+    const pa = flankPoint(T.pos, from, 1, new THREE.Vector3());
+    const pb = flankPoint(T.pos, from, -1, new THREE.Vector3());
+    const prefer = Math.hypot(pa.x - me.pos.x, pa.z - me.pos.z) <= Math.hypot(pb.x - me.pos.x, pb.z - me.pos.z) ? 1 : -1;
+    const side = A.director.claimFlank(me.uid, T.uid, now, prefer);
+    if (!side) return false;
+    const goal = this.snapGoal(ctx, side > 0 ? pa : pb, T.pos.y, ARENA.vantage.on);
+    if (!goal) {
+      A.director.releaseFlank(me.uid);
+      return false;
+    }
+    this.flankGoal = goal;
+    this.flankedOn = T.uid;
+    this.crowdGoing = true;
+    this.crowdCd = now + S.crowdCd;
+    A.stats.crowdFlanks++;
+    return true;
+  }
+  /** 32.0: on a crowd flank; when it may take another. */
+  private crowdGoing = false;
+  private crowdCd = -Infinity;
+
+  /**
    * The nav node nearest `p` (XZ, within 8 m) on the level `y`. 14.0, `high`: a floor up to
    * ARENA.vantage.up above it also qualifies, each metre of height counting as `perM` m nearer (a
    * flank onto a landing or a roof edge over the contact rather than round it on the street).
@@ -735,6 +784,44 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const off = w.y > 0.5 ? 0.4 : 1.2;
     return new THREE.Vector3(w.x + Math.cos(this.seed) * off, w.y, w.z + Math.sin(this.seed) * off);
   }
+
+  /**
+   * 32.0, spread: the 2nd, 3rd … bot hunting one contact comes at it from the side (ARENA.space), not in
+   * its teammates' footsteps: a point `approach` m off the line to it, alternating sides, on the nav
+   * (the nearest node on that level within 8 m). Null: straight in (the first, close, or nowhere to go).
+   */
+  private approach(ctx: EnemyCtx, A: ArenaCtx, T: Combatant, at: THREE.Vector3): THREE.Vector3 | null {
+    this.approaching = false;
+    const S = ARENA.space;
+    if (!S.on) return null;
+    const me = this.self;
+    const dx = at.x - me.pos.x, dz = at.z - me.pos.z;
+    const d = Math.hypot(dx, dz);
+    const k = A.director.huntSlot(me.uid, T.uid, ctx.time);
+    if (k === 0 || d < S.direct) return null;
+    const side = k % 2 ? 1 : -1;
+    const off = S.approach * Math.ceil(k / 2);
+    const px = at.x + (-dz / d) * side * off, pz = at.z + (dx / d) * side * off;
+    const nodes = ctx.nav.nodes;
+    let best = -1, bd = 64;
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      if (Math.abs(n.y - at.y) > 2) continue;
+      const q = (n.x - px) ** 2 + (n.z - pz) ** 2;
+      if (q < bd) {
+        bd = q;
+        best = i;
+      }
+    }
+    if (best < 0) return null;
+    const n = nodes[best];
+    if (Math.hypot(n.x - me.pos.x, n.z - me.pos.z) < S.arrive) return null;
+    this.approaching = true;
+    A.stats.approaches++;
+    return new THREE.Vector3(n.x, n.y, n.z);
+  }
+  /** 32.0: the hunt's goal is a side approach (keep its own height). */
+  private approaching = false;
 
   /**
    * 27.0, patrol/search (no bases: TdmData.pads): the team's radar first (the freshest contact, straight
@@ -1150,6 +1237,28 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const radial = away ? -0.7 : me.kind === 'runner' ? 1 : d < lo / ag ? -0.6 : d > hi / ag ? 0.6 : Math.sin(ctx.time * 0.9 + this.seed) * 0.25;
     const k = away ? 1 : ARENA.strafe;
     desired.set((-tz * this.strafeDir * k + tx * radial) * speed, 0, (tx * this.strafeDir * k + tz * radial) * speed);
+    // 32.0, spread: a teammate fighting beside it: strafe away from it and ease off it (ARENA.space).
+    const S = ARENA.space;
+    if (S.on && ctx.friends) {
+      let fx = 0, fz = 0, fd = S.engageR;
+      for (const f of ctx.friends) {
+        if (f === me || !f.alive) continue;
+        const ex = me.pos.x - f.pos.x, ez = me.pos.z - f.pos.z, e = Math.hypot(ex, ez);
+        if (e < fd && e > 1e-3) {
+          fd = e;
+          fx = ex / e;
+          fz = ez / e;
+        }
+      }
+      if (fd < S.engageR) {
+        // Which way along the strafe line is away from it; take that way at the next flip if it's open.
+        const off = Math.sign(-tz * fx + tx * fz) || 1;
+        if (this.strafeDir !== off && me.open(ctx, -tz * off, tx * off, 1.5)) this.strafeDir = off;
+        const push = S.engagePush * (1 - fd / S.engageR) * speed;
+        desired.x += fx * push;
+        desired.z += fz * push;
+      }
+    }
   }
 
   private gun(dt: number, ctx: EnemyCtx, A: ArenaCtx, T: Combatant | null, strafing: boolean) {

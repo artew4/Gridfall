@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Zone } from '../Level';
+import type { ArenaProfile } from '../../enemies/arena/ArenaCtx';
 import { mirrorPads } from '../SpawnManager';
 
 /*
@@ -32,6 +33,15 @@ import { mirrorPads } from '../SpawnManager';
   the exterior stair to the catwalk (lanes 2-3), and the forecourts at both ends (all three).
 */
 
+/** 32.0: bots a team (the player counts on ALPHA); 5 until 31.0. */
+export const DOCKS_TEAM_SIZE = 9;
+/**
+ * 32.0, the docks' AI profile. The bots spread out (ARENA.space: at 9v9 a team bunched, 14% of bot time
+ * in groups of three). High ground reached only by stairs (the catwalk door's landing 4.5 m, the
+ * gantries, the sniper stack): never straight up at a goal (Old Port's 23.0 rule); two self-play bots
+ * stuck in the pocket between the warehouse's east wall and the landing's block, walking at it.
+ */
+export const DOCKS_AI: ArenaProfile = { space: { on: true }, directRise: 1 };
 /** The quay: the water starts here (a barrier stands just inside it). */
 export const QUAY_X = 46;
 /** The west boundary wall (inner face). 28.0: moved out from -54 (the old depot between). */
@@ -70,8 +80,11 @@ export const BASE = { x0: -22, x1: 22, z0: 60, z1: 78 };
 /**
  * The warehouse's outer walls. 15.0: roofless and 7 m (was a 10 m box with a roof): the gantries
  * outside see in, and holding it costs. 7 m: from a catwalk rail (5.55) a jump reaches 6.55.
+ * 32.0: roofed again (a steel deck on the trusses, top `roof`), out of the rain; the walls go on up to
+ * `parapet` round it, so the roof is out of reach: from the quay gantry's armoured rail (7.6 m) a jump
+ * reaches 8.6.
  */
-export const WH = { x0: -14, x1: 14, z0: -26, z1: 26, h: 7 };
+export const WH = { x0: -14, x1: 14, z0: -26, z1: 26, h: 7, roof: 7.3, parapet: 9 };
 /** 15.0: the container gantry (a steel walk at container-top height over the maze's x = -45 corridor). */
 export const CG = { x0: -45.9, x1: -44.1, z: 35, y: 2.6 };
 /** 15.0: the quay gantry beside the warehouse (deck 6.5), the crane nest off it, and its reach. */
@@ -186,15 +199,17 @@ export const SPAWN_PADS = mirrorPads([
 
 /**
  * 31.0: the deployment zones (TdmData.zones): ALPHA's, A to C from its left; OMEGA's by the map's
- * symmetry (mirror). Neon Docks: three (its three lanes).
+ * symmetry (mirror). Neon Docks: three (its three lanes). 32.0: the centre one forward, out of the yard
+ * onto the forecourt (14 m short of the warehouse's main door, off its axis: the door is x -2 … 2, so it
+ * can't see its mirror through both end doors); the flanks kept.
  */
 export const SPAWN_ZONES = {
   symmetry: 'mirror' as const,
   theme: 'industrial' as const,
   half: [
-    // The old depot's mouth (west), the yard, the quay (east).
+    // The old depot's mouth (west), the forecourt (31.0: the yard, z 70), the quay (east).
     { id: 'A' as const, x: -55.4, y: 0, z: 38, r: 4, yaw: Math.PI },
-    { id: 'B' as const, x: 0, y: 0, z: 70, r: 6, yaw: Math.PI },
+    { id: 'B' as const, x: 4, y: 0, z: 40, r: 4, yaw: Math.PI },
     { id: 'C' as const, x: 24, y: 0, z: 48, r: 5, yaw: Math.PI },
   ],
 };

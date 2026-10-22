@@ -252,7 +252,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -303,8 +303,12 @@ export async function tdmSim(
   // 30.0 A/B: `stamina: false` is the endless sprint of 29.0 (the bots sprint as they did).
   const stam0 = STAMINA.on;
   if (opts.stamina !== undefined) STAMINA.on = opts.stamina;
+  // 32.0 A/B: `space: false` is 31.0's bots (no spread in fights, patrols or hunts); set after the
+  // map's profile (below), which may turn it on.
+  const space0 = ARENA.space.on;
   // 29.0: the map's tickets unless told (50 since 29.0; 25 forced before).
   startMatch(game, true, opts.tickets, ai, opts.size, opts.profile ?? true);
+  if (opts.space !== undefined) ARENA.space.on = opts.space;
   // 25.0 A/B: `fog: false` plays Neon Block without its ground fog's sight cap and route bias.
   if (opts.fog === false) {
     if (game.tdm.sensing) game.tdm.sensing.fog = null;
@@ -396,6 +400,12 @@ export async function tdmSim(
   const eg = { last: { n: 0, mate: 0, crouch: 0, moving: 0, hold: 0, alone: 0 }, before: { n: 0, mate: 0, crouch: 0, moving: 0, hold: 0, alone: 0 } };
   let firstLast: { t: number; team: string; standing: Record<string, number> } | null = null;
   const edgeOf = game.level.data.tdm?.edgeOf ?? null;
+  // 32.0, clustering (a team with 3+ alive and tickets left, every 15 steps): bots with 2+ teammates
+  // within 10 m (a group), with one within 6 m (a pair), in a convoy (moving, 2+ teammates within 15 m
+  // moving the same way, within 30°); the share of the main lanes the team covers (of what its count
+  // could); its width (x range over the map's).
+  const spr = { bots: 0, grouped: 0, paired: 0, convoy: 0, teamN: 0, laneCover: 0, width: 0, mates: [] as number[], groupedBy: {} as Record<string, number>, convoyBy: {} as Record<string, number> };
+  const nLanes = game.level.data.tdm?.laneNames?.length ?? 0;
   const edgeN = { time: 0, timeIn: 0, fight: 0, fightIn: 0 };
   const wall0 = performance.now();
   while (!tdm.winner && game.elapsed - t0 < maxSeconds) {
@@ -490,6 +500,43 @@ export async function tdmSim(
           }
         }
       }
+      if (steps % 15 === 0)
+        for (const team of ['alpha', 'omega'] as const) {
+          const mine = tdm.bots.filter((o) => o.alive && o.team === team);
+          if (mine.length < 3 || tdm.tickets[team] === 0) continue;
+          spr.teamN++;
+          let x0 = Infinity, x1 = -Infinity;
+          const lanes = new Set<number>();
+          for (const b of mine) {
+            x0 = Math.min(x0, b.pos.x);
+            x1 = Math.max(x1, b.pos.x);
+            const ln = tdmData?.laneOf?.(b.pos.x, b.pos.y, b.pos.z);
+            if (ln !== undefined && ln !== null && ln < 3) lanes.add(ln);
+            let near = Infinity, n10 = 0, conv = 0;
+            const sp = Math.hypot(b.vel.x, b.vel.z);
+            for (const o of mine) {
+              if (o === b) continue;
+              const d = Math.hypot(o.pos.x - b.pos.x, o.pos.z - b.pos.z);
+              near = Math.min(near, d);
+              if (d < 10) n10++;
+              const so = Math.hypot(o.vel.x, o.vel.z);
+              if (d < 15 && sp > 1.5 && so > 1.5 && (b.vel.x * o.vel.x + b.vel.z * o.vel.z) / (sp * so) > 0.866) conv++;
+            }
+            spr.bots++;
+            spr.mates.push(Math.min(near, 120));
+            if (n10 >= 2) {
+              spr.grouped++;
+              spr.groupedBy[b.tac.action] = (spr.groupedBy[b.tac.action] ?? 0) + 1;
+            }
+            if (near < 6) spr.paired++;
+            if (conv >= 2) {
+              spr.convoy++;
+              spr.convoyBy[b.tac.action] = (spr.convoyBy[b.tac.action] ?? 0) + 1;
+            }
+          }
+          if (nLanes) spr.laneCover += lanes.size / Math.min(3, nLanes, mine.length);
+          spr.width += (x1 - x0) / (xb.max.x - xb.min.x);
+        }
     }
     await wait(0);
   }
@@ -500,6 +547,7 @@ export async function tdmSim(
   TDM.spawns = spawns0;
   ARENA.lastStand.on = ls0;
   STAMINA.on = stam0;
+  ARENA.space.on = space0;
   game.ctx.sightRange = sight0;
   if (fog0 !== undefined) (game.fog as { density: number }).density = fog0;
   game.timeScale = 1;
@@ -619,6 +667,12 @@ export async function tdmSim(
         return a.map((v) => +((100 * v) / t).toFixed(1));
       };
       return { from: xb.min.y, to: xb.max.y, bands: BANDS, timePct: pctOf(zTime), fightPct: pctOf(zFight), killPct: pctOf(zKill) };
+    })(),
+    // 32.0: how bunched the teams are (see `spr`).
+    spread: (() => {
+      const m = spr.mates.sort((a, c) => a - c);
+      const pc = (v: number, n: number) => +((100 * v) / Math.max(1, n)).toFixed(1);
+      return { samples: spr.bots, nearestMateMedian: +(m[Math.floor(m.length / 2)] ?? 0).toFixed(1), nearestMateP25: +(m[Math.floor(m.length / 4)] ?? 0).toFixed(1), groupedPct: pc(spr.grouped, spr.bots), pairedPct: pc(spr.paired, spr.bots), convoyPct: pc(spr.convoy, spr.bots), laneCoverPct: pc(spr.laneCover, spr.teamN), widthPct: pc(spr.width, spr.teamN), groupedBy: spr.groupedBy, convoyBy: spr.convoyBy, approaches: st.approaches };
     })(),
     // 31.0: the deployment zones: picks per team and zone, picks with no safe zone, rays on zone safety.
     zones: tdm.zoner ? { stats: { ...tdm.zoner.stats }, uses: Object.fromEntries(tdm.zoner.zones.map((z) => [`${z.team}-${z.id}`, z.uses])) } : null,
