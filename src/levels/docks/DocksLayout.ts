@@ -183,3 +183,18 @@ export function zoneAt(x: number, y: number, z: number): Zone | null {
 export const SPAWN_PADS = mirrorPads([
   [0, 0, 70, 3.14], [-61, 0, 24, 1.57], [51.2, BARGES.deck, 16, 4.71], [-66.6, 0, 40, 1.57], [-17, 0, 40, 3.14], [31, 0, 32, 3.14], [1, 0, 14, 3.14],
 ]);
+
+/**
+ * 31.0: the deployment zones (TdmData.zones): ALPHA's, A to C from its left; OMEGA's by the map's
+ * symmetry (mirror). Neon Docks: three (its three lanes).
+ */
+export const SPAWN_ZONES = {
+  symmetry: 'mirror' as const,
+  theme: 'industrial' as const,
+  half: [
+    // The old depot's mouth (west), the yard, the quay (east).
+    { id: 'A' as const, x: -55.4, y: 0, z: 38, r: 4, yaw: Math.PI },
+    { id: 'B' as const, x: 0, y: 0, z: 70, r: 6, yaw: Math.PI },
+    { id: 'C' as const, x: 24, y: 0, z: 48, r: 5, yaw: Math.PI },
+  ],
+};

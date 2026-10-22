@@ -299,3 +299,18 @@ export const LANE_STRICT: [boolean, boolean, boolean] = [true, false, true];
  * hand: the fifth, from the container yard (two pads in one lane) to the warehouse's ground floor.
  */
 export const SPAWN_PADS = mirrorPads([[0, 0, 57.4, 3.14], [-35, 4.4, 16, 1.96], [24.3, 0.56, 7, 0.39], [-32, 0, 40, 1.96], [32, 0, 44, 4.71], [-38, 0, 24, 1.57], [16, 0, 28, 0.79]]);
+
+/**
+ * 31.0: the deployment zones (TdmData.zones): ALPHA's, A to C from its left; OMEGA's by the map's
+ * symmetry (mirror). Old Port: two, left and right flanks behind the container clusters.
+ */
+export const SPAWN_ZONES = {
+  symmetry: 'mirror' as const,
+  theme: 'industrial' as const,
+  half: [
+    // Two, behind the container clusters on the flanks: the warehouse doors (west), the dock apron
+    // (east). No zone in the yard: the containers between are the front.
+    { id: 'A' as const, x: -32, y: 0, z: 40, r: 6, yaw: Math.PI },
+    { id: 'B' as const, x: 32, y: 0, z: 44, r: 6, yaw: Math.PI },
+  ],
+};

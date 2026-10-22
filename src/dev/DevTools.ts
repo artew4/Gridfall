@@ -295,6 +295,10 @@ export function installDevTools(game: Game) {
     async spawnPadReport() {
       return (await import('./SpawnCheck')).spawnPadReport(game);
     },
+    /** 31.0: the deployment zones of the match running: points, the nearest enemy zone, enemy zones in sight, reach. */
+    async zoneReport() {
+      return (await import('./SpawnCheck')).zoneReport(game);
+    },
     /** 27.0: a top-down plan of the map with its pads and their sightlines (PNG data URL). */
     async spawnPadPlan(px = 900, extra: number[][] = []) {
       return (await import('./SpawnCheck')).spawnPadPlan(game, px, extra);

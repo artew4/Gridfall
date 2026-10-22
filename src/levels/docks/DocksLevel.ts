@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildDocks, type DocksResult } from './Docks';
-import { BARGES, BASE, DEPOT, QUAY_X, SPAWN_PADS, WEST_X, inBase, lanesOf } from './DocksLayout';
+import { BARGES, BASE, DEPOT, QUAY_X, SPAWN_PADS, SPAWN_ZONES, WEST_X, inBase, lanesOf } from './DocksLayout';
 import { DesertIntro } from '../desert/DesertIntro';
 import { Rain } from '../../world/Rain';
 import { ReflectionCatchers } from '../../world/ReflectionCatchers';
@@ -113,6 +113,8 @@ export class DocksLevel implements LevelRuntime {
         lanes: { alpha: lanesOf('alpha'), omega: lanesOf('omega') },
         // 28.0: spawn pads anywhere on the map (SpawnManager); the yards stay for the 'bases' A/B.
         pads: SPAWN_PADS,
+        // 31.0: the deployment zones (the default spawning since 31.0; the pads above are the DEV A/B).
+        zones: SPAWN_ZONES,
         // 28.0: the quay and the barges are long open lines: pressure from a little further off.
         spawnTuning: { near: 50, hardMin: 20, sight: 80 },
         inBase: (team, p) => inBase(p, team),

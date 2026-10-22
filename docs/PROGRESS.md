@@ -1589,8 +1589,59 @@ Branch `feature/stamina-mechanic-30.0`, from `main` @ `1125398` (29.0, merged an
 - Sprint time by reason (Maglev / Neon Block): pushing 42% / 31%, crossing 25% / 34%, retreating 20% / 15%, flanking 13% / 20%.
 - `bench(3)`: Maglev 60 FPS, CPU 2.0–2.6 ms; Neon Block 60 FPS, CPU 2.0–2.8 ms; GPU 5.8–6.9 ms. Tests 367 (+10).
 
+## 31.0: deployment zones
+
+Branch `feature/spawn-zones-31.0`, from `main` @ `a30ed95` (30.0, merged and live). Full numbers: `docs/BENCH-31.0.json`.
+
+### The zones
+- Each team spawns from 2 or 3 zones in its own half, lettered A, B, C from its own left as it faces the enemy. Each map lists ALPHA's (`TdmData.zones`); OMEGA's are the mirror (the five mirrored maps) or the 180° rotation (the desert).
+
+| map | zones | why |
+|---|---|---|
+| Neon Block | 3 | three lanes (west alley, the street, east), an entry each |
+| Deep Jungle | 3 | three lanes; the flank zones 10 m forward of the old yard line |
+| Neon Docks | 3 | the depot, the quay, the maze; C kept out of its mirror's sight (96 m) |
+| Desert Outpost | 3 | the two cliffs' trenches (28.0's flanks) and the centre |
+| Old Port | 2 | the warehouse spine splits the map in two halves |
+| Maglev Terminal | 2 | the train runs down the centre; a centre zone would face it |
+
+- **Points:** at load, rings at 0 / 0.35 / 0.65 / 0.95 of the radius × 8 angles; kept if the floor is within 0.6 m of the centre's, there's room, and the centre sees it (up to 12).
+
+### Choosing a zone (`ZoneSpawner`, 6 unit tests)
+- A zone is safe when no hostile is within its radius + the map's hard minimum (18–24 m) and no hostile in sight range sees its centre (eye to chest; rays only after the distance test).
+- Each respawn goes to the least used of the safe zones (then the least recently used): round-robin that skips the unsafe ones. None safe: the zone whose nearest hostile is furthest.
+- The spot inside it: the 27.0 scorer over the zone's points.
+- The opening deals the team in pairs over its zones.
+- `TDM.spawns = 'zones'` is the default; `'dynamic'` (27.0's map-wide pads) and `'bases'` stay as DEV A/Bs.
+
+### The visual (`SpawnZoneVisual`, no files)
+- A low platform, a rim, a glowing ring and hex inlay in the team's colour, a thin projector beam, the letter as a hologram sprite (a 128 px canvas drawn with strokes: no font) bobbing over it. The ring's opacity pulses; a spawn flashes its zone's ring.
+- Themes: Neon Block glossy black with a glow skirt in the fog; Deep Jungle mossy, greenish, vines over the edge; Desert sandstone with dust swirling round the base; Old Port and Neon Docks steel with hazard stripes; Maglev glass and white light.
+- Draw calls don't grow with zones: each part is one `InstancedMesh` per team, the vines one merged mesh, the dust one `Points` moved by a time uniform in its shader; only the letters are a sprite each. Everything is disposed with the level.
+- The minimap shows each zone as a team-coloured hex with its letter.
+- The player's respawn says `DEPLOYED · ZONE B`.
+
+### Measured (bot-only, 3 matches a cell; 27.0/28.0's map-wide pads in brackets)
+| | Neon Block | Deep Jungle | Old Port | Maglev | Neon Docks | Desert |
+|---|---|---|---|---|---|---|
+| deaths within 3 s of spawning | 0 (0) | 0 (0) | 0 (0) | 0 (0) | 0 (0) | 0 (0) |
+| deaths within 5 s | 0.35% (0.36%) | 0% (0.34%) | 0% (0.34%) | 0% (0.33%) | 0.33% (0.68%) | 0.36% (1.73%) |
+| shot within 3 s | 0% (1.7%) | 2.3% (0.3%) | 0.3% (2.0%) | 0.3% (2.7%) | 1.7% (1.7%) | 0% (2.8%) |
+| picks with no safe zone | 0 | 5 | 13 | 20 | 0 | 4 |
+| kills a minute | 15.2 (14.2) | 15.6 (24.0) | 22.3 (23.6) | 20.9 (23.7) | 11.8 (13.9) | 13.2 (15.6) |
+| quiet seconds | 31.7% (36.8%) | 44.2% (16.7%) | 23.7% (25.0%) | 21.4% (19.6%) | 49.0% (41.2%) | 39.4% (35.1%) |
+| kills in the middle third | 60% (65%) | 53% (55%) | 89% (80%) | 71% (62%) | 64% (67%) | 70% (83%) |
+
+- **Safer:** 3 deaths within 5 s of 1,779 respawns against 11 of 1,766.
+- **Slower:** kills a minute down on 5 of 6 maps (Deep Jungle −35%). The pads included neutral spawns near the centre; a zone at home adds a walk to every life. Moving Deep Jungle's flank zones 10 m forward changed nothing (15.8 → 15.6).
+- **Zone use:** within ±10% on Neon Block, Old Port, Maglev and the docks; Deep Jungle's OMEGA (36 / 73 / 62) and the desert's ALPHA (42 / 71 / 47) lean on B when a flank zone is often unsafe.
+- **Cost of a pick:** zone safety 2.8–6.0 rays on average, 0.4 ms a pick at most; nothing per frame.
+- **Frame cost:** the zones are 11–15 draw objects a map (7–9 instanced parts, a sprite a letter, the vines or the dust). `bench(3)`: Maglev 60 FPS, CPU 1.8–2.4 ms, GPU 5.6–6.4 ms (30.0: 2.0–2.6, 5.9–6.4); Desert 60 FPS, CPU 1.6–2.1, GPU 5.5–6.0 (the dust included); Deep Jungle 60 FPS, CPU 1.6–2.1, GPU 5.7–6.3 (the vines included).
+- **Leaks:** `leakcheck` over all six maps: 0 alive after GC. `vramCycle` (3 laps, twice): geometries, textures and programs the same lap over lap at every level stop; 0 growth. Tests 373 (+6).
+
 ## Next
 Human playtest:
+- 31.0 items: the deployment zones (can you tell your zones from theirs at a glance; do the letters help you call "they're at B"; is the walk from home too long now (bots' pace fell on most maps); does any zone feel camped); the five themes (the dust, the vines, the stripes, the glass: charming or noisy; is the beam distracting); `TDM.spawns = 'dynamic'` for the 30.0 pads side by side.
 - 30.0 items: the stamina (does a 3.5 s rifle sprint feel punishing or right; the pistol as the mobile gun; the forced walk at 0: frustrating?); the bar under the crosshair (noticed? in the way?); do bots feel less frantic, or too slow?
 - 29.0 items: the last stand from your side (being the last man; does the clock feel fair or cruel; is 60 s the right length; 30 s of holding before the push); spectating (does following a bot's eye make you sick: the snap turns are damped, is it enough; would a shoulder camera be better); does the ticket race decide too much (the team out first lost 10 of 12 in self-play).
 - 28.0 items: the Desert's outer flanks (does the trench feel like a route or a trap; the Anvil and the Spine as perches: too strong in calm air?); the storm (is spawning in the dunes in a storm fair; should calm last longer so the outer perches matter?); Neon Docks' depot (dead ends: fun or annoying) and the barges (does anyone go out on the water; falling in).

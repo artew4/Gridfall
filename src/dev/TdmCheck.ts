@@ -252,7 +252,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -294,7 +294,7 @@ export async function tdmSim(
     ARENA.slide.on = false;
   }
   // 19.0: `size` (players a team; the match is bot-vs-bot, so all bots), `profile: false` (the map's AI tuning off).
-  // 27.0 A/B: the pads (scored respawns, patrols) or the yards and the front.
+  // 27.0/31.0 A/B: the zones (31.0), the map-wide pads (scored respawns, patrols), or the yards and the front.
   const spawns0 = TDM.spawns;
   if (opts.spawns) TDM.spawns = opts.spawns;
   // 29.0 A/B: the last-stand instincts off (the bots fight on as before, under the same rules).
@@ -386,6 +386,9 @@ export async function tdmSim(
   const BANDS = 12;
   const band = (x: number) => Math.max(0, Math.min(BANDS - 1, Math.floor(((x - xb.min.x) / (xb.max.x - xb.min.x)) * BANDS)));
   const xTime = new Array(BANDS).fill(0), xFight = new Array(BANDS).fill(0), xKill = new Array(BANDS).fill(0);
+  // 31.0: along the base-to-base axis (z) too: where the front is.
+  const zband = (z: number) => Math.max(0, Math.min(BANDS - 1, Math.floor(((z - xb.min.y) / (xb.max.y - xb.min.y)) * BANDS)));
+  const zTime = new Array(BANDS).fill(0), zFight = new Array(BANDS).fill(0), zKill = new Array(BANDS).fill(0);
   const FIGHT = new Set(['engage', 'push', 'break', 'flank']);
   // 29.0, the endgame: bots of a team on its last stand vs everyone before (samples every 15 steps):
   // the nearest living teammate (m), crouched, moving, holding; the standing counts when the first
@@ -459,6 +462,8 @@ export async function tdmSim(
           }
           xTime[band(b.pos.x)]++;
           if (FIGHT.has(b.tac.action)) xFight[band(b.pos.x)]++;
+          zTime[zband(b.pos.z)]++;
+          if (FIGHT.has(b.tac.action)) zFight[zband(b.pos.z)]++;
           // 28.0: the map's outer edges (TdmData.edgeOf).
           if (edgeOf) {
             edgeN.time++;
@@ -548,7 +553,7 @@ export async function tdmSim(
       }
       const n = Math.max(1, lives.length);
       return {
-        mode: tdm.spawner ? 'dynamic' : 'bases',
+        mode: tdm.zoner ? 'zones' : tdm.spawner ? 'dynamic' : 'bases',
         respawns: lives.length,
         diedWithin3sPct: +((100 * in3) / n).toFixed(1),
         diedWithin5sPct: +((100 * in5) / n).toFixed(1),
@@ -607,6 +612,16 @@ export async function tdmSim(
           killPct: +((100 * k.filter((x) => x.victimPos && edgeOf(x.victimPos[0], x.victimPos[1], x.victimPos[2])).length) / Math.max(1, k.length)).toFixed(1),
         }
       : null,
+    zBands: (() => {
+      for (const x of k) if (x.victimPos) zKill[zband(x.victimPos[2])]++;
+      const pctOf = (a: number[]) => {
+        const t = a.reduce((u, v) => u + v, 0) || 1;
+        return a.map((v) => +((100 * v) / t).toFixed(1));
+      };
+      return { from: xb.min.y, to: xb.max.y, bands: BANDS, timePct: pctOf(zTime), fightPct: pctOf(zFight), killPct: pctOf(zKill) };
+    })(),
+    // 31.0: the deployment zones: picks per team and zone, picks with no safe zone, rays on zone safety.
+    zones: tdm.zoner ? { stats: { ...tdm.zoner.stats }, uses: Object.fromEntries(tdm.zoner.zones.map((z) => [`${z.team}-${z.id}`, z.uses])) } : null,
     xBands: (() => {
       for (const x of k) if (x.victimPos) xKill[band(x.victimPos[0])]++;
       const pctOf = (a: number[]) => {

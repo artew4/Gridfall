@@ -24,7 +24,8 @@ import { ARMORY, dealArm, type BotArm, type WeaponId } from '../entities/weapons
 import { dealCallsigns } from '../enemies/Callsigns';
 import { rand } from '../core/math';
 import type { BoardLine, TdmLine } from '../ui/TdmHud';
-import { SpawnManager, laneNeed, sideOf, type SpawnPad, type SpawnUnit } from './SpawnManager';
+import { SpawnManager, ZoneSpawner, deployZones, laneNeed, sideOf, type DeployZone, type SpawnPad, type SpawnUnit } from './SpawnManager';
+import { SpawnZoneVisual } from '../world/SpawnZoneVisual';
 import { MatchRules, type Outcome } from './LastStand';
 import { SpawnPads } from '../world/SpawnPads';
 
@@ -94,8 +95,10 @@ export const TDM = {
   /**
    * 27.0: where a map with spawn pads (TdmData.pads) spawns: 'dynamic', scored over every pad at each
    * respawn (SpawnManager); 'bases' (DEV A/B), the two yards and 19.0's forward points as before.
+   * 31.0: 'zones' (the default), each team's 2-3 deployment zones (TdmData.zones, ZoneSpawner); the
+   * pads and the yards stay as DEV comparisons.
    */
-  spawns: 'dynamic' as 'dynamic' | 'bases',
+  spawns: 'zones' as 'zones' | 'dynamic' | 'bases',
 };
 
 /** 19.0: the team size of the loaded map (the player counts on ALPHA). */
@@ -356,7 +359,7 @@ export class TdmRules implements ModeRules {
       enemies: this.bots,
       lanes: this.data.lanes[team],
       // 27.0: with pads there is no enemy yard to keep out of.
-      avoid: this.spawner ? () => false : (p: THREE.Vector3) => this.data.inBase(other, p),
+      avoid: this.spawner || this.zoner ? () => false : (p: THREE.Vector3) => this.data.inBase(other, p),
       onDeath: (v: Combatant, by: Combatant | null) => this.onDeath(v, by),
     } satisfies Partial<EnemyCtx>);
     c.arena = this.directors && this.sensing ? ({ director: this.directors[team], sensing: this.sensing, sched: this.sched, stats: this.arenaStats } satisfies ArenaCtx) : undefined;
@@ -366,7 +369,7 @@ export class TdmRules implements ModeRules {
   private spawn(s: Slot, respawn = false) {
     const g = this.game;
     // 27.0: a pad (the opening's squad pad, or the scorer's pick), else the 19.0 forward point or yard.
-    const pad: SpawnAt | undefined = this.spawner ? (respawn ? this.pickPad(s.team) : this.openAt.get(s)) : undefined;
+    const pad: SpawnAt | undefined = this.spawner || this.zoner ? (respawn ? this.pickPad(s.team) : this.openAt.get(s)) : undefined;
     const at = pad?.at ?? ((respawn && this.forwardPoint(s.team)) || this.spawnPoint(s.team));
     // 20.0: the map's kit (TdmData.kit: the corporate whites on Maglev Terminal), else the night kit.
     const look = TDM.skins === 'operators' ? OPERATOR_KITS[TDM.force.kit ?? this.data.kit ?? 'night'][s.team] : s.team === 'alpha' ? DESERT_GARRISON : g.level.info.enemies;
@@ -385,7 +388,7 @@ export class TdmRules implements ModeRules {
     // Facing the other base (enemy yaw: forward = (sin, cos); ALPHA's base is in the south). 27.0: the pad's way.
     e.yaw = pad ? pad.yaw : s.team === 'alpha' ? Math.PI : 0;
     if (pad?.pick) this.logSpawn(s.team, pad.pick, e.uid);
-    else if (respawn && !this.spawner) this.logYard(s.team, at, e.uid);
+    else if (respawn && !this.spawner && !this.zoner) this.logYard(s.team, at, e.uid);
     g.scene.add(e.rig.root);
     this.bots.push(e);
     s.bot = e;
@@ -408,6 +411,11 @@ export class TdmRules implements ModeRules {
   /** 27.0: the map's spawn pads and their scorer (null: the yards), the pads on the floor. */
   spawner: SpawnManager | null = null;
   private padMesh: SpawnPads | null = null;
+  /** 31.0: the deployment zones and their pads on the floor (TDM.spawns 'zones'). */
+  zoner: ZoneSpawner | null = null;
+  /** 31.0: the zone of the last respawn picked (his toast). */
+  private lastZone: DeployZone | null = null;
+  private zoneVisual: SpawnZoneVisual | null = null;
   /** 27.0: the match's first spawn: where each slot (and the player) starts. */
   private openAt = new Map<Slot | 'player', SpawnAt>();
   /** 27.0 (DEV): every spawn this match: when, whose, which pad, its nearest hostile, rays, fallback. */
@@ -422,8 +430,12 @@ export class TdmRules implements ModeRules {
     this.padMesh?.dispose();
     this.padMesh = null;
     this.spawner = null;
+    this.zoneVisual?.dispose();
+    this.zoneVisual = null;
+    this.zoner = null;
     this.openAt.clear();
     this.spawnLog = [];
+    if (this.setupZones()) return;
     const raw = this.data.pads;
     if (!raw?.length || TDM.spawns !== 'dynamic') return;
     const centre = (ps: THREE.Vector3[]) => ps.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(Math.max(1, ps.length));
@@ -453,7 +465,61 @@ export class TdmRules implements ModeRules {
    * 27.0: the opening: each team in squads of two on its own side's pads (SpawnManager.opening), the
    * player first on ALPHA's first pad. Fills openAt for spawn() and puts the player on his pad.
    */
+  /**
+   * 31.0: the deployment zones (TDM.spawns 'zones'): each team's zones by the map's symmetry, each
+   * zone's standing points checked against the level (the floor at the zone's height, room for a body,
+   * in sight of the zone's centre), the scorer, the pads on the floor, the zones on the minimap, the
+   * patrols' areas. False: this map has none (or another mode is asked for).
+   */
+  private setupZones(): boolean {
+    const Z = this.data.zones;
+    if (!Z || TDM.spawns !== 'zones') return false;
+    const g = this.game;
+    const col = g.col;
+    const pointsFor = (c: THREE.Vector3, r: number) => {
+      const out: THREE.Vector3[] = [];
+      const chest = new THREE.Vector3(c.x, c.y + 1.2, c.z);
+      for (const rr of [0, r * 0.35, r * 0.65, r * 0.95])
+        for (let k = 0; k < (rr ? 8 : 1); k++) {
+          const a = (k / 8) * Math.PI * 2 + rr;
+          const x = c.x + Math.cos(a) * rr, z = c.z + Math.sin(a) * rr;
+          const y = col.groundHeightAt(x, z, 0.3, c.y + 1.2);
+          if (!(Math.abs(y - c.y) < 0.6)) continue;
+          const p = new THREE.Vector3(x, y, z);
+          if (col.blocked(new THREE.Vector3(x, y + 0.05, z), 0.5, 1.8)) continue;
+          if (rr && !col.lineOfSight(chest, new THREE.Vector3(x, y + 1.2, z))) continue;
+          out.push(p);
+        }
+      return out.slice(0, 12);
+    };
+    const zones = deployZones(Z.half, Z.symmetry, pointsFor);
+    this.zoner = new ZoneSpawner(
+      zones,
+      (p, q) => {
+        this.sched.spend(1);
+        return g.col.lineOfSight(p, q);
+      },
+      Math.random,
+      this.data.spawnTuning,
+    );
+    this.zoneVisual = new SpawnZoneVisual(zones, Z.theme);
+    g.scene.add(this.zoneVisual.group);
+    this.minimap?.drawZones(zones.map((z) => ({ x: z.centre.x, z: z.centre.z, id: z.id, team: z.team })));
+    // The patrols search both teams' zones (where the enemy comes from) and the lanes.
+    if (this.directors) {
+      const hvas = [...zones.map((z) => z.centre), ...(this.data.hvas ?? []), ...this.data.lanes.alpha.flat()];
+      for (const t of TEAMS) this.directors[t].setPatrol(hvas);
+    }
+    return true;
+  }
+
+  /** 31.0: the zones (empty unless TDM.spawns is 'zones' on a map that has them). */
+  zoneList(): readonly DeployZone[] {
+    return this.zoner?.zones ?? [];
+  }
+
   private openingSpawns() {
+    if (this.zoner) return this.openingZones();
     const sp = this.spawner;
     if (!sp) return;
     const g = this.game;
@@ -479,6 +545,30 @@ export class TdmRules implements ModeRules {
     }
   }
 
+  /** 31.0: the opening in zones: squads of two dealt round-robin over each team's zones. */
+  private openingZones() {
+    const zs = this.zoner!;
+    const g = this.game;
+    const members: Record<TeamId, (Slot | 'player')[]> = { alpha: this.spectate ? [] : ['player'], omega: [] };
+    for (const s of this.slots) members[s.team].push(s);
+    const deal = zs.opening({ alpha: members.alpha.length, omega: members.omega.length });
+    const taken: THREE.Vector3[] = [];
+    const occupied = (q: THREE.Vector3) => taken.some((t) => t.distanceTo(q) < 1);
+    for (const team of TEAMS)
+      members[team].forEach((m, i) => {
+        const z = deal[team][i];
+        const spot = zs.slotIn(z, i, occupied);
+        taken.push(spot.at);
+        this.openAt.set(m, spot);
+        this.zoneVisual?.flash(z);
+      });
+    const me = this.openAt.get('player');
+    if (me) {
+      g.player.reset(me.at.x, me.at.z, me.yaw + Math.PI, me.at.y);
+      g.safety.reset(g.player.pos);
+    }
+  }
+
   /** 27.0: a respawn's pad for `team`, scored now against everyone alive (rays only at this moment). */
   private pickPad(team: TeamId): SpawnAt {
     const t0 = performance.now();
@@ -493,6 +583,14 @@ export class TdmRules implements ModeRules {
       this.bots.some((b) => b.alive && Math.hypot(b.pos.x - q.x, b.pos.z - q.z) < 1 && Math.abs(b.pos.y - q.y) < 1.5) ||
       (this.game.player.alive && Math.hypot(this.game.player.pos.x - q.x, this.game.player.pos.z - q.z) < 1);
     // The lanes the team is short of (by the map's lane weights): a pad there scores higher.
+    // 31.0: by zones: the zone (safe, least used, least recent), then the spot in it.
+    if (this.zoner) {
+      const zp = this.zoner.pick(team, hostiles, allies, this.now, occupied);
+      this.zoneVisual?.flash(zp.zone);
+      this.directors?.[otherTeam(team)].heardSpawn(zp.zone.centre, this.now, this.friends[otherTeam(team)]);
+      this.lastZone = zp.zone;
+      return { at: zp.at, yaw: zp.pad.yaw, pick: { ...zp, ms: performance.now() - t0 } };
+    }
     const lf = this.data.laneOf;
     const need = lf ? laneNeed(allies.map((u) => lf(u.pos.x, u.pos.y + 1, u.pos.z)), this.data.laneWeights ?? [1, 1, 1]) : undefined;
     const pick = this.spawner!.pick(team, hostiles, allies, this.now, occupied, need);
@@ -597,6 +695,7 @@ export class TdmRules implements ModeRules {
     const granted = this.rules.died(v.team, this.now);
     if (by && by.team !== v.team) this.rules.killed(by.team);
     this.spawner?.noteDeath(v.pos, this.now);
+    this.zoner?.noteDeath(v.pos, this.now);
     const weapon = by ? this.armOf(by)?.tag : undefined;
     // 29.0: a final death is marked OUT in the feed.
     g.tdmHud.kill(by, v, weapon, !granted);
@@ -731,6 +830,7 @@ export class TdmRules implements ModeRules {
       if (!this.spectate && (!this.directors || !TDM.spotting)) this.spot(dt);
     } else if (g.state !== 'ending' && now - this.endT > 1.2) this.finish();
     this.padMesh?.update(dt);
+    this.zoneVisual?.update(dt, this.now);
     g.tdmHud.setTickets(this.tickets.alpha, this.tickets.omega);
     const st = this.standing();
     g.tdmHud.setStanding(st.alpha, st.omega);
@@ -821,11 +921,13 @@ export class TdmRules implements ModeRules {
 
   private respawnPlayer() {
     const g = this.game;
-    const pad = this.spawner ? this.pickPad('alpha') : null;
+    const pad = this.spawner || this.zoner ? this.pickPad('alpha') : null;
     if (pad?.pick) this.logSpawn('alpha', pad.pick, g.playerUnit.uid);
     const p = pad?.at ?? this.forwardPoint('alpha') ?? this.spawnPoint('alpha');
     // (The player's yaw looks down -z at 0: the enemy convention's yaw + π.)
     g.revive(p, pad ? pad.yaw + Math.PI : 0);
+    // 31.0: where he came in.
+    if (this.zoner && this.lastZone) g.hud.zoneShow(`DEPLOYED · ZONE ${this.lastZone.id}`, fl('deploying'));
     g.playerInvulnUntil = this.now + TDM.protect;
     this.playerRespawnAt = Infinity;
     this.killerName = null;
@@ -982,6 +1084,9 @@ export class TdmRules implements ModeRules {
     this.padMesh?.dispose();
     this.padMesh = null;
     this.spawner = null;
+    this.zoneVisual?.dispose();
+    this.zoneVisual = null;
+    this.zoner = null;
     this.openAt.clear();
     this.unprofile?.();
     this.unprofile = null;

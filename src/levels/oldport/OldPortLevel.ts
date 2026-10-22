@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildOldPort, type OldPortResult } from './OldPort';
-import { BASE, PORT_TERRAIN, QUAY_X, WH, X_W, Z_END, DOCK, OLDPORT_AI, OLDPORT_TEAM_SIZE, OLDPORT_TICKETS, LANE_STRICT, LANE_WEIGHTS, forwardOf, inBase, laneOf, lanesOf, navCost, SPAWN_PADS } from './OldPortLayout';
+import { BASE, PORT_TERRAIN, QUAY_X, WH, X_W, Z_END, DOCK, OLDPORT_AI, OLDPORT_TEAM_SIZE, OLDPORT_TICKETS, LANE_STRICT, LANE_WEIGHTS, forwardOf, inBase, laneOf, lanesOf, navCost, SPAWN_PADS, SPAWN_ZONES } from './OldPortLayout';
 import { hazeTexture, rippleNormalTexture } from './textures';
 import { buildGodRays, type GodRays } from '../jungle/GodRays';
 import { DesertIntro } from '../desert/DesertIntro';
@@ -224,6 +224,8 @@ export class OldPortLevel implements LevelRuntime {
         spawns: d.spawns,
         // 27.0: spawn pads anywhere on the map (SpawnManager); the yards above stay for the 'bases' A/B.
         pads: SPAWN_PADS,
+        // 31.0: the deployment zones (the default spawning since 31.0; the pads above are the DEV A/B).
+        zones: SPAWN_ZONES,
         lanes: { alpha: lanesOf('alpha'), omega: lanesOf('omega') },
         inBase: (team, p) => inBase(p, team),
         start,

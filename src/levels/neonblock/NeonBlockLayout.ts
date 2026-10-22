@@ -161,3 +161,18 @@ export function groundFogBias(a: { y: number }, b: { y: number }, kind: 'low' | 
  * __dev.spawnPads (farthest-point, then Lloyd relaxation over the nav, sheltered spots first).
  */
 export const SPAWN_PADS = mirrorPads([[0, 0, 61, 3.14], [-24, 0, 6, 1.57], [32.4, 0, 15.2, 3.14], [-34.5, 0, 44, 3.14], [32.6, 0, 44.2, 2.75], [5.5, 0, 19, 3.93], [-22, 7.2, 27.5, 1.18]]);
+
+/**
+ * 31.0: the deployment zones (TdmData.zones): ALPHA's, A to C from its left; OMEGA's by the map's
+ * symmetry (mirror). Neon Block: three (its three lanes are 30 m apart, enough even on a tight block).
+ */
+export const SPAWN_ZONES = {
+  symmetry: 'mirror' as const,
+  theme: 'neon' as const,
+  half: [
+    // Three lanes 30 m apart even on a tight block: Lantern Alley (west), the yard, the Service Alley.
+    { id: 'A' as const, x: -34.5, y: 0, z: 44, r: 5, yaw: Math.PI },
+    { id: 'B' as const, x: 0, y: 0, z: 61, r: 6, yaw: Math.PI },
+    { id: 'C' as const, x: 32.6, y: 0, z: 44.2, r: 5, yaw: Math.PI },
+  ],
+};

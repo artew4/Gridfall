@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildCrashSite, type CrashResult } from './CrashSite';
-import { BASE, CRASH_TEAM_SIZE, CRASH_TERRAIN, JUNGLE_AI, RAVINE, X_OUT, Z_END, forwardOf, inBase, laneOf, lanesOf, SPAWN_PADS } from './CrashLayout';
+import { BASE, CRASH_TEAM_SIZE, CRASH_TERRAIN, JUNGLE_AI, RAVINE, X_OUT, Z_END, forwardOf, inBase, laneOf, lanesOf, SPAWN_PADS, SPAWN_ZONES } from './CrashLayout';
 import { buildFoliage, type FoliageResult } from '../jungle/Foliage';
 import { buildGodRays, type GodRays } from '../jungle/GodRays';
 import { applyMud } from '../jungle/Mud';
@@ -131,6 +131,8 @@ export class CrashSiteLevel implements LevelRuntime {
         spawns: d.spawns,
         // 27.0: spawn pads anywhere on the map (SpawnManager); the yards above stay for the 'bases' A/B.
         pads: SPAWN_PADS,
+        // 31.0: the deployment zones (the default spawning since 31.0; the pads above are the DEV A/B).
+        zones: SPAWN_ZONES,
         lanes: { alpha: lanesOf('alpha'), omega: lanesOf('omega') },
         inBase: (team, p) => inBase(p, team),
         start,

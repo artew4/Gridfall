@@ -95,6 +95,10 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Flanks (28.0):
   - `tdmSim(...)` also reports `edge` (the share of bot time, combat time and kills on the map's outer edges, `TdmData.edgeOf`) and `xBands` (bot time, combat time and kills in 12 bands across the map's width), and takes `sight` (a fixed sight range for the match, the fog density with it: the desert's storm doesn't run in a sim; 24.5 is its peak).
   - `bench(3)` gains views of the new pieces: the depot, the sniper stack and the barges (docks); the trench, the Anvil's top and the convoy (desert, calm).
+- Deployment zones (31.0):
+  - `TDM.spawns`: `'zones'` (the default: 2–3 zones a team, `TdmData.zones`), `'dynamic'` (27.0's map-wide pads, DEV only now), `'bases'` (the yards). `tdmSim({ spawns })` takes all three; `spawnSafety.mode` names the one that ran.
+  - `tdmSim(...)` reports `zones` (picks, zone-safety rays, picks with no safe zone, uses per `team-zone`) and `zBands` (bot time, combat time and kills in 12 bands from one side's back to the other's).
+  - `__dev.zoneReport()` (a TDM match running): each zone's team, letter and centre, its spawn points (validated at setup), the nearest enemy zone, the enemy zones that see it (centre eye to centre chest), and whether the nav reaches it. `__dev.spawnPadPlan(px)` draws the zones too.
 - Dynamic spawns (27.0):
   - `TDM.spawns = 'bases'` (DEV): a map with pads plays from its yards and 19.0 forward points again (the A/B).
   - `await __dev.tdmSim({ spawns: 'dynamic' | 'bases', cell: 8 })`: also reports `spawnSafety` (respawns; died within 3 s and 5 s; shot within 3 s; time to death and to first hit; the nearest hostile at spawn; fallbacks; rays and ms per pick; uses per pad) and `flow` (an occupancy grid of `cell` m over the walkable cells: coverage, the normalized entropy of bot time, the Gini of kills over cells, the busiest tenth's share of kills), and `patrol` (picks, to an active area, heard spawns, arrivals).

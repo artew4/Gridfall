@@ -306,3 +306,173 @@ export function rotatePads(half: readonly (readonly [number, number, number, num
   const wrap = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
   return [...half.map((p) => [...p] as [number, number, number, number]), ...half.map(([x, y, z, a]) => [-x, y, -z, +wrap(a + Math.PI).toFixed(3)] as [number, number, number, number])];
 }
+
+/*
+  31.0, deployment zones. Each team has 2-3 zones in its own half of the map (A, B, C: a flank, the
+  centre, the other flank), and a respawn goes to a zone first, then to a spot in it:
+
+    1. Zone safety: a zone is unsafe if a hostile stands within (radius + hardMin) of its centre, or a
+       hostile within sight range sees its centre (eye 1.6 m → chest 1.2 m; one ray each).
+    2. Distribution: of the safe zones, the least used this match, then the least recently used
+       (round-robin over the match: the flanks and the centre get the team evenly).
+    3. Nothing safe: the zone whose nearest hostile is furthest.
+    4. The spot: the zone's own SpawnManager (the 27.0 scorer: pressure, sight, allies, recency) over
+       the zone's points only.
+
+  The opening deals squads of two round-robin over the zones.
+*/
+
+export type ZoneId = 'A' | 'B' | 'C';
+
+export interface DeployZone {
+  id: ZoneId;
+  team: TeamId;
+  centre: THREE.Vector3;
+  r: number;
+  /** The standing spots in it (validated against the level at setup). */
+  points: SpawnPad[];
+  /** Picks this match, and the match time of the last. */
+  uses: number;
+  lastUse: number;
+}
+
+export interface ZonePick extends SpawnPick {
+  zone: DeployZone;
+  /** The zone was not safe (every one was, or none was). */
+  unsafeZone: boolean;
+}
+
+export class ZoneSpawner {
+  private mgrs = new Map<DeployZone, SpawnManager>();
+  /** DEV: picks, rays spent on zone safety, picks with no safe zone. */
+  stats = { picks: 0, zoneRays: 0, noSafeZone: 0 };
+
+  constructor(
+    readonly zones: readonly DeployZone[],
+    private los: (a: THREE.Vector3, b: THREE.Vector3) => boolean,
+    private rand: () => number = Math.random,
+    readonly tuning: Partial<typeof SPAWN> = {},
+  ) {
+    for (const z of zones) this.mgrs.set(z, new SpawnManager(z.points, los, rand, tuning));
+  }
+
+  get S() {
+    return { ...SPAWN, ...this.tuning };
+  }
+
+  zonesOf(team: TeamId) {
+    return this.zones.filter((z) => z.team === team);
+  }
+
+  reset() {
+    for (const z of this.zones) {
+      z.uses = 0;
+      z.lastUse = -Infinity;
+    }
+    for (const m of this.mgrs.values()) m.reset();
+    this.stats = { picks: 0, zoneRays: 0, noSafeZone: 0 };
+  }
+
+  noteDeath(pos: THREE.Vector3, now: number) {
+    for (const m of this.mgrs.values()) m.noteDeath(pos, now);
+  }
+
+  /** Is a zone safe now, and how far its nearest hostile is (rays spent counted). */
+  zoneSafety(z: DeployZone, hostiles: readonly SpawnUnit[]) {
+    const S = this.S;
+    let near = Infinity, safe = true;
+    _chest.set(z.centre.x, z.centre.y + 1.2, z.centre.z);
+    for (const h of hostiles) {
+      const d = h.pos.distanceTo(z.centre);
+      near = Math.min(near, d);
+      if (d < z.r + S.hardMin) safe = false;
+    }
+    if (safe)
+      for (const h of hostiles) {
+        if (h.pos.distanceTo(z.centre) > S.sight) continue;
+        this.stats.zoneRays++;
+        _eye.set(h.pos.x, h.pos.y + 1.6, h.pos.z);
+        if (this.los(_eye, _chest)) {
+          safe = false;
+          break;
+        }
+      }
+    return { safe, near };
+  }
+
+  /** The zone a respawn of `team` goes to now (see the header). */
+  pickZone(team: TeamId, hostiles: readonly SpawnUnit[]): { zone: DeployZone; safe: boolean } {
+    const own = this.zonesOf(team);
+    const rated = own.map((z) => ({ z, ...this.zoneSafety(z, hostiles) }));
+    const safe = rated.filter((r) => r.safe).sort((a, b) => a.z.uses - b.z.uses || a.z.lastUse - b.z.lastUse || this.rand() - 0.5);
+    if (safe.length) return { zone: safe[0].z, safe: true };
+    this.stats.noSafeZone++;
+    return { zone: rated.reduce((a, b) => (b.near > a.near ? b : a)).z, safe: false };
+  }
+
+  /** A respawn: the zone, then the spot in it (the zone's own scorer). */
+  pick(team: TeamId, hostiles: readonly SpawnUnit[], allies: readonly SpawnUnit[], now: number, occupied: (p: THREE.Vector3) => boolean = () => false): ZonePick {
+    const { zone, safe } = this.pickZone(team, hostiles);
+    zone.uses++;
+    zone.lastUse = now;
+    this.stats.picks++;
+    const p = this.mgrs.get(zone)!.pick(team, hostiles, allies, now, occupied);
+    return { ...p, zone, unsafeZone: !safe };
+  }
+
+  /** A free spot in a zone (its points in turn, each point's slots). */
+  slotIn(zone: DeployZone, i: number, occupied: (p: THREE.Vector3) => boolean) {
+    const m = this.mgrs.get(zone)!;
+    for (let k = 0; k < zone.points.length; k++) {
+      const pad = zone.points[(i + k) % zone.points.length];
+      const at = m.slot(pad, occupied);
+      if (!occupied(at)) return { at, yaw: pad.yaw };
+    }
+    return { at: zone.centre.clone(), yaw: zone.points[0]?.yaw ?? 0 };
+  }
+
+  /**
+   * The match's first spawn: each team's members in squads of two, dealt round-robin over its zones
+   * (member i to zone ⌊i / 2⌋ mod n).
+   */
+  opening(members: Record<TeamId, number>): Record<TeamId, DeployZone[]> {
+    const out: Record<TeamId, DeployZone[]> = { alpha: [], omega: [] };
+    for (const t of ['alpha', 'omega'] as const) {
+      const own = this.zonesOf(t);
+      for (let i = 0; i < members[t]; i++) {
+        const z = own[Math.floor(i / 2) % own.length];
+        z.uses++;
+        out[t].push(z);
+      }
+    }
+    return out;
+  }
+}
+
+/**
+ * A team's zones from their ALPHA-half definitions (listed A, B, C from ALPHA's left): ALPHA's as given,
+ * OMEGA's mirrored across z = 0 or rotated 180° (the map's symmetry), lettered from its own left; each
+ * zone's points from `pointsFor` (validated by the level).
+ */
+export function deployZones(
+  half: readonly { id: ZoneId; x: number; y: number; z: number; r: number; yaw: number }[],
+  symmetry: 'mirror' | 'rotate',
+  pointsFor: (c: THREE.Vector3, r: number, yaw: number) => THREE.Vector3[],
+): DeployZone[] {
+  const out: DeployZone[] = [];
+  let id = 0;
+  for (const team of ['alpha', 'omega'] as const) {
+    for (const h of half) {
+      const o = team === 'alpha';
+      const x = o || symmetry === 'mirror' ? h.x : -h.x, z = o ? h.z : -h.z;
+      const yaw = o ? h.yaw : symmetry === 'mirror' ? Math.PI - h.yaw : h.yaw + Math.PI;
+      const centre = new THREE.Vector3(x, h.y, z);
+      const points = pointsFor(centre, h.r, yaw).map((p) => ({ id: id++, pos: p, yaw, side: team }));
+      // A is each team's own left as it faces the enemy. A rotation keeps that; a mirror swaps left and
+      // right, so OMEGA's letters run the other way (its A is the mirror of ALPHA's last).
+      const letter = o || symmetry === 'rotate' ? h.id : (['A', 'B', 'C'] as const)[half.length - 1 - half.indexOf(h)];
+      out.push({ id: letter, team, centre, r: h.r, points, uses: 0, lastUse: -Infinity });
+    }
+  }
+  return out;
+}

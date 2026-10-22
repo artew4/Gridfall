@@ -110,6 +110,41 @@ export class TdmMinimap {
     }
   }
 
+  /** 31.0: the deployment zones on the plan: a hexagon in the team's colour and its letter (drawn once). */
+  private zonesDrawn = false;
+  drawZones(zones: readonly { x: number; z: number; id: string; team: 'alpha' | 'omega' }[]) {
+    if (this.zonesDrawn) return;
+    this.zonesDrawn = true;
+    const g = this.plan.getContext('2d')!;
+    const k = this.px;
+    for (const zn of zones) {
+      const x = (zn.x - this.x0) * k, z = (zn.z - this.z0) * k, r = 3.2 * k;
+      g.strokeStyle = zn.team === 'alpha' ? 'rgba(95,227,255,0.95)' : 'rgba(255,138,42,0.95)';
+      g.lineWidth = Math.max(1.5, 0.5 * k);
+      g.beginPath();
+      for (let i = 0; i <= 6; i++) g[i ? 'lineTo' : 'moveTo'](x + Math.sin((i * Math.PI) / 3) * r, z + Math.cos((i * Math.PI) / 3) * r);
+      g.stroke();
+      // The letter, stroked small (no fonts): A, B, C.
+      const s = r * 0.5;
+      g.beginPath();
+      if (zn.id === 'A') {
+        g.moveTo(x - s * 0.7, z + s);
+        g.lineTo(x, z - s);
+        g.lineTo(x + s * 0.7, z + s);
+        g.moveTo(x - s * 0.4, z + s * 0.25);
+        g.lineTo(x + s * 0.4, z + s * 0.25);
+      } else if (zn.id === 'B') {
+        g.moveTo(x - s * 0.5, z - s);
+        g.lineTo(x - s * 0.5, z + s);
+        g.lineTo(x + s * 0.5, z + s * 0.5);
+        g.lineTo(x - s * 0.5, z);
+        g.lineTo(x + s * 0.5, z - s * 0.5);
+        g.lineTo(x - s * 0.5, z - s);
+      } else g.arc(x, z, s, Math.PI * 0.25, Math.PI * 1.75, true);
+      g.stroke();
+    }
+  }
+
   /**
    * One frame: the player at `p` looking along `yaw` (the Player's: -z at 0), allies and spotted
    * hostiles. Cheap: a blit and a few arcs.

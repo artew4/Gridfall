@@ -72,6 +72,12 @@ export interface TdmData {
    */
   pads?: [number, number, number, number][];
   /**
+   * 31.0: the deployment zones (TDM.spawns 'zones', the default): ALPHA's, listed A, B, C from its left
+   * ([x, floor y, z] centres, radius m, the way a spawner faces), OMEGA's by the map's symmetry; the
+   * visual theme of the pads (SpawnZoneVisual).
+   */
+  zones?: { half: { id: 'A' | 'B' | 'C'; x: number; y: number; z: number; r: number; yaw: number }[]; symmetry: 'mirror' | 'rotate'; theme: import('../world/SpawnZoneVisual').ZoneTheme };
+  /**
    * 28.0: the map's outer edges (the flank routes outside the main lanes), for the flow reports
    * (`tdmSim(...).edge`: their share of bot time, combat time and kills).
    */

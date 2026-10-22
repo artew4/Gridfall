@@ -291,3 +291,17 @@ export const PLATFORM_BLOCKERS: { name: string; x: [number, number]; z: [number,
  * __dev.spawnPads (farthest-point, then Lloyd relaxation over the nav, sheltered spots first).
  */
 export const SPAWN_PADS = mirrorPads([[0, 0, 55.8, 3.14], [22.4, 0, 17, 3.53], [-22.4, 0, 17, 2.75], [28, 0, 38, 3.14], [-24, 0, 38, 1.57], [-4, 0, 30, 3.53], [-4, 0, 6, 4.32]]);
+
+/**
+ * 31.0: the deployment zones (TdmData.zones): ALPHA's, A to C from its left; OMEGA's by the map's
+ * symmetry (mirror). Maglev: two (61 m wide and linear: one flank each side of the train).
+ */
+export const SPAWN_ZONES = {
+  symmetry: 'mirror' as const,
+  theme: 'glass' as const,
+  half: [
+    // Two, at the ends of the glass halls either side of the train (a linear hall: two flanks).
+    { id: 'A' as const, x: -24, y: 0, z: 38, r: 5, yaw: Math.PI },
+    { id: 'B' as const, x: 28, y: 0, z: 38, r: 5, yaw: Math.PI },
+  ],
+};

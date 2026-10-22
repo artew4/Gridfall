@@ -1,0 +1,824 @@
+{
+  "version": "31.0 (deployment zones: 2-3 lettered spawn zones a team, least-recently-used among the safe ones; a themed zone visual per map)",
+  "branch": "feature/spawn-zones-31.0 from main @ a30ed95",
+  "machine": "Apple M5, Chrome, Balanced",
+  "selfPlay": {
+    "method": "__dev.tdmSim({ spawns: 'zones' | 'dynamic' }) headless (scratch sim31.mjs), bot-only, the maps' sizes and 50 tickets, 3 matches a cell; 'zones, first placement' is the zones before Deep Jungle's flank zones moved forward and the docks' C moved back. killsMiddleThirdZPct: the middle 4 of 12 zBands. Means over matches; spawn percentages weighted by respawns.",
+    "results": {
+      "neonblock": {
+        "pads (27.0/28.0)": {
+          "matches": 3,
+          "matchSeconds": 439.03,
+          "killsPerMin": 14.23,
+          "quietPct": 36.77,
+          "firstEngagementMedian": 13.83,
+          "killGini": 0.78,
+          "killsMiddleThirdZPct": 64.97,
+          "spawn": {
+            "respawns": 293,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.36,
+            "shotWithin3sPct": 1.72,
+            "nearestHostileAtSpawnMedian": 40.93,
+            "timeToDeathMedian": 30.44,
+            "msPerPickMax": 0.2
+          },
+          "stuck": 2
+        },
+        "zones (31.0)": {
+          "matches": 3,
+          "matchSeconds": 404.87,
+          "killsPerMin": 15.17,
+          "quietPct": 31.7,
+          "firstEngagementMedian": 14.3,
+          "killGini": 0.79,
+          "killsMiddleThirdZPct": 59.67,
+          "spawn": {
+            "respawns": 289,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.35,
+            "shotWithin3sPct": 0.0,
+            "nearestHostileAtSpawnMedian": 53.03,
+            "timeToDeathMedian": 33.26,
+            "msPerPickMax": 0.3
+          },
+          "stuck": 0,
+          "zones": {
+            "picks": 289,
+            "noSafeZone": 0,
+            "zoneRaysPerPick": 4.3,
+            "uses": {
+              "alpha-A": 53,
+              "alpha-B": 58,
+              "alpha-C": 53,
+              "omega-A": 53,
+              "omega-B": 54,
+              "omega-C": 48
+            }
+          }
+        }
+      },
+      "crashsite": {
+        "pads (27.0/28.0)": {
+          "matches": 3,
+          "matchSeconds": 264.3,
+          "killsPerMin": 24.03,
+          "quietPct": 16.73,
+          "firstEngagementMedian": 10.83,
+          "killGini": 0.8,
+          "killsMiddleThirdZPct": 54.57,
+          "spawn": {
+            "respawns": 292,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.34,
+            "shotWithin3sPct": 0.34,
+            "nearestHostileAtSpawnMedian": 43.17,
+            "timeToDeathMedian": 22.38,
+            "msPerPickMax": 0.4
+          },
+          "stuck": 0
+        },
+        "zones (31.0)": {
+          "matches": 3,
+          "matchSeconds": 413.1,
+          "killsPerMin": 15.57,
+          "quietPct": 44.17,
+          "firstEngagementMedian": 14.63,
+          "killGini": 0.83,
+          "killsMiddleThirdZPct": 52.8,
+          "spawn": {
+            "respawns": 300,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.0,
+            "shotWithin3sPct": 2.33,
+            "nearestHostileAtSpawnMedian": 48.3,
+            "timeToDeathMedian": 27.75,
+            "msPerPickMax": 0.4
+          },
+          "stuck": 1,
+          "zones": {
+            "picks": 300,
+            "noSafeZone": 5,
+            "zoneRaysPerPick": 5.4,
+            "uses": {
+              "alpha-A": 59,
+              "alpha-B": 60,
+              "alpha-C": 52,
+              "omega-A": 36,
+              "omega-B": 73,
+              "omega-C": 62
+            }
+          }
+        },
+        "zones, first placement": {
+          "matches": 3,
+          "matchSeconds": 416.9,
+          "killsPerMin": 15.77,
+          "quietPct": 41.17,
+          "firstEngagementMedian": 15.77,
+          "killGini": 0.8,
+          "killsMiddleThirdZPct": 52.37,
+          "spawn": {
+            "respawns": 300,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.33,
+            "shotWithin3sPct": 2.67,
+            "nearestHostileAtSpawnMedian": 56.53,
+            "timeToDeathMedian": 32.57,
+            "msPerPickMax": 0.3
+          },
+          "stuck": 3,
+          "zones": {
+            "picks": 300,
+            "noSafeZone": 18,
+            "zoneRaysPerPick": 4.3,
+            "uses": {
+              "alpha-A": 63,
+              "alpha-B": 62,
+              "alpha-C": 46,
+              "omega-A": 50,
+              "omega-B": 61,
+              "omega-C": 60
+            }
+          }
+        }
+      },
+      "oldport": {
+        "pads (27.0/28.0)": {
+          "matches": 3,
+          "matchSeconds": 277.13,
+          "killsPerMin": 23.57,
+          "quietPct": 24.97,
+          "firstEngagementMedian": 10.5,
+          "killGini": 0.81,
+          "killsMiddleThirdZPct": 79.87,
+          "spawn": {
+            "respawns": 298,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.34,
+            "shotWithin3sPct": 2.01,
+            "nearestHostileAtSpawnMedian": 42.23,
+            "timeToDeathMedian": 21.06,
+            "msPerPickMax": 0.3
+          },
+          "stuck": 2
+        },
+        "zones (31.0)": {
+          "matches": 3,
+          "matchSeconds": 298.13,
+          "killsPerMin": 22.3,
+          "quietPct": 23.67,
+          "firstEngagementMedian": 11.73,
+          "killGini": 0.82,
+          "killsMiddleThirdZPct": 89.03,
+          "spawn": {
+            "respawns": 300,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.0,
+            "shotWithin3sPct": 0.33,
+            "nearestHostileAtSpawnMedian": 50.7,
+            "timeToDeathMedian": 24.13,
+            "msPerPickMax": 0.4
+          },
+          "stuck": 1,
+          "zones": {
+            "picks": 300,
+            "noSafeZone": 13,
+            "zoneRaysPerPick": 4.8,
+            "uses": {
+              "alpha-A": 89,
+              "alpha-B": 82,
+              "omega-A": 80,
+              "omega-B": 91
+            }
+          }
+        }
+      },
+      "maglev": {
+        "pads (27.0/28.0)": {
+          "matches": 3,
+          "matchSeconds": 275.97,
+          "killsPerMin": 23.73,
+          "quietPct": 19.57,
+          "firstEngagementMedian": 9.93,
+          "killGini": 0.7,
+          "killsMiddleThirdZPct": 61.8,
+          "spawn": {
+            "respawns": 299,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.33,
+            "shotWithin3sPct": 2.67,
+            "nearestHostileAtSpawnMedian": 38.7,
+            "timeToDeathMedian": 23.61,
+            "msPerPickMax": 0.2
+          },
+          "stuck": 1
+        },
+        "zones (31.0)": {
+          "matches": 3,
+          "matchSeconds": 315.0,
+          "killsPerMin": 20.9,
+          "quietPct": 21.4,
+          "firstEngagementMedian": 12.4,
+          "killGini": 0.7,
+          "killsMiddleThirdZPct": 71.4,
+          "spawn": {
+            "respawns": 300,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.0,
+            "shotWithin3sPct": 0.33,
+            "nearestHostileAtSpawnMedian": 47.8,
+            "timeToDeathMedian": 25.73,
+            "msPerPickMax": 0.4
+          },
+          "stuck": 2,
+          "zones": {
+            "picks": 300,
+            "noSafeZone": 20,
+            "zoneRaysPerPick": 6.0,
+            "uses": {
+              "alpha-A": 86,
+              "alpha-B": 85,
+              "omega-A": 91,
+              "omega-B": 80
+            }
+          }
+        }
+      },
+      "docks": {
+        "pads (27.0/28.0)": {
+          "matches": 3,
+          "matchSeconds": 449.3,
+          "killsPerMin": 13.9,
+          "quietPct": 41.2,
+          "firstEngagementMedian": 12.1,
+          "killGini": 0.8,
+          "killsMiddleThirdZPct": 67.2,
+          "spawn": {
+            "respawns": 296,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.68,
+            "shotWithin3sPct": 1.69,
+            "nearestHostileAtSpawnMedian": 49.33,
+            "timeToDeathMedian": 23.34,
+            "msPerPickMax": 0.3
+          },
+          "stuck": 1
+        },
+        "zones (31.0)": {
+          "matches": 3,
+          "matchSeconds": 535.43,
+          "killsPerMin": 11.8,
+          "quietPct": 48.97,
+          "firstEngagementMedian": 15.6,
+          "killGini": 0.81,
+          "killsMiddleThirdZPct": 63.93,
+          "spawn": {
+            "respawns": 300,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.33,
+            "shotWithin3sPct": 1.67,
+            "nearestHostileAtSpawnMedian": 64.63,
+            "timeToDeathMedian": 32.91,
+            "msPerPickMax": 0.3
+          },
+          "stuck": 0,
+          "zones": {
+            "picks": 300,
+            "noSafeZone": 0,
+            "zoneRaysPerPick": 3.9,
+            "uses": {
+              "alpha-A": 53,
+              "alpha-B": 59,
+              "alpha-C": 53,
+              "omega-A": 54,
+              "omega-B": 58,
+              "omega-C": 53
+            }
+          }
+        },
+        "zones, first placement": {
+          "matches": 3,
+          "matchSeconds": 558.6,
+          "killsPerMin": 11.2,
+          "quietPct": 49.43,
+          "firstEngagementMedian": 17.33,
+          "killGini": 0.8,
+          "killsMiddleThirdZPct": 72.7,
+          "spawn": {
+            "respawns": 295,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.0,
+            "shotWithin3sPct": 1.03,
+            "nearestHostileAtSpawnMedian": 65.0,
+            "timeToDeathMedian": 33.31,
+            "msPerPickMax": 0.3
+          },
+          "stuck": 0,
+          "zones": {
+            "picks": 295,
+            "noSafeZone": 0,
+            "zoneRaysPerPick": 3.5,
+            "uses": {
+              "alpha-A": 53,
+              "alpha-B": 57,
+              "alpha-C": 55,
+              "omega-A": 50,
+              "omega-B": 56,
+              "omega-C": 54
+            }
+          }
+        }
+      },
+      "desert": {
+        "pads (27.0/28.0)": {
+          "matches": 3,
+          "matchSeconds": 407.7,
+          "killsPerMin": 15.57,
+          "quietPct": 35.13,
+          "firstEngagementMedian": 10.67,
+          "killGini": 0.88,
+          "killsMiddleThirdZPct": 83.2,
+          "spawn": {
+            "respawns": 288,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 1.73,
+            "shotWithin3sPct": 2.79,
+            "nearestHostileAtSpawnMedian": 60.97,
+            "timeToDeathMedian": 24.38,
+            "msPerPickMax": 0.5
+          },
+          "stuck": 6
+        },
+        "zones (31.0)": {
+          "matches": 3,
+          "matchSeconds": 464.2,
+          "killsPerMin": 13.17,
+          "quietPct": 39.43,
+          "firstEngagementMedian": 13.6,
+          "killGini": 0.89,
+          "killsMiddleThirdZPct": 70.4,
+          "spawn": {
+            "respawns": 290,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.36,
+            "shotWithin3sPct": 0.0,
+            "nearestHostileAtSpawnMedian": 69.27,
+            "timeToDeathMedian": 28.76,
+            "msPerPickMax": 0.4
+          },
+          "stuck": 2,
+          "zones": {
+            "picks": 290,
+            "noSafeZone": 4,
+            "zoneRaysPerPick": 2.8,
+            "uses": {
+              "alpha-A": 42,
+              "alpha-B": 71,
+              "alpha-C": 47,
+              "omega-A": 53,
+              "omega-B": 62,
+              "omega-C": 45
+            }
+          }
+        },
+        "zones, first placement": {
+          "matches": 3,
+          "matchSeconds": 444.63,
+          "killsPerMin": 13.63,
+          "quietPct": 38.23,
+          "firstEngagementMedian": 14.17,
+          "killGini": 0.89,
+          "killsMiddleThirdZPct": 77.9,
+          "spawn": {
+            "respawns": 287,
+            "diedWithin3sPct": 0.0,
+            "diedWithin5sPct": 0.0,
+            "shotWithin3sPct": 0.7,
+            "nearestHostileAtSpawnMedian": 71.13,
+            "timeToDeathMedian": 28.26,
+            "msPerPickMax": 0.5
+          },
+          "stuck": 3,
+          "zones": {
+            "picks": 287,
+            "noSafeZone": 1,
+            "zoneRaysPerPick": 3.0,
+            "uses": {
+              "alpha-A": 49,
+              "alpha-B": 54,
+              "alpha-C": 49,
+              "omega-A": 56,
+              "omega-B": 58,
+              "omega-C": 51
+            }
+          }
+        }
+      }
+    },
+    "totals": {
+      "diedWithin5s": {
+        "pads": "11 of 1766",
+        "zones": "3 of 1779"
+      },
+      "diedWithin3s": {
+        "pads": 0,
+        "zones": 0
+      }
+    }
+  },
+  "zoneVisual": {
+    "drawObjects": {
+      "neonblock": "9 instanced + 6 sprites",
+      "crashsite": "7 instanced + 1 merged vines + 6 sprites",
+      "oldport": "8 instanced + 4 sprites",
+      "maglev": "7 instanced + 4 sprites",
+      "docks": "8 instanced + 6 sprites",
+      "desert": "7 instanced + 1 dust Points + 6 sprites"
+    },
+    "note": "one InstancedMesh per part and team; the counts don't grow with zones (only the letters are a sprite each)"
+  },
+  "perf": {
+    "bench3 (second runs) [fps, cpuMs, gpuMs, drawCalls]": {
+      "maglev": {
+        "alphaYard": [
+          60,
+          2.27,
+          6.1,
+          247
+        ],
+        "trainAisle": [
+          60,
+          2.43,
+          5.62,
+          242
+        ],
+        "platform1": [
+          60,
+          2.05,
+          6.03,
+          327
+        ],
+        "trackBed": [
+          60.2,
+          1.75,
+          6.22,
+          328
+        ],
+        "mezzanine": [
+          60,
+          2.16,
+          6.19,
+          352
+        ],
+        "bridge": [
+          60,
+          1.93,
+          5.92,
+          169
+        ],
+        "roofUp": [
+          60,
+          1.93,
+          5.76,
+          86
+        ],
+        "platformCover": [
+          60,
+          2.2,
+          5.86,
+          373
+        ],
+        "billboardClose": [
+          60.2,
+          2.01,
+          5.74,
+          350
+        ],
+        "glassWall": [
+          60,
+          2.1,
+          5.92,
+          351
+        ],
+        "wholeHall": [
+          60.3,
+          2.09,
+          6.39,
+          372
+        ],
+        "firefight": [
+          60,
+          2.15,
+          6.13,
+          307
+        ]
+      },
+      "desert": {
+        "yardCalm": [
+          60,
+          1.8,
+          5.87,
+          85
+        ],
+        "towerView": [
+          60,
+          2,
+          5.96,
+          90
+        ],
+        "yardStorm": [
+          60,
+          1.91,
+          6,
+          87
+        ],
+        "interiorStorm": [
+          60,
+          1.66,
+          5.87,
+          70
+        ],
+        "dunesStorm": [
+          60,
+          1.92,
+          5.52,
+          97
+        ],
+        "trench": [
+          60,
+          1.62,
+          5.52,
+          53
+        ],
+        "anvilTop": [
+          60,
+          1.9,
+          5.81,
+          96
+        ],
+        "convoy": [
+          60,
+          1.59,
+          5.67,
+          53
+        ],
+        "fightStorm": [
+          60,
+          2.12,
+          5.55,
+          107
+        ]
+      },
+      "crashsite": {
+        "alphaLZ": [
+          59.9,
+          2,
+          6.21,
+          215
+        ],
+        "ridge": [
+          60,
+          2.01,
+          5.83,
+          209
+        ],
+        "westTrench": [
+          60,
+          2.06,
+          5.71,
+          200
+        ],
+        "templeFront": [
+          60.3,
+          2.11,
+          6.1,
+          238
+        ],
+        "undercroft": [
+          60,
+          1.57,
+          6.14,
+          159
+        ],
+        "wreckInside": [
+          60,
+          1.72,
+          5.82,
+          159
+        ],
+        "wreckRoof": [
+          60,
+          1.91,
+          6.25,
+          154
+        ],
+        "shrine": [
+          60,
+          1.94,
+          5.99,
+          184
+        ],
+        "ravine": [
+          60,
+          1.82,
+          6.02,
+          253
+        ],
+        "eastBank": [
+          60,
+          1.67,
+          5.92,
+          166
+        ],
+        "wholeMap": [
+          60,
+          1.75,
+          6.08,
+          316
+        ],
+        "firefight": [
+          60,
+          1.77,
+          5.75,
+          153
+        ]
+      }
+    },
+    "vs30.0": "Maglev CPU 1.75-2.43 ms (30.0: 1.99-2.61), GPU 5.62-6.39 (5.91-6.38): the same"
+  },
+  "leaks": {
+    "leakcheck": {
+      "command": "node scripts/leakcheck.mjs 2 desert,crashsite,maglev,oldport,neonblock,docks",
+      "aliveAfterGC": 0
+    },
+    "vramCycle_laps3": {
+      "route": "neonblock -> crashsite -> menu (stage) -> docks, through the real UI",
+      "columns": "geometries, textures, programs, sceneObjects",
+      "run1": {
+        "lap0": {
+          "neonblock": [
+            213,
+            68,
+            68,
+            565
+          ],
+          "crashsite": [
+            109,
+            35,
+            59,
+            530
+          ],
+          "menu": [
+            106,
+            19,
+            54,
+            56
+          ],
+          "docks": [
+            178,
+            51,
+            69,
+            516
+          ]
+        },
+        "lap1": {
+          "neonblock": [
+            213,
+            69,
+            71,
+            565
+          ],
+          "crashsite": [
+            109,
+            35,
+            59,
+            530
+          ],
+          "menu": [
+            106,
+            19,
+            54,
+            56
+          ],
+          "docks": [
+            178,
+            51,
+            69,
+            516
+          ]
+        },
+        "lap2": {
+          "neonblock": [
+            213,
+            69,
+            71,
+            565
+          ],
+          "crashsite": [
+            109,
+            35,
+            59,
+            530
+          ],
+          "menu": [
+            140,
+            37,
+            73,
+            56
+          ],
+          "docks": [
+            178,
+            51,
+            69,
+            516
+          ]
+        },
+        "ok": false
+      },
+      "run2": {
+        "lap0": {
+          "neonblock": [
+            213,
+            69,
+            71,
+            565
+          ],
+          "crashsite": [
+            109,
+            35,
+            59,
+            530
+          ],
+          "menu": [
+            106,
+            19,
+            54,
+            56
+          ],
+          "docks": [
+            173,
+            44,
+            64,
+            159
+          ]
+        },
+        "lap1": {
+          "neonblock": [
+            213,
+            69,
+            71,
+            565
+          ],
+          "crashsite": [
+            109,
+            35,
+            59,
+            530
+          ],
+          "menu": [
+            140,
+            37,
+            73,
+            56
+          ],
+          "docks": [
+            178,
+            51,
+            69,
+            516
+          ]
+        },
+        "lap2": {
+          "neonblock": [
+            213,
+            69,
+            71,
+            565
+          ],
+          "crashsite": [
+            109,
+            35,
+            59,
+            530
+          ],
+          "menu": [
+            140,
+            37,
+            73,
+            56
+          ],
+          "docks": [
+            178,
+            51,
+            69,
+            516
+          ]
+        },
+        "ok": true
+      },
+      "note": "every level stop is identical lap over lap in both runs. The menu reads 106 or 140 by timing (the level rebuilding behind the stage, as in BENCH-17.0's lap 1), never above 140: run 1's 'ok: false' is that reading, not growth; run 2 0 growth everywhere"
+    }
+  },
+  "tests": 373
+}

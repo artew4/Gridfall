@@ -184,6 +184,36 @@ export function spawnPadPlan(game: Game, px = 900, extra: number[][] = []) {
     }
   };
   for (const p of pads) dot(p.pos.x, p.pos.z, p.pos.y, String(p.id), p.side === 'alpha' ? '#2ee8ff' : p.side === 'omega' ? '#ff8a2a' : '#fff');
+  // 31.0: the zones (their radius, their letter), their standing points.
+  for (const z of game.tdm.zoneList()) {
+    c.strokeStyle = z.team === 'alpha' ? '#2ee8ff' : '#ff8a2a';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.arc(X(z.centre.x), Z(z.centre.z), z.r * k, 0, Math.PI * 2);
+    c.stroke();
+    for (const p of z.points) c.fillRect(X(p.pos.x) - 1.5, Z(p.pos.z) - 1.5, 3, 3);
+    dot(z.centre.x, z.centre.z, z.centre.y, z.id, z.team === 'alpha' ? '#2ee8ff' : '#ff8a2a');
+  }
   extra.forEach((e, i) => dot(e[0], e[2], e[1], 'p' + i, '#c6f'));
   return cv.toDataURL('image/png');
+}
+
+/**
+ * 31.0: the deployment zones of the match running: per zone its standing points (validated at setup),
+ * the nearest enemy zone, which enemy zones see it (centre eye to centre chest), and whether its
+ * centre is on the nav graph's main component.
+ */
+export function zoneReport(game: Game) {
+  const zones = game.tdm.zoneList();
+  const nav = game.nav;
+  const eye = (p: THREE.Vector3, h: number) => new THREE.Vector3(p.x, p.y + h, p.z);
+  const home = zones.length ? nav.nearestVisible(eye(zones[0].centre, 1.6)) : -1;
+  const reach = home >= 0 ? nav.reachable(home, true) : new Set<number>();
+  return zones.map((z) => {
+    const foes = zones.filter((o) => o.team !== z.team);
+    const nearest = Math.min(...foes.map((o) => o.centre.distanceTo(z.centre)));
+    const seenBy = foes.filter((o) => game.col.lineOfSight(eye(o.centre, 1.6), eye(z.centre, 1.2))).map((o) => o.id);
+    const ni = nav.nearestVisible(eye(z.centre, 1.6));
+    return { team: z.team, id: z.id, at: [+z.centre.x.toFixed(1), +z.centre.y.toFixed(2), +z.centre.z.toFixed(1)], points: z.points.length, nearestEnemyZone: +nearest.toFixed(1), seenByEnemyZones: seenBy.join(','), reachable: ni >= 0 && reach.has(ni) };
+  });
 }

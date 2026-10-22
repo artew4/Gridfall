@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { SPAWN, SpawnManager, laneNeed, mirrorPads, rotatePads, sideOf, spread, type SpawnPad } from './SpawnManager';
+import { SPAWN, SpawnManager, ZoneSpawner, deployZones, laneNeed, mirrorPads, rotatePads, sideOf, spread, type SpawnPad } from './SpawnManager';
 
 const v = (x: number, z: number, y = 0) => new THREE.Vector3(x, y, z);
 const pad = (id: number, x: number, z: number, side: SpawnPad['side'] = null): SpawnPad => ({ id, pos: v(x, z), yaw: 0, side });
@@ -180,3 +180,67 @@ describe('28.0 point-symmetric pads and per-map weights', () => {
   });
 });
 
+
+describe('31.0 deployment zones', () => {
+  const half = [
+    { id: 'A' as const, x: -30, y: 0, z: 40, r: 6, yaw: Math.PI },
+    { id: 'B' as const, x: 0, y: 0, z: 55, r: 6, yaw: Math.PI },
+    { id: 'C' as const, x: 30, y: 0, z: 40, r: 6, yaw: Math.PI },
+  ];
+  const ring = (c: THREE.Vector3) => [0, 1, 2, 3].map((k) => c.clone().add(v(Math.cos(k) * 2, Math.sin(k) * 2)));
+  const make = (los: (a: THREE.Vector3, b: THREE.Vector3) => boolean = open) => new ZoneSpawner(deployZones(half, 'mirror', ring), los, fixed);
+
+  it("zones per team in its own half, lettered from its own left (a mirror swaps OMEGA's)", () => {
+    const z = deployZones(half, 'mirror', ring);
+    const a = z.filter((q) => q.team === 'alpha'), o = z.filter((q) => q.team === 'omega');
+    expect(a.every((q) => q.centre.z > 0)).toBe(true);
+    expect(o.every((q) => q.centre.z < 0)).toBe(true);
+    // ALPHA faces -z: its left is -x. OMEGA faces +z: its left is +x.
+    expect(a.find((q) => q.id === 'A')!.centre.x).toBeLessThan(0);
+    expect(o.find((q) => q.id === 'A')!.centre.x).toBeGreaterThan(0);
+    const r = deployZones(half, 'rotate', ring).filter((q) => q.team === 'omega');
+    expect(r.find((q) => q.id === 'A')!.centre.x).toBeGreaterThan(0);
+  });
+
+  it('round-robin: with every zone safe, respawns cycle A, B, C (least used, then least recent)', () => {
+    const zs = make();
+    const ids = Array.from({ length: 6 }, (_, i) => zs.pick('alpha', [], [], i).zone.id);
+    expect(ids).toEqual(['A', 'B', 'C', 'A', 'B', 'C']);
+  });
+
+  it("a zone with a hostile too close, or in a hostile's sight, is skipped", () => {
+    const zs = make();
+    // A hostile 10 m from zone A's centre (inside r + hardMin).
+    expect(zs.pick('alpha', [{ pos: v(-30, 30) }], [], 0).zone.id).not.toBe('A');
+    // Sight: only zone B's centre is visible (a callback that sees x = 0 only).
+    const seen = make((a, b) => Math.abs(b.x) < 1);
+    // A hostile on the centre line, within sight range of all three (B's centre the one it sees).
+    const picks = Array.from({ length: 4 }, (_, i) => seen.pick('alpha', [{ pos: v(0, 5) }], [], i).zone.id);
+    expect(picks).not.toContain('B');
+  });
+
+  it('no zone safe: the one whose nearest hostile is furthest, counted', () => {
+    const zs = make(() => true);
+    // Within sight of every zone (A 25 m, B 16 m, C 35 m off), all seen: C is the furthest.
+    const p = zs.pick('alpha', [{ pos: v(-5, 40) }], [], 0);
+    expect(p.unsafeZone).toBe(true);
+    expect(p.zone.id).toBe('C');
+    expect(zs.stats.noSafeZone).toBe(1);
+  });
+
+  it("the spot is inside the chosen zone's radius", () => {
+    const zs = make();
+    for (let i = 0; i < 6; i++) {
+      const p = zs.pick('omega', [], [], i);
+      expect(p.at.distanceTo(p.zone.centre)).toBeLessThanOrEqual(p.zone.r + 1.3);
+      expect(p.zone.team).toBe('omega');
+    }
+  });
+
+  it('the opening: squads of two dealt round-robin over the zones', () => {
+    const zs = make();
+    const o = zs.opening({ alpha: 7, omega: 5 });
+    expect(o.alpha.map((z) => z.id)).toEqual(['A', 'A', 'B', 'B', 'C', 'C', 'A']);
+    expect(o.omega).toHaveLength(5);
+  });
+});

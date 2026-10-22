@@ -259,3 +259,18 @@ export const JUNGLE_AI: ArenaProfile = {
  * __dev.spawnPads (farthest-point, then Lloyd relaxation over the nav, sheltered spots first).
  */
 export const SPAWN_PADS = mirrorPads([[0, 0, 59, 3.14], [26, -4, 21, 3.14], [-39, 3.6, 15, 0.79], [-38, 0, 46, 1.57], [28.5, -1.89, 45.5, 3.14], [0, 0, 15.6, 0.79], [-18, -1.27, 38, 5.89]]);
+
+/**
+ * 31.0: the deployment zones (TdmData.zones): ALPHA's, A to C from its left; OMEGA's by the map's
+ * symmetry (mirror). Deep Jungle: three (97 m wide, three lanes).
+ */
+export const SPAWN_ZONES = {
+  symmetry: 'mirror' as const,
+  theme: 'jungle' as const,
+  half: [
+    // Spread over the width under the canopy: the ridge approach (west), the LZ, the ravine (east).
+    { id: 'A' as const, x: -30, y: 0.04, z: 36, r: 6, yaw: Math.PI },
+    { id: 'B' as const, x: 0, y: 0, z: 59, r: 6, yaw: Math.PI },
+    { id: 'C' as const, x: 28.5, y: -4, z: 36, r: 5, yaw: Math.PI },
+  ],
+};

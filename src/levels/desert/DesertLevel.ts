@@ -43,6 +43,16 @@ const SPAWN_PADS = rotatePads(
   ([[1.5, 63.6, 3.14], [-70, 44, 1.57], [70.2, 37, 4.71], [-59, 26.5, 1.57], [71.5, 18, 4.71], [0, 18, 3.14], [-55.5, 6, 1.57]] as const).map(([x, z, a]) => [x, desertHeight(x, z), z, a] as const),
 );
 
+/**
+ * 31.0: the deployment zones (TdmData.zones): ALPHA's (south), A to C from its left, on the sand under
+ * them; OMEGA's rotated 180°. Open dunes: three, spread wide (the west dunes, the yard, the east dunes).
+ */
+const SPAWN_ZONES = {
+  symmetry: 'rotate' as const,
+  theme: 'desert' as const,
+  half: ([['A', -50, 40, 6], ['B', 1.5, 63.6, 6], ['C', 50, 40, 6]] as const).map(([id, x, z, r]) => ({ id, x, y: desertHeight(x, z), z, r, yaw: Math.PI })),
+};
+
 /** Sun from the south-west, 40° up: long hard shadows across the yard. */
 const SUN_DIR = new THREE.Vector3(-0.55, 0.64, 0.53).normalize();
 
@@ -166,6 +176,8 @@ export class DesertLevel implements LevelRuntime {
         lanes: { alpha: o.arena.lanes.south, omega: o.arena.lanes.north },
         // 28.0: spawn pads anywhere on the map (SpawnManager); the yards stay for the 'bases' A/B.
         pads: SPAWN_PADS,
+        // 31.0: the deployment zones (the default spawning since 31.0; the pads above are the DEV A/B).
+        zones: SPAWN_ZONES,
         // 28.0: open dunes, long sight in calm air: pressure from further off, a larger minimum, sight
         // checked out to 80 m (past the bots' 75 m cap). Self-play: shot within 3 s of a spawn 5.2% → see BENCH-28.0.
         spawnTuning: { near: 60, hardMin: 24, sight: 80 },
