@@ -671,10 +671,12 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   private planLane(ctx: EnemyCtx, A: ArenaCtx) {
     const L = ctx.lanes;
     const me = this.self;
-    // The freshest contact on the board beats the lane (the team's radar).
+    // The freshest contact on the board beats the lane (the team's radar). 18.0: on a strict lane (the
+    // map's centre of gravity: the maglev's aisle) it is closed on along the lane, as a far hunt is.
     const c = A.director.freshest(me.pos, ctx.time);
     if (c) {
-      this.goal = c.pos.clone();
+      const strict = !!L && L.length > 0 && A.director.isStrict(A.director.laneFor(me.uid, me.pos));
+      this.goal = (strict ? this.laneGoal(ctx, A, c.pos) : null) ?? c.pos.clone();
       return;
     }
     if (!L || !L.length) return;

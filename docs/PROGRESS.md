@@ -1128,8 +1128,45 @@ Branch `feature/old-port-17.1`, from `main` @ `8d5c916` (17.0, the thermal pass,
 - **Leaks:** `leakcheck.mjs 2 oldport,neonblock,crashsite`: lap 1 = lap 2 everywhere (Old Port 148 geometries, 36 textures; the first reading of 109 is before the bots' guns load), 0 alive after a forced GC.
 - **Tests:** 230 (221 + Old Port's 9). Build clean, no DEV tools in the bundle.
 
+## 18.0: Maglev Terminal (a corporate sci-fi TDM arena)
+
+Branch `feature/maglev-terminal-18.0`, from `main` @ `6e5044e` (17.1, deployed first: `main` fast-forwarded and pushed). Full numbers: `docs/BENCH-18.0.json`.
+
+### The map (`src/levels/maglev/`, `docs/LEVELS.md`)
+- **A white glass-roofed transit hall**, 60 × 120 m, mirrored about z = 0: a three-car maglev hovering in the middle (its aisle the close-quarters lane; cab passages through both noses, six side doors), wide platforms either side (rifle lanes), 1.5 m track beds beside them, a mezzanine (east) and a balcony (west) at 5 m, two skybridges across the hall over the train, escalators (non-functioning: ribbed inclines) and static glass elevators.
+- **Look:** daylight through the glass roof (one sun, static shadows: the roof grid on the floor), white concrete, polished stone, brushed steel, one corporate teal; the `terminal` ambience.
+- **The glass:** plain transparent `MeshStandardMaterial` (no transmission, no refraction), depth-write off, the static environment map as its reflection; merged per material; no shadows. A unit test keeps physical materials out of the builder.
+
+### The central pull (the brief: bots must fight in the train)
+- **Engine, opt-in per map** (every other map unchanged; tests for the defaults):
+  - `TdmData.laneWeights`: the director's lane balance per weight (Maglev: the train is worth 1.6, two of five bots);
+  - `TdmData.laneStrict`: a strict lane's bots close on radar contacts along the lane (`planLane` uses the 8.0 `laneGoal`), instead of straight at them;
+  - `NavLayout.cost`: a link's cost as a multiple of its length (Maglev: 0.55 inside the train).
+- **How it got there** (`tdmSim`, 25 tickets):
+  - first build (side doors only, no settings): the train got 0.9% of bot time and 2 of 48 kills;
+  - with the settings: 13–18% and 3–7 kills, but both teams' train bots walked platform 2 to the east doors, and it became the killing field (20–23 kills a match);
+  - cab passages through the noses (the centre lane a straight line from the yard's centre exit): **train interior 24–30% of bot time, 9–16 kills a match**, the shotgun 8–20 kills at a 5.6–10.5 m median;
+  - the same map with the settings off: 2–8% and 0–5 kills. All lanes strict: the train 24–32%, but the track beds empty (0.3%): not shipped.
+- **Flow (four matches):**
+  - 2.3–2.7 min, 18–22 kills a minute, 0 stuck, 0 friendly damage;
+  - lane time west / train / east: 13–19% / 41–50% / 37–46%; kills 6–14 / 14–19 / 21–23;
+  - 10–13 drop-downs a match, 12–17% of bot time on the 5 m level;
+  - AI 0.05 ms a step on average (P99 0.4), 21 rays a step.
+- **Honestly:** the track beds get 1–2% of bot time and the west balcony none; they are routes for players (and escapes), not where bots fight.
+
+### Validation
+- **`bench(3)`** (Balanced, through the menu): 60 FPS in all 10 views; GPU 5.1–7.3 ms (the bridge the worst, 44% busy), CPU 1.2–1.7 ms; 3 point lights (pooled), one static shadow map. The glass costs 0–0.7 ms (hidden vs shown).
+- **World:** `world()` 49,300 cells, 0 findings standing and crouched; `stress()` 0 in 256,000 runs (standing and crouched); `stairGaps()` 18 stairs and escalators, 0 drops; `levelAI()` 152/152 runners, 8/8 gunners. **Fixed on the way:**
+  - thin fascia colliders under the bridges' and the mezzanine's edges, crossed by bodies falling through the drop gaps (one deck box, a flush downstand beam);
+  - slots: a yard bench 0.6 m off a wall, carts 0.4 m off the track walls (and flush, a step out of the bed), a 10 cm sliver of slab beside an escalator's hole;
+  - bots on the track beds' stairs skipping to nodes beyond the shallow wall and pushing into it; a buffer stop 0.3 m under the wall's top (railings beside the stairs, buffers removed, the bed's nav on the guideway beam);
+  - the noses' sides outside every zone.
+- **Leaks:** `leakcheck.mjs 2 maglev,oldport,neonblock`: lap 1 = lap 2, 0 alive after a forced GC.
+- **Tests:** 242 (+12: Maglev's layout, lanes, carve, zones, the glass rule; lane weights).
+
 ## Next
 Human playtest:
+- 18.0 items: Maglev Terminal (does the train feel like a shotgun lane or a death trap, are the cab doors too strong as the straight way, do the platforms' duels work past the kiosks and columns, is the white too bright or flat, the glass), the terminal ambience.
 - 17.1 items: Old Port (is the daylight pleasant or flat, is the warehouse's inside bright enough, do the stacks and the ship's bridge pay off, is the yard too open), the random name on a first visit.
 - 17.0 items: does the machine stay cool (fans, temperature) in a Neon Block match and on the pause menu; does Neon Block still look right with its lights pooled (any light popping when you turn?); is the menu stage still crisp enough at 1.0×.
 - 16.0 items: the menu stage (is the gun readable, does the camera drift too much), the glitch and hover sounds (charming or tiring), Rajdhani at small sizes, the flavor scripts (do Arabic and Thai read as flavor or as noise, is the Cyrillic stencil look right for the docks).

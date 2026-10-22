@@ -42,7 +42,7 @@ export class AudioEngine {
   private levelBus!: GainNode;
   private levelNodes: AudioScheduledSourceNode[] = [];
   /** Which ambience the level asked for: drives the random events in update(). */
-  private ambience: 'city' | 'desert' | 'jungle' | 'harbour' | null = null;
+  private ambience: 'city' | 'desert' | 'jungle' | 'harbour' | 'terminal' | null = null;
   private birdTimer = 3;
   private frogTimer = 2;
   private monkeyTimer = 25;
@@ -152,12 +152,13 @@ export class AudioEngine {
   }
 
   /** Ambience profile of the loaded level: the beds and the random events around the listener. */
-  setAmbience(kind: 'city' | 'desert' | 'jungle' | 'harbour') {
+  setAmbience(kind: 'city' | 'desert' | 'jungle' | 'harbour' | 'terminal') {
     if (!this.started || this.ambience === kind) return;
     this.ambience = kind;
     if (kind === 'city') this.startAmbience();
     else if (kind === 'jungle') this.startJungle();
     else if (kind === 'harbour') this.startHarbour();
+    else if (kind === 'terminal') this.startTerminal();
     else this.startDesert();
   }
 
@@ -504,6 +505,62 @@ export class AudioEngine {
     this.reverbSend.gain.setTargetAtTime(0.35, this.now(), 0.2);
   }
 
+  /**
+   * 18.0, the terminal: a glass hall. The wind bed (kept for the level's setWind, near silent under
+   * glass), an air-handling hum (a low band of brown noise and a faint 100 Hz drone), a long reverb.
+   */
+  private startTerminal() {
+    this.startDesert();
+    const ctx = this.ctx;
+    const w = this.wind!;
+    const src = this.levelSrc(this.noise(this.brown, true));
+    const fl = this.filter('bandpass', 140, 1.2);
+    const g = ctx.createGain();
+    g.gain.value = 0.5;
+    src.connect(fl).connect(g).connect(this.levelBus);
+    const drone = this.levelSrc(ctx.createOscillator());
+    drone.type = 'sine';
+    drone.frequency.value = 100;
+    const dg = ctx.createGain();
+    dg.gain.value = 0.006;
+    drone.connect(dg).connect(this.levelBus);
+    drone.start();
+    w.gain.gain.value = 0.15;
+    this.reverbSend.gain.setTargetAtTime(0.7, this.now(), 0.2);
+  }
+
+  private chimeTimer = 12;
+  private passTimer = 30;
+
+  /** Terminal events: the announcement chime (three notes, far up in the hall), a train passing outside. */
+  private updateTerminal(dt: number, l: V3) {
+    this.chimeTimer -= dt;
+    if (this.chimeTimer <= 0) {
+      this.chimeTimer = rand(28, 60);
+      const o = this.out({ x: l.x + rand(-20, 20), y: 12, z: l.z + rand(-30, 30) }, 0.8, this.amb);
+      const t = this.now();
+      [659.3, 830.6, 987.8].forEach((f, i) => {
+        this.tone(o, 'sine', f, f, 0.03, 0.01, 1.4, t + i * 0.42);
+        this.tone(o, 'sine', f * 2, f * 2, 0.006, 0.01, 0.8, t + i * 0.42);
+      });
+    }
+    this.passTimer -= dt;
+    if (this.passTimer <= 0) {
+      this.passTimer = rand(50, 100);
+      // A maglev passing beyond the glass: a filtered rush that swells and fades over 6 s.
+      const o = this.out({ x: l.x + (Math.random() < 0.5 ? -60 : 60), y: 4, z: l.z }, 0.6, this.amb);
+      const t = this.now();
+      const src = this.noise(this.pink, true);
+      const bp = this.filter('bandpass', 380, 0.8);
+      bp.frequency.setValueAtTime(260, t);
+      bp.frequency.linearRampToValueAtTime(620, t + 3);
+      bp.frequency.linearRampToValueAtTime(240, t + 6);
+      const env = this.gainEnv(0.12, 2.6, 3.4, t);
+      src.connect(bp).connect(env).connect(o);
+      src.stop(t + 6.2);
+    }
+  }
+
   private gullTimer = 3;
   private hornFarTimer = 25;
   private clinkTimer = 6;
@@ -699,6 +756,7 @@ export class AudioEngine {
     if (this.ambience === 'desert') return this.updateDesert(dt, listenerPos);
     if (this.ambience === 'jungle') return this.updateJungle(dt, listenerPos);
     if (this.ambience === 'harbour') return this.updateHarbour(dt, listenerPos);
+    if (this.ambience === 'terminal') return this.updateTerminal(dt, listenerPos);
     if (this.ambience !== 'city') return;
     this.dripTimer -= dt;
     while (this.dripTimer <= 0) {

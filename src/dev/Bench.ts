@@ -57,6 +57,7 @@ export async function bench(game: Game, seconds = 3, opts: { pipelines?: Pipelin
   if (game.setting === 'neonblock') return benchNeonBlock(game, dev, m, out);
   if (game.setting === 'crashsite') return benchCrashSite(game, dev, m, out);
   if (game.setting === 'oldport') return benchOldPort(game, dev, m, out);
+  if (game.setting === 'maglev') return benchMaglev(game, dev, m, out);
   dev.start('story');
   dev.god();
   dev.noGuards();
@@ -255,6 +256,49 @@ async function benchOldPort(game: Game, dev: Dev, m: (name: string) => Promise<v
     await m(name);
   }
   dev.tp(0, 0, 28, 0, 0);
+  const tdm = game.tdm;
+  const shooter = window.setInterval(() => {
+    let best: { x: number; y: number; z: number } | null = null, bd = 60;
+    for (const b of tdm.bots) if (b.alive && b.team === 'omega' && b.pos.distanceTo(game.player.pos) < bd) {
+      bd = b.pos.distanceTo(game.player.pos);
+      best = b.pos;
+    }
+    if (!best) return;
+    dev.look(best.x, best.y + 1.2, best.z);
+    dev.shoot();
+  }, 600);
+  await new Promise((r) => setTimeout(r, 4000));
+  await m('firefight');
+  clearInterval(shooter);
+  return out;
+}
+
+/**
+ * Maglev Terminal (18.0, a TDM arena under a glass roof): the match running; the three lanes at eye
+ * level (inside the train down its aisle, platform 1 to the far end, the track bed, the mezzanine),
+ * the bridge over the train, the transparency's worst cases (looking up through the whole glass roof,
+ * and along the curtain wall: the most glass in frame), the whole hall from the balcony, a firefight.
+ */
+async function benchMaglev(game: Game, dev: Dev, m: (name: string) => Promise<void>, out: Record<string, unknown>) {
+  dev.start('tdm', 'maglev');
+  dev.god();
+  const views: [string, [number, number, number], [number, number, number]][] = [
+    ['alphaYard', [0, 0, 56], [0, 2, 30]],
+    ['trainAisle', [0, 0.25, 25], [0, 1.6, -25]],
+    ['platform1', [-7, 0, 40], [-7, 1.5, -40]],
+    ['trackBed', [-14.6, -1.5, 30], [-17, -0.5, -30]],
+    ['mezzanine', [26.5, 5, 30], [24, 5.5, -30]],
+    ['bridge', [-20, 5, 20], [20, 4, 18]],
+    ['roofUp', [0, 0, 10], [0, 40, -6]],
+    ['glassWall', [27, 0, 40], [29, 4, -40]],
+    ['wholeHall', [-26, 5, 25], [10, 0, -40]],
+  ];
+  for (const [name, p, l] of views) {
+    dev.tp(p[0], p[1], p[2], 0, 0);
+    dev.look(l[0], l[1], l[2]);
+    await m(name);
+  }
+  dev.tp(0, 0, 30, 0, 0);
   const tdm = game.tdm;
   const shooter = window.setInterval(() => {
     let best: { x: number; y: number; z: number } | null = null, bd = 60;

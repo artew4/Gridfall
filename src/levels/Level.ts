@@ -27,9 +27,20 @@ export interface TdmData {
   laneOf?(x: number, y: number, z: number): 0 | 1 | 2 | null;
   /** 15.0: the lanes' names for the reports, [flank, centre, flank]. */
   laneNames?: [string, string, string];
+  /**
+   * 18.0: how many bots each lane is worth to the director's balance (default 1 each): a lane worth
+   * 1.6 holds two of a team's five while the others hold one or two (a map's centre of gravity).
+   */
+  laneWeights?: [number, number, number];
+  /**
+   * 18.0: lanes whose bots keep to them: a board contact (the team's radar) is closed on along the
+   * lane, to its waypoint level with the contact, as a far hunt is (8.0), instead of straight at it.
+   * Default: none (every lane yields to the radar, 7.0–17.1).
+   */
+  laneStrict?: [boolean, boolean, boolean];
 }
 
-export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock' | 'crashsite' | 'oldport';
+export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock' | 'crashsite' | 'oldport' | 'maglev';
 export type Mode = 'story' | 'arcade' | 'tdm';
 
 /** A named area of a level (the zone toast reads these). Rects are x0, z0, x1, z1. */

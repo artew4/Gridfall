@@ -318,3 +318,33 @@ Old Port is the first map built to look *pleasant* rather than dramatic.
   - flags in a breeze;
   - a harbour ambience (breeze, sea wash, gulls, a far ship's horn, chains).
 
+## Maglev Terminal (18.0)
+
+`src/levels/maglev/`: `MaglevLayout.ts` (the plan, the ground, lanes, zones, the central-pull settings), `Maglev.ts` (the builder and the nav graph), `MaglevLevel.ts` (the runtime: sun, sky, look), `textures.ts` (formwork concrete, polished stone, the track bed, ribbed escalator treads, wayfinding signs, the departures board, office towers). TDM only; the biome is `tokyo` (Japanese flavor: a Japanese maglev line).
+
+- **Mirrored about z = 0**, the sides not alike, three lanes, three levels (the track beds at -1.5, the platforms, the upper level at 5 m):
+  - **The train** (centre): three cars, 54 m, hovering 12 cm over the guideway (drawn; its collider starts at the floor, so nothing passes under). Its floor is one step (0.25) over the platform. A cab passage through each nose and six doors a side; inside, one aisle through the cars and the two gangways, benches between the doors, luggage stacks at the car ends (the aisle narrows to 1.2 m: corners), dark tinted windows (opaque: nobody is seen through a pane a bullet can't pass).
+  - **West** (platform 1 and the tracks): a wide platform with columns, a kiosk at mid-field and planters; beside it a 1.5 m track bed with a walkable guideway beam, carts, stairs at both ends and a mid stair the lane takes down; a side hall with a balcony (5 m) reached by an escalator.
+  - **East** (platform 2 and the mezzanine): a wide platform and its track bed; the side hall under a 5 m mezzanine (escalators from the aprons and from the hall), a café kiosk and vending machines under it.
+  - **The skybridges** (5 m) cross the whole hall over the train at z = ±20, mezzanine to balcony, with drop gaps over both platforms.
+  - **Glass elevators** (static: an opaque base, a frosted shaft, the car parked at the top) stand in front of the yard's side exits, breaking the platforms' spawn-to-spawn sightlines.
+- **The ground** is flat with the track beds carved 0.5 m inside their walls' colliders (the 15.0 heightfield rule, unit-tested).
+- **Boundaries:** 16 m glass curtain walls (solid) on the long sides, 16 m concrete end walls, 3.2 m yard walls.
+- **The central pull** (the brief: bots must actually fight in the train). Three per-map settings, all opt-in (every other map is unchanged):
+  - the centre lane's waypoints run down the aisle, entered through the cab passages: a straight line from the yard's centre exit;
+  - `TdmData.laneWeights` [1, 1.6, 1]: the director keeps two of five bots on the train;
+  - `TdmData.laneStrict` [false, true, false]: the train's bots close on radar contacts along the aisle (to its waypoint level with the contact), instead of straight at them;
+  - `NavLayout.cost`: links inside the train cost 0.55 of their length, so the graph's shortest ways along the hall go through it.
+
+  Without them the same map gave the train 2–8% of bot time and 0–5 kills a match; with them, 24–30% and 9–16 (`docs/BENCH-18.0.json`). A first build with side doors only sent both teams' train bots down platform 2 to the doors, and that platform became the killing field; the cab passages fixed it.
+- **Track beds and walls (lessons):** the bed is 1.5 m deep, so a body on its stairs sees over the wall: a bot skipped to a node beyond it and pushed into the wall's face (railings beside the stairs block that line). Anything in the bed stands over 1 m clear of its walls (0.4 m was a slot; flush was a step out).
+- **The look and the glass:** see [Corporate daylight and cheap glass (18.0)](#corporate-daylight-and-cheap-glass-180).
+
+## Corporate daylight and cheap glass (18.0)
+
+- **Light:** one sun (3.4, white, high: 60° up) with a static 2048² shadow map over the hall (±72 m: 7 cm a texel), a sky hemisphere (0.8), IBL from the sky dome over a pale ground (0.45). The roof's steel grid, the bridges, the mezzanine and the train draw the hall's shadows on the white floor.
+- **Interiors:** the train's cabin plastic and floor carry a faint cool emissive (ADR-0054's bounce), two dim ceiling strips per car and one point light per car (3 point lights on the map, all pooled).
+- **Post:** exposure 0.95; bloom above 1.25 (the light strips, the boards); a clean cool grade (whites stay white, a touch of blue in the shade, contrast 0.06).
+- **Palette:** white formwork concrete, pale polished stone, white gloss plastic, brushed steel, one corporate teal for wayfinding and the train's stripe; dark tinted glass on the train; office towers in blue-grey curtain wall beyond the glass.
+- **The glass (the thermal rules):** never `MeshPhysicalMaterial`, transmission or refraction. Every pane is a `MeshStandardMaterial` with `transparent: true`, opacity 0.18 (roof), 0.3 (walls) or 0.45 (frosted balustrades and elevator shafts), `depthWrite: false`, double-sided, its reflection the static environment map (one PMREM of the sky, made at load). Panes are merged per material (the roof is one plane, each curtain wall one more) and cast no shadow (the steel frames do). Cost measured by hiding them: 0 ms looking up through the roof or along a bridge, ~0.7 ms along a curtain wall (`docs/BENCH-18.0.json`).
+- **Sound:** a `terminal` ambience: an air-handling hum, a long reverb, the announcement chime now and then, a maglev passing outside.

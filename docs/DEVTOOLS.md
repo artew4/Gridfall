@@ -83,6 +83,10 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Old Port (17.1):
   - `?setting=oldport`. `bench(3)` has an Old Port set: nine views (the hall, the upper floor in the skylight shafts, the yard, the stacks, the dock floor, the bridge, the sea quay into the sun side, the whole port) and a firefight. `tdmSim` lanes: warehouse, yard, dock.
   - `__game.level.debug()`: nav nodes and drops, skylight shafts, indoors, `drowned` (the sea fence should keep it 0).
+- Maglev Terminal (18.0):
+  - `?setting=maglev`. `bench(3)` has a Maglev set: nine views (the train's aisle, platform 1 to the far end, the track bed, the mezzanine, the bridge, looking up through the glass roof, along the curtain wall, the whole hall from the balcony) and a firefight. `tdmSim` lanes: west, train, east; the zones name each car (CAR 1–3, GANGWAY).
+  - `__game.level.setVisual(false)` hides the glass (for an A/B of its cost with `perf()`); `__game.level.debug()`: nav nodes, hand links, drops, point lights.
+  - The central-pull settings can be switched off for an A/B: set `laneWeights` and `laneStrict` on `__game.level.data.tdm` to `undefined`, set `__game.nav.cost = null`, then clear `__game.nav.fields` and `__game.nav.vaultFields`.
 - UI flavor and the menu stage (16.0):
   - `node scripts/stagecheck.mjs [cycles=6]` (Node 22+, Google Chrome; `URL=` for another server): drives the real menu (root → a mode's maps → BACK, with gun swaps) in headless Chrome. It tags each menu stage and every swapped gun, forces a full GC and checks a heap snapshot for survivors (exit 1 on any). It also asserts that the stage is gone on the maps screen and after DEPLOY. Shares `scripts/lib/cdp.mjs` and `scripts/lib/heap.mjs` with `leakcheck.mjs`.
   - `__game.stage` (null except on the menu's root and controls screens), `__game.syncStage()`. The biome: `document.documentElement.dataset.biome`; `import('/src/ui/Flavor.ts')` for `setBiome`, `fl`, `FLAVOR`.

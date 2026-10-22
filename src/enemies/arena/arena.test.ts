@@ -295,6 +295,49 @@ describe('15.0: lane pressure', () => {
   });
 });
 
+describe('18.0: lane weights', () => {
+  const lanes = [[v(-30, 0, 40), v(-30, 0, -40)], [v(0, 0, 40), v(0, 0, -40)], [v(30, 0, 40), v(30, 0, -40)]];
+  const bot = (uid: number) => ({ uid, alive: true, isPlayer: false, pos: v(0, 0, 50), team: 'alpha' as TeamId });
+  const share = (weights?: number[], n = 5, runs = 40) => {
+    const centre: number[] = [];
+    for (let r = 0; r < runs; r++) {
+      const d = new ArenaDirector('alpha', v(0, 0, 50), v(0, 0, -50), lanes, weights);
+      const bots = Array.from({ length: n }, (_, i) => bot(100 + i));
+      d.update(1, bots as never, n, { own: 25, theirs: 25 });
+      const count = [0, 0, 0];
+      for (const l of d.laneOf.values()) count[l]++;
+      expect(Math.min(...count)).toBeGreaterThanOrEqual(1);
+      centre.push(count[1]);
+    }
+    return centre;
+  };
+
+  it('a centre worth 1.6 always holds two of five bots (and never leaves a flank empty)', () => {
+    expect(share([1, 1.6, 1]).every((c) => c === 2)).toBe(true);
+    // Unweighted, the centre gets one or two (the 7.0–17.1 balance: whichever lane the dealt fifth bot lands in).
+    const plain = share();
+    expect(plain.every((c) => c === 1 || c === 2)).toBe(true);
+    expect(plain.some((c) => c === 1)).toBe(true);
+  });
+
+  it('weights of 1 change nothing (absent and explicit give the same lanes)', () => {
+    const run = (weights?: number[]) => {
+      const rnd = mulberry32(7);
+      const r0 = Math.random;
+      Math.random = rnd;
+      try {
+        const d = new ArenaDirector('alpha', v(0, 0, 50), v(0, 0, -50), lanes, weights);
+        d.addHeat({ x: 0, z: 0 }, 2, 1);
+        d.update(1, [bot(1), bot(2), bot(3), bot(4)] as never, 4, { own: 25, theirs: 25 });
+        return [...d.laneOf.entries()];
+      } finally {
+        Math.random = r0;
+      }
+    };
+    expect(run([1, 1, 1])).toEqual(run());
+  });
+});
+
 describe('Survival keeps the 5.0 brain', () => {
   // The split is structural: nothing on the survival path may reach the arena AI.
   it('Waves, Squad, Arcade and the Gunner/Runner classes never import the arena modules', () => {

@@ -268,8 +268,9 @@ export class TdmRules implements ModeRules {
     const centre = (ps: THREE.Vector3[]) => ps.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(Math.max(1, ps.length));
     const base = { alpha: centre(d.spawns.alpha), omega: centre(d.spawns.omega) };
     this.directors = {
-      alpha: new ArenaDirector('alpha', base.alpha, base.omega, d.lanes.alpha),
-      omega: new ArenaDirector('omega', base.omega, base.alpha, d.lanes.omega),
+      alpha: new ArenaDirector('alpha', base.alpha, base.omega, d.lanes.alpha, d.laneWeights, d.laneStrict),
+      // OMEGA's lanes are listed as it faces (its left is ALPHA's right): the same lanes, reversed.
+      omega: new ArenaDirector('omega', base.omega, base.alpha, d.lanes.omega, d.laneWeights?.slice().reverse(), d.laneStrict?.slice().reverse()),
     };
     const conceal = g.ctx.concealment;
     this.sensing = new Sensing(

@@ -86,12 +86,18 @@ export class ArenaDirector {
   /** Event log for checks: [time, what, detail]. Bounded. */
   log: [number, string, string][] = [];
 
-  /** `own`/`theirs`: the spawn centres; `lanes`: this team's lanes (waypoints from our spawn to theirs). */
+  /**
+   * `own`/`theirs`: the spawn centres; `lanes`: this team's lanes (waypoints from our spawn to theirs);
+   * 18.0 `weights`: how many bots each lane is worth (absent: 1 each, the balance of 7.0–17.1);
+   * `strict`: lanes whose bots close on radar contacts along the lane (absent: none).
+   */
   constructor(
     readonly team: TeamId,
     own: THREE.Vector3,
     theirs: THREE.Vector3,
     readonly lanes: THREE.Vector3[][],
+    readonly weights?: readonly number[],
+    readonly strict?: readonly boolean[],
   ) {
     this.setBases(own, theirs);
   }
@@ -365,7 +371,20 @@ export class ArenaDirector {
     return Math.min(ef - 0.05, of + 0.2);
   }
 
-  /** Keep every lane manned: new bots go to the emptiest lane; an empty lane takes the newest bot of the fullest. */
+  /** 18.0: a lane whose bots keep to it when the radar has a contact (see TdmData.laneStrict). */
+  isStrict(l: number) {
+    return !!this.strict?.[l];
+  }
+
+  /** A lane's weight (18.0): its share of the team; 1 unless the map says otherwise. */
+  private w(l: number) {
+    return this.weights?.[l] ?? 1;
+  }
+
+  /**
+   * Keep every lane manned: new bots go to the emptiest lane; an empty lane takes the newest bot of
+   * the fullest. 18.0: "emptiest" and "fullest" are per lane weight (bots ÷ weight).
+   */
   private assignLanes(alive: readonly ArenaMember[], now = 0) {
     const n = this.lanes.length;
     if (!n) return;
@@ -383,7 +402,7 @@ export class ArenaDirector {
       // team has bots) any of them at random, so over a match every lane is walked. 15.0: a hot lane
       // counts as fuller than it is (weight × heat).
       const P = ARENA.lanePressure;
-      const cost = count.map((c, l) => c + (P.on ? P.weight * (this.heat[l] ?? 0) : 0));
+      const cost = count.map((c, l) => (c + (P.on ? P.weight * (this.heat[l] ?? 0) : 0)) / this.w(l));
       const least = Math.min(...cost);
       const open = cost.map((c, l) => (c - least < 0.25 ? l : -1)).filter((l) => l >= 0);
       const best = !P.on && open.includes(1) ? 1 : open[Math.floor(Math.random() * open.length)];
@@ -395,10 +414,10 @@ export class ArenaDirector {
     if (P.on && now - this.moveT >= P.moveCd) {
       let hot = -1, cool = -1;
       for (let l = 0; l < n; l++) {
-        if (count[l] >= 2 && (hot < 0 || this.heat[l] > this.heat[hot])) hot = l;
-        if (cool < 0 || this.heat[l] + 0.3 * count[l] < this.heat[cool] + 0.3 * count[cool]) cool = l;
+        if (count[l] >= 2 && (hot < 0 || this.heat[l] / this.w(l) > this.heat[hot] / this.w(hot))) hot = l;
+        if (cool < 0 || (this.heat[l] + 0.3 * count[l]) / this.w(l) < (this.heat[cool] + 0.3 * count[cool]) / this.w(cool)) cool = l;
       }
-      if (hot >= 0 && cool >= 0 && hot !== cool && this.heat[hot] - this.heat[cool] >= P.hot) {
+      if (hot >= 0 && cool >= 0 && hot !== cool && this.heat[hot] / this.w(hot) - this.heat[cool] / this.w(cool) >= P.hot) {
         const mover = [...bots].reverse().find((b) => this.laneOf.get(b.uid) === hot);
         if (mover) {
           this.laneOf.set(mover.uid, cool);
@@ -414,7 +433,7 @@ export class ArenaDirector {
     const empty = count.findIndex((c, l) => c === 0 && !(P.on && (this.heat[l] ?? 0) >= P.hot));
     if (empty >= 0 && count.reduce((a, c) => a + c, 0) >= n) {
       let full = 0;
-      for (let l = 1; l < n; l++) if (count[l] > count[full]) full = l;
+      for (let l = 1; l < n; l++) if (count[l] / this.w(l) > count[full] / this.w(full)) full = l;
       if (count[full] >= 2) {
         const mover = [...bots].reverse().find((b) => this.laneOf.get(b.uid) === full);
         if (mover) this.laneOf.set(mover.uid, empty);

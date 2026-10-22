@@ -16,6 +16,12 @@ export interface NavLayout {
    * edge, fall). Only the arena bots' routes take them (the vault graph); survival never does.
    */
   drops?: [number, number][];
+  /**
+   * 18.0: a link's cost as a multiple of its length (default 1), from its two ends at body height.
+   * A map makes a route it wants walked cheaper (Maglev Terminal: the train's aisle), so the graph's
+   * shortest ways pass through it. Survival and arena routes alike.
+   */
+  cost?: (a: THREE.Vector3, b: THREE.Vector3) => number;
 }
 
 /** Probe height above the floor for walkability rays, plus a knee-high ray for low obstacles. */
@@ -45,9 +51,11 @@ export class Nav {
   private d = new THREE.Vector3();
 
   private slope: number;
+  private cost: ((a: THREE.Vector3, b: THREE.Vector3) => number) | null;
 
   constructor(private col: CollisionWorld, layout: NavLayout) {
     this.slope = layout.slope ?? 0;
+    this.cost = layout.cost ?? null;
     // Stored at body height so LOS checks start from the chest of a standing enemy.
     this.nodes = layout.nodes.map((p) => new THREE.Vector3(p.x, p.y + BODY, p.z));
     this.edges = this.nodes.map(() => []);
@@ -287,7 +295,8 @@ export class Nav {
       const nu = this.nodes[u];
       const relax = (v: number) => {
         if (done[v]) return;
-        const nd = du + nu.distanceTo(this.nodes[v]);
+        const nv = this.nodes[v];
+        const nd = du + nu.distanceTo(nv) * (this.cost ? this.cost(nu, nv) : 1);
         if (nd < dist[v]) {
           dist[v] = nd;
           next[v] = u;

@@ -1,0 +1,76 @@
+{
+  "version": "18.0 (Maglev Terminal)",
+  "machine": "Apple M5 laptop, Chrome, Balanced preset (60 FPS cap, render scale 1.25 = 1820x1186), on mains power",
+  "branch": "feature/maglev-terminal-18.0 from main @ 6e5044e (17.1)",
+  "bench3_balanced": {
+    "method": "bench(3) after opening the TDM maps screen and picking the map (the real menu path)",
+    "columns": "fps, cpuMsPerFrame, gpuMsPerFrame, gpuBusyPct, drawCalls, frameMsP99",
+    "alphaYard": [60, 1.66, 6.43, 38.5, 272, 23.6],
+    "trainAisle": [60, 1.73, 6.1, 36.6, 217, 25.0],
+    "platform1": [60, 1.7, 6.29, 37.7, 297, 24.9],
+    "trackBed": [60, 1.35, 5.06, 30.4, 270, 22.8],
+    "mezzanine": [60.3, 1.51, 5.9, 35.5, 221, 22.3],
+    "bridge": [60, 1.17, 7.28, 43.6, 216, 24.8],
+    "roofUp": [60, 1.25, 6.15, 36.9, 90, 23.3],
+    "glassWall": [60, 1.42, 6.72, 40.3, 221, 24.8],
+    "wholeHall": [59.8, 1.2, 6.58, 39.3, 218, 25.0],
+    "firefight": [60, 1.5, 6.28, 37.7, 295, 17.7],
+    "summary": { "fps": [59.8, 60.3], "cpuMs": [1.17, 1.73], "gpuMs": [5.06, 7.28], "triangles": 18845 },
+    "lightPool": { "sources": 3, "slots": 3 },
+    "shadows": "sun only, static (autoUpdate false), 2048, frustum +-72 m"
+  },
+  "glassCost_perf3_gpuMs": {
+    "method": "perf(3) twice per view with the level's glass materials visible and hidden (setVisual)",
+    "bridge": { "glass": [6.76, 6.91], "noGlass": [6.89, 6.89] },
+    "glassWall": { "glass": [6.89, 6.73], "noGlass": [6.17, 5.99] },
+    "roofUp": { "glass": [6.36, 6.45], "noGlass": [6.57, 6.45] },
+    "note": "the whole roof is one transparent plane, each curtain wall one more; panes are MeshStandardMaterial transparent (opacity 0.18-0.45), depthWrite off, no transmission; worst case ~0.7 ms along the curtain wall"
+  },
+  "integrity": {
+    "world": { "cells": 49300, "standingFindings": 0, "crouchedFindings": 0 },
+    "stress": { "runs": 256000, "standing": 0, "crouched": 0, "fixedOnTheWay": [
+      "a thin fascia collider under each bridge's deck edge and the mezzanine's edge: crossed by bodies falling through the drop gaps (54 failures) -> one deck box / a flush downstand beam",
+      "a yard bench 0.6 m off the end wall (8: ended inside geometry) -> against the wall",
+      "track-bed carts 0.4 m off the walls (crouched 76: ended inside geometry); flush, they were a step out of the bed onto the wall top (71: crossed a wall) -> over 1 m clear of the walls",
+      "a 10 cm sliver of mezzanine slab between a mid escalator's hole and the glass wall (4) -> the hole runs to the wall"
+    ] },
+    "stairGaps": { "stairsAndEscalators": 18, "drops": 0 },
+    "levelAI": { "runners": "152/152", "gunners": "8/8", "graphOk": true, "before": "127/152: bodies on the 1.5 m-deep bed's end stairs saw over the wall, skipped to a node beyond it and pushed into the wall's face; one slipped onto a buffer stop 0.3 m under the wall's top -> railings beside the stairs, buffers removed, the bed's nav along the guideway beam" },
+    "nav": { "nodes": 617, "handLinks": 72, "drops": 22 },
+    "zones": "the noses' sides were outside every zone (world check) -> the aprons begin at the noses' roots"
+  },
+  "tdmSim_25_tickets": {
+    "18.0": {
+      "levers": "lane weights [1, 1.6, 1], the train lane strict, train-aisle nav links at 0.55 of their length; cab passages through both noses",
+      "minutes": [2.5, 2.7, 2.5, 2.3],
+      "killsPerMin": [19.6, 18.2, 19.5, 21.6],
+      "kills": [49, 49, 49, 49],
+      "laneTimePct_west_train_east": [[19.1, 42.3, 38.7], [12.7, 41.2, 46.1], [13.3, 49.8, 36.8], [17.4, 45.8, 36.8]],
+      "killsByLane_west_train_east": [[9, 18, 22], [6, 19, 23], [9, 18, 22], [14, 14, 21]],
+      "trainInteriorTimePct": [26.1, 24.4, 29.6, 26.1],
+      "trainInteriorKills": [16, 13, 15, 9],
+      "byWeapon_kills_medianM": { "SG": [[12, 5.9], [12, 10.5], [20, 5.6], [8, 8.7]], "AR": [[18, 21.2], [22, 20.5], [13, 16.3], [27, 22.3]], "SMG": [[19, 15.6], [15, 9.4], [16, 16.3], [14, 13.6]] },
+      "killRangeMedianM": [10.6, 11.2, 10.5, 13.2],
+      "dropsPerMatch": [13, 10, 10, 12],
+      "upperLevelTimePct": [16.2, 16.6, 11.7, 11.7],
+      "movingPct": [90.4, 91.6, 91.5, 91.3],
+      "zoneTimePctAvg": { "CAR 1": 8.3, "CAR 2": 8.7, "CAR 3": 8.7, "GANGWAY": 0.9, "PLATFORM 1": 8.0, "PLATFORM 2": 10.2, "MEZZANINE": 5.8, "SKYBRIDGE": 4.3, "WEST BALCONY": 0, "WEST TRACK": 1.2, "EAST TRACK": 1.6, "ALPHA APRON": 17.7, "OMEGA APRON": 14.4 },
+      "stuck": 0,
+      "friendlyDamage": 0,
+      "aiMs": { "avg": [0.051, 0.058], "p99": 0.4, "raysPerStep": [20.5, 21.7] }
+    },
+    "leversOff_sameMap": {
+      "minutes": [2.0, 2.2, 2.3, 2.4],
+      "killsPerMin": [21.2, 22.1, 20.9, 19.7],
+      "laneTimePct_train": [18.7, 22.3, 22.4, 15.7],
+      "trainInteriorTimePct": [4.4, 4.8, 7.6, 2.2],
+      "trainInteriorKills": [1, 0, 5, 0],
+      "sgKills": [9, 7, 9, 5]
+    },
+    "firstBuild_sideDoorsOnly_noLevers_1match": { "trainInteriorTimePct": 0.9, "trainLaneKills": 2, "kills": 48 },
+    "sideDoorsOnly_withLevers_4": { "trainInteriorTimePct": [17.5, 14.4, 13.2, 14.6], "trainInteriorKills": [7, 5, 6, 3], "platform2Kills": [22, 22, 23, 20], "note": "both teams' train bots walked platform 2 to the east doors: the killing field moved there" },
+    "allLanesStrict_4": { "trainInteriorTimePct": [30.2, 32.1, 24.2, 24.2], "trainInteriorKills": [21, 17, 11, 16], "westTrackTimePct": 0.3, "note": "the train gains, the track beds empty: not shipped" }
+  },
+  "leakcheck_forcedGC": { "command": "node scripts/leakcheck.mjs 2 maglev,oldport,neonblock", "maglevGeometriesTexturesByLap": [[116, 34], [139, 34], [139, 34]], "aliveAfterGC": 0 },
+  "tests": 242
+}
