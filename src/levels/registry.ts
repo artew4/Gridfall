@@ -6,6 +6,7 @@ import { JUNGLE_INFO, JungleLevel } from './jungle/JungleLevel';
 import { DOCKS_INFO, DocksLevel } from './docks/DocksLevel';
 import { NEONBLOCK_INFO, NeonBlockLevel } from './neonblock/NeonBlockLevel';
 import { CRASHSITE_INFO, CrashSiteLevel } from './crashsite/CrashSiteLevel';
+import { OLDPORT_INFO, OldPortLevel } from './oldport/OldPortLevel';
 
 export interface LevelEntry {
   info: LevelInfo;
@@ -23,9 +24,11 @@ export const LEVELS: Partial<Record<SettingId, LevelEntry>> & { tokyo: LevelEntr
   neonblock: { info: NEONBLOCK_INFO, create: (g) => new NeonBlockLevel(g) },
   // 15.0: Deep Jungle's biome as a TDM arena (Firebase Viper keeps its survival and 9.0 TDM).
   crashsite: { info: CRASHSITE_INFO, create: (g) => new CrashSiteLevel(g) },
+  // 17.0: a daytime harbour arena (brick warehouse, container yard, dry dock); TDM and survival.
+  oldport: { info: OLDPORT_INFO, create: (g) => new OldPortLevel(g) },
 };
 
-export const LEVEL_ORDER: SettingId[] = (['tokyo', 'neonblock', 'desert', 'jungle', 'crashsite', 'docks'] as SettingId[]).filter((id) => LEVELS[id]);
+export const LEVEL_ORDER: SettingId[] = (['tokyo', 'neonblock', 'desert', 'jungle', 'crashsite', 'docks', 'oldport'] as SettingId[]).filter((id) => LEVELS[id]);
 
 /** The registry entry of a setting the menu offers. */
 export function levelEntry(id: SettingId): LevelEntry {

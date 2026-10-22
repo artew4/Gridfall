@@ -286,3 +286,35 @@ How it fits:
 - **Quay gantry** (6.5 m, 4 m out from the warehouse's east wall): a 1.1 m armoured half-wall facing the warehouse, the crane nest at mid-field, stairs at both ends and from the quay up to the nest.
 - **Lanes:** containers (over the gantry), the warehouse, the waterfront (the quay and the nest).
 
+## Old Port (17.1)
+
+`src/levels/oldport/`: `OldPortLayout.ts` (the plan, the ground, lanes and zones), `OldPort.ts` (the builder and the nav graph), `OldPortLevel.ts` (the runtime: sun, sky, sea, haze, flags), `textures.ts` (brick, apron concrete, faded containers, dock walls, ripples). TDM and Arcade Survival; the biome is `docks` (Cyrillic flavor).
+
+- **Mirrored about z = 0**, three lanes, four levels:
+  - **The warehouse** (west): a pillared brick hall; an upper floor (4.4 m) under broken skylights, with a hole in its middle to drop through and windows over the yard; interior stairs at both ends, fire stairs from the alley.
+  - **The yard** (centre): THE STACKS (two-high, 5.2 m) near each side, a steel walk across to STACK B, stairs up from the apron and from mid-field, drops off their edges; low cover and a parked reach stacker at mid-field.
+  - **The dry dock** (east): a 4.5 m-deep basin (stairs down at both ends, drops off both quays), a coaster on keel blocks, her deck (1.0) reached by gangways from both quays and by scaffold stairs from the dock floor, her bridge roof (3.6); the sea quay beyond under a container crane.
+- **The ground** is a flat terrain with the dock carved in; the carve lies 0.5 m inside the dock walls' colliders (the 15.0 heightfield rule, unit-tested).
+- **Boundaries:** brick buildings (11–14 m) on three sides; a 2.4 m fence at the sea, with a drown backstop behind it. The first 1.6 m fence was cleared by a sprint-jump off a bollard or a sack pile (stress test).
+- **Lanes climb their own high ground** (the 15.0 lesson L-109): the warehouse lane runs on the upper floor, the yard lane over the stacks and the walk, the dock lane down the dock, aboard by the scaffold and over the bridge.
+- **The look:** see [Daylight (17.1)](#daylight-171).
+
+## Daylight (17.1)
+
+Old Port is the first map built to look *pleasant* rather than dramatic.
+
+- **Light:**
+  - one sun (3.9, warm white, 50° up from the east-south-east) with a static 2048² shadow map over the arena;
+  - a sky hemisphere (0.85) that keeps shade at about a quarter of sunlight, never black;
+  - IBL from the same sky dome over a warm-grey ground (0.4).
+- **Interiors:** the warehouse's own materials carry a faint warm emissive (bounce light) and five weak, unshadowed fill lights. Without them the inside read near-black against the sunlit yard.
+- **Post:** exposure 1.0; bloom only above 1.35 (sun glints on the sea and glass); a near-neutral grade (warm 1.04 in the light, a touch of blue in the shade, desaturation 0.06, crush 0.04, contrast 0.05).
+- **Palette:** warm brick, pale concrete, sun-faded container paint (sea green, rust, mustard, slate, cream, umber), steel in greys and a pale steel blue. Nothing saturated, nothing emissive outside. Stair side plates are grey: painted safety yellow, they read as walls in daylight.
+- **Weather, light:**
+  - haze (fog 0.0062: ~90% at 245 m);
+  - light shafts through the broken skylights (the 4.2 god-ray geometry);
+  - haze sheets drifting over the sea;
+  - ripples scrolled on the water;
+  - flags in a breeze;
+  - a harbour ambience (breeze, sea wash, gulls, a far ship's horn, chains).
+

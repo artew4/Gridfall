@@ -1055,8 +1055,82 @@ Branch `fix/thermal-optimization-17.0`, from `main` @ `dfe0baa` (16.0). The brie
 - **Old Port, the first 17.0 brief:** its branch `feature/daytime-docks-17.0` (`b30f914`) is parked, not merged. This brief replaced that work.
 - **Neon Block's look:** at 16 lights, the overview from the west roofs loses a little fill on far roofs. The alleys and lanes looked the same in screenshots with every light and with 12.
 
+## 17.1: Old Port (a daytime TDM arena), a random player name
+
+Branch `feature/old-port-17.1`, from `main` @ `8d5c916` (17.0, the thermal pass, deployed first). The map was built on `feature/daytime-docks-17.0` from 16.0, parked for the thermal pass, then re-applied here and re-checked under 17.0's light budget (section *17.1 on the thermal base* below).
+
+### Menu: the player's name
+- **No fixed default:** a browser with no saved name is dealt a mercenary handle from the bots' pool (13.0's 30 callsigns, title-cased: Jax, Nova, Viper) at every boot.
+- **What is saved:** only a typed name; clearing the field forgets it.
+- **Check:** in a fresh headless profile, four boots gave Echo, Sable, Orin and Orin (repeats can happen with 30 names), and a typed name survived reloads. `cleanName` takes a fallback (this boot's handle).
+
+### Old Port (`src/levels/oldport/`)
+- **A new arena, not a copy of Neon Docks:** there the centre is a warehouse and the flanks are flat; here the warehouse is a two-storey flank, the centre an open yard with raised stacks, and the east lane has four levels.
+- **The warehouse** (west):
+  - a pillared brick hall, close range;
+  - an upper floor (4.4 m) under broken skylights (sun patches and light shafts), with a hole to drop through and windows over the yard;
+  - interior stairs at both ends, fire stairs to the alley.
+- **The yard** (centre):
+  - THE STACKS (5.2 m) near each side, with stairs from the apron and from mid-field and drops off their edges;
+  - a steel walk across to STACK B;
+  - low cover and a reach stacker at mid-field.
+- **The dry dock** (east):
+  - a 4.5 m basin, carved inside its walls' colliders;
+  - a coaster on keel blocks: deck 1.0, reached by gangways from both quays and scaffold stairs from the dock floor; bridge roof 3.6;
+  - the sea quay under a container crane, a 2.4 m fence, the sea.
+- **Daylight that is pleasant, not dramatic** (`docs/LEVELS.md`, "Daylight"):
+  - one sun with soft static shadows and a sky hemisphere that keeps the shade at about a quarter of sunlight;
+  - bounce light inside the warehouse (a faint emissive on its materials, five weak fill lights);
+  - a near-neutral grade, bloom only on sun glints;
+  - a palette of warm brick, pale concrete and faded paint.
+- **Weather:** a light haze, skylight shafts, haze sheets over the sea, ripples, flags, and a new `harbour` ambience (breeze, sea wash, gulls, a far horn, chains).
+- **Menus:** TDM (the sixth map) and Arcade Survival (22 spawns over the whole port).
+  - **Not in Story:** the brief asked for the Story menu too, but Story Escape is Tokyo's narrative (its acts, train and ending live in that district), so Old Port offers TDM and Survival instead.
+
+### Results (`docs/BENCH-17.1.json`)
+- **World integrity:**
+  - `world()`: 68,540 cells, 0 findings standing and crouched.
+  - `stress()`: 0 failures in 256,000 runs, standing and crouched.
+  - `stairGaps()`: 22 stairs, 0 drops.
+  - **Fixed on the way:**
+    - the gangways' handrails and a plinth across the doors (seen but not solid);
+    - a 1.6 m sea fence that a sprint-jump off a bollard cleared;
+    - a slot under the hull's overhang at the scaffold's foot.
+- **Navigation:**
+  - 787 nodes, 18 drop-downs, one connected graph;
+  - every test goal is reached from both yards, by the arena bots (with drops) and by survival (without);
+  - all 22 survival spawns are valid; a 30 s survival run had no errors.
+- **Flow, bot matches (`tdmSim`, 25 tickets, last four):**
+  - lane time: warehouse 25–31%, yard 34–53%, dock 23–35%;
+  - kills by lane: yard 15–26, warehouse 10–13, dock 8–14;
+  - 3–12 drop-downs a match (off the stacks, the dock edges, the upper floor);
+  - 0 stuck, 0 friendly fire;
+  - matches last 2.8–3.5 min at 14–16 kills a minute.
+- **High ground, honestly:**
+  - the upper floor gets 1–3% of bot time, the ship 1–4%, the dock floor 6–16%;
+  - the stacks get only 0.1–1%.
+
+  Bots hunting a contact take the lane waypoint level with it, and the fights are at mid-field, while the stacks are near each team's side. A second stair from mid-field didn't change that. The AI's preferences were left alone (they serve six other maps).
+- **Performance** (`bench(3)` through the menu, Balanced, on mains power):
+  - 60 FPS in all 10 views;
+  - CPU 1.3–2.1 ms, GPU 5.2–6.3 ms, 87–299 draw calls.
+- **Leaks:** `leakcheck.mjs 1 oldport,docks,crashsite`: 0 alive after a forced GC.
+- **Tests:** 224 on 16.0 (+9: Old Port's layout, the dock's carve, zones, `carve`; the random name).
+
+### 17.1 on the thermal base
+- **Re-applied, not rebuilt:** the map's commit was cherry-picked onto 17.0; only docs conflicted (the bench moved to `docs/BENCH-17.1.json`, 17.0's file is the thermal bench).
+- **Inside the 17.0 limits:**
+  - point lights: 5 (the warehouse's fills), all in the pool (5 sources, 5 slots, under every preset's budget);
+  - one shadow-casting light, the sun, drawn once at load (`autoUpdate = false`) at 2048 like every other map (17.0 measured no per-frame difference against 1024);
+  - the god rays and the haze sheets are unlit transparent quads, the haze is the scene fog.
+- **`bench(3)`** (Balanced, through the TDM maps screen): 60 FPS in all 10 views; CPU 1.5–1.9 ms; GPU 5.2–6.5 ms (busy 31–39%), 89–276 draw calls. The 16.7 ms frame leaves ~10 ms of GPU headroom.
+- **World:** `world()` 68,540 cells, 0 findings standing and crouched; `stairGaps()` 22 stairs, 0 drops.
+- **Leaks:** `leakcheck.mjs 2 oldport,neonblock,crashsite`: lap 1 = lap 2 everywhere (Old Port 148 geometries, 36 textures; the first reading of 109 is before the bots' guns load), 0 alive after a forced GC.
+- **Tests:** 230 (221 + Old Port's 9). Build clean, no DEV tools in the bundle.
+
 ## Next
 Human playtest:
+- 17.1 items: Old Port (is the daylight pleasant or flat, is the warehouse's inside bright enough, do the stacks and the ship's bridge pay off, is the yard too open), the random name on a first visit.
 - 17.0 items: does the machine stay cool (fans, temperature) in a Neon Block match and on the pause menu; does Neon Block still look right with its lights pooled (any light popping when you turn?); is the menu stage still crisp enough at 1.0×.
 - 16.0 items: the menu stage (is the gun readable, does the camera drift too much), the glitch and hover sounds (charming or tiring), Rajdhani at small sizes, the flavor scripts (do Arabic and Thai read as flavor or as noise, is the Cyrillic stencil look right for the docks).
 - 15.0 items: Crash Site (does the ridge pay for its exposure, is the ravine too dark, do the trenches read, the wreck's interior); the docks rework (does the roofless warehouse feel like a risk, do the gantries and the crane nest matter, do side exits feel natural).

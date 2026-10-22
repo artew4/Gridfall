@@ -42,7 +42,7 @@ export class AudioEngine {
   private levelBus!: GainNode;
   private levelNodes: AudioScheduledSourceNode[] = [];
   /** Which ambience the level asked for: drives the random events in update(). */
-  private ambience: 'city' | 'desert' | 'jungle' | null = null;
+  private ambience: 'city' | 'desert' | 'jungle' | 'harbour' | null = null;
   private birdTimer = 3;
   private frogTimer = 2;
   private monkeyTimer = 25;
@@ -152,11 +152,12 @@ export class AudioEngine {
   }
 
   /** Ambience profile of the loaded level: the beds and the random events around the listener. */
-  setAmbience(kind: 'city' | 'desert' | 'jungle') {
+  setAmbience(kind: 'city' | 'desert' | 'jungle' | 'harbour') {
     if (!this.started || this.ambience === kind) return;
     this.ambience = kind;
     if (kind === 'city') this.startAmbience();
     else if (kind === 'jungle') this.startJungle();
+    else if (kind === 'harbour') this.startHarbour();
     else this.startDesert();
   }
 
@@ -480,6 +481,74 @@ export class AudioEngine {
     this.reverbSend.gain.setTargetAtTime(0.5, this.now(), 0.2);
   }
 
+  /**
+   * 17.0, a harbour in daylight: the desert's wind chain at a breeze (so setWind still muffles it
+   * indoors), the sea washing against the quay (low noise breathing on a slow swell), and from
+   * update() gulls, a far ship's horn and a chain clinking on a mooring.
+   */
+  private startHarbour() {
+    this.startDesert();
+    const ctx = this.ctx;
+    const w = this.wind!;
+    const src = this.levelSrc(this.noise(this.pink, true));
+    const fl = this.filter('lowpass', 520, 0.6);
+    const g = ctx.createGain();
+    g.gain.value = 0.55;
+    src.connect(fl).connect(g).connect(w.filter);
+    const swell = this.levelSrc(ctx.createOscillator());
+    swell.frequency.value = 0.12;
+    const sg = ctx.createGain();
+    sg.gain.value = 0.35;
+    swell.connect(sg).connect(g.gain);
+    swell.start();
+    this.reverbSend.gain.setTargetAtTime(0.35, this.now(), 0.2);
+  }
+
+  private gullTimer = 3;
+  private hornFarTimer = 25;
+  private clinkTimer = 6;
+
+  /** Harbour events around the listener: gulls overhead, a ship's horn far out, a chain on a bollard. */
+  private updateHarbour(dt: number, l: V3) {
+    const around = (d0: number, d1: number, y0: number, y1: number) => {
+      const a = rand(0, Math.PI * 2);
+      const d = rand(d0, d1);
+      return { x: l.x + Math.cos(a) * d, y: rand(y0, y1), z: l.z + Math.sin(a) * d };
+    };
+    this.gullTimer -= dt;
+    if (this.gullTimer <= 0) {
+      this.gullTimer = rand(4, 11);
+      const o = this.out(around(15, 45, 12, 25), 0.3, this.amb);
+      const t = this.now();
+      const n = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) {
+        const f = rand(1300, 1700), t0 = t + i * rand(0.28, 0.42);
+        this.tone(o, 'triangle', f, f * 1.45, 0.035, 0.02, 0.12, t0);
+        this.tone(o, 'sine', f * 1.45, f * 0.8, 0.03, 0.01, 0.2, t0 + 0.1);
+      }
+    }
+    this.hornFarTimer -= dt;
+    if (this.hornFarTimer <= 0) {
+      this.hornFarTimer = rand(45, 90);
+      const o = this.out({ x: l.x + 260, y: 10, z: l.z + rand(-80, 80) }, 0.7, this.amb);
+      const t = this.now();
+      for (const [f, k] of [[98, 1], [123.5, 0.6]] as const) {
+        const src = this.osc('sawtooth', f, f, 3.2, t);
+        const lp = this.filter('lowpass', 420, 0.7);
+        const env = this.gainEnv(0.07 * k, 0.4, 2.6, t);
+        src.connect(lp).connect(env).connect(o);
+      }
+    }
+    this.clinkTimer -= dt;
+    if (this.clinkTimer <= 0) {
+      this.clinkTimer = rand(5, 14);
+      const o = this.out(around(5, 20, 0, 2), 0.1, this.amb);
+      const t = this.now();
+      const n = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) this.metal(o, rand(1800, 2600), 0.02, 0.18, [1, 2.4, 4.1], t + i * rand(0.09, 0.16));
+    }
+  }
+
   /** Jungle events around the listener: bird calls, frog croaks, water dripping off leaves, a howler monkey. */
   private updateJungle(dt: number, l: V3) {
     const around = (d0: number, d1: number, y0: number, y1: number) => {
@@ -629,6 +698,7 @@ export class AudioEngine {
     if (!this.started) return;
     if (this.ambience === 'desert') return this.updateDesert(dt, listenerPos);
     if (this.ambience === 'jungle') return this.updateJungle(dt, listenerPos);
+    if (this.ambience === 'harbour') return this.updateHarbour(dt, listenerPos);
     if (this.ambience !== 'city') return;
     this.dripTimer -= dt;
     while (this.dripTimer <= 0) {

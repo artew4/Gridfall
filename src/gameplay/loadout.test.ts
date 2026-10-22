@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ARMORY, ARMORY_ORDER, armoryByKey, dealArm, isWeaponId } from '../entities/weapons/armory';
 import { Loadout } from './Loadout';
-import { DEFAULT_NAME, NAME_MAX, cleanName } from './PlayerName';
+import { NAME_MAX, cleanName, loadName, randomName, saveName } from './PlayerName';
 import { CALLSIGNS, dealCallsigns } from '../enemies/Callsigns';
 import { wantsAim } from '../enemies/arena/DeathmatchAI';
 
@@ -104,12 +104,41 @@ describe('13.0: the loadout', () => {
   });
 });
 
-describe('13.0: the player name', () => {
-  it('defaults to Artem; keeps an ordinary name as typed', () => {
-    expect(DEFAULT_NAME).toBe('Artem');
-    expect(cleanName('')).toBe('Artem');
-    expect(cleanName('   ')).toBe('Artem');
-    expect(cleanName(null)).toBe('Artem');
+describe('13.0: the player name (17.0: a random handle by default)', () => {
+  const mem = (v: string | null = null) => {
+    const m = new Map<string, string>();
+    if (v !== null) m.set('gridfall.name', v);
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, x: string) => void m.set(k, x), removeItem: (k: string) => void m.delete(k), m };
+  };
+
+  it('with nothing saved, a title-cased handle from the callsign pool, different across boots', () => {
+    const names = new Set<string>();
+    for (let i = 0; i < 30; i++) {
+      const n = loadName(() => i / 30, mem());
+      expect(CALLSIGNS).toContain(n.toUpperCase());
+      expect(n).toBe(n.charAt(0) + n.slice(1).toLowerCase());
+      names.add(n);
+    }
+    expect(names.size).toBe(30);
+    expect(randomName(() => 0)).toBe('Jax');
+    expect(randomName(() => 0.999999)).toBe('Quill');
+    expect(loadName(() => 0, null)).toBe('Jax');
+  });
+
+  it('a saved name wins; only typed names are saved; clearing forgets', () => {
+    expect(loadName(() => 0, mem('Neo Rider'))).toBe('Neo Rider');
+    expect(loadName(() => 0, mem('  <>  '))).toBe('Jax');
+    const s = mem();
+    saveName('  Neo   Rider ', s);
+    expect(s.m.get('gridfall.name')).toBe('Neo Rider');
+    saveName('   ', s);
+    expect(s.m.has('gridfall.name')).toBe(false);
+  });
+
+  it('keeps an ordinary name as typed; empty becomes the fallback', () => {
+    expect(cleanName('')).toBe('');
+    expect(cleanName('   ', 'Nova')).toBe('Nova');
+    expect(cleanName(null, 'Nova')).toBe('Nova');
     expect(cleanName('Artem')).toBe('Artem');
     expect(cleanName('  Neo   Rider ')).toBe('Neo Rider');
   });
@@ -119,7 +148,7 @@ describe('13.0: the player name', () => {
     expect(cleanName('a&b"c\'d`e\\f')).toBe('abcdef');
     expect(cleanName('tab\there\nnew')).toBe('tabherenew');
     expect(cleanName('x'.repeat(40)).length).toBe(NAME_MAX);
-    expect(cleanName('<>&')).toBe('Artem');
+    expect(cleanName('<>&', 'Vesper')).toBe('Vesper');
   });
 });
 

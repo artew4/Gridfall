@@ -1,0 +1,332 @@
+{
+  "version": "17.1 (Old Port; first measured on 16.0 as feature/daytime-docks-17.0)",
+  "machine": "Apple M5 laptop, Chrome, Balanced preset, on mains power (rAF 120 Hz; the game caps at 60), 1820x1186",
+  "oldport": {
+    "bench3": {
+      "method": "bench(3) after opening the TDM maps screen (the real menu path)",
+      "views": 10,
+      "valid": true,
+      "fps": [
+        59.6,
+        60.3
+      ],
+      "cpuMs": [
+        1.28,
+        2.05
+      ],
+      "gpuMs": [
+        5.16,
+        6.31
+      ],
+      "p99FrameMs": [
+        24.1,
+        25.9
+      ],
+      "drawCalls": [
+        87,
+        299
+      ],
+      "perView": {
+        "alphaYard": [
+          60,
+          2.02,
+          5.3
+        ],
+        "hall": [
+          59.6,
+          2.02,
+          5.59
+        ],
+        "upperFloor": [
+          60,
+          2.05,
+          6.31
+        ],
+        "yard": [
+          60,
+          2.03,
+          5.96
+        ],
+        "stacks": [
+          60,
+          1.9,
+          5.67
+        ],
+        "dryDock": [
+          60,
+          1.9,
+          5.93
+        ],
+        "bridge": [
+          60.3,
+          1.98,
+          5.75
+        ],
+        "seaQuay": [
+          60,
+          1.8,
+          5.16
+        ],
+        "wholePort": [
+          60,
+          1.71,
+          5.22
+        ],
+        "firefight": [
+          60,
+          1.28,
+          5.71
+        ]
+      },
+      "perViewColumns": [
+        "fps",
+        "cpuMs",
+        "gpuMs"
+      ]
+    },
+    "world": {
+      "cells": 68540,
+      "standing": 0,
+      "crouched": 0
+    },
+    "stress": {
+      "runs": 256000,
+      "standing": 0,
+      "crouched": 0,
+      "fixedOnTheWay": [
+        "sea fence 1.6 -> 2.4 m (38 escapes by sprint-jump off bollards and sacks)",
+        "slot under the hull's end at the scaffold foot (8 'ended inside geometry')"
+      ]
+    },
+    "stairGaps": {
+      "stairs": 22,
+      "drops": 0
+    },
+    "nav": {
+      "nodes": 787,
+      "drops": 18,
+      "components": 1,
+      "routesFromBothYards": "36/36 (arena with drops and survival without)",
+      "survivalSpawnsValid": "22/22"
+    },
+    "tdmSim_25_tickets_last4": {
+      "minutes": [
+        2.8,
+        3.0,
+        2.8,
+        3.5
+      ],
+      "killsPerMin": [
+        16.3,
+        13.8,
+        15.8,
+        14.0
+      ],
+      "laneTimePct": {
+        "warehouse": [
+          24.8,
+          31.0
+        ],
+        "yard": [
+          33.7,
+          52.7
+        ],
+        "dock": [
+          22.5,
+          35.3
+        ]
+      },
+      "killsByLane": {
+        "yard": [
+          15,
+          26
+        ],
+        "warehouse": [
+          10,
+          13
+        ],
+        "dock": [
+          8,
+          14
+        ]
+      },
+      "dropsPerMatch": [
+        3,
+        12
+      ],
+      "zoneTimePct": {
+        "upperFloor": [
+          0.8,
+          3.1
+        ],
+        "stacks": [
+          0.1,
+          1.0
+        ],
+        "deck": [
+          0.6,
+          3.9
+        ],
+        "bridge": [
+          0,
+          0.3
+        ],
+        "dryDockFloor": [
+          5.8,
+          15.7
+        ]
+      },
+      "stuck": 0,
+      "friendlyDamage": 0,
+      "beforeTheMidFieldStair_4": {
+        "laneTimePct": {
+          "warehouse": [
+            28.9,
+            36.4
+          ],
+          "yard": [
+            32.1,
+            44.9
+          ],
+          "dock": [
+            23.8,
+            35.3
+          ]
+        },
+        "stacks": [
+          0,
+          0.2
+        ]
+      }
+    },
+    "survivalRun30s": {
+      "errors": 0,
+      "outOfBounds": 0,
+      "insideGeometry": 0
+    }
+  },
+  "leakcheck_forcedGC": {
+    "command": "node scripts/leakcheck.mjs 1 oldport,docks,crashsite",
+    "aliveAfterGC": 0
+  },
+  "randomName_freshProfile": {
+    "boots": [
+      "Echo",
+      "Sable",
+      "Orin",
+      "Orin"
+    ],
+    "typedNameKept": true
+  },
+  "tests": 224,
+  "onThermalBase_17_1": {
+    "branch": "feature/old-port-17.1 from main @ 8d5c916",
+    "bench3_balanced": {
+      "columns": "fps, cpuMs, gpuMs, gpuBusyPct, drawCalls",
+      "alphaYard": [
+        60,
+        1.75,
+        5.41,
+        32.5,
+        228
+      ],
+      "hall": [
+        60,
+        1.77,
+        6.38,
+        38.3,
+        222
+      ],
+      "upperFloor": [
+        60,
+        1.81,
+        6.46,
+        38.7,
+        225
+      ],
+      "yard": [
+        60,
+        1.93,
+        6.15,
+        36.9,
+        254
+      ],
+      "stacks": [
+        60,
+        1.58,
+        6.0,
+        36.0,
+        248
+      ],
+      "dryDock": [
+        60,
+        1.67,
+        6.13,
+        36.7,
+        222
+      ],
+      "bridge": [
+        60,
+        1.65,
+        5.55,
+        33.3,
+        276
+      ],
+      "seaQuay": [
+        60,
+        1.45,
+        5.52,
+        33.1,
+        89
+      ],
+      "wholePort": [
+        60,
+        1.61,
+        5.2,
+        31.2,
+        223
+      ],
+      "firefight": [
+        60,
+        1.45,
+        6.06,
+        36.3,
+        196
+      ]
+    },
+    "lightPool": {
+      "sources": 5,
+      "slots": 5,
+      "lit": 5
+    },
+    "shadows": "sun only, static (autoUpdate false), 2048",
+    "world": {
+      "cells": 68540,
+      "standingFindings": 0,
+      "crouchedFindings": 0
+    },
+    "stairGaps": {
+      "stairs": 22,
+      "drops": 0
+    },
+    "leakcheck": {
+      "command": "node scripts/leakcheck.mjs 2 oldport,neonblock,crashsite",
+      "oldportGeometriesTexturesByLap": [
+        [
+          109,
+          36
+        ],
+        [
+          148,
+          36
+        ],
+        [
+          148,
+          36
+        ]
+      ],
+      "aliveAfterGC": 0
+    },
+    "tests": 230
+  }
+}

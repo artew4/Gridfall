@@ -80,6 +80,9 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
     - `arena.laneMoves` counts bots moved off a hot lane.
   - `tdmSim({ pressure: false })`: lanes by head count alone (14.0), for an A/B.
   - `bench(3)` has a Crash Site set (eight views and a firefight) and three new Docks views (quay gantry, crane nest, container gantry).
+- Old Port (17.1):
+  - `?setting=oldport`. `bench(3)` has an Old Port set: nine views (the hall, the upper floor in the skylight shafts, the yard, the stacks, the dock floor, the bridge, the sea quay into the sun side, the whole port) and a firefight. `tdmSim` lanes: warehouse, yard, dock.
+  - `__game.level.debug()`: nav nodes and drops, skylight shafts, indoors, `drowned` (the sea fence should keep it 0).
 - UI flavor and the menu stage (16.0):
   - `node scripts/stagecheck.mjs [cycles=6]` (Node 22+, Google Chrome; `URL=` for another server): drives the real menu (root → a mode's maps → BACK, with gun swaps) in headless Chrome. It tags each menu stage and every swapped gun, forces a full GC and checks a heap snapshot for survivors (exit 1 on any). It also asserts that the stage is gone on the maps screen and after DEPLOY. Shares `scripts/lib/cdp.mjs` and `scripts/lib/heap.mjs` with `leakcheck.mjs`.
   - `__game.stage` (null except on the menu's root and controls screens), `__game.syncStage()`. The biome: `document.documentElement.dataset.biome`; `import('/src/ui/Flavor.ts')` for `setBiome`, `fl`, `FLAVOR`.

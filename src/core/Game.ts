@@ -112,8 +112,10 @@ export class Game {
   loadout = new Loadout();
   loadoutView: LoadoutView;
   private loadoutKey = '';
-  /** 13.0: his name (main menu), on the HUD, the minimap, the feed and the scoreboard. */
+  /** 13.0: his name (main menu), on the HUD, the minimap, the feed and the scoreboard. 17.0: a random handle until one is typed. */
   playerName = loadName();
+  /** 17.0: this boot's name, what an emptied field falls back to. */
+  private bootName = this.playerName;
   /** 13.0: the main menu's state (MenuFlow): root, the maps of a mode, controls. */
   private menuState: MenuState = { screen: 'root', mode: null, map: null };
   /** The player is dead and the mode will respawn him (no death screen). */
@@ -597,8 +599,8 @@ export class Game {
     this.hud.onGlitch = () => this.audio.uiGlitch();
     const name = this.hud.nameInput;
     name.addEventListener('input', () => {
-      this.playerName = cleanName(name.value);
-      saveName(this.playerName);
+      this.playerName = cleanName(name.value, this.bootName);
+      saveName(name.value);
     });
     name.addEventListener('change', () => (name.value = this.playerName));
     name.addEventListener('keydown', (e) => {

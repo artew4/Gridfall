@@ -31,6 +31,7 @@ No install and no plugin. Open the link, click, play. Desktop browser with a mou
 | **Tokyo: Neon Block** | Tokyo Night's rain and neon as a 5v5 arena, separate from the story district: a mirrored Shinjuku block on three levels. Lantern Alley, Main Street with its footbridge, and the service alley at street level; fire escapes, landings and the footbridge in the middle; rooftops joined by a skybridge and a plank bridge on top. Drop down from a roof or a landing to flank, or take the stairs back up. | Team Deathmatch |
 | **Jungle: Crash Site** | A dropship down in the rainforest, built from scratch for 5v5 (Firebase Viper stays as it was). A rock ridge along the west cliff with long rifle lines; the wreck in the middle (walk through the hull, climb a broken wing onto its roof) reached down muddy trenches; a 4 m ravine in the east, its floor a close-quarters low road, crossed by fallen giant trees. | Team Deathmatch |
 | **Neon Docks** | A harbour at night, built for 5v5: a container maze (close range), a warehouse with catwalks (mid range) and an open quay under a crane (long range). Reworked in 15.0: the warehouse is roofless and open to the gantries outside it, the spawn exits turn out to the flanks, and gantries run over the containers and along the quay to a crane nest. | Team Deathmatch |
+| **Old Port** | A brick-and-concrete harbour on a clear morning, the opposite of the neon maps: soft sun and shade, faded containers, a haze over the sea. Built for 5v5 on four levels: an 1890s brick warehouse with a pillared hall and an upper floor lit through its broken skylights; a container yard with high stacks joined by a steel walk; a dry dock 4.5 m deep with a coaster on her blocks, her deck and bridge reached by gangways and scaffold stairs. | Team Deathmatch, Arcade Survival |
 
 ## The modes
 
@@ -110,7 +111,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **221 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **230 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;
