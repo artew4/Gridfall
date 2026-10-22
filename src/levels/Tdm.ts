@@ -18,7 +18,7 @@ import { ARENA_SEE, fogRange } from '../world/Visibility';
 import { RANGED_ONLY, filterRoster, type RosterRequest, type Slot as RosterSlot, type UnitKind } from '../enemies/Roster';
 import { otherTeam, TEAMS, type Combatant, type TeamId } from '../combat/Team';
 import { DESERT_GARRISON } from '../entities/enemies/mercs';
-import { OPERATORS } from '../entities/enemies/operators';
+import { OPERATOR_KITS, type OperatorKit } from '../entities/enemies/operators';
 import { ARMORY, dealArm, type BotArm, type WeaponId } from '../entities/weapons/armory';
 import { dealCallsigns } from '../enemies/Callsigns';
 import { rand } from '../core/math';
@@ -87,7 +87,7 @@ export const TDM = {
   /** 13.0: the loadout picker stays up (and a pick swaps at once) this long into a match (s). */
   loadoutGrace: 3,
   /** 19.0 (DEV, self-play): force the team size, the tickets, or the map's AI profile off, whatever the map says. */
-  force: { size: null as number | null, tickets: null as number | null, noProfile: false, noForward: false },
+  force: { size: null as number | null, tickets: null as number | null, noProfile: false, noForward: false, kit: null as OperatorKit | null },
 };
 
 /** 19.0: the team size of the loaded map (the player counts on ALPHA). */
@@ -336,7 +336,8 @@ export class TdmRules implements ModeRules {
   private spawn(s: Slot, respawn = false) {
     const g = this.game;
     const at = (respawn && this.forwardPoint(s.team)) || this.spawnPoint(s.team);
-    const look = TDM.skins === 'operators' ? OPERATORS[s.team] : s.team === 'alpha' ? DESERT_GARRISON : g.level.info.enemies;
+    // 20.0: the map's kit (TdmData.kit: the corporate whites on Maglev Terminal), else the night kit.
+    const look = TDM.skins === 'operators' ? OPERATOR_KITS[TDM.force.kit ?? this.data.kit ?? 'night'][s.team] : s.team === 'alpha' ? DESERT_GARRISON : g.level.info.enemies;
     const arena = this.ai === 'arena';
     // 13.0: a gun from the armory for this life (the 6.0 tactical bodies keep their own rifle).
     s.arm = arena && s.kind === 'gunner' ? this.dealArm(s.team) : null;

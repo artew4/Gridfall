@@ -11,6 +11,7 @@ import type { LookGrade } from '../core/Renderer';
 import type { TeamId } from '../combat/Team';
 import type { TrackId } from '../audio/music/MusicManager';
 import type { ArenaProfile } from '../enemies/arena/ArenaCtx';
+import type { OperatorKit } from '../entities/enemies/operators';
 
 /** What Team Deathmatch needs from a level (6.0): each team's spawn zone, spawns and lanes. */
 export interface TdmData {
@@ -45,6 +46,8 @@ export interface TdmData {
    * safe, the yard. The match's first spawn is always the yard.
    */
   forward?: { points: Record<TeamId, THREE.Vector3[]>; safe: number; sight: number };
+  /** 20.0: the operators' kit on this map ('night' unless set: Maglev Terminal wears 'corporate'). */
+  kit?: OperatorKit;
   /** 19.0: tickets per team on this map (default TDM.tickets, 25: five a player at 5v5). */
   tickets?: number;
   /**

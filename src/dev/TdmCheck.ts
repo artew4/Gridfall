@@ -301,6 +301,19 @@ export async function tdmSim(
   const fired = new Set<number>();
   let silentDeaths = 0;
   const shotSec = new Set<number>();
+  // 20.0, difficulty: each life's first hit, first hit from 22 m or more, and its death; a long-range
+  // hit "escaped" if the life lasted 3 s more.
+  const firstHit = new Map<number, number>(), firstLong = new Map<number, number>(), diedAt = new Map<number, number>();
+  const targets = game.projectiles.targets!;
+  const hit0 = targets.hit;
+  targets.hit = (e, dmg, dir, point, by) => {
+    const now = game.elapsed;
+    if (e.alive && by && by.team !== e.team) {
+      if (!firstHit.has(e.uid)) firstHit.set(e.uid, now);
+      if (!firstLong.has(e.uid) && Math.hypot(by.pos.x - e.pos.x, by.pos.z - e.pos.z) >= 22) firstLong.set(e.uid, now);
+    }
+    hit0(e, dmg, dir, point, by);
+  };
   const onFire0 = game.projectiles.onFire;
   game.projectiles.onFire = (from, by) => {
     onFire0(from, by);
@@ -349,6 +362,7 @@ export async function tdmSim(
       for (const b of tdm.bots) {
         if (!born.has(b.uid)) born.set(b.uid, now);
         if (!b.alive) {
+          if (!diedAt.has(b.uid)) diedAt.set(b.uid, now);
           if (!fired.has(b.uid)) {
             fired.add(b.uid);
             silentDeaths++;
@@ -396,6 +410,7 @@ export async function tdmSim(
   }
   met.stop();
   game.projectiles.onFire = onFire0;
+  targets.hit = hit0;
   TDM.force.noForward = false;
   game.timeScale = 1;
   TDM.roster = roster0;
@@ -431,6 +446,20 @@ export async function tdmSim(
       mean: +(firstShot.reduce((a, x) => a + x, 0) / Math.max(1, firstShot.length)).toFixed(1),
       diedWithoutFiring: silentDeaths,
     },
+    // 20.0: how hard the bots are to kill from range, and how fast a hit becomes a kill.
+    difficulty: (() => {
+      const longs = [...firstLong.entries()];
+      const escaped = longs.filter(([uid, t]) => !diedAt.has(uid) || diedAt.get(uid)! - t > 3).length;
+      const ttk = [...diedAt.entries()].filter(([uid]) => firstHit.has(uid)).map(([uid, t]) => t - firstHit.get(uid)!);
+      return {
+        longHitLives: longs.length,
+        escapedPct: +((100 * escaped) / Math.max(1, longs.length)).toFixed(1),
+        ttkFromFirstHitMedian: +q(ttk, 0.5).toFixed(2),
+        killsOver25mPct: +((100 * k.filter((x) => x.dist > 25).length) / Math.max(1, k.length)).toFixed(1),
+        evades: tdm.arenaStats.evades,
+        evadeSlides: tdm.arenaStats.slideWhy.evade,
+      };
+    })(),
     quietPct: +((100 * (1 - Math.min(shotSec.size, Math.ceil(simT)) / Math.max(1, Math.ceil(simT))))).toFixed(1),
     longestQuiet: (() => {
       let best = 0, run = 0;

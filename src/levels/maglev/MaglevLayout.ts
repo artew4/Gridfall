@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Terrain } from '../../world/Collision';
 import type { Zone } from '../Level';
+import type { ArenaProfile } from '../../enemies/arena/ArenaCtx';
 
 /*
   Maglev Terminal (18.0): a corporate sci-fi Team Deathmatch arena, a white glass-roofed transit hall
@@ -68,6 +69,8 @@ export const DOOR_W = 1.6;
 export const DOOR_H = 2.1;
 /** Door centres along z (six per side). */
 export const DOORS = CARS.flatMap((c) => [c - DOOR_AT, c + DOOR_AT]).sort((a, b) => a - b);
+/** 20.0: the bulkhead across each car's middle: thickness, its doorway's x range (car 2: +x; cars 1, 3: -x). */
+export const BULK = { t: 0.12, open: [0.1, 1.1] as [number, number] };
 /** The gangways' passage half-width. */
 export const GANGWAY = 0.7;
 /** Inside the cars: the aisle between the benches (|x| < AISLE). */
@@ -180,12 +183,14 @@ export function laneOf(x: number, y: number, z: number): 0 | 1 | 2 | null {
 }
 
 /**
- * 18.0: how many bots each lane is worth, for the director's balance: the train holds two of five
- * (it is the map's centre of gravity), each flank one or two.
+ * 18.0 → 20.0: how many bots each lane is worth to the director. 18.0 put two of five on the train
+ * (1.6, its lane strict) to pull the fight into it; with the platforms covered (20.0) the flanks are
+ * worth more (1.3) and the train lane is no longer strict, so bots flank the train instead of queueing
+ * into it (self-play: docs/BENCH-20.0.json). The nav cost below still makes the aisle a cheap route.
  */
-export const LANE_WEIGHTS: [number, number, number] = [1, 1.6, 1];
-/** 18.0: the train's bots keep to the train when the radar has a contact (they fight from inside it). */
-export const LANE_STRICT: [boolean, boolean, boolean] = [false, true, false];
+export const LANE_WEIGHTS: [number, number, number] = [1.3, 1, 1.3];
+/** 18.0: the train's lane was strict; 20.0: no lane is. */
+export const LANE_STRICT: [boolean, boolean, boolean] = [false, false, false];
 /**
  * 18.0: the nav cost of a link (a multiple of its length): the aisle is cheap, so the graph's shortest
  * ways along the hall go through the cars (the train is the attractive route, not a detour behind doors).
@@ -236,3 +241,46 @@ export function zoneAt(x: number, y: number, z: number): Zone | null {
   }
   return null;
 }
+
+/**
+ * 20.0: the arena AI on Maglev Terminal (it was "too easy" on its long white platforms):
+ *  - under long-range fire (a hit or a near miss from 22 m or more) a bot breaks for cover from that
+ *    shooter at once, diving or sliding into it, or sidesteps out of the line (ARENA.underFire);
+ *  - a rifleman focusing an aimed shot keeps moving (35% of its run, was 12%) and walks its aimed
+ *    fire at 45% (was 32%): no more statues on a platform.
+ */
+export const MAGLEV_AI: ArenaProfile = {
+  underFire: { on: true },
+  ads: { focusMove: 0.35, walk: 0.45 },
+  // Three on a contact, from 10 m: round the train and the platforms' cover, not into a queue.
+  flank: { per: 3, min: 10 },
+};
+
+/** 20.0: the team size here (self-play: 7v7 is the knee, as in the jungle) and the tickets (~3 min). */
+export const MAGLEV_TEAM_SIZE = 7;
+export const MAGLEV_TICKETS = 50;
+
+/**
+ * 20.0: forward respawn points (TdmData.forward), on each team's approach about 30 m short of mid-field:
+ * W' by the escalator, platform 1, in front of the train's nose, platform 2, E' by the glass.
+ */
+export function forwardOf(team: 'alpha' | 'omega') {
+  const s = team === 'alpha' ? 1 : -1;
+  return ([[-27.2, 38], [-8.5, 36.5], [0, 34], [8.5, 36.5], [28, 38]] as const).map(([x, z]) => new THREE.Vector3(x, 0, z * s));
+}
+
+/**
+ * 20.0: the full-height pieces that break each platform's length (as x ranges on platform 2; platform
+ * 1 is the mirror in x), and their z bands (both halves): together they cover the platform's width,
+ * so no line runs along it from one apron to the other (a unit test checks the cover).
+ */
+export const PLATFORM_BLOCKERS: { name: string; x: [number, number]; z: [number, number]; h: number }[] = [
+  { name: 'billboard', x: [6.4, 11.4], z: [26.6, 27.2], h: 3.2 },
+  { name: 'transit map kiosk', x: [2.0, 4.6], z: [17, 19.5], h: 2.6 },
+  { name: 'art monolith', x: [4.0, 6.4], z: [32, 33.4], h: 3.4 },
+  { name: 'kiosk (18.0)', x: [6, 9], z: [-1.6, 1.6], h: 2.6 },
+  { name: 'elevator (18.0)', x: [7.8, 10.2], z: [42.8, 45.2], h: 7.2 },
+  { name: 'roof column (18.0)', x: [9.95, 11.05], z: [5.45, 6.55], h: 15.8 },
+  { name: 'signal cabinet', x: [11, 12.9], z: [39.6, 41], h: 2.0 },
+];
+

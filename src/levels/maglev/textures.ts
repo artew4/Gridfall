@@ -237,3 +237,55 @@ export function towerTexture(seed = 0) {
   }
   return finish(c);
 }
+
+/**
+ * 20.0: a holographic billboard's screen (an emissive map: it lights itself, no light source): a
+ * corporate ad in teal and white over deep blue, scan lines, a product line in two scripts. `seed`
+ * picks the copy.
+ */
+export function billboardTexture(seed = 0) {
+  const W = 512, H = 320;
+  const { c, g } = canvas(W, H);
+  const ads: [string, string, string][] = [
+    ['MERIDIAN', 'TRAVEL FASTER THAN THE NEWS', 'ニュースより速く'],
+    ['KAIROS AI', 'YOUR DAY, ALREADY PLANNED', 'あなたの一日を'],
+    ['HALCYON', 'AIR. WATER. QUIET.', '静けさを'],
+  ];
+  const [brand, line, jp] = ads[seed % ads.length];
+  const grd = g.createLinearGradient(0, 0, W, H);
+  grd.addColorStop(0, '#04121c');
+  grd.addColorStop(1, '#0a2a3a');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, W, H);
+  // A big soft disc (the "product"), teal rings round it.
+  const cx = W * 0.72, cy = H * 0.48;
+  const disc = g.createRadialGradient(cx, cy, 4, cx, cy, H * 0.38);
+  disc.addColorStop(0, 'rgba(160,250,255,0.9)');
+  disc.addColorStop(0.5, 'rgba(40,180,200,0.45)');
+  disc.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = disc;
+  g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(90,230,240,0.6)';
+  g.lineWidth = 2;
+  for (const r of [0.22, 0.3, 0.38]) {
+    g.beginPath();
+    g.arc(cx, cy, H * r, 0, Math.PI * 2);
+    g.stroke();
+  }
+  g.fillStyle = '#ffffff';
+  g.textBaseline = 'alphabetic';
+  g.font = '700 64px Rajdhani, Arial, sans-serif';
+  g.fillText(brand, 28, 120);
+  g.fillStyle = '#bff6fb';
+  g.font = '600 26px Rajdhani, Arial, sans-serif';
+  g.fillText(line, 30, 170);
+  g.fillStyle = '#7fd9e3';
+  g.font = '500 24px "Noto Sans JP", "Hiragino Sans", sans-serif';
+  g.fillText(jp, 30, 210);
+  // Scan lines (the hologram's grain).
+  g.fillStyle = 'rgba(0,0,0,0.18)';
+  for (let y = 0; y < H; y += 4) g.fillRect(0, y, W, 1);
+  const t = finish(c);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}

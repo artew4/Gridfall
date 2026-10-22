@@ -363,3 +363,18 @@ Old Port is the first map built to look *pleasant* rather than dramatic.
 - **Palette:** white formwork concrete, pale polished stone, white gloss plastic, brushed steel, one corporate teal for wayfinding and the train's stripe; dark tinted glass on the train; office towers in blue-grey curtain wall beyond the glass.
 - **The glass (the thermal rules):** never `MeshPhysicalMaterial`, transmission or refraction. Every pane is a `MeshStandardMaterial` with `transparent: true`, opacity 0.18 (roof), 0.3 (walls) or 0.45 (frosted balustrades and elevator shafts), `depthWrite: false`, double-sided, its reflection the static environment map (one PMREM of the sky, made at load). Panes are merged per material (the roof is one plane, each curtain wall one more) and cast no shadow (the steel frames do). Cost measured by hiding them: 0 ms looking up through the roof or along a bridge, ~0.7 ms along a curtain wall (`docs/BENCH-18.0.json`).
 - **Sound:** a `terminal` ambience: an air-handling hum, a long reverb, the announcement chime now and then, a maglev passing outside.
+
+## Maglev Terminal overhaul (20.0)
+
+The owner found 18.0's hall too easy: a sniper gallery from spawn to spawn, empty platforms, easy bots, and black operators on a white floor. Numbers: `docs/BENCH-20.0.json`.
+
+- **Sightlines** (`__dev.sightlines()`: eye-height lines between walkable spots): spawn side to spawn side in sight 14% → 0.14% of pairs, the longest 116 → 88 m; pairs 40 m+ apart in sight 24% → 11%.
+  - **The train:** a bulkhead across each car's middle, its doorway offset (car 2 to +x, cars 1 and 3 to -x): the cab doors, the aisle and the gangways no longer line up (they did: the centre exit saw the far one through the train).
+  - **The platforms** (`PLATFORM_BLOCKERS`): a holographic billboard over the outer half at z ±27, a transit-map kiosk against the train at z ±17–19.5, an art monolith at z ±32–33.4, a signal cabinet on the track wall's edge at z ±40, with 18.0's kiosk, elevators and columns: together they cover the platform's whole width (unit-tested), staggered into chicanes. Push cover: waist-high barriers by the train between its doors, luggage carts on the outer half.
+  - **The track beds:** two maintenance gantries each (z ±18–19, ±30–31): a crossbeam at the platform's eye height, screens under it from the bed's floor to 1.0 m with staggered openings (2.5 m headroom).
+  - **The side halls:** a billboard each (W' staggered with a vending row, 2 m apart; flush against the escalator, the first one walled the hall off).
+- **The corporate kit** (`TdmData.kit: 'corporate'`, `operators.ts`): off-white plates, pale grey cloth, grey webbing and rifle, satin; the team accents kept (0.8). Brightness contrast against the hall 0.68–0.79 → 0.05–0.16 (`__dev.camo()`).
+- **AI** (`MAGLEV_AI`): `ARENA.underFire` (shot at from 16 m or more, not winning that duel: break for cover from that shooter, or slide out of the line; its own 1.5 s cooldown); riflemen keep moving while they focus an aimed shot (35% of their run, was 12%); three flankers from 10 m. The sniper drill (`__dev.sniperDrill()`): bots it hit got out of its sight alive 38–39% → 60–61%, its kills a minute down 32–42%.
+- **Pacing:** 7v7, 50 tickets, forward respawns (five points a side on the approaches): quiet seconds 31–36% (5v5, 18.0's layout) → 14.5–16.6%; first engagement 11–14 s → 8.5–11 s. Lanes: flanks 1.3, train 1, no strict lane (18.0 pulled two of five into the train); the aisle stays a cheap nav route.
+- **Performance:** the billboards' screens are emissive maps (no light, nothing cast); the cover is merged static geometry. `bench(3)` at 7v7: 60 FPS, GPU 5.5–6.2 ms.
+

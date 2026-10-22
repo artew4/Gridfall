@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildMaglev, type MaglevResult } from './Maglev';
-import { BASE, HALL_TERRAIN, LANE_STRICT, LANE_WEIGHTS, TRACK, X_HALL, Z_END, inBase, laneOf, lanesOf, navCost } from './MaglevLayout';
+import { BASE, HALL_TERRAIN, LANE_STRICT, LANE_WEIGHTS, MAGLEV_AI, MAGLEV_TEAM_SIZE, MAGLEV_TICKETS, TRACK, X_HALL, Z_END, forwardOf, inBase, laneOf, lanesOf, navCost } from './MaglevLayout';
 import { DesertIntro } from '../desert/DesertIntro';
 import { damp } from '../../core/math';
 import { fogRange } from '../../world/Visibility';
@@ -14,18 +14,19 @@ export const MAGLEV_INFO: LevelInfo = {
   name: 'MAGLEV TERMINAL',
   biome: 'tokyo',
   jp: 'リニア中央駅',
-  blurb: 'A white glass-roofed transit hall, built for 5v5: close quarters in the train, rifle duels on the platforms, a mezzanine and skybridges over them.',
+  blurb: 'A white glass-roofed transit hall, 7v7: close quarters in the train, mid-range fights between the billboards and kiosks on the platforms, a mezzanine and skybridges over them.',
   modes: ['tdm'],
   loading: 'OPENING THE TERMINAL…',
   windowTitle: 'Gridfall — Maglev Terminal',
   enemies: DESERT_MERCS,
   music: 'tokyo_theme',
+  teamSize: MAGLEV_TEAM_SIZE,
   tagline: 'THE TRAIN · THE PLATFORMS · THE MEZZANINE',
   jpLine: 'リニア中央駅 · 1番線 2番線 · 10:05',
   place: 'MAGLEV TERMINAL, PLATFORMS 1–2',
   clock: '10:05',
   cine: {
-    tdm: { t1: 'GRIDFALL', t2: 'リニア中央駅 · MAGLEV TERMINAL', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>THE TRAIN · THE PLATFORMS · THE MEZZANINE' },
+    tdm: { t1: 'GRIDFALL', t2: 'リニア中央駅 · MAGLEV TERMINAL', t3: 'TEAM DEATHMATCH 7v7 · ALPHA vs OMEGA<br/>THE TRAIN · THE PLATFORMS · THE MEZZANINE' },
   },
 };
 
@@ -145,6 +146,7 @@ export class MaglevLevel implements LevelRuntime {
 
     const d = this.hall;
     const start = { x: 0, z: 55.8, yaw: 0, y: 0 };
+    const open = (p: THREE.Vector3) => !game.col.blocked(p, 0.6);
     this.data = {
       start,
       bounds: new THREE.Box2(new THREE.Vector2(-X_HALL - 0.5, -Z_END - 0.5), new THREE.Vector2(X_HALL + 0.5, Z_END + 0.5)),
@@ -167,6 +169,11 @@ export class MaglevLevel implements LevelRuntime {
         laneNames: ['west', 'train', 'east'],
         laneWeights: LANE_WEIGHTS,
         laneStrict: LANE_STRICT,
+        // 20.0: light corporate kit (the night kit was a black figure on a white floor), the hall's AI.
+        kit: 'corporate',
+        tickets: MAGLEV_TICKETS,
+        arena: MAGLEV_AI,
+        forward: { points: { alpha: forwardOf('alpha').filter(open), omega: forwardOf('omega').filter(open) }, safe: 22, sight: 45 },
       },
     };
   }

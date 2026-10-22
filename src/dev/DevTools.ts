@@ -141,6 +141,58 @@ export function installDevTools(game: Game) {
     async mapCycle(opts: { maps?: SettingId[]; laps?: number; play?: number } = {}) {
       return (await import('./MapCycle')).mapCycle(game, opts);
     },
+    /**
+     * 20.0: camouflage contrast of the operators on the loaded TDM map: a match with `kit` (default the
+     * map's), one OMEGA bot posed in fixed views at each distance, rendered with and without it.
+     */
+    async camo(opts: { kit?: 'night' | 'corporate'; distances?: number[]; setting?: SettingId } = {}) {
+      const { TDM } = await import('../levels/Tdm');
+      TDM.force.kit = opts.kit ?? null;
+      try {
+        dev.start('tdm', opts.setting ?? 'maglev');
+        dev.god();
+        // Past the opening (it owns the camera), the pointer "locked".
+        const gi = game as unknown as { intro: { t: number } | null; skipIntro(): void };
+        for (let i = 0; i < 300 && game.state === 'intro'; i++) {
+          if (gi.intro && gi.intro.t >= 0.4) gi.skipIntro();
+          await new Promise((r) => setTimeout(r, 16));
+        }
+        dev.lock();
+        await new Promise((r) => setTimeout(r, 400));
+        return (await import('./Camo')).camo(game, opts);
+      } finally {
+        TDM.force.kit = null;
+      }
+    },
+    /**
+     * 20.0: the sniper drill: a TDM match on the loaded map (5v5 unless `size`), the player a perfect
+     * marksman at `at`; kills a minute, the share of bots it hit that got out of sight alive. `profile:
+     * false` runs it without the map's AI profile.
+     */
+    async sniperDrill(opts: { seconds?: number; at?: [number, number, number]; size?: number; profile?: boolean; minRange?: number } = {}) {
+      const { TDM } = await import('../levels/Tdm');
+      const keep = { ...TDM.force };
+      TDM.force.size = opts.size ?? null;
+      TDM.force.noProfile = opts.profile === false;
+      // The match must outlast the drill (the god-mode marksman never loses, OMEGA would run out).
+      TDM.force.tickets = 999;
+      try {
+        dev.start('tdm', game.setting);
+        dev.god();
+        const gi = game as unknown as { intro: { t: number } | null; skipIntro(): void };
+        for (let i = 0; i < 300 && game.state === 'intro'; i++) {
+          if (gi.intro && gi.intro.t >= 0.4) gi.skipIntro();
+          await new Promise((r) => setTimeout(r, 16));
+        }
+        return await (await import('./SniperDrill')).sniperDrill(game, opts);
+      } finally {
+        Object.assign(TDM.force, keep);
+      }
+    },
+    /** 20.0: how much of a TDM map is in sight from far off (spawn side to spawn side, long pairs anywhere). */
+    async sightlines(opts: { front?: number; minDist?: number; pairs?: number } = {}) {
+      return (await import('./Sightlines')).sightlines(game, opts);
+    },
     /** 17.0: GPU memory (renderer.info) across Neon Block → Crash Site → menu → Docks, lap over lap. */
     async vramCycle(opts: { laps?: number; play?: number } = {}) {
       return (await import('./VramCycle')).vramCycle(game, opts);

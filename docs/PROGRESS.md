@@ -1198,8 +1198,34 @@ Branch `feature/jungle-rework-19.0`, from `main` @ `5e10623` (18.0, deployed fir
 - **Leaks:** `leakcheck.mjs 2 crashsite,maglev,oldport`: lap 1 = lap 2, 0 alive.
 - **Tests:** 249 (+6: profiles, team size, the climb and face rules).
 
+## 20.0: Maglev Terminal overhaul, AI difficulty
+
+Branch `feature/maglev-overhaul-20.0`, from `main` @ `acc7422` (19.0, merged and pushed by the owner). Full numbers: `docs/BENCH-20.0.json`; the map in `docs/LEVELS.md` (*Maglev Terminal overhaul*).
+
+### What was wrong (measured first)
+- **Sightlines:** 14% of eye-height pairs from one spawn side to the other in sight, the longest 116 m; the worst ran through the train (cab doors, aisle, gangways in line).
+- **Skins:** the night kit's brightness contrast against the white hall 0.68–0.79.
+- **Pacing** (5v5, yard respawns): quiet 20–33% of the time, first engagement 11–12 s.
+
+### What changed
+- **Map:** staggered full-height cover on the platforms (billboards, transit-map kiosks, monoliths, a signal cabinet), push cover (barriers, carts), maintenance gantries over the track beds (crossbeam at eye height, staggered low screens), billboards in the side halls, bulkheads in the cars with offset doorways. Spawn side to spawn side: 0.14%, the longest 88 m.
+- **Skins:** a per-map operator kit; Maglev wears `corporate` (contrast 0.05–0.16, the team accents kept).
+- **AI** (`MAGLEV_AI`): the under-fire reaction (cover or a slide when shot at from 16 m+), riflemen moving while they aim, three flankers. Sniper drill: escaped alive 38–39% → 60–61%, sniper kills a minute −32% (bridge) and −42% (platform).
+- **Density:** 7v7, 50 tickets, forward respawns; lanes 1.3/1/1.3, no strict lane.
+
+### Self-play, shipped (7v7, 50 tickets, three matches)
+- 2.7–3.1 min, 31–35 kills a minute, first engagement 8.5–11 s, quiet 14.5–16.6%; kills from beyond 25 m 1–7%, median kill range 7–10 m; 87–117 evasions and 19–31 evasion slides a match; flank kills 9–14; 0 stuck, 0 friendly damage.
+- Lane time west / train / east 12–17% / 37–46% / 41–46%; kills 12–28 / 21–26 / 46–58 (the east flank, the mezzanine side, takes the most). Lane weights barely moved lane time in A/B (every variant within noise); the flankers did more.
+
+### Validation
+- `bench(3)` at 7v7, Balanced, through the menu: 60 FPS in all 12 views (two new: through the platform's chicanes, a billboard up close), CPU 1.7–2.1 ms, GPU 5.5–6.2 ms. `tdmBench` 7v7 with the player: 60 FPS, CPU 2.5 ms, AI 0.71 ms (P99 2.2).
+- `world()` 0 / 0; `stress()` 0 in 256,000; `stairGaps()` 18 stairs, 0 drops; `levelAI()` 152/152, 8/8. Fixed on the way: the first west-hall billboard (flush against the escalator: 24 drops beside its treads, the hall cut off from the graph).
+- `leakcheck.mjs 2 maglev,crashsite,oldport`: 0 alive. Tests 254 (+5: platform cover, bulkhead stagger, forward points, the profile, the kit).
+- **Not explained:** one DEV session hung (the tab unresponsive for minutes) in a long combined check script; the same script passed twice in a fresh tab.
+
 ## Next
 Human playtest:
+- 20.0 items: Maglev Terminal (is it still a sniper gallery anywhere; are the white operators fair to find or too hidden; do the platforms' chicanes give mid-range fights; does the zig-zag train still play as the shotgun lane); the bots (do they really dive for cover when you snipe them, or just jitter).
 - 19.0 items: Crash Site at 7v7 (is it constant action or chaos; do forward respawns feel fair or like spawning into fights; the undercroft, the hull and the shrine: do the three levels read; is the undergrowth too thick to see bots through), the jungle bots (do shotgun and SMG bots really come at you from cover).
 - 18.0 items: Maglev Terminal (does the train feel like a shotgun lane or a death trap, are the cab doors too strong as the straight way, do the platforms' duels work past the kiosks and columns, is the white too bright or flat, the glass), the terminal ambience.
 - 17.1 items: Old Port (is the daylight pleasant or flat, is the warehouse's inside bright enough, do the stacks and the ship's bridge pay off, is the yard too open), the random name on a first visit.

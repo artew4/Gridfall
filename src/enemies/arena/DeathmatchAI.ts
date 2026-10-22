@@ -173,6 +173,12 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   private probeT = 0;
   private jumpCd = 0;
   private breakCd = -Infinity;
+  /** 20.0, under long-range fire (ARENA.underFire): when it last was, and from whom. */
+  private snipedT = -Infinity;
+  private snipedBy: Combatant | null = null;
+  /** 20.0: in a break taken because of it; its own cooldown (not the 4 s break cooldown). */
+  private evading = false;
+  private evadeCd = -Infinity;
   private pushUntil = 0;
   private laneIdx = -1;
   private patrol = 1;
@@ -243,6 +249,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   onHit(ctx: EnemyCtx, by: Combatant | null) {
     if (by && !by.isPlayer && by.team === this.self.team) return;
     if (by) this.alert.set(by.uid, ctx.time);
+    this.notedFire(ctx, by, true);
     this.react(ctx.time, 0.6);
     this.jitter = Math.max(this.jitter, 0.015);
     // Aiming, it flinches (the jitter) and holds its shot rather than jumping out of it.
@@ -252,11 +259,25 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   /** A round passed close: aim shakes a little (no pinning in the arena), maybe a jump. */
   onNearMiss(ctx: EnemyCtx, by: Combatant | null) {
     if (by) this.alert.set(by.uid, ctx.time);
+    this.notedFire(ctx, by, false);
     this.jitter = Math.max(this.jitter, 0.02);
     if (this.state === 'engage' && !this.aiming && Math.random() < ARENA.hitJump * 0.5) this.tryJump(ctx, false);
   }
 
   /** Its round hit someone. */
+  /**
+   * 20.0: a round from far off (a hit, or a near miss if `nearMisses`): remembered, and the next decide
+   * breaks for cover from that shooter (or slides out of its line) instead of standing in it.
+   */
+  private notedFire(ctx: EnemyCtx, by: Combatant | null, hit: boolean) {
+    const U = ARENA.underFire;
+    if (!U.on || !by || (!hit && !U.nearMisses)) return;
+    if (Math.hypot(by.pos.x - this.self.pos.x, by.pos.z - this.self.pos.z) < U.range) return;
+    this.snipedT = ctx.time;
+    this.snipedBy = by;
+    this.urgent = true;
+  }
+
   onDealt(victim: Combatant, dmg: number, now: number) {
     this.dealt.push([now, victim.uid, dmg]);
     if (this.dealt.length > 24) this.dealt.shift();
@@ -287,6 +308,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.retreatCd = ctx.time + ARENA.retreat.cooldown;
       if (this.self.alive) A.stats.retreatLived++;
     }
+    if (this.state === 'break' && s !== 'break') this.evading = false;
     this.state = s;
     this.stateT = 0;
     this.goal = null;
@@ -299,6 +321,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.self.bark('go', ctx);
     } else if (s === 'break') {
       A.stats.breaks++;
+      if (this.evading) A.stats.evades++;
       this.breakCd = ctx.time + ARENA.breakCooldown;
       if (this.reloading) this.self.bark('reload', ctx);
     }
@@ -399,6 +422,13 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     else if (this.state === 'break' && this.stateT < ARENA.breakMax && (this.reloading || this.stateT < 0.5)) next = 'break';
     // Reloading is done on the move unless someone is shooting at it.
     else if (gunner && tv && now > this.breakCd && ((this.reloading && attackers >= 1) || (me.hpFrac < ARENA.breakHp && T.hpFrac > me.hpFrac) || attackers >= 2)) next = 'break';
+    // 20.0: shot at from far off, and not winning that duel (it isn't its target, or its own aimed
+    // shot isn't nearly ready): out of the line now (ARENA.underFire), not a step later.
+    else if (gunner && this.evadeNow(now, T, dT)) {
+      next = 'break';
+      this.evading = true;
+      this.evadeCd = now + ARENA.underFire.cooldown;
+    }
     else if (T && (tv || (contact && now - contact.t < ARENA.contactTtl))) {
       // 12.0: a bold bot pushes sooner (higher health, less damage dealt), a careful one later.
       const ag = this.persona.aggro;
@@ -433,7 +463,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     else if (next === 'flank' && this.flankGoal) {
       this.goal = this.flankGoal;
       this.flankGoal = null;
-    } else if (next === 'break' && !this.goal && T) this.goal = this.breakSpot(ctx, A, T);
+    } else if (next === 'break' && !this.goal && (this.evading && this.snipedBy ? this.snipedBy : T)) this.goal = this.breakSpot(ctx, A, (this.evading && this.snipedBy ? this.snipedBy : T)!);
     else if (next === 'hunt' && contact) {
       this.goal = this.laneGoal(ctx, A, contact.pos) ?? _v.copy(contact.pos).addScaledVector(contact.vel, ARENA.huntLead).clone();
       if (!this.laneTo) this.goal.y = contact.pos.y;
@@ -616,8 +646,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const dx = me.vel.x / hs, dz = me.vel.z / hs;
     const toward = (p: THREE.Vector3, d: number) => ((p.x - me.pos.x) * dx + (p.z - me.pos.z) * dz) / Math.max(d, 1e-3) > 0.8;
     const k = this.persona.slide;
-    let why: 'push' | 'dive' | 'exposed' | null = null;
+    let why: 'push' | 'dive' | 'exposed' | 'evade' | null = null;
     if (next === 'push' && T && dT >= S.push[0] && dT <= S.push[1] && toward(T.pos, dT) && Math.random() < 0.6 * k) why = 'push';
+    else if (next === 'break' && this.evading && !this.goal && Math.random() < ARENA.underFire.slide) why = 'evade';
     else if ((next === 'break' || next === 'retreat') && this.goal) {
       const d = Math.hypot(this.goal.x - me.pos.x, this.goal.z - me.pos.z);
       if (d >= S.dive[0] && d <= S.dive[1] && toward(this.goal, d) && Math.random() < 0.8 * k) why = 'dive';
@@ -761,6 +792,17 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       }
     }
     return false;
+  }
+
+  /** 20.0: break from a long-range shooter now? (see the decide: not while winning that duel). */
+  private evadeNow(now: number, T: Combatant | null, dT: number): boolean {
+    const U = ARENA.underFire;
+    if (!U.on || now - this.snipedT > U.window || now < this.evadeCd || this.state === 'break' || this.state === 'push' || this.state === 'retreat') return false;
+    const by = this.snipedBy;
+    if (!by || !by.alive) return false;
+    // Its own target, close or nearly in its sights: it fights instead.
+    if (T === by && (dT < U.range || (this.aiming && this.focusT >= this.focusNeed * U.duel))) return false;
+    return true;
   }
 
   /** The nearest spot within 7 m the threat can't see (one ray each, two tries), else null (it strafes out). */

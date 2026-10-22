@@ -1,0 +1,71 @@
+{
+  "version": "20.0 (Maglev Terminal overhaul, AI difficulty)",
+  "machine": "Apple M5 laptop, Chrome, Balanced preset (60 FPS cap, render scale 1.25 = 1820x1186), on mains power",
+  "branch": "feature/maglev-overhaul-20.0 from main @ acc7422 (19.0)",
+  "sightlines": {
+    "method": "__dev.sightlines(): eye-height lines (nav node + 0.65 m) between walkable nodes; spawn side = nodes beyond |z| 36; long = random pairs 40 m+ apart",
+    "18.0": { "spawnToSpawnClearPct": 13.97, "longestM": 116, "longPct_40_60_80plus": [26.4, 23.0, 11.5], "longAllPct": 23.7, "worst": "the centre exit to the far centre exit through the train (cab doors, aisle and gangways in line)" },
+    "20.0_first_pass": { "spawnToSpawnClearPct": 2.17, "longestM": 100, "note": "the lines left ran along the track beds under the gantry's crossbeam" },
+    "20.0": { "spawnToSpawnClearPct": 0.14, "longestM": 88, "longPct_40_60_80plus": [14.1, 7.9, 2.8], "longAllPct": 11 }
+  },
+  "camouflage": {
+    "method": "__dev.camo(): an OMEGA operator posed facing the camera at 12/20/30 m, rendered with and without it in the same task; brightness contrast |L_bot - L_bg| / L_bg over its pixels; colour difference = mean per-channel difference (0-255)",
+    "lumaContrast_12_20_30m": {
+      "night": { "platform2": [0.746, 0.676, 0.722], "platform1": [0.767, 0.705, 0.717], "mezzanine": [0.791, 0.763, 0.722], "trackBed": [0.574, null, null] },
+      "corporate": { "platform2": [0.064, 0.05, 0.138], "platform1": [0.16, 0.132, 0.14], "mezzanine": [0.124, 0.097, 0.077], "trackBed": [0.402, null, null] }
+    },
+    "colourDiff": { "night": [122.5, 150.4], "corporate": [32.4, 50] },
+    "note": "trackBed at 20 and 30 m: hidden by the gantries (0 pixels)"
+  },
+  "sniperDrill": {
+    "method": "__dev.sniperDrill(): a live 7v7 match, 999 tickets, the player in god mode a perfect marksman at a vantage, firing at the nearest OMEGA bot it sees 20-70 m away; per bot hit: died, or got out of sight alive",
+    "columns": "botsHit, kills, escaped, killsPerMin, escapedPct, exposedMedianS, timeToKillMedianS",
+    "bridge_-3_5_20": { "profileOff": [52, 31, 19, 16.9, 38, 0.56, 0.69], "profileV1": [52, 25, 27, 13.6, 51.9, 0.53, 0.68], "profileShipped": [54, 21, 33, 11.5, 61.1, 0.55, 0.57] },
+    "platform2_5.2_0_28": { "profileOff": [23, 14, 9, 7.6, 39.1, 0.56, 0.69], "profileV1": [25, 17, 8, 9.3, 32, 0.68, 0.69], "profileShipped": [20, 8, 12, 4.4, 60, 0.56, 0.56] },
+    "v1": "underFire range 22, window 0.6, the 4 s break cooldown, slide 0.7 x persona",
+    "shipped": "underFire range 16, window 1.0, its own 1.5 s cooldown, always slides out when there is no cover spot"
+  },
+  "selfPlay": {
+    "method": "tdmSim: bot vs bot NvN, tickets 5 a player unless noted, 3 matches a cell",
+    "columns": "minutes, killsPerMin, firstEngagementMedianS, quietPct, longHitEscapedPct, ttkFromFirstHitMedianS, killsOver25mPct, evades, evadeSlides, killRangeMedianM, laneTime_west/train/east",
+    "18.0_map_5v5": [[2.13, 20.2, 11.4, 32.8, 75, 6.17, 20.9, 0, 0, 13.1, "9.3/41.7/49.1"], [2.11, 23.2, 11.3, 20.5, 70, 4.4, 18.4, 0, 0, 10, "17.1/42.2/40.6"], [2.15, 22.4, 11.8, 31, 64, 6.22, 8.3, 0, 0, 10.6, "11.7/46.3/42"]],
+    "20.0_map_noProfile_yard_5v5": [[2.45, 17.5, 12.2, 35.8, 73.3, 5.73, 9.3, 0, 0, 8.4, "13.7/44.2/42.1"], [2.39, 20.1, 12.8, 31.3, 41.2, 4.87, 14.6, 0, 0, 8.3, "15.4/41.4/43.3"], [2.36, 20.3, 12.6, 30.3, 50, 5.88, 12.5, 0, 0, 9.7, "22.5/40.5/37"]],
+    "20.0_map_profileV1_yard_5v5": [[2.48, 19.7, 13.9, 34.9, 73.3, 4.82, 4.1, 9, 1, 7.2, "12.7/41/46.3"], [2.15, 21, 12.8, 30.2, 76.2, 3.9, 8.9, 13, 8, 10.3, "16.3/40.2/43.5"], [2.31, 21.2, 13.3, 34.5, 44.4, 3.88, 8.2, 8, 4, 9.5, "17.6/43.9/38.5"]],
+    "forward_profileShipped_18.0lanes": {
+      "5v5": [[2.09, 22.5, 10.9, 24.6, 70.6, 3.92, 2.1, 49, 12, 10.7, "23.9/39/37.2"], [2.11, 23.3, 8.5, 25.2, 75, 3.35, 8.2, 50, 15, 7.8, "19.6/39.8/40.6"], [2.15, 21.9, 10.7, 25.4, 41.7, 5.87, 4.3, 44, 9, 8.8, "14/40.6/45.4"]],
+      "6v6": [[1.8, 30.6, 10.1, 24.1, 69.2, 3.27, 5.5, 45, 11, 8.2, "15.9/40.8/43.3"], [1.98, 27.3, 11.2, 28.6, 58.3, 5.1, 9.3, 51, 13, 8.2, "15.2/42.3/42.5"], [2.11, 27, 10.4, 24.4, 81.3, 6.83, 5.3, 57, 13, 8.3, "12.8/42.6/44.6"]],
+      "7v7": [[1.92, 34.4, 8.7, 17.2, 60, 3.3, 3, 85, 15, 7.6, "18.6/45.2/36.2"], [2.17, 31.8, 10.7, 15.3, 56.3, 3.6, 8.7, 56, 11, 8.1, "12.6/43.6/43.7"], [2.08, 32.1, 9.1, 17.5, 73.7, 5.6, 6, 65, 16, 9, null]]
+    },
+    "laneVariants_7v7": {
+      "18.0 (1/1.6/1, train strict)": "west 12.6-18.6%, quiet 15.3-17.5%",
+      "1.3/1/1.3, strict off": { "laneTime": ["14.1/45.2/40.6", "20.2/40.4/39.4", "24.3/36.1/39.6"], "quietPct": [17.5, 15.4, 15.8] },
+      "1.3/1.2/1.3, train strict": { "laneTime": ["12.3/43.9/43.8", "13/43.2/43.8", "17.6/47/35.4"], "quietPct": [17.6, 17.9, 12.5] },
+      "1.3/1/1.3, strict off, flank per 3 from 10 m (shipped)": { "laneTime": ["19.7/42.6/37.7", "16.9/41.6/41.5", "17.7/38.3/44"], "quietPct": [13.7, 18, 11.4], "trainKills": [22, 23, 11] }
+    },
+    "shipped_7v7_50tickets": {
+      "rows": [[3.09, 30.8, 11.2, 14.5, 74.3, 5.07, 7.4, 117, 31, 9.3, "17.1/36.5/46.4"], [2.74, 35.1, 8.5, 16.4, 48, 4.18, 1, 103, 19, 9.8, "11.6/45.5/42.9"], [2.8, 35, 9, 16.6, 31.8, 3.68, 6.1, 87, 22, 7.4, "16.7/42.5/40.8"]],
+      "killsByLane_east_train_west": [[46, 21, 28], [58, 26, 12], [55, 22, 21]],
+      "flankKills": [9, 10, 14],
+      "byWeapon_kills_medianM": [{ "SG": [21, 6.6], "SMG": [41, 10.1], "AR": [33, 10.9] }, { "AR": [31, 13.8], "SMG": [35, 10.3], "SG": [30, 6.4] }, { "SMG": [34, 10.1], "SG": [36, 6.3], "AR": [28, 7.9] }],
+      "stuck": 0, "friendlyDamage": 0, "forwardRespawns": ["89/91", "93/93", "94/95"]
+    }
+  },
+  "perf": {
+    "bench3_7v7_balanced_throughMenu": {
+      "columns": "fps, cpuMs, gpuMs, gpuBusyPct, drawCalls",
+      "alphaYard": [60, 1.93, 5.92, 35.5, 325], "trainAisle": [60, 2.03, 5.87, 35.2, 296], "platform1": [60, 1.97, 6.17, 37, 373], "trackBed": [60, 1.96, 5.94, 35.6, 374], "mezzanine": [60, 1.88, 5.89, 35.3, 399], "bridge": [60.3, 1.72, 5.73, 34.5, 269], "roofUp": [59.7, 1.82, 6.02, 35.9, 93], "platformCover": [60, 1.99, 6.05, 36.3, 425], "billboardClose": [60, 1.87, 6.1, 36.6, 374], "glassWall": [60, 2.02, 6.11, 36.6, 350], "wholeHall": [59.6, 1.93, 5.93, 35.3, 349], "firefight": [60, 2.11, 5.5, 33, 325],
+      "lightPool": { "sources": 3, "slots": 3 },
+      "note": "the billboards' screens are emissive maps (no light, no shadow pass: the sun's map is static); the cover is merged static geometry (one draw call per material)"
+    },
+    "tdmBench_7v7_withPlayer": { "fps": 59.9, "cpuMs": 2.54, "gpuMs": 5.79, "aiMs_avg_p95_p99_worst": [0.712, 1.4, 2.2, 4.7], "raysPerFrame": 36.2, "maxDecideLateS": 0.028 }
+  },
+  "integrity": {
+    "world": { "cells": 49300, "standing": 0, "crouched": 0 },
+    "stress": { "runs": 256000, "standing": 0, "crouched": 0 },
+    "stairGaps": { "stairs": 18, "drops": 0, "before": "24 drops: the first west-hall billboard flush against the escalator" },
+    "levelAI": { "runners": "152/152", "gunners": "8/8", "graphOk": true, "before": "26 nodes unreachable: the same billboard walled the west hall off; a node column at x -27.2 added" },
+    "leakcheck": { "command": "node scripts/leakcheck.mjs 2 maglev,crashsite,oldport", "maglevGeometriesTexturesByLap": [[135, 37], [158, 37], [158, 37]], "aliveAfterGC": 0 },
+    "hang": "one DEV session hung (the tab unresponsive >3 min) in a combined tdmBench + world + stress + levelAI + sightlines script after a long session; the same script re-run twice in a fresh tab passed; dozens of headless matches never hung"
+  },
+  "tests": 254
+}

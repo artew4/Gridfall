@@ -209,6 +209,15 @@ export const ARENA = {
    * such spot it rushes as before. Two rays at most per pick.
    */
   coverPush: { on: false, arms: ['smg', 'shotgun'] as string[], minDist: 9, hop: 9, gain: 2.5, every: 0.6 },
+  /**
+   * 20.0, under long-range fire (off by default; Maglev Terminal turns it on): a round from a shooter
+   * `range` m or more away (a hit; a near miss too if `nearMisses`) makes the bot break for cover from
+   * that shooter within `window` s, or slide out of its line when there is no cover spot near (the
+   * break's sidestep). Not when it is winning that duel: the shooter is its own target and its aimed
+   * shot is `duel` of the way to ready, or the shooter is closer than `range`. Its own `cooldown` (s; the break's 4 s one let a marksman's second
+   * hit land on a bot standing still); with no cover spot near it slides out of the line (`slide`: the chance).
+   */
+  underFire: { on: false, range: 16, nearMisses: true, window: 1.0, duel: 0.7, cooldown: 1.5, slide: 1 },
   director: {
     every: 0.25,
     tradeWindow: 12,
@@ -269,7 +278,9 @@ export interface ArenaStats {
   flankHigh: number;
   /** 12.0: slides (by why). */
   slides: number;
-  slideWhy: { push: number; dive: number; exposed: number };
+  slideWhy: { push: number; dive: number; exposed: number; evade: number };
+  /** 20.0: breaks taken because of long-range fire (ARENA.underFire). */
+  evades: number;
 }
 
 /**
@@ -302,7 +313,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0 } };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

@@ -84,8 +84,8 @@ describe('Maglev Terminal layout', () => {
     expect(BRIDGE.x1).toBe(MEZ.x0);
   });
 
-  it('the director keeps two of five on the train', () => {
-    expect(LANE_WEIGHTS[1]).toBeGreaterThan(1.5);
+  it('20.0: the flanks weigh more than the train (bots go round it), symmetric', () => {
+    expect(LANE_WEIGHTS[0]).toBeGreaterThan(LANE_WEIGHTS[1]);
     expect(LANE_WEIGHTS[0]).toBe(LANE_WEIGHTS[2]);
   });
 

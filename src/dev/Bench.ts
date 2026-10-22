@@ -295,6 +295,10 @@ async function benchMaglev(game: Game, dev: Dev, m: (name: string) => Promise<vo
     ['mezzanine', [26.5, 5, 30], [24, 5.5, -30]],
     ['bridge', [-20, 5, 20], [20, 4, 18]],
     ['roofUp', [0, 0, 10], [0, 40, -6]],
+    // 20.0: through the platform's chicanes (the billboards' screens, the kiosks, the monoliths), and
+    // a holographic billboard up close.
+    ['platformCover', [3.4, 0, 40], [6, 1.5, -40]],
+    ['billboardClose', [9, 0, 31], [8.9, 1.8, 27]],
     ['glassWall', [27, 0, 40], [29, 4, -40]],
     ['wholeHall', [-26, 5, 25], [10, 0, -40]],
   ];

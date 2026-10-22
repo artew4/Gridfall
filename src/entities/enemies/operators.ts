@@ -24,15 +24,62 @@ import type { TeamId } from '../../combat/Team';
   and glow materials are clones the Enemy flashes on hits and disposes. Everything else is shared.
 */
 
-const shared = {
-  // Graphite webbing and pouches, matte black boots and gloves, a gunmetal rifle.
-  webbing: new THREE.MeshStandardMaterial({ color: 0x24262b, roughness: 0.95, metalness: 0.02, envMapIntensity: 0.15 }),
-  boots: new THREE.MeshStandardMaterial({ color: 0x121316, roughness: 0.9, metalness: 0.05, envMapIntensity: 0.15 }),
-  gun: new THREE.MeshStandardMaterial({ color: 0x1a1b1e, roughness: 0.6, metalness: 0.45, envMapIntensity: 0.35 }),
-  // The visor glass itself is dark: only its strip glows.
-  visor: new THREE.MeshStandardMaterial({ color: 0x08090c, roughness: 0.25, metalness: 0.2, envMapIntensity: 0.6 }),
+/**
+ * 20.0: the kit an operator wears, chosen by the map (TdmData.kit):
+ *  - 'night' (14.0, every map until 20.0): charcoal and graphite, matte; the dark-alley rule above.
+ *  - 'corporate' (Maglev Terminal): the same cut in off-white and pale grey synthetics, satin rather
+ *    than matte (polished panels, like the hall), grey webbing, a light grey rifle. In a white, sunlit
+ *    hall the night kit was a black figure on a white floor, found at any range without looking; this
+ *    one sits within the hall's own values, so a body is found by its silhouette and its team accents.
+ *    The accents stay (the team must read at a glance), a touch dimmer: a white hall needs less glow.
+ */
+export type OperatorKit = 'night' | 'corporate';
+
+interface KitSpec {
+  armor: { color: number; roughness: number; metalness: number; env: number };
+  cloth: { color: number; roughness: number; metalness: number; env: number };
+  webbing: number;
+  boots: number;
+  gun: number;
+  visor: number;
+  /** Accent brightness (× OPERATOR_ACCENT). */
+  glow: number;
+}
+
+const KITS: Record<OperatorKit, KitSpec> = {
+  night: {
+    armor: { color: 0x33363c, roughness: 0.88, metalness: 0.08, env: 0.25 },
+    cloth: { color: 0x1c1d21, roughness: 0.95, metalness: 0.02, env: 0.15 },
+    webbing: 0x24262b,
+    boots: 0x121316,
+    gun: 0x1a1b1e,
+    visor: 0x08090c,
+    glow: 1,
+  },
+  corporate: {
+    armor: { color: 0xd6dadd, roughness: 0.45, metalness: 0.1, env: 0.7 },
+    cloth: { color: 0xb9bfc4, roughness: 0.75, metalness: 0.02, env: 0.45 },
+    webbing: 0x8e969d,
+    boots: 0x6b737a,
+    gun: 0x8a9298,
+    visor: 0x2a3138,
+    glow: 0.8,
+  },
 };
-for (const m of Object.values(shared)) m.userData.shared = true;
+
+/** Webbing, boots, the rifle and the visor glass: shared by every operator of a kit. */
+function sharedOf(kit: KitSpec) {
+  const m = {
+    webbing: new THREE.MeshStandardMaterial({ color: kit.webbing, roughness: 0.95, metalness: 0.02, envMapIntensity: kit === KITS.night ? 0.15 : 0.4 }),
+    boots: new THREE.MeshStandardMaterial({ color: kit.boots, roughness: 0.9, metalness: 0.05, envMapIntensity: kit === KITS.night ? 0.15 : 0.4 }),
+    gun: new THREE.MeshStandardMaterial({ color: kit.gun, roughness: 0.6, metalness: 0.45, envMapIntensity: 0.35 }),
+    // The visor glass itself is dark: only its strip glows.
+    visor: new THREE.MeshStandardMaterial({ color: kit.visor, roughness: 0.25, metalness: 0.2, envMapIntensity: 0.6 }),
+  };
+  for (const x of Object.values(m)) x.userData.shared = true;
+  return m;
+}
+const SHARED: Record<OperatorKit, ReturnType<typeof sharedOf>> = { night: sharedOf(KITS.night), corporate: sharedOf(KITS.corporate) };
 
 /** Accent colours (HDR: over the 1.0 bloom threshold, a small halo, not a lamp). */
 export const OPERATOR_ACCENT: Record<TeamId, THREE.Color> = {
@@ -42,11 +89,13 @@ export const OPERATOR_ACCENT: Record<TeamId, THREE.Color> = {
 /** Hit sparks and death bursts in the team colour (dim). */
 const SPARK: Record<TeamId, THREE.Color> = { alpha: new THREE.Color(0.35, 0.6, 0.9), omega: new THREE.Color(0.9, 0.4, 0.25) };
 
-function base(team: TeamId) {
-  // Plates a shade lighter than the cloth (shape inside the silhouette), both matte.
-  const armorMat = new THREE.MeshStandardMaterial({ color: 0x33363c, roughness: 0.88, metalness: 0.08, envMapIntensity: 0.25 });
-  const clothMat = new THREE.MeshStandardMaterial({ color: 0x1c1d21, roughness: 0.95, metalness: 0.02, envMapIntensity: 0.15 });
-  const glowMat = new THREE.MeshBasicMaterial({ color: OPERATOR_ACCENT[team].clone() });
+function base(team: TeamId, kitId: OperatorKit) {
+  const kit = KITS[kitId];
+  // Plates a shade off the cloth (shape inside the silhouette).
+  const armorMat = new THREE.MeshStandardMaterial({ color: kit.armor.color, roughness: kit.armor.roughness, metalness: kit.armor.metalness, envMapIntensity: kit.armor.env });
+  const clothMat = new THREE.MeshStandardMaterial({ color: kit.cloth.color, roughness: kit.cloth.roughness, metalness: kit.cloth.metalness, envMapIntensity: kit.cloth.env });
+  const glowMat = new THREE.MeshBasicMaterial({ color: OPERATOR_ACCENT[team].clone().multiplyScalar(kit.glow) });
+  const shared = SHARED[kitId];
   const parts: THREE.Mesh[] = [];
   const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => {
     const m = new THREE.Mesh(geo, mat);
@@ -56,7 +105,7 @@ function base(team: TeamId) {
     parts.push(m);
     return m;
   };
-  return { armorMat, clothMat, glowMat, parts, add };
+  return { armorMat, clothMat, glowMat, parts, add, shared };
 }
 
 /** The accents every operator wears: shoulder patches and the spine rig (the visor is per head). */
@@ -70,8 +119,8 @@ function accents(add: ReturnType<typeof base>['add'], torso: THREE.Object3D, glo
 }
 
 /** Rifleman operator: plate carrier, square helmet with a visor strip, the rifle. Faces +z. */
-function buildOperator(team: TeamId): Rig {
-  const { armorMat, clothMat, glowMat, parts, add } = base(team);
+function buildOperator(team: TeamId, kit: OperatorKit): Rig {
+  const { armorMat, clothMat, glowMat, parts, add, shared } = base(team, kit);
   const root = new THREE.Group();
   root.userData.dynamic = true;
   const body = pivot(root, 0, 1.0, 0);
@@ -123,8 +172,8 @@ function buildOperator(team: TeamId): Rig {
 }
 
 /** Light operator (the runner frame; a TDM roster substitutes gunners, so it is rarely seen). Faces +z. */
-function buildLightOperator(team: TeamId): Rig {
-  const { armorMat, clothMat, glowMat, parts, add } = base(team);
+function buildLightOperator(team: TeamId, kit: OperatorKit): Rig {
+  const { armorMat, clothMat, glowMat, parts, add, shared } = base(team, kit);
   const root = new THREE.Group();
   root.userData.dynamic = true;
   const body = pivot(root, 0, 0.95, 0);
@@ -160,11 +209,11 @@ function buildLightOperator(team: TeamId): Rig {
   return mergeRig({ root, body, torso, head, armL, armR, foreL, foreR, legL, legR, kneeL, kneeR, tail, armorMat, clothMat, glowMat, parts });
 }
 
-function operators(team: TeamId): EnemyLook {
+function operators(team: TeamId, kit: OperatorKit): EnemyLook {
   return {
-    id: `operator-${team}`,
-    buildRunner: () => buildLightOperator(team),
-    buildGunner: () => buildOperator(team),
+    id: kit === 'night' ? `operator-${team}` : `operator-${kit}-${team}`,
+    buildRunner: () => buildLightOperator(team, kit),
+    buildGunner: () => buildOperator(team, kit),
     runnerAccent: SPARK[team],
     gunnerAccent: SPARK[team],
     organic: true,
@@ -175,5 +224,10 @@ function operators(team: TeamId): EnemyLook {
   };
 }
 
-/** 14.0: the TDM skins, per team, on every arena map. */
-export const OPERATORS: Record<TeamId, EnemyLook> = { alpha: operators('alpha'), omega: operators('omega') };
+/** 14.0: the TDM skins, per team (the night kit, every map's default). */
+export const OPERATORS: Record<TeamId, EnemyLook> = { alpha: operators('alpha', 'night'), omega: operators('omega', 'night') };
+/** 20.0: the TDM skins by kit and team (TdmData.kit picks the kit). */
+export const OPERATOR_KITS: Record<OperatorKit, Record<TeamId, EnemyLook>> = {
+  night: OPERATORS,
+  corporate: { alpha: operators('alpha', 'corporate'), omega: operators('omega', 'corporate') },
+};

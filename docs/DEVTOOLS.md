@@ -83,6 +83,11 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Old Port (17.1):
   - `?setting=oldport`. `bench(3)` has an Old Port set: nine views (the hall, the upper floor in the skylight shafts, the yard, the stacks, the dock floor, the bridge, the sea quay into the sun side, the whole port) and a firefight. `tdmSim` lanes: warehouse, yard, dock.
   - `__game.level.debug()`: nav nodes and drops, skylight shafts, indoors, `drowned` (the sea fence should keep it 0).
+- Maglev overhaul (20.0):
+  - `await __dev.sightlines({ front, minDist, pairs })`: eye-height lines between the nav graph's walkable nodes: `spawnToSpawn` (every node beyond `front` on one side to every one on the other: clear share, longest, the x bands that carry them) and `longPct` (random pairs `minDist`+ m apart, by band).
+  - `await __dev.camo({ kit, setting })`: starts a TDM match with that operator kit and poses an OMEGA bot at 12/20/30 m in fixed views, rendering each with and without it: on-screen pixels, brightness contrast, colour difference.
+  - `await __dev.sniperDrill({ seconds, at, size, profile })`: a live match (999 tickets); the player, in god mode, is a perfect marksman at `at` firing at OMEGA bots 20–70 m away. Kills a minute, the share of bots hit that got out of sight alive, exposure times. Real time: don't edit `src/` while it runs (a hot reload kills it).
+  - `tdmSim(...).difficulty`: lives hit from 22 m+, the share that lived 3 s more, time from a life's first hit to its death, kills beyond 25 m, evasions (`ARENA.underFire`) and evasion slides.
 - Self-play density (19.0):
   - `tdmSim({ size, tickets, profile, forward })`: `size` players a team (bot vs bot: the player's slot is filled, so NvN; until 18.0 the sims ran (N-1)vN), `profile: false` turns the map's AI tuning off, `forward: false` the forward respawns. New in the result: `teamSize`, `firstEngagement` (median, p90, mean of each life's spawn-to-first-round time; lives that died without firing), `quietPct` (seconds nobody fired), `longestQuiet`, `forwardSpawns` (forward / yard respawns).
   - `tdmBench({ size })`: the frame cost with that many a side (the player in the match: `withPlayer`).

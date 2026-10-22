@@ -4,10 +4,10 @@ import type { Collider, CollisionWorld } from '../../world/Collision';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import { carve } from '../oldport/OldPort';
 import {
-  AISLE, BAL, BASE, BRIDGE, BRIDGE_DROPS, CAR, CARS, DOORS, DOOR_H, DOOR_W, ELEV, ELEVATORS, ESC_E, ESC_MID, ESC_W, EXITS, EXIT_W, GANGWAY, GAP,
+  AISLE, BAL, BASE, BRIDGE, BRIDGE_DROPS, BULK, CAR, CARS, DOORS, DOOR_H, DOOR_W, ELEV, ELEVATORS, ESC_E, ESC_MID, ESC_W, EXITS, EXIT_W, GANGWAY, GAP,
   MEZ, MEZ_DROP, TRACK, TRACK_STAIR, TRAIN, UP, X_HALL, YARD_H, Z_END, doorIn, doorOut, lanesOf, spawnsOf, zoneAt,
 } from './MaglevLayout';
-import { concretePanelTexture, departuresTexture, floorTileTexture, ribbedTexture, towerTexture, trackBedTexture, wayfindingSign } from './textures';
+import { billboardTexture, concretePanelTexture, departuresTexture, floorTileTexture, ribbedTexture, towerTexture, trackBedTexture, wayfindingSign } from './textures';
 import type { Zone } from '../Level';
 
 /*
@@ -79,6 +79,8 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
   const strip = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xf2f8ff, emissiveIntensity: 1.6, roughness: 0.4 });
   const glow = new THREE.MeshStandardMaterial({ color: 0x5fe4f0, emissive: 0x3fd6e6, emissiveIntensity: 2.2, roughness: 0.4 });
   const cabinStrip = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xf2f8ff, emissiveIntensity: 0.55, roughness: 0.4 });
+  // 20.0: the billboards' screens (emissive maps: they light themselves; no light source, no shadow).
+  const screens = [0, 1, 2].map((k) => new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: billboardTexture(k), emissiveIntensity: 0.9, roughness: 0.3 }));
   const board = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: departuresTexture(), emissiveIntensity: 1.1, roughness: 0.3 });
   // Inside the cars: the white plastic carries a faint cool emissive, the light the ceiling strips and
   // the pale floor throw round a small bright room (ADR-0054: bounce for daylight interiors).
@@ -214,6 +216,19 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
   const rail2 = (x0: number, z0: number, x1: number, z1: number, y: number) => {
     rail(x0, z0, x1, z1, y);
     rail(x0, -z1, x1, -z0, y);
+  };
+  /**
+   * 20.0: a holographic billboard: a steel-framed slab, full height (3.2 m: it stops sight and
+   * rounds), its two faces emissive screens (no light source, nothing cast), both halves (z → -z).
+   */
+  const billboard = (x0: number, z0: number, x1: number, z1: number, ad: number, h = 3.2) => {
+    solid2(x0, 0, z0, x1, h, z1, m.steelDark, 'metal', 1);
+    for (const sz of [1, -1]) {
+      const [a, c] = sz > 0 ? [z0, z1] : [-z1, -z0];
+      deco(x0 + 0.1, 0.5, a - 0.012, x1 - 0.1, h - 0.15, a, screens[ad % 3], 1);
+      deco(x0 + 0.1, 0.5, c, x1 - 0.1, h - 0.15, c + 0.012, screens[(ad + 1) % 3], 1);
+      deco(x0 - 0.04, h, a - 0.04, x1 + 0.04, h + 0.08, c + 0.04, glow, 1);
+    }
   };
   /** A rail along x at z (thickness 0.08 towards +z), with gaps (x ranges) left open. */
   const railX = (x0: number, x1: number, z: number, y: number, gaps: [number, number][] = []) => {
@@ -416,6 +431,24 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
       const [p, q] = X(18.2, 19.9);
       low2(p, 1.2, q, 4.2, 1.0, m.offWhite, 'metal', TRACK.floor);
     }
+    // 20.0: two maintenance gantries across the bed (z ±18–19 and ±30–31): a crossbeam from 1.0 to
+    // 2.4 m over the platform's level (eye height over the bed), and under it a screen wall from the
+    // bed's floor to 1.0 with openings (2.5 m headroom). The openings are staggered (the outer gantry's
+    // at the walls, the inner one's over the guideway), so no line runs along the bed at a standing
+    // eye's height either (both were open end to end, 80 m and more).
+    for (const [z0, opens] of [[30, [[13.6, 15.4], [19.2, TRACK.x1]]], [18, [[15.8, 18.6]]]] as [number, [number, number][]][]) {
+      let cur = TRACK.x0;
+      for (const [o0, o1] of [...opens, [TRACK.x1, TRACK.x1]] as [number, number][]) {
+        if (o0 > cur + 0.01) {
+          const [a, c] = X(cur, o0);
+          solid2(a, TRACK.floor, z0, c, 1.0, z0 + 1, m.teal, 'metal', 1);
+        }
+        cur = o1;
+      }
+      const [g0, g1] = X(TRACK.x0, TRACK.x1);
+      solid2(g0, 1.0, z0, g1, 2.4, z0 + 1, m.teal, 'metal', 1);
+      deco2(g0 + 0.6, 2.4, z0 + 0.2, g1 - 0.6, 2.46, z0 + 0.8, glow, 1);
+    }
   }
 
   // ---------------------------------------------------------------- the platforms
@@ -433,13 +466,33 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
       const [x0, x1] = X(4.4, 6.6);
       low2(x0, 11.6, x1, 13, 0.95, m.planter);
       deco2(x0 + 0.15, 0.95, 11.75, x1 - 0.15, 1.0, 12.85, m.leaves, 1);
-      const [p0, p1] = X(8, 10.2);
-      low2(p0, 26.4, p1, 27.8, 0.95, m.planter);
-      deco2(p0 + 0.15, 0.95, 26.55, p1 - 0.15, 1.0, 27.65, m.leaves, 1);
-      const [t0, t1] = X(4.7, 5.3);
-      solid2(t0, 0, 32.2, t1, 2.4, 33.4, m.white, 'concrete', 1);
-      deco2(sx > 0 ? t0 - 0.01 : t1, 1.0, 32.3, sx > 0 ? t0 : t1 + 0.01, 2.2, 33.3, m.teal, 1);
       for (const s of [1, -1]) cyl(sx * 10.5, s * 20, 0.4, 0, UP - 0.3, m.white, 'concrete');
+    }
+    // 20.0, breaking the platform's length (spawn-to-spawn lines ran down it end to end): staggered
+    // full-height pieces whose x ranges together cover the platform, so every line along it is cut at
+    // least once, and the fights on it happen between them (choke points at z ±17–33).
+    //  - a holographic billboard over the outer half (x 6.4–11.4) at z ±27;
+    //  - a transit-map kiosk against the train side (x 2.0–4.6) at z ±17–19.5;
+    //  - an art monolith (x 4.0–6.4) at z ±32–33.4 (the 18.0 info totem, grown);
+    //  - the 18.0 kiosk (x 6–9) at mid-field, the elevators (x 7.8–10.2) at the aprons.
+    {
+      const [b0, b1] = X(6.4, 11.4);
+      billboard(b0, 26.6, b1, 27.2, sx > 0 ? 0 : 1);
+      const [k0, k1] = X(2.0, 4.6);
+      solid2(k0, 0, 17, k1, 2.6, 19.5, m.white, 'concrete', 2);
+      deco2(k0 - 0.02, 0.6, 17.2, k1 + 0.02, 2.3, 19.3, m.tint, 1);
+      deco2(k0 - 0.05, 2.6, 16.95, k1 + 0.05, 2.75, 19.55, m.teal, 1);
+      const [t0, t1] = X(4.0, 6.4);
+      solid2(t0, 0, 32, t1, 3.4, 33.4, m.offWhite, 'concrete', 1);
+      deco2(t0 - 0.02, 3.4, 32.3, t1 + 0.02, 3.5, 33.1, glow, 1);
+      // Push cover: waist-high barriers by the train (between its doors), luggage carts on the outer half.
+      const [w0, w1] = X(2.6, 4.2);
+      low2(w0, 8.6, w1, 9.4, 1.0, m.offWhite);
+      const [c0, c1] = X(9.2, 11.2);
+      low2(c0, 8, c1, 10.4, 1.0, m.steelDark, 'metal');
+      // A signal cabinet on the track wall's edge near the aprons (the strip beside the bed).
+      const [s0, s1] = X(11, 12.9);
+      solid2(s0, 0, 39.6, s1, 2.0, 41, m.steelDark, 'metal', 1);
     }
     // Hanging platform signs (out of reach, seen only).
     for (const s of [1, -1]) {
@@ -536,6 +589,13 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
     railX(BRIDGE.x0, BRIDGE.x1, farSide, UP);
   }
   stair2(ESC_W.x0, ESC_W.top, ESC_W.x1, ESC_W.foot, 'z', -1, 0, UP, m.escalator, ['lo', 'hi'], true);
+  // 20.0: a billboard in each side hall (the lines along W' and E' ran end to end too). On the west,
+  // under the balcony at z ±21, staggered with a vending row by the glass (2 m between them; flush with
+  // the escalator, the first one walled the hall off and left a gap beside the escalator's treads).
+  billboard(-26.2, 20.6, -22.6, 21.2, 2);
+  billboard(22.4, 24.6, 25.6, 25.2, 1);
+  solid2(-29.85, 0, 19, -28.2, 2.0, 21, m.steelDark, 'metal', 1);
+  deco2(-28.2, 0.6, 19.1, -28.18, 1.8, 20.9, glow, 1);
   // W': ticket machines, a bench row (cover).
   solid2(-29.85, 0, 10, -29.1, 1.9, 13, m.steelDark, 'metal', 1);
   deco2(-29.1, 0.6, 10.1, -29.08, 1.8, 12.9, glow, 1);
@@ -600,6 +660,17 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
         deco(sx > 0 ? l0 - 0.01 : l1, 0.9, e0 + 0.15, sx > 0 ? l0 : l1 + 0.01, 1.0, e1 - 0.15, m.teal, 1);
       }
       deco(sx * 0.62 - 0.06, T.ceil - 0.02, z0 + 0.4, sx * 0.62 + 0.06, T.ceil, z1 - 0.4, cabinStrip, 2);
+    }
+    // 20.0: a bulkhead across the car's middle, its doorway off to one side (car 2 to +x, cars 1 and 3
+    // to -x): the aisle zig-zags, and no straight line runs from one nose door to the other (it did).
+    {
+      const side = c === 0 ? 1 : -1;
+      const [o0, o1] = side > 0 ? [BULK.open[0], BULK.open[1]] : [-BULK.open[1], -BULK.open[0]];
+      const zc0 = c - BULK.t / 2, zc1 = c + BULK.t / 2;
+      for (const [a, e] of [[-T.x + T.wall, o0], [o1, T.x - T.wall]]) solid(a, F, zc0, e, T.ceil, zc1, cabin, 'metal', 1);
+      solid(o0, F + 2.1, zc0, o1, T.ceil, zc1, cabin, 'metal', 1);
+      deco(o0 - 0.06, F, zc0 - 0.01, o0, F + 2.1, zc1 + 0.01, m.teal, 1);
+      deco(o1, F, zc0 - 0.01, o1 + 0.06, F + 2.1, zc1 + 0.01, m.teal, 1);
     }
     const l = new THREE.PointLight(0xeef4ff, 2.6, 12, 1);
     l.position.set(0, 1.7, c);
@@ -700,7 +771,12 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
     }
     // The train's doors: outside, inside (each door, both sides), the aisle (2 m), the gangways.
     for (const zd of DOORS) for (const sx of [1, -1]) chain(N(doorOut(sx), 0, Z(zd)), N(doorIn(sx), F, Z(zd)));
-    for (let z = 0; z <= T.z - 0.8; z += 2) N(0, F, Z(z));
+    // The aisle (2 m), clear of the bulkheads; through each bulkhead's doorway: either side, in it.
+    for (let z = 0; z <= T.z - 0.8; z += 2) if (CARS.every((c) => Math.abs(Z(z) - c) > 0.9)) N(0, F, Z(z));
+    for (const c of CARS.filter((c) => c * s >= 0)) {
+      const ox = (c === 0 ? 1 : -1) * (BULK.open[0] + BULK.open[1]) / 2;
+      chain(N(ox, F, c - 1.1), N(ox, F, c), N(ox, F, c + 1.1));
+    }
     for (const zg of [CAR / 2 - 0.6, CAR / 2 + GAP / 2, CAR / 2 + GAP + 0.6]) N(0, F, Z(zg));
     // The cab passage through the nose: the apron outside, the passage, the car's end.
     chain(N(0, 0, Z(T.nose + 1.3)), N(0, F, Z((T.z + T.nose) / 2)), N(0, F, Z(T.z - 1.2)));
@@ -710,7 +786,8 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
       // inner wall's top, onto the stair, middle, foot); drops off both edges.
       for (const x of [IX, OX]) chain(N(sx * x, 0, Z(TRACK.z + 0.6)), N(sx * x, TF / 2, Z(41.2)), N(sx * x, TF, Z(TRACK_STAIR.endFoot - 1.2)));
       chain(N(sx * (TRACK.x0 - 0.7), 0, Z(TRACK_STAIR.midTop - 0.4)), N(sx * IX, -0.1, Z(TRACK_STAIR.midTop - 0.6)), N(sx * IX, TF / 2, Z(11)), N(sx * IX, TF, Z(TRACK_STAIR.midFoot - 1.1)));
-      for (const z of [20, 30]) drops.push([N(sx * (TRACK.x0 - 1.4), 0, Z(z)), N(sx * (TRACK.x0 + 1.4), TF, Z(z))]);
+      // (z 24, not 30: the gantry's crossbeam stands over the bed's edge there.)
+      for (const z of [20, 24]) drops.push([N(sx * (TRACK.x0 - 1.4), 0, Z(z)), N(sx * (TRACK.x0 + 1.4), TF, Z(z))]);
       for (const z of [17, 36]) drops.push([N(sx * (TRACK.x1 + 1.4), 0, Z(z)), N(sx * (TRACK.x1 - 1.4), TF, Z(z))]);
     }
     // The escalators: foot, middle, top.
@@ -728,6 +805,9 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
     for (const x of [BAL.x0 + 1.2, (BAL.x0 + BAL.x1) / 2, BAL.x1 - 0.9]) for (let z = BAL.z0 + 1; z <= BAL.z1 - 0.9; z += 2.5) N(x, UP, Z(z));
   }
   for (const L of lanesOf('alpha')) for (const p of L) N(p.x, p.y, p.z);
+  // 20.0: a column of nodes down W' between the vending rows and the billboards (the 4 m lattice has
+  // none in the 2 m gap between them).
+  for (let z = -46; z <= 46; z += 3) if (open(-27.2, 0, z)) N(-27.2, 0, z);
   // Lattices: the ground (4 m), the track beds (2.5 m), the mezzanine (3 m).
   for (let x = -X_HALL + 2; x <= X_HALL - 2; x += 4) {
     for (let z = -Z_END + 2; z <= Z_END - 2; z += 4) {
@@ -740,7 +820,7 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
   // The beds: along the guideway beam (clear of the carts, which stand beside it) and by both walls.
   for (const sx of [1, -1]) {
     for (let z = -TRACK.z + 2; z <= TRACK.z - 2; z += 2.5) {
-      N(sx * 17, TF + 0.25, z);
+      if (open(sx * 17, TF + 0.25, z)) N(sx * 17, TF + 0.25, z);
       for (const x of [TRACK.x0 + 0.7, TRACK.x1 - 0.7]) if (open(sx * x, TF, z)) N(sx * x, TF, z);
     }
   }
