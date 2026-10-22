@@ -1,0 +1,33 @@
+{
+  "version": "22.0 (character rigs, weapon-grip IK, friend or foe on Maglev)",
+  "machine": "Apple M5 laptop, Chrome, Balanced preset (60 FPS cap, render scale 1.25 = 1820x1186), on mains power",
+  "branch": "feature/character-rigs-22.0 from main @ d8833ae (21.0, already merged and pushed)",
+  "cpuImpact": {
+    "method": "__dev.tdmBench({ withPlayer: true, size: 7 }) on Maglev Terminal, 21.0 (a worktree of main on :5174) and 22.0 (:5173) alternately in the same tab, twice each",
+    "columns": "fps, cpuMsPerFrame, gpuMsPerFrame, frameP99Ms, aiMsAvg, drawCalls (the camera's view at the end)",
+    "21.0": [[60, 2.27, 5.97, 24.5, 0.47, 454], [60, 2.24, 6.37, 24.1, 0.518, 401]],
+    "22.0": [[60, 2.13, 5.73, 25.7, 0.53, 335], [59.9, 2.07, 6.12, 24.6, 0.5, 376]],
+    "ik": {
+      "solvesOverTheBench": 9532, "frames": 2270, "solvesPerFrame": 4.2, "maxPossiblePerFrame": 26,
+      "usPerHoldPoseAndTwoSolves": 0.8, "msPerFrame": "about 0.002 (4.2 solves x ~0.4 us)",
+      "note": "the solve is skipped while the gun is still in torso space (hip fire, a held aim): most frames reuse the last solve"
+    },
+    "rigBuilds": { "rigsBuilt": 28, "thatMergedGeometry": 3, "note": "each pivot's merged geometry is built once per frame/kit/team and shared; a respawn builds pivots and meshes only" },
+    "drawCallsPerGunner": { "14.0 operator": "about 26 (one per pivot and material: up to 5 per pivot)", "22.0 merc": "20 at most (one body material with vertex colours, plus glow, visor, gun)" }
+  },
+  "bench3_maglev": {
+    "views_fps_cpuMs_gpuMs_drawCalls": { "alphaYard": [60.3, 2.31, 5.85, 313], "trainAisle": [60, 2.81, 5.96, 244], "platform1": [60, 2.21, 6.29, 329], "trackBed": [60, 2.19, 6.12, 312], "mezzanine": [60, 2.07, 6.43, 313], "bridge": [59.6, 1.98, 6.37, 223], "roofUp": [60, 2.39, 5.59, 96], "platformCover": [60, 2.16, 5.98, 373], "billboardClose": [59.9, 2.16, 6.0, 352], "glassWall": [60, 2.19, 5.81, 311], "wholeHall": [60, 2.32, 5.93, 332], "firefight": [60, 2.34, 6.1, 289] },
+    "discarded": "a first run started 1 s after the match loaded: its first six views read 5.2-6.3 ms CPU (shader compiles, first spawns), the last six 2.1-2.6; rerun clean"
+  },
+  "camo_maglev_corporate": {
+    "method": "__dev.camo({ kit: 'corporate' }): brightness contrast and colour difference against what is behind, at 12/20/30 m",
+    "lumaContrast_12_20_30m": { "platform2": [0.059, 0.011, 0.142], "platform1": [0.172, 0.14, 0.143], "mezzanine": [0.153, 0.097, 0.06], "trackBed": [0.419, null, null] },
+    "colourDiff_12_20_30m": { "platform2": [35, 38.2, 35.2], "platform1": [47.8, 36.7, 35.7], "mezzanine": [47.6, 39.8, 44.2], "trackBed": [73.8, null, null] },
+    "vs20.0": "lumaContrast 0.05-0.16 and colourDiff 32-50 in 20.0: the team blocks add hue, not brightness; the hall's camouflage holds"
+  },
+  "teamBlocks": { "corporate": { "alpha": "#86c3ec ice blue", "omega": "#e8ac72 pale sand-orange", "armour": "#d6dadd" }, "night": { "alpha": "#1f3a52", "omega": "#50301f", "armour": "#33363c" } },
+  "selfPlayMaglev": { "method": "tdmSim({}) x3", "killsPerMin": [31, 32.7, 31.7], "stuck": 0, "killsByWeapon": [{ "AR": 12, "SMG": 12, "SG": 18, "PST": 7 }, { "AR": 13, "SG": 11, "SMG": 12, "PST": 5 }, { "AR": 13, "SG": 16, "SMG": 14, "PST": 5 }] },
+  "friendlyFire": { "desert": "ok", "maglev": "fails the same way on 21.0 and 22.0 (OMEGA's round, the player hit, the clear-line case): the check's fixed positions were laid out for the desert; teammates are never hurt on either" },
+  "memory": { "leakcheck": "node scripts/leakcheck.mjs 2 desert,docks,maglev: 0 alive; GPU geometries flat from lap 1 (the shared rig templates are built on first use)" },
+  "tests": 270
+}

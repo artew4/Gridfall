@@ -319,6 +319,10 @@ kbd { display: inline-block; min-width: 20px; padding: 1px 6px; margin: 0 4px; t
 .tdm-tag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; letter-spacing: 0.2em; color: var(--alpha); text-shadow: 0 0 6px rgba(0,0,0,0.9); white-space: nowrap; }
 .tdm-tag i { display: block; width: 36px; height: 2px; background: rgba(255,255,255,0.15); }
 .tdm-tag i b { display: block; height: 100%; background: var(--alpha); transform-origin: left; }
+/* 22.0: the ally chevron, right over the head: a cyan triangle on a dark one (reads on Maglev's white hall without a filter). */
+.tdm-tag u { position: relative; display: block; width: 14px; height: 9px; margin-top: 1px; }
+.tdm-tag u::before, .tdm-tag u::after { content: ''; position: absolute; left: 0; top: 0; width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 9px solid rgba(4, 12, 20, 0.85); }
+.tdm-tag u::after { left: 2px; top: 1px; border-left-width: 5px; border-right-width: 5px; border-top: 6.5px solid var(--alpha); }
 #tdmscreen { z-index: 13; background: radial-gradient(ellipse at center, rgba(8, 6, 20, 0.5) 0%, rgba(0, 0, 0, 0.9) 75%); cursor: default; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; }
 #tdmscreen.hidden { pointer-events: none; }
 #tdmscreen .end-title.win { text-shadow: 0 0 22px rgba(124, 200, 255, 0.6); }

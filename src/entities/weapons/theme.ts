@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Ballistic } from '../types';
+import { RIG_GUNS } from '../enemies/rigGuns';
 
 /*
   21.0, weapon themes: every gun is built from the same parts, its materials picked by the map's look.
@@ -189,10 +190,14 @@ export function themeRigGun(weapon: THREE.Object3D, theme: GunTheme) {
     if (m.isMesh && !m.userData.gunAccent && (m.material as THREE.Material).userData.shared) m.material = f.body;
   }
   if (!f.accent) return;
+  // 22.0: on a merc rig's gun model, where that gun's sides are; else along the old rifle box.
+  const id = weapon.userData.gunId as keyof typeof RIG_GUNS | undefined;
+  const [ax, ay, az, len] = id ? RIG_GUNS[id].accent : [0.037, 0.02, 0.02, 0.4];
   for (const s of [-1, 1]) {
     const a = new THREE.Mesh(accentGeo!, f.accent);
     a.userData.gunAccent = true;
-    a.position.set(s * 0.037, 0.02, 0.02);
+    a.position.set(s * (ax + 0.002), ay, az);
+    a.scale.set(1, id ? 0.7 : 1, len / 0.4);
     weapon.add(a);
   }
 }

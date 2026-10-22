@@ -51,6 +51,69 @@ export function installDevTools(game: Game) {
       game.player.gun = start.handling;
       return out;
     },
+    /**
+     * 22.0: a line-up of merc rigs in front of him, one per gun, posed with the bots' own hold and IK
+     * (`raise` 0 the hip, 1 aimed; `pitch` the gun's; `yaw` turns them, 0 facing him). Returns a
+     * function that removes them. For screenshots of the grips.
+     */
+    async rigs(opts: { raise?: number; pitch?: number; yaw?: number; kit?: 'night' | 'corporate'; team?: 'alpha' | 'omega'; dist?: number } = {}) {
+      const { OPERATOR_KITS, ARM, setRigGun } = await import('../entities/enemies/operators');
+      const { holdPose, gripTargets } = await import('../entities/enemies/rigGuns');
+      const { solveArm } = await import('../enemies/RigIK');
+      const { RIG_GUNS } = await import('../entities/enemies/rigGuns');
+      const p = game.player, dist = opts.dist ?? 3.2;
+      const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw), rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw);
+      const made: THREE.Object3D[] = [];
+      const ids = ['pistol', 'smg', 'ar', 'shotgun'] as const;
+      ids.forEach((id, i) => {
+        const team = opts.team ?? (i % 2 ? 'omega' : 'alpha');
+        const rig = OPERATOR_KITS[opts.kit ?? 'corporate'][team].buildGunner();
+        setRigGun(rig, id);
+        const s = RIG_GUNS[id];
+        const off = (i - 1.5) * 1.1;
+        rig.root.position.set(p.pos.x + fx * dist + rx * off, p.pos.y, p.pos.z + fz * dist + rz * off);
+        rig.root.rotation.y = Math.atan2(-fx, -fz) + (opts.yaw ?? 0);
+        rig.torso.rotation.set(0, -s.blade, 0);
+        rig.head.rotation.set(0, s.blade, 0);
+        const pos = rig.weapon!.position, rot = rig.weapon!.rotation;
+        holdPose(id, rig.head.position, opts.raise ?? 1, 0, opts.pitch ?? 0, pos, rot);
+        const g = new THREE.Vector3(), f = new THREE.Vector3(), gq = new THREE.Quaternion(), fq = new THREE.Quaternion();
+        gripTargets(id, pos, rig.weapon!.quaternion, g, f, gq, fq);
+        const chain = (a: THREE.Object3D, fo: THREE.Object3D, h: THREE.Object3D, sx: number) => ({ arm: a, fore: fo, hand: h, upper: ARM.upper, lower: ARM.lower, pole: new THREE.Vector3(sx > 0 ? 0.5 : -0.6, -1, sx > 0 ? -0.1 : -0.3) });
+        solveArm(chain(rig.armR, rig.foreR, rig.handR!, -1), g, gq);
+        solveArm(chain(rig.armL, rig.foreL, rig.handL!, 1), f, fq);
+        game.scene.add(rig.root);
+        made.push(rig.root);
+      });
+      (window as unknown as { __rigs?: () => void }).__rigs = () => made.forEach((m) => game.scene.remove(m));
+      return made.length;
+    },
+    /**
+     * 22.0: the rig's costs: IK solves so far and rigs built (and how many merged geometry), and a
+     * micro-benchmark of one solve (µs, `n` solves of a rifle's two arms in a loop).
+     */
+    async ik(n = 20000) {
+      const { ikStats, solveArm } = await import('../enemies/RigIK');
+      const { OPERATOR_KITS, ARM, rigStats, setRigGun } = await import('../entities/enemies/operators');
+      const { holdPose, gripTargets } = await import('../entities/enemies/rigGuns');
+      const rig = OPERATOR_KITS.night.alpha.buildGunner();
+      setRigGun(rig, 'ar');
+      const R = { arm: rig.armR, fore: rig.foreR, hand: rig.handR!, upper: ARM.upper, lower: ARM.lower, pole: new THREE.Vector3(-0.6, -1, -0.3) };
+      const L = { arm: rig.armL, fore: rig.foreL, hand: rig.handL!, upper: ARM.upper, lower: ARM.lower, pole: new THREE.Vector3(0.5, -1, -0.1) };
+      const pos = new THREE.Vector3(), rot = new THREE.Euler(), q = new THREE.Quaternion();
+      const g = new THREE.Vector3(), f = new THREE.Vector3(), gq = new THREE.Quaternion(), fq = new THREE.Quaternion();
+      const before = { ...ikStats, ...rigStats };
+      const t0 = performance.now();
+      for (let i = 0; i < n; i++) {
+        holdPose('ar', rig.head.position, (i % 100) / 100, 0, 0.1, pos, rot);
+        gripTargets('ar', pos, q.setFromEuler(rot), g, f, gq, fq);
+        solveArm(R, g, gq);
+        solveArm(L, f, fq);
+      }
+      const us = ((performance.now() - t0) * 1000) / n;
+      ikStats.solves = before.solves;
+      return { solvesSoFar: before.solves, rigsBuilt: before.built, rigsThatMerged: before.merged, usPerHoldAndTwoSolves: +us.toFixed(3) };
+    },
     lock() {
       game.input.locked = true;
       if (game.state === 'paused') g.resume();

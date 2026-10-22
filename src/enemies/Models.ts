@@ -15,6 +15,9 @@ export interface Rig {
   kneeL: THREE.Group;
   kneeR: THREE.Group;
   tail?: THREE.Group;
+  /** 22.0: palm pivots (the merc rig): the IK puts them on the weapon's grips. */
+  handL?: THREE.Group;
+  handR?: THREE.Group;
   weapon?: THREE.Group;
   muzzle?: THREE.Object3D;
   armorMat: THREE.MeshStandardMaterial;

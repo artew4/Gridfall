@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { boxGeo, cylGeo, mergeRig, pivot, type Rig } from '../../enemies/Models';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { Rig } from '../../enemies/Models';
+import type { WeaponId } from '../weapons/armory';
+import { RIG_GUNS, rigGunGeo } from './rigGuns';
 import type { EnemyLook } from '../types';
 import type { TeamId } from '../../combat/Team';
 
@@ -31,47 +34,62 @@ import type { TeamId } from '../../combat/Team';
  *    than matte (polished panels, like the hall), grey webbing, a light grey rifle. In a white, sunlit
  *    hall the night kit was a black figure on a white floor, found at any range without looking; this
  *    one sits within the hall's own values, so a body is found by its silhouette and its team accents.
- *    The accents stay (the team must read at a glance), a touch dimmer: a white hall needs less glow.
+ *
+ * 22.0, friend or foe at a glance: the glowing accents alone were not enough on the white kit (the
+ * owner couldn't tell the teams apart). The secondary gear (chest rig, shoulder pads, helmet) is now a
+ * solid block of pale team colour: ice blue for ALPHA, pale sand-orange for OMEGA, the base armour
+ * still white. On the night kit the same blocks are deep and muted (the dark-alley rule holds).
  */
 export type OperatorKit = 'night' | 'corporate';
 
 interface KitSpec {
-  armor: { color: number; roughness: number; metalness: number; env: number };
-  cloth: { color: number; roughness: number; metalness: number; env: number };
+  armor: number;
+  cloth: number;
   webbing: number;
   boots: number;
+  team: Record<TeamId, number>;
   gun: number;
   visor: number;
+  /** The one body material: roughness, metalness, environment response. */
+  surface: { roughness: number; metalness: number; env: number };
   /** Accent brightness (× OPERATOR_ACCENT). */
   glow: number;
 }
 
 const KITS: Record<OperatorKit, KitSpec> = {
   night: {
-    armor: { color: 0x33363c, roughness: 0.88, metalness: 0.08, env: 0.25 },
-    cloth: { color: 0x1c1d21, roughness: 0.95, metalness: 0.02, env: 0.15 },
+    armor: 0x33363c,
+    cloth: 0x1c1d21,
     webbing: 0x24262b,
     boots: 0x121316,
+    team: { alpha: 0x1f3a52, omega: 0x50301f },
     gun: 0x1a1b1e,
     visor: 0x08090c,
+    surface: { roughness: 0.88, metalness: 0.06, env: 0.22 },
     glow: 1,
   },
   corporate: {
-    armor: { color: 0xd6dadd, roughness: 0.45, metalness: 0.1, env: 0.7 },
-    cloth: { color: 0xb9bfc4, roughness: 0.75, metalness: 0.02, env: 0.45 },
+    armor: 0xd6dadd,
+    cloth: 0xb9bfc4,
     webbing: 0x8e969d,
     boots: 0x6b737a,
+    team: { alpha: 0x86c3ec, omega: 0xe8ac72 },
     gun: 0x8a9298,
     visor: 0x2a3138,
+    surface: { roughness: 0.55, metalness: 0.08, env: 0.6 },
     glow: 0.8,
   },
 };
 
-/** Webbing, boots, the rifle and the visor glass: shared by every operator of a kit. */
+/** 22.0 (tests, docs): a kit's colour blocks (sRGB hex) for a team. */
+export function kitColours(kit: OperatorKit, team: TeamId) {
+  const k = KITS[kit];
+  return { armor: k.armor, cloth: k.cloth, webbing: k.webbing, boots: k.boots, team: k.team[team] };
+}
+
+/** The rifle (the gun's base, before the map's finish) and the visor glass: shared per kit. */
 function sharedOf(kit: KitSpec) {
   const m = {
-    webbing: new THREE.MeshStandardMaterial({ color: kit.webbing, roughness: 0.95, metalness: 0.02, envMapIntensity: kit === KITS.night ? 0.15 : 0.4 }),
-    boots: new THREE.MeshStandardMaterial({ color: kit.boots, roughness: 0.9, metalness: 0.05, envMapIntensity: kit === KITS.night ? 0.15 : 0.4 }),
     gun: new THREE.MeshStandardMaterial({ color: kit.gun, roughness: 0.6, metalness: 0.45, envMapIntensity: 0.35 }),
     // The visor glass itself is dark: only its strip glows.
     visor: new THREE.MeshStandardMaterial({ color: kit.visor, roughness: 0.25, metalness: 0.2, envMapIntensity: 0.6 }),
@@ -89,131 +107,246 @@ export const OPERATOR_ACCENT: Record<TeamId, THREE.Color> = {
 /** Hit sparks and death bursts in the team colour (dim). */
 const SPARK: Record<TeamId, THREE.Color> = { alpha: new THREE.Color(0.35, 0.6, 0.9), omega: new THREE.Color(0.9, 0.4, 0.25) };
 
-function base(team: TeamId, kitId: OperatorKit) {
+/*
+  22.0, the procedural Cyber-Merc rig (a hierarchy of pivots, low-poly armour on each):
+
+    root
+    └ body (pelvis, 1.0 m up: hips, belt, groin plate)
+      ├ torso (abdomen, trapezoid chest and plates, chest rig, collar, pack, spine accents)
+      │ ├ head (neck, balaclava, angular helmet, visor and its strip, respirator)
+      │ ├ armL / armR (shoulder joints; upper arm, angular shoulder pad with the team patch)
+      │ │ └ foreL / foreR (elbows; forearm, bracer)
+      │ │   └ handL / handR (palms; glove)  ← the IK's end effectors
+      │ └ weapon (the gun; its muzzle)       ← the hands' targets
+      └ legL / legR (hips; thigh, plate, pouch)
+        └ kneeL / kneeR (knees; shin, knee pad, shin guard, boot)
+
+  One body material per bot (vertex colours carry armour, cloth, team blocks, webbing and boots; the
+  hit flash lights it all) plus its glow, the kit's visor glass and the gun: each pivot is one to three
+  draw calls (the 14.0 operator: up to five per pivot). Each pivot's merged geometry depends only on
+  the kit, the team and the frame, so it is built once and shared by every bot that wears it: a
+  respawn builds pivots and meshes, never geometry.
+*/
+
+/** Arm bones (m): shoulder → elbow, elbow → palm. */
+export const ARM = { upper: 0.32, lower: 0.37 };
+
+type Layer = 'armor' | 'cloth' | 'team' | 'webbing' | 'boots' | 'glow' | 'visor';
+const BODY_LAYERS: Layer[] = ['armor', 'cloth', 'team', 'webbing', 'boots'];
+
+const shapeCache = new Map<string, THREE.BufferGeometry>();
+/** A box whose top face is resized to `tw` × `td` (a trapezoid prism: plates, pads, helmets). Flat-shaded. */
+function taper(w: number, h: number, d: number, tw = w, td = d, shiftZ = 0) {
+  const k = `t${w},${h},${d},${tw},${td},${shiftZ}`;
+  let g = shapeCache.get(k);
+  if (!g) {
+    g = new THREE.BoxGeometry(w, h, d).toNonIndexed();
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      if (p.getY(i) > 0) p.setXYZ(i, (p.getX(i) * tw) / w, p.getY(i), (p.getZ(i) * td) / d + shiftZ);
+    }
+    g.computeVertexNormals();
+    shapeCache.set(k, g);
+  }
+  return g;
+}
+function cyl(rt: number, rb: number, h: number, seg = 6) {
+  const k = `c${rt},${rb},${h},${seg}`;
+  let g = shapeCache.get(k);
+  if (!g) shapeCache.set(k, (g = new THREE.CylinderGeometry(rt, rb, h, seg).toNonIndexed()));
+  return g;
+}
+
+/** Merged geometry per (frame, kit, team, pivot, layer group), shared by every rig built from it. */
+const templates = new Map<string, Map<string, { body?: THREE.BufferGeometry; glow?: THREE.BufferGeometry; visor?: THREE.BufferGeometry }>>();
+/** DEV: rigs built, and how many of them had to merge geometry (the first of each kit and team). */
+export const rigStats = { built: 0, merged: 0 };
+
+const _e = new THREE.Euler();
+const _col = new THREE.Color();
+
+function buildMerc(team: TeamId, kitId: OperatorKit, frame: 'gunner' | 'light'): Rig {
+  rigStats.built++;
   const kit = KITS[kitId];
-  // Plates a shade off the cloth (shape inside the silhouette).
-  const armorMat = new THREE.MeshStandardMaterial({ color: kit.armor.color, roughness: kit.armor.roughness, metalness: kit.armor.metalness, envMapIntensity: kit.armor.env });
-  const clothMat = new THREE.MeshStandardMaterial({ color: kit.cloth.color, roughness: kit.cloth.roughness, metalness: kit.cloth.metalness, envMapIntensity: kit.cloth.env });
-  const glowMat = new THREE.MeshBasicMaterial({ color: OPERATOR_ACCENT[team].clone().multiplyScalar(kit.glow) });
-  const shared = SHARED[kitId];
-  const parts: THREE.Mesh[] = [];
-  const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => {
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(x, y, z);
-    m.rotation.set(rx, ry, rz);
-    parent.add(m);
-    parts.push(m);
-    return m;
+  const key = `${frame}/${kitId}/${team}`;
+  const cached = templates.get(key);
+  const parts = new Map<string, { layer: Layer; geo: THREE.BufferGeometry; m: THREE.Matrix4 }[]>();
+  const pivots = new Map<string, THREE.Group>();
+  const pv = (name: string, parent: THREE.Object3D, x: number, y: number, z: number) => {
+    const g = new THREE.Group();
+    g.position.set(x, y, z);
+    g.name = name;
+    parent.add(g);
+    pivots.set(name, g);
+    return g;
   };
-  return { armorMat, clothMat, glowMat, parts, add, shared };
-}
+  // Records a part on a pivot (only the first rig of a template needs them).
+  const add = (on: string, geo: THREE.BufferGeometry, layer: Layer, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => {
+    if (cached) return;
+    const list = parts.get(on) ?? [];
+    parts.set(on, list);
+    list.push({ layer, geo, m: new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(_e.set(rx, ry, rz)), new THREE.Vector3(1, 1, 1)) });
+  };
+  const box = (w: number, h: number, d: number) => taper(w, h, d);
+  const light = frame === 'light';
+  const W = light ? 0.85 : 1; // the light frame is slimmer
 
-/** The accents every operator wears: shoulder patches and the spine rig (the visor is per head). */
-function accents(add: ReturnType<typeof base>['add'], torso: THREE.Object3D, glow: THREE.Material, shoulderX: number, shoulderY: number, backZ: number) {
-  for (const s of [-1, 1]) {
-    // Patch on the outer face of each shoulder plate, readable front, back and side.
-    add(torso, boxGeo(0.02, 0.1, 0.17), glow, s * (shoulderX + 0.115), shoulderY, 0.02);
-  }
-  // Spine rig: a segmented strip down the back plate.
-  for (const y of [0.57, 0.44, 0.31]) add(torso, boxGeo(0.055, 0.1, 0.012), glow, 0, y, backZ - 0.006);
-}
-
-/** Rifleman operator: plate carrier, square helmet with a visor strip, the rifle. Faces +z. */
-function buildOperator(team: TeamId, kit: OperatorKit): Rig {
-  const { armorMat, clothMat, glowMat, parts, add, shared } = base(team, kit);
   const root = new THREE.Group();
   root.userData.dynamic = true;
-  const body = pivot(root, 0, 1.0, 0);
-  const torso = pivot(body, 0, 0, 0);
-  add(torso, boxGeo(0.48, 0.6, 0.32), clothMat, 0, 0.34, 0);
-  add(torso, boxGeo(0.46, 0.4, 0.1), armorMat, 0, 0.42, 0.18); // front plate
-  add(torso, boxGeo(0.44, 0.42, 0.09), armorMat, 0, 0.42, -0.18); // back plate
-  for (const x of [-0.13, 0, 0.13]) add(torso, boxGeo(0.11, 0.13, 0.07), shared.webbing, x, 0.24, 0.25); // mag pouches
-  add(torso, boxGeo(0.16, 0.24, 0.1), shared.webbing, 0, 0.42, -0.27); // back pack
-  for (const sx of [-1, 1]) add(torso, boxGeo(0.22, 0.13, 0.3), armorMat, sx * 0.33, 0.6, 0, 0, 0, sx * -0.22); // shoulder plates
-  add(torso, boxGeo(0.5, 0.07, 0.34), shared.webbing, 0, 0.06, 0); // belt
-  accents(add, torso, glowMat, 0.33, 0.6, -0.315);
-  const head = pivot(torso, 0, 0.72, 0.02);
-  add(head, boxGeo(0.22, 0.22, 0.24), clothMat, 0, 0.06, 0.0); // balaclava
-  add(head, boxGeo(0.3, 0.17, 0.32), armorMat, 0, 0.2, -0.01); // square helmet
-  add(head, boxGeo(0.25, 0.075, 0.05), shared.visor, 0, 0.12, 0.135); // visor glass
-  add(head, boxGeo(0.22, 0.035, 0.012), glowMat, 0, 0.125, 0.162); // visor strip
-  const armL = pivot(torso, 0.32, 0.55, 0);
-  const armR = pivot(torso, -0.32, 0.55, 0);
-  const foreL = pivot(armL, 0, -0.34, 0);
-  const foreR = pivot(armR, 0, -0.34, 0);
-  for (const [a, f] of [[armL, foreL], [armR, foreR]] as const) {
-    add(a, boxGeo(0.13, 0.34, 0.13), clothMat, 0, -0.17, 0);
-    add(f, boxGeo(0.11, 0.32, 0.11), clothMat, 0, -0.16, 0);
-    add(f, boxGeo(0.1, 0.08, 0.1), shared.boots, 0, -0.33, 0); // gloves
+  const body = pv('body', root, 0, light ? 0.95 : 1.0, 0);
+  // Pelvis: hips, belt, a groin plate.
+  add('body', taper(0.34 * W, 0.18, 0.23, 0.38 * W, 0.25), 'cloth', 0, 0.02, 0);
+  add('body', box(0.4 * W, 0.06, 0.27), 'webbing', 0, 0.1, 0);
+  add('body', taper(0.13, 0.14, 0.04, 0.18, 0.04), 'armor', 0, -0.02, 0.13);
+  for (const sx of [-1, 1]) add('body', box(0.07, 0.09, 0.08), 'webbing', sx * 0.17 * W, 0.04, 0.06);
+
+  const torso = pv('torso', body, 0, 0, 0);
+  add('torso', box(0.3 * W, 0.22, 0.21), 'cloth', 0, 0.13, 0);
+  add('torso', taper(0.38 * W, 0.32, 0.25, 0.48 * W, 0.27), 'cloth', 0, 0.4, 0);
+  // Trapezoid plates, the front one angled out at the top.
+  add('torso', taper(0.34 * W, 0.3, 0.05, 0.44 * W, 0.05, 0.02), 'armor', 0, 0.42, 0.14, -0.06);
+  add('torso', taper(0.38 * W, 0.32, 0.05, 0.44 * W, 0.05), 'armor', 0, 0.42, -0.15);
+  // The chest rig in the team's colour: a band across the plate and three pouches.
+  add('torso', box(0.36 * W, 0.1, 0.05), 'team', 0, 0.29, 0.18);
+  if (!light) for (const x of [-0.11, 0, 0.11]) add('torso', taper(0.09, 0.11, 0.05, 0.08, 0.045), 'team', x, 0.3, 0.215);
+  add('torso', taper(0.3 * W, 0.07, 0.22, 0.22 * W, 0.18), 'armor', 0, 0.6, 0);
+  if (!light) add('torso', taper(0.26, 0.3, 0.11, 0.22, 0.1), 'webbing', 0, 0.4, -0.22);
+  // Spine rig accents down the back plate.
+  for (const y of [0.53, 0.42, 0.31]) add('torso', box(0.055, 0.08, 0.012), 'glow', 0, y, -0.18);
+
+  const head = pv('head', torso, 0, light ? 0.66 : 0.72, 0.02);
+  add('head', cyl(0.06, 0.07, 0.12), 'cloth', 0, -0.03, 0);
+  add('head', box(0.18, 0.2, 0.2), 'cloth', 0, 0.08, 0);
+  // The angular helmet (team colour), its side plates, the visor and its strip, a respirator.
+  add('head', taper(0.29, 0.15, 0.31, 0.22, 0.26, -0.01), 'team', 0, 0.2, -0.01);
+  for (const sx of [-1, 1]) add('head', taper(0.04, 0.12, 0.14, 0.03, 0.1), 'armor', sx * 0.135, 0.11, -0.01);
+  add('head', taper(0.22, 0.075, 0.05, 0.25, 0.05), 'visor', 0, 0.12, 0.12, -0.12);
+  add('head', box(0.2, 0.026, 0.012), 'glow', 0, 0.125, 0.148);
+  add('head', taper(0.12, 0.07, 0.07, 0.16, 0.05), 'armor', 0, 0.02, 0.11);
+
+  const sh = light ? 0.17 : 0.19;
+  const arms: Record<'L' | 'R', [THREE.Group, THREE.Group, THREE.Group]> = { L: null!, R: null! };
+  for (const [side, sx] of [['L', 1], ['R', -1]] as const) {
+    const arm = pv(`arm${side}`, torso, sx * sh, light ? 0.52 : 0.57, 0.03);
+    add(`arm${side}`, taper(0.1, 0.3, 0.1, 0.11, 0.11), 'cloth', 0, -0.15, 0);
+    // The angular shoulder pad (team colour) and its patch, readable front, back and side.
+    add(`arm${side}`, taper(0.2 * W, 0.08, 0.2, 0.13 * W, 0.15), 'team', sx * 0.03, 0.01, 0, 0, 0, sx * -0.35);
+    add(`arm${side}`, box(0.012, 0.07, 0.12), 'glow', sx * 0.12 * W, -0.02, 0, 0, 0, sx * -0.35);
+    const fore = pv(`fore${side}`, arm, 0, -ARM.upper, 0);
+    add(`fore${side}`, taper(0.085, 0.3, 0.085, 0.1, 0.1), 'cloth', 0, -0.16, 0);
+    add(`fore${side}`, taper(0.1, 0.17, 0.1, 0.105, 0.11), 'armor', 0, -0.2, 0);
+    if (light) add(`fore${side}`, box(0.012, 0.45, 0.05), 'boots', 0, -0.42, 0.03); // the blade
+    const hand = pv(`hand${side}`, fore, 0, -ARM.lower, 0);
+    add(`hand${side}`, box(0.06, 0.085, 0.08), 'boots', sx * 0.012, 0, 0);
+    arms[side] = [arm, fore, hand];
   }
-  armL.rotation.set(-0.9, 0, 0.2);
-  foreL.rotation.set(-0.7, 0, 0);
-  armR.rotation.set(-0.6, 0, -0.1);
-  foreR.rotation.set(-1.1, 0, 0);
-  const weapon = pivot(torso, 0.05, 0.3, 0.42);
-  add(weapon, boxGeo(0.07, 0.11, 0.62), shared.gun, 0, 0, 0);
-  add(weapon, cylGeo(0.018, 0.018, 0.26, 6), shared.gun, 0, 0.02, 0.44, Math.PI / 2);
-  add(weapon, boxGeo(0.06, 0.18, 0.08), shared.gun, 0, -0.14, 0.12, 0.25);
-  add(weapon, boxGeo(0.06, 0.1, 0.2), shared.gun, 0, -0.02, -0.36);
-  const muzzle = pivot(weapon, 0, 0.02, 0.58);
-  const legL = pivot(body, 0.15, 0, 0);
-  const legR = pivot(body, -0.15, 0, 0);
-  const kneeL = pivot(legL, 0, -0.48, 0);
-  const kneeR = pivot(legR, 0, -0.48, 0);
-  for (const [l, k] of [[legL, kneeL], [legR, kneeR]] as const) {
-    add(l, boxGeo(0.17, 0.48, 0.19), clothMat, 0, -0.24, 0);
-    add(l, boxGeo(0.1, 0.12, 0.05), shared.webbing, 0.06, -0.26, 0.1); // thigh pouch
-    add(k, boxGeo(0.15, 0.46, 0.17), clothMat, 0, -0.23, 0);
-    add(k, boxGeo(0.14, 0.12, 0.06), armorMat, 0, -0.04, 0.09); // knee pad
-    add(k, boxGeo(0.16, 0.1, 0.28), shared.boots, 0, -0.47, 0.05);
+
+  for (const [side, sx] of [['L', 1], ['R', -1]] as const) {
+    pv(`leg${side}`, body, sx * 0.11 * W, -0.02, 0);
+    add(`leg${side}`, taper(0.15, 0.44, 0.17, 0.17, 0.19), 'cloth', 0, -0.22, 0);
+    add(`leg${side}`, box(0.12, 0.2, 0.04), 'armor', 0, -0.2, 0.1);
+    add(`leg${side}`, box(0.05, 0.12, 0.1), 'webbing', sx * 0.09, -0.24, 0.02);
+    pv(`knee${side}`, pivots.get(`leg${side}`)!, 0, -0.46, 0);
+    add(`knee${side}`, taper(0.12, 0.42, 0.14, 0.14, 0.15), 'cloth', 0, -0.21, 0);
+    add(`knee${side}`, taper(0.13, 0.12, 0.06, 0.1, 0.05), 'armor', 0, -0.03, 0.09);
+    add(`knee${side}`, box(0.1, 0.22, 0.04), 'armor', 0, -0.22, 0.08);
+    add(`knee${side}`, taper(0.13, 0.1, 0.26, 0.12, 0.18, -0.02), 'boots', 0, -0.45, 0.04);
   }
-  return mergeRig({ root, body, torso, head, armL, armR, foreL, foreR, legL, legR, kneeL, kneeR, weapon, muzzle, armorMat, clothMat, glowMat, parts });
+
+  // Merge each pivot's parts once per template: body layers with vertex colours, glow and visor apart.
+  let tpl = cached;
+  if (!tpl) {
+    rigStats.merged++;
+    tpl = new Map();
+    const colourOf = (l: Layer) => (l === 'team' ? kit.team[team] : (kit as unknown as Record<string, number>)[l]);
+    for (const [name, list] of parts) {
+      const out: { body?: THREE.BufferGeometry; glow?: THREE.BufferGeometry; visor?: THREE.BufferGeometry } = {};
+      for (const group of ['body', 'glow', 'visor'] as const) {
+        const sel = list.filter((p) => (group === 'body' ? BODY_LAYERS.includes(p.layer) : p.layer === group));
+        if (!sel.length) continue;
+        const geos = sel.map((p) => {
+          const g = p.geo.clone().applyMatrix4(p.m);
+          g.deleteAttribute('uv');
+          if (group === 'body') {
+            _col.setHex(colourOf(p.layer));
+            const n = g.attributes.position.count, c = new Float32Array(n * 3);
+            for (let i = 0; i < n; i++) c.set([_col.r, _col.g, _col.b], i * 3);
+            g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+          }
+          return g;
+        });
+        const merged = mergeGeometries(geos)!;
+        for (const g of geos) g.dispose();
+        merged.userData.shared = true;
+        out[group] = merged;
+      }
+      tpl.set(name, out);
+    }
+    templates.set(key, tpl);
+  }
+
+  // The per-bot materials: the body (flashes on hits) and the glow (the team accents).
+  const bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: kit.surface.roughness, metalness: kit.surface.metalness, envMapIntensity: kit.surface.env });
+  const glowMat = new THREE.MeshBasicMaterial({ color: OPERATOR_ACCENT[team].clone().multiplyScalar(kit.glow) });
+  const meshes: THREE.Mesh[] = [];
+  for (const [name, g] of tpl) {
+    const p = pivots.get(name)!;
+    if (g.body) meshes.push(p.add(new THREE.Mesh(g.body, bodyMat)).children.at(-1) as THREE.Mesh);
+    if (g.glow) meshes.push(p.add(new THREE.Mesh(g.glow, glowMat)).children.at(-1) as THREE.Mesh);
+    if (g.visor) meshes.push(p.add(new THREE.Mesh(g.visor, SHARED[kitId].visor)).children.at(-1) as THREE.Mesh);
+  }
+
+  const [armL, foreL, handL] = arms.L, [armR, foreR, handR] = arms.R;
+  let weapon: THREE.Group | undefined, muzzle: THREE.Object3D | undefined;
+  if (!light) {
+    // The gun (the rifle until the armory deals another: setRigGun); the hands find it (RigIK).
+    weapon = pv('weapon', torso, ...RIG_GUNS.ar.hip);
+    weapon.rotation.order = 'YXZ';
+    const gun = new THREE.Mesh(rigGunGeo('ar'), SHARED[kitId].gun);
+    gun.userData.gunBody = true;
+    weapon.add(gun);
+    weapon.userData.gunId = 'ar';
+    muzzle = pv('muzzle', weapon, ...RIG_GUNS.ar.muzzle);
+    root.userData.ik = true;
+  } else {
+    // The light frame's FK pose (the runner animates its arms).
+    armL.rotation.set(-0.9, 0, 0.2);
+    armR.rotation.set(-0.6, 0, -0.1);
+    foreL.rotation.set(-0.7, 0, 0);
+    foreR.rotation.set(-1.1, 0, 0);
+  }
+  const P = (n: string) => pivots.get(n)!;
+  const rig: Rig = {
+    root, body, torso, head, armL, armR, foreL, foreR, handL, handR,
+    legL: P('legL'), legR: P('legR'), kneeL: P('kneeL'), kneeR: P('kneeR'),
+    weapon, muzzle,
+    armorMat: bodyMat, clothMat: bodyMat, glowMat, parts: meshes,
+  };
+  // Nothing geometric is the rig's own (shared templates); the per-bot materials are.
+  root.userData.ownedGeos = [];
+  root.userData.ownedMats = [bodyMat, glowMat];
+  return rig;
 }
 
-/** Light operator (the runner frame; a TDM roster substitutes gunners, so it is rarely seen). Faces +z. */
-function buildLightOperator(team: TeamId, kit: OperatorKit): Rig {
-  const { armorMat, clothMat, glowMat, parts, add, shared } = base(team, kit);
-  const root = new THREE.Group();
-  root.userData.dynamic = true;
-  const body = pivot(root, 0, 0.95, 0);
-  const torso = pivot(body, 0, 0, 0);
-  add(torso, cylGeo(0.2, 0.15, 0.58, 7), clothMat, 0, 0.3, 0);
-  add(torso, boxGeo(0.3, 0.24, 0.09), armorMat, 0, 0.4, 0.1);
-  add(torso, boxGeo(0.28, 0.3, 0.08), armorMat, 0, 0.4, -0.13);
-  for (const sx of [-1, 1]) add(torso, boxGeo(0.14, 0.1, 0.22), armorMat, sx * 0.24, 0.55, 0, 0, 0, sx * -0.25);
-  accents(add, torso, glowMat, 0.22, 0.55, -0.17);
-  const head = pivot(torso, 0, 0.62, 0.02);
-  add(head, boxGeo(0.24, 0.24, 0.26), armorMat, 0, 0.1, 0);
-  add(head, boxGeo(0.2, 0.035, 0.012), glowMat, 0, 0.1, 0.136);
-  const armL = pivot(torso, 0.24, 0.5, 0);
-  const armR = pivot(torso, -0.24, 0.5, 0);
-  const foreL = pivot(armL, 0, -0.32, 0);
-  const foreR = pivot(armR, 0, -0.32, 0);
-  for (const [a, f] of [[armL, foreL], [armR, foreR]] as const) {
-    add(a, boxGeo(0.09, 0.32, 0.09), clothMat, 0, -0.16, 0);
-    add(f, boxGeo(0.08, 0.3, 0.08), clothMat, 0, -0.15, 0);
-    add(f, boxGeo(0.012, 0.45, 0.05), shared.gun, 0, -0.42, 0.03); // blade (dark steel, not lit)
-  }
-  const legL = pivot(body, 0.11, 0, 0);
-  const legR = pivot(body, -0.11, 0, 0);
-  const kneeL = pivot(legL, 0, -0.46, 0);
-  const kneeR = pivot(legR, 0, -0.46, 0);
-  for (const [l, k] of [[legL, kneeL], [legR, kneeR]] as const) {
-    add(l, boxGeo(0.13, 0.46, 0.14), clothMat, 0, -0.23, 0);
-    add(k, boxGeo(0.105, 0.42, 0.11), clothMat, 0, -0.21, 0);
-    add(k, boxGeo(0.12, 0.12, 0.24), shared.boots, 0, -0.43, 0.04);
-  }
-  const tail = pivot(body, 0, 0.6, -0.12);
-  add(tail, boxGeo(0.18, 0.5, 0.02), shared.webbing, 0, -0.25, 0);
-  return mergeRig({ root, body, torso, head, armL, armR, foreL, foreR, legL, legR, kneeL, kneeR, tail, armorMat, clothMat, glowMat, parts });
+/** 22.0: give a merc rig the armory gun it was dealt (its model, its muzzle; the hands follow). */
+export function setRigGun(rig: Rig, id: WeaponId) {
+  const w = rig.weapon;
+  if (!w || !rig.root.userData.ik) return false;
+  const gun = w.children.find((c) => c.userData.gunBody) as THREE.Mesh | undefined;
+  if (gun) gun.geometry = rigGunGeo(id);
+  for (const c of [...w.children]) if (c.userData.gunAccent) w.remove(c);
+  w.userData.gunId = id;
+  w.scale.setScalar(1);
+  rig.muzzle?.position.set(...RIG_GUNS[id].muzzle);
+  w.position.set(...RIG_GUNS[id].hip);
+  return true;
 }
 
 function operators(team: TeamId, kit: OperatorKit): EnemyLook {
   return {
     id: kit === 'night' ? `operator-${team}` : `operator-${kit}-${team}`,
-    buildRunner: () => buildLightOperator(team, kit),
-    buildGunner: () => buildOperator(team, kit),
+    buildRunner: () => buildMerc(team, kit, 'light'),
+    buildGunner: () => buildMerc(team, kit, 'gunner'),
     runnerAccent: SPARK[team],
     gunnerAccent: SPARK[team],
     organic: true,

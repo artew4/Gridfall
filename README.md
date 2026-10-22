@@ -63,6 +63,8 @@ The main menu asks for the mode first, then shows the maps that have it. Type yo
   - **The cost:** you move at 55% speed.
   - **Standing up:** sprinting or jumping stands you up, if there's room overhead.
 - **Slide (C while sprinting):** your sprint carries you along the ground, and friction brings you down to a crouch in about 1.2 s (about 6 m). You drop to crouch height at once and can shoot and aim down sights all the way. Jump out of it to keep the speed.
+- **Friend or foe (22.0):** allies carry a cyan chevron over the head under their name. On Maglev's white hall the teams wear solid colour blocks on their chest rig, shoulder pads and helmet: ice blue for your team, sand-orange for theirs.
+- **The bots hold their guns (22.0):** a procedural low-poly merc rig, both hands on the grips by inverse kinematics, the arms and torso pitching with the aim.
 - **Minimap (TDM):** shows your team, and every enemy anyone on your team can see right now. Each red dot fades 2.5 s after the last sighting.
 
 ## Technical highlights

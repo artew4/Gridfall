@@ -47,14 +47,17 @@ describe('20.0: Maglev Terminal overhaul', () => {
   });
 });
 
-describe('20.0: the corporate kit', () => {
-  it('light gear in the hall\'s own values (the night kit is near black), team accents kept', async () => {
-    const { OPERATOR_KITS } = await import('../../entities/enemies/operators');
-    const luma = (c: { r: number; g: number; b: number }) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-    const night = OPERATOR_KITS.night.alpha.buildGunner(), corp = OPERATOR_KITS.corporate.alpha.buildGunner();
-    expect(luma(night.armorMat!.color)).toBeLessThan(0.05);
-    expect(luma(corp.armorMat!.color)).toBeGreaterThan(0.5);
-    expect(luma(corp.clothMat!.color)).toBeGreaterThan(0.4);
+describe('20.0: the corporate kit (22.0: colour blocks)', () => {
+  it("light gear in the hall's own values (the night kit is near black), team accents kept", async () => {
+    const { OPERATOR_KITS, kitColours } = await import('../../entities/enemies/operators');
+    const { Color } = await import('three');
+    const luma = (hex: number) => {
+      const c = new Color(hex);
+      return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    };
+    expect(luma(kitColours('night', 'alpha').armor)).toBeLessThan(0.05);
+    expect(luma(kitColours('corporate', 'alpha').armor)).toBeGreaterThan(0.5);
+    expect(luma(kitColours('corporate', 'alpha').cloth)).toBeGreaterThan(0.4);
     // Both teams keep their accent hue (cyan-blue for ALPHA, red-orange for OMEGA).
     const a = (OPERATOR_KITS.corporate.alpha.buildGunner().glowMat as { color: { r: number; b: number } }).color;
     const o = (OPERATOR_KITS.corporate.omega.buildGunner().glowMat as { color: { r: number; b: number } }).color;

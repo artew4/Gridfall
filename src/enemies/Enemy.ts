@@ -15,6 +15,10 @@ import { unitOf } from '../combat/PlayerUnit';
 import { choose, type Option } from './tactics/Utility';
 import { evaluateCover, isProtected } from './tactics/Cover';
 import type { ArenaCtx } from './arena/ArenaCtx';
+import { solveArm, type ArmChain } from './RigIK';
+import { ARM } from '../entities/enemies/operators';
+import { RIG_GUNS, gripTargets, holdPose } from '../entities/enemies/rigGuns';
+import type { WeaponId } from '../entities/weapons/armory';
 
 export interface EnemyCtx {
   scene: THREE.Scene;
@@ -579,6 +583,10 @@ export abstract class Enemy implements Combatant {
 */
 const _eye = new THREE.Vector3();
 const _head = new THREE.Vector3();
+const _gGrip = new THREE.Vector3();
+const _gFore = new THREE.Vector3();
+const _gGripQ = new THREE.Quaternion();
+const _gForeQ = new THREE.Quaternion();
 const _cand: { h: Combatant; s: number }[] = [];
 const _fc = new THREE.Vector3();
 /** A gunner with a cover picked keeps to it (and peeks from it) this long after the last news of him. */
@@ -1151,6 +1159,10 @@ export class Gunner extends TacticalEnemy {
   isAiming = false;
   aimRaise = 0;
   private gunPose: { hip: THREE.Vector3; eye: THREE.Vector3; armsHip: number[]; armsEye: number[] } | null = null;
+  /** 22.0: the merc rig's arm chains (the hands on the gun by IK), and the gun pose last solved for. */
+  private grip: { R: ArmChain; L: ArmChain; last: number[] } | null = null;
+  /** 22.0: the gun's recoil back along the barrel (m); the hands ride it. */
+  gunKick = 0;
 
   constructor(spawn: THREE.Vector3, difficulty: number, scene: THREE.Scene, perch: THREE.Vector3 | null = null, look: EnemyLook = NEON_SYNTHS) {
     super(look.buildGunner(), 150, spawn, 'gunner', look);
@@ -1176,6 +1188,14 @@ export class Gunner extends TacticalEnemy {
         eye: new THREE.Vector3(-0.07, h.y - 0.11, h.z + 0.34),
         armsHip: [r.armL.rotation.x, r.foreL.rotation.x, r.armR.rotation.x, r.foreR.rotation.x],
         armsEye: [r.armL.rotation.x - 0.55, r.foreL.rotation.x + 0.25, r.armR.rotation.x - 0.65, r.foreR.rotation.x + 0.15],
+      };
+    }
+    // 22.0: a merc rig holds its gun with both hands (RigIK), elbows down and out.
+    if (r.root.userData.ik && r.handL && r.handR) {
+      this.grip = {
+        R: { arm: r.armR, fore: r.foreR, hand: r.handR, upper: ARM.upper, lower: ARM.lower, pole: new THREE.Vector3(-0.6, -1, -0.3) },
+        L: { arm: r.armL, fore: r.foreL, hand: r.handL, upper: ARM.upper, lower: ARM.lower, pole: new THREE.Vector3(0.5, -1, -0.1) },
+        last: [NaN, 0, 0, 0, 0],
       };
     }
     if (perch) {
@@ -1609,6 +1629,10 @@ export class Gunner extends TacticalEnemy {
     // 11.0: raise or lower the rifle (≈0.15 s to 90%).
     if (!this.isArena) this.isAiming = aiming;
     this.aimRaise = damp(this.aimRaise, this.isAiming ? 1 : 0, 15, dt);
+    if (this.grip && r.weapon) {
+      this.holdGun(dt, aiming ? pitch : null);
+      return;
+    }
     const gp = this.gunPose;
     if (gp && r.weapon) {
       const e = this.aimRaise;
@@ -1618,6 +1642,38 @@ export class Gunner extends TacticalEnemy {
       r.armR.rotation.x = gp.armsHip[2] + (gp.armsEye[2] - gp.armsHip[2]) * e;
       r.foreR.rotation.x = gp.armsHip[3] + (gp.armsEye[3] - gp.armsHip[3]) * e;
     }
+  }
+
+  /**
+   * 22.0: the gun held in both hands. The pose is built in torso space, where the arms live:
+   *  - bladed: the torso turns `blade` to its right, the gun and the head turn back, so the gun points
+   *    where the body does and the support shoulder comes forward;
+   *  - the grip between the hip hold and the aimed hold (the sight line through the eye) by aimRaise,
+   *    kicked back along the barrel by recoil; the torso carries 80% of the aim's pitch, the gun the
+   *    rest, so the arms pitch with the gun, never through it;
+   *  - both hands put on the gun's grips by two-bone IK, only when the gun moved in torso space (hip
+   *    fire and a held aim are steady: most frames reuse the last solve).
+   */
+  private holdGun(dt: number, aimPitch: number | null) {
+    const r = this.rig, w = r.weapon!, g = this.grip!;
+    const id = (w.userData.gunId ?? 'ar') as WeaponId;
+    const s = RIG_GUNS[id];
+    r.torso.rotation.y = -s.blade;
+    r.head.rotation.y += s.blade;
+    this.gunKick = this.gunKick > 1e-4 ? damp(this.gunKick, 0, 18, dt) : 0;
+    const resid = aimPitch === null ? 0 : (aimPitch - r.torso.rotation.x) * this.aimRaise;
+    holdPose(id, r.head.position, this.aimRaise, this.gunKick, resid, w.position, w.rotation);
+    // Solve only when the gun moved relative to the torso (or another gun was dealt).
+    const L = g.last, p = w.position;
+    if (Math.abs(L[0] - p.x) < 1e-4 && Math.abs(L[1] - p.y) < 1e-4 && Math.abs(L[2] - p.z) < 1e-4 && Math.abs(L[3] - resid) < 1e-4 && L[4] === s.rake + s.blade) return;
+    L[0] = p.x;
+    L[1] = p.y;
+    L[2] = p.z;
+    L[3] = resid;
+    L[4] = s.rake + s.blade;
+    gripTargets(id, p, w.quaternion, _gGrip, _gFore, _gGripQ, _gForeQ);
+    solveArm(g.R, _gGrip, _gGripQ);
+    solveArm(g.L, _gFore, _gForeQ);
   }
 
   /** False for survival gunners (they aim in their aim and fire phases); the arena body overrides it. */

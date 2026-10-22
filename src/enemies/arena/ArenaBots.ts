@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { setRigGun } from '../../entities/enemies/operators';
 import { Gunner, Runner, type EnemyCtx } from '../Enemy';
 import type { EnemyLook } from '../../entities/types';
 import { ARMORY, type BotArm } from '../../entities/weapons/armory';
@@ -78,7 +79,8 @@ export class ArenaGunner extends Gunner implements ArenaBody {
     super(spawn, difficulty, scene, null, look);
     this.brain = new DeathmatchBrain(this);
     this.tac.ammo = arm.mag;
-    this.rig.weapon?.scale.set(arm.model.bulk, arm.model.bulk, arm.model.length);
+    // 22.0: a merc rig gets the gun's own model (the hands find its grips); an older rig stretches its rifle.
+    if (!setRigGun(this.rig, arm.id)) this.rig.weapon?.scale.set(arm.model.bulk, arm.model.bulk, arm.model.length);
   }
 
   get airborne() {
@@ -192,6 +194,8 @@ export class ArenaGunner extends Gunner implements ArenaBody {
     const [cr, cg, cb] = arm.bolt.core;
     ctx.fx.add.spawn({ x: muzzle.x, y: muzzle.y, z: muzzle.z, r: cr * 1.2, g: cg * 1.2, b: cb * 1.2, size: arm.pellets > 1 ? 0.65 : 0.45, life: 0.06 });
     this.leanX.impulse(-1.2);
+    // 22.0: the gun kicks back along the barrel (the hands ride it): a shell's more than a round's.
+    this.gunKick = Math.min(0.07, this.gunKick + (arm.pellets > 1 ? 0.06 : arm.id === 'pistol' ? 0.035 : 0.02));
     this.tac.ammo = this.brain.ammo - 1;
     return 'fired';
   }

@@ -1258,8 +1258,41 @@ Each map leans its own way: the close-quarters hall favours the shotgun, the ope
 - `__dev.gunCycle(5)` (every gun in every finish): geometries, textures and programs flat. `leakcheck.mjs 2 desert,docks,maglev`: 0 alive. `stagecheck.mjs 4`: 0 alive.
 - Tests 263 (+9: the balance arithmetic, the themes, the four-gun armory).
 
+## 22.0: character rigs, weapon-grip IK, friend or foe on Maglev
+
+Branch `feature/character-rigs-22.0`, from `main` @ `d8833ae` (21.0: already merged and pushed when the brief asked to deploy it). Full numbers: `docs/BENCH-22.0.json`.
+
+### Friend or foe
+- **Colour blocks:** on the corporate kit (Maglev), the chest rig, the shoulder pads and the helmet are solid pale team colour: ice blue (ALPHA), sand-orange (OMEGA). The base armour stays white. The night kit gets the same blocks, deep and muted.
+- **Ally chevrons:** the ally name tags gain a chevron right over the head, cyan on a dark outline so it reads on white, drawn without a CSS filter. Allies only.
+- **The look holds:** `camo()` brightness contrast against the hall 0.01–0.17 (20.0: 0.05–0.16). The teams differ by hue, not brightness.
+
+### The Cyber-Merc rig (`operators.ts`)
+- **Hierarchy:** pelvis → torso → head, upper arm → forearm → hand, thigh → shin. The armour is tapered boxes: trapezoid chest plates, angular shoulder pads, an angled helmet and visor.
+- **Cheaper to draw:** one body material per bot with vertex colours (armour, cloth, team blocks, webbing, boots), plus glow, visor and gun. At most 20 draw calls a bot, against about 26 for the 14.0 operator.
+- **Cheaper to spawn:** each pivot's merged geometry is built once per kit and team and shared, so a respawn merges nothing (3 of 28 rigs merged in a bench).
+- **The bots' guns** (`rigGuns.ts`): one low-poly model per armory gun (replacing the stretched rifle box), with a muzzle, two grip points, the pistol grip's rake, a hip hold, an aimed hold (the sight line through the eye) and a blade angle.
+
+### Hands on the gun (`RigIK.ts`, `Gunner.holdGun`)
+- **Two-bone IK in closed form** (law of cosines plus a pole vector) puts the trigger hand on the grip and the support hand on the fore-end, and turns the fists to the gun.
+- **Solved in torso space,** where the gun lives: no world matrices, and torso pitch carries gun and arms together. The torso takes 80% of the aim's pitch, the gun the rest.
+- **Bladed stance:** the torso turns to its right and the gun turns back, so the support hand reaches the fore-end.
+- **Recoil** pushes the gun back along the barrel and the hands ride it.
+- **Cached:** the solve runs only when the gun moved relative to the torso. A bench: 4.2 solves a frame (of 26 possible), 0.8 µs for a pose plus two solves.
+
+### CPU impact
+- `tdmBench` 7v7 with the player, Maglev, A/B against 21.0 in the same tab, twice each: CPU 2.27 / 2.24 ms (21.0) → 2.13 / 2.07 ms (22.0); draw calls 454 / 401 → 335 / 376; 60 FPS. The IK costs about 0.002 ms a frame; the shared, single-material rigs save more than that.
+- `bench(3)` Maglev, Balanced: 60 FPS in all 12 views, CPU 2.0–2.8 ms, GPU 5.6–6.4 ms.
+
+### Validation
+- **Tests:** 270 (+7): the IK (800 random targets to 0.1 mm, out of reach, hand orientation); every gun's grips reachable at the hip and aimed, pitched and on recoil; the hierarchy; shared geometry and the draw-call budget; the team blocks' hues.
+- **Self-play on Maglev:** 31–33 kills a minute, 0 stuck. `leakcheck.mjs 2 desert,docks,maglev`: 0 alive.
+- **Not fixed:** `friendlyFire()` fails on Maglev on 21.0 and 22.0 alike (its fixed positions are the desert's); it passes on the desert.
+- **No third-person player body:** the player is first person and his viewmodel already has hands, so the new rig is the bots'.
+
 ## Next
 Human playtest:
+- 22.0 items: can you tell friend from foe at a glance on Maglev now (the ice-blue and sand blocks, the chevrons); do the bots look like they hold their guns (the hands, the bladed stance, the aimed hold); the new silhouettes at 20–40 m.
 - 21.0 items: the four guns (does the pistol feel like a mobility gun or a peashooter; is the SMG's climb fun or annoying; does one shotgun shell feel fair to die to; is the rifle's wide hip fire too punishing), the finishes (the white Maglev guns in the bright hall, camo on the military maps), the sounds (the shotgun's cannon, the SMG's buzz).
 - 20.0 items: Maglev Terminal (is it still a sniper gallery anywhere; are the white operators fair to find or too hidden; do the platforms' chicanes give mid-range fights; does the zig-zag train still play as the shotgun lane); the bots (do they really dive for cover when you snipe them, or just jitter).
 - 19.0 items: Crash Site at 7v7 (is it constant action or chaos; do forward respawns feel fair or like spawning into fights; the undercroft, the hull and the shrine: do the three levels read; is the undergrowth too thick to see bots through), the jungle bots (do shotgun and SMG bots really come at you from cover).

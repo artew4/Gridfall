@@ -109,12 +109,14 @@ export class TdmHud {
       seen.add(a);
       let t = this.tagEls.get(a);
       if (!t) {
-        const e = el('div', 'tdm-tag', `<span>${a.name}</span><i><b></b></i>`);
+        // 22.0: a chevron under the name and health, pointing down at the head (allies only).
+        const e = el('div', 'tdm-tag', `<span>${a.name}</span><i><b></b></i><u></u>`);
         this.tags.appendChild(e);
         t = { el: e, hp: e.querySelector('b')! };
         this.tagEls.set(a, t);
       }
-      _p.set(a.pos.x, a.pos.y + 2.25, a.pos.z);
+      // 22.0: the tag's foot (the chevron's tip) just over the helmet.
+      _p.set(a.pos.x, a.pos.y + 2.12, a.pos.z);
       const d = _p.distanceTo(cam.position);
       _p.project(cam);
       if (_p.z > 1 || d > 120) {
