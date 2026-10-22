@@ -91,6 +91,32 @@ export const ROOF_LANE: { south: (Way3 | [number, number])[]; north: (Way3 | [nu
 };
 
 /**
+ * 28.0, the outer flanks' lanes (5, 6), past the hamlet and the wadi, near the cliffs. The west one
+ * (south frame): out of the west exit, along the outer dunes into the trench's north ramp, down the
+ * trench (round its traverses), out at its south ramp, past the wrecked convoy (the rotated east-side
+ * convoy) and back in towards the other base. The east one is its rotation, walked the other way.
+ */
+const OUTER_WEST: [number, number][] = [
+  [-17, 53], [-32, 55], [-48, 56], [-63, 53], [-74.8, 52], [-75, 46], [-74.1, 39], [-75, 33], [-75.9, 27], [-75, 21], [-74.1, 15], [-75, 9],
+  [-76, -4], [-71, -12], [-71, -26], [-71, -40], [-64, -52], [-48, -56], [-30, -50],
+];
+export const OUTER_LANES_SOUTH: [number, number][][] = [OUTER_WEST, OUTER_WEST.map(([x, z]) => rot(x, z)).reverse()];
+export const OUTER_LANES_NORTH: [number, number][][] = OUTER_LANES_SOUTH.map((l) => l.map(([x, z]) => rot(x, z)));
+
+/**
+ * 28.0, the outer flanks' pieces (south half; each is built again rotated): the trench's traverses,
+ * the two rock outcrops (top `h` m over the highest sand under them, a ramp up one end), the convoy.
+ */
+export const OUTER = {
+  traverses: [{ z: 15, x0: -76.8, x1: -75 }, { z: 27, x0: -75, x1: -73.2 }, { z: 39, x0: -76.8, x1: -75 }],
+  anvil: { x0: -84, z0: 22, x1: -78, z1: 31, h: 3.8, ramp: { x0: -83, x1: -79.5, z1: 38 } },
+  spine: { x0: 77, z0: 46, x1: 83, z1: 53, h: 3.4, ramp: { x0: 78, x1: 81.5, z1: 39 } },
+  truck: { x0: 74, x1: 76.4, cab: [8, 10.4], bed: [10.4, 16.4] },
+  apc: { x0: 77, z0: 22, x1: 80, z1: 28 },
+  bus: { x0: 73.5, z0: 31, x1: 76.1, z1: 41, h: 2.9 },
+};
+
+/**
  * Places the old random dune scatter (rocks, brush) must keep clear of: the arena's structures
  * (south half; the check rotates the point). Rects x0, z0, x1, z1.
  */
@@ -103,6 +129,9 @@ const KEEP_OUT_SOUTH: [number, number, number, number][] = [
   [-16, 29, 13, 50],
   // The pump houses on the flanks (both, since x is its own pair).
   [-66, -6, -54, 6],
+  // 28.0: the outer flanks (the trench and the anvil west, the convoy and the spine east).
+  [-89, 2, -64, 54],
+  [64, 2, 89, 56],
 ];
 
 export function arenaKeepOut(x: number, z: number, r = 0) {

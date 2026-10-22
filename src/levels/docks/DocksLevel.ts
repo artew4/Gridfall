@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildDocks, type DocksResult } from './Docks';
-import { BASE, QUAY_X, inBase, lanesOf } from './DocksLayout';
+import { BARGES, BASE, DEPOT, QUAY_X, SPAWN_PADS, WEST_X, inBase, lanesOf } from './DocksLayout';
 import { DesertIntro } from '../desert/DesertIntro';
 import { Rain } from '../../world/Rain';
 import { ReflectionCatchers } from '../../world/ReflectionCatchers';
@@ -96,7 +96,7 @@ export class DocksLevel implements LevelRuntime {
     const start = { x: 0, z: 72, yaw: 0, y: 0 };
     this.data = {
       start,
-      bounds: new THREE.Box2(new THREE.Vector2(-57, -BASE.z1 - 2), new THREE.Vector2(QUAY_X + 2, BASE.z1 + 2)),
+      bounds: new THREE.Box2(new THREE.Vector2(WEST_X - 3, -BASE.z1 - 2), new THREE.Vector2(BARGES.hulls[0].x1 + 3, BASE.z1 + 2)),
       floorMin: -1,
       nav: d.nav,
       // No survival on the docks: these are only for the DEV nav checks (spawn → every goal).
@@ -111,12 +111,25 @@ export class DocksLevel implements LevelRuntime {
       tdm: {
         spawns: d.spawns,
         lanes: { alpha: lanesOf('alpha'), omega: lanesOf('omega') },
+        // 28.0: spawn pads anywhere on the map (SpawnManager); the yards stay for the 'bases' A/B.
+        pads: SPAWN_PADS,
+        // 28.0: the quay and the barges are long open lines: pressure from a little further off.
+        spawnTuning: { near: 50, hardMin: 20, sight: 80 },
         inBase: (team, p) => inBase(p, team),
         start,
         // 15.0: the containers (west), the warehouse and its alley (centre), the quay (east); the
         // yards and the walls in front of them are no lane.
         laneOf: (x, _y, z) => (Math.abs(z) > 52 ? null : x < -16 ? 0 : x > 16 ? 2 : 1),
         laneNames: ['containers', 'warehouse', 'waterfront'],
+        // 28.0: the outer edges: the outer container rows (west of the maze's last column) and the
+        // waterfront's outer strip (the quay edge and, past it, the barges).
+        edgeOf: (x, _y, z) => Math.abs(z) <= 58 && (x < -46 || x > 38),
+        // 28.0: the edges' high-value areas for the patrols (the pads and lanes are added to these):
+        // the depot's alleys and its perch, each barge, the middle pontoon.
+        hvas: [
+          ...[[-66.6, 0, 12], [-61, 0, 24], [-64, DEPOT.stack.top, 17.8], [-55.4, 0, 40], [51.9, BARGES.deck, 14], [51.9, BARGES.deck, 40], [51.5, BARGES.pontoon, 31]].flatMap(([x, y, z]) => [new THREE.Vector3(x, y, z), new THREE.Vector3(x, y, -z)]),
+          new THREE.Vector3(51.5, BARGES.pontoon, 0),
+        ],
       },
     };
   }
@@ -150,17 +163,21 @@ export class DocksLevel implements LevelRuntime {
     this.drown();
   }
 
-  /** Backstop behind the quay fence: anything in the harbour drowns. */
+  /**
+   * Anything in the harbour drowns. 28.0: in it means below the quay past its edge (the barges and
+   * pontoons are past the edge too, above the water).
+   */
   private drown() {
     const game = this.game;
     const edge = QUAY_X + 0.4;
-    if (game.player.alive && game.player.pos.x > edge) {
+    const wet = (p: THREE.Vector3) => p.x > edge && p.y < -0.8;
+    if (game.player.alive && wet(game.player.pos)) {
       this.drowned++;
       game.ctx.damagePlayer(1000, game.player.pos.clone());
     }
     if (game.mode !== 'tdm') return;
     for (const b of game.tdm.bots) {
-      if (b.alive && b.pos.x > edge) {
+      if (b.alive && wet(b.pos)) {
         this.drowned++;
         b.hurt(10000, b.pos.clone(), null);
       }

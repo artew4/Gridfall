@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { SPAWN, SpawnManager, laneNeed, mirrorPads, sideOf, spread, type SpawnPad } from './SpawnManager';
+import { SPAWN, SpawnManager, laneNeed, mirrorPads, rotatePads, sideOf, spread, type SpawnPad } from './SpawnManager';
 
 const v = (x: number, z: number, y = 0) => new THREE.Vector3(x, y, z);
 const pad = (id: number, x: number, z: number, side: SpawnPad['side'] = null): SpawnPad => ({ id, pos: v(x, z), yaw: 0, side });
@@ -162,3 +162,21 @@ describe('27.0 lanes and mirrored pads', () => {
     expect(m.pick('alpha', [], [], 100, undefined, [1, 0, -1]).pad.id).toBe(0);
   });
 });
+
+describe('28.0 point-symmetric pads and per-map weights', () => {
+  it('rotatePads: ALPHA\'s half and its 180° rotation, facing turned round', () => {
+    const all = rotatePads([[10, 1, 20, 0.5]]);
+    expect(all[1].slice(0, 3)).toEqual([-10, 1, -20]);
+    expect(Math.sin(all[1][3])).toBeCloseTo(-Math.sin(0.5), 2);
+    expect(Math.cos(all[1][3])).toBeCloseTo(-Math.cos(0.5), 2);
+  });
+
+  it('a map\'s tuning overrides the weights: a pad 20 m off is fine by default, too close on the dunes', () => {
+    const pads = [pad(0, 0, 0), pad(1, 0, 200)];
+    expect(new SpawnManager(pads, open, fixed).cheap(pads[0], 'alpha', [{ pos: v(0, 20) }], [], 0).s).toBeGreaterThan(-Infinity);
+    const dunes = new SpawnManager(pads, open, fixed, { hardMin: 24 });
+    expect(dunes.S.hardMin).toBe(24);
+    expect(dunes.cheap(pads[0], 'alpha', [{ pos: v(0, 20) }], [], 0).s).toBe(-Infinity);
+  });
+});
+

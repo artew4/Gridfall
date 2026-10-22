@@ -1474,8 +1474,50 @@ Branch `feature/dynamic-spawns-27.0`, from `main` @ `4916435` (26.0, merged and 
 - Tests 336 (+25: the scorer, the opening, lanes and mirroring; the director's patrol).
 - `tdmSim` gains `spawns` (A/B), `spawnSafety`, `flow` and `patrol`; `__dev.spawnPads`, `spawnPadReport`, `spawnPadPlan`.
 
+## 28.0: Desert and Neon Docks, flanks rebuilt, dynamic spawns
+
+Branch `feature/docks-desert-spawns-28.0`, from `main` @ `b2f1b14` (27.0, merged and live). Full numbers: `docs/BENCH-28.0.json`.
+
+### Desert: the outer flanks (|x| 64 … 89, by the cliffs; authored once, rotated)
+- **The trench (west, south half):** 46 m long, 3.6 m wide, 1.3 m deep, cut into the heightfield (vertical sides like the culvert's) and lined with sandbag revetments a little over the sand; ramped out at both ends and through a side notch; three traverses on alternate sides (1.8 m gaps) so nobody shoots down its length.
+- **The Anvil (west) and the Spine (east):** rock outcrops 3.8 and 3.4 m over the sand, a ramp up one end, boulders on the faces and on top. From their tops (eye 8.5–9.1 m) 41–50 of 50 points on the compound's roofs are in sight at 57–123 m (the hamlet ruin: 0).
+- **The convoy (east):** a wrecked truck with its load, an APC on its side, a burnt-out bus you go through (side door, tail, windows).
+- Two new director lanes per team (the outer flanks) and three report lanes (`laneOf`); the terrain test exempts the trench's sides and tests its floor (< 0.55).
+
+### Neon Docks: wider at both edges
+- **The old depot (x −68 … −54, the west wall moved out 14 m):** broken container lines, cross pieces closing corridors into dead ends, a two-high sniper stack up a steel stair.
+- **The barges (x 49 … 56):** two per half, gangways through the fence, pontoons joining them into one route on the water from end to end, cargo for cover; the harbour is holes in the ground now (fall in and drown: below the quay, past its edge).
+- Two new director lanes (the depot, the barges).
+
+### Dynamic spawns on both maps
+- 14 pads each (the Desert's rotated, the Docks' mirrored); the scorer's weights per map (`TdmData.spawnTuning`: the dunes 60 m pressure, 24 m minimum, sight to 80 m; the docks 50 / 20 / 80).
+- Patrols get the new areas too (`TdmData.hvas`: the depot's alleys and perch, each barge, the outcrops' tops, the bus).
+
+### Measured (7v7, 50 tickets, self-play; the 27.0 game in brackets)
+| | Desert | Neon Docks |
+|---|---|---|
+| combat time on the edges (outer flanks) | 38.9% (0.85%) | 28.2% (3.5%) |
+| kills on the edges | 38.4% (0.55%) | 26.9% (3.9%) |
+| time in the new zones only / kills there | 16.6% / 4.8% | 15.7% / 9.5% |
+| combat in the new geometry (x bands) | 11.8% | ≥ 4.4% (bands coarser than the depot) |
+| kill Gini | 0.887 (0.930) | 0.828 (0.827) |
+| kills in the busiest 10% of cells | 78% (98%) | 63% (64%) |
+| cells visited | 62% (38%) | 84% (81%) |
+| kills a minute / quiet seconds | 26.3 (25.2) / 13.4% (17.8%) | 27.1 (23.6) / 15.1% (23.1%) |
+| deaths within 3 s / 5 s of a respawn | 0 / 5 of 368 (yards 0 / 0) | 0 / 1 of 370 (0 / 0) |
+| shot within 3 s (spawn protection absorbs it) | 1.9% (0%) | 3.8% (0%) |
+
+- **Met:** the edges (the outer flanks as a whole) take 39% and 28% of the combat, from almost none.
+- **Not met:** only the newly built geometry is 12–17% of the time on the Desert and 16% on the Docks, and much less of the kills (5%, 10%): bots cross it more than they fight in it. The Docks' kill Gini didn't move.
+- **Weather (the Desert):** at the storm's peak (sight 24.5 m) the pads stay safe (0 deaths within 3 s, shot within 3 s 1.5%) and the edges still take 31% of the combat; the yards in a storm 2.4%. The outcrops' sightlines to the roofs exist only in calm air, and the cycle is calm 8–14 s of every ~100–140 s.
+
+### Performance
+- `bench(3)` with new views (the depot, the sniper stack, the barges; the trench, the Anvil's top, the convoy): 60 FPS in every view of both maps, CPU 1.6–2.7 ms, GPU 4.8–6.4 ms.
+- `leakcheck.mjs 2 docks,desert,oldport`: 0 alive. Tests 343 (+6).
+
 ## Next
 Human playtest:
+- 28.0 items: the Desert's outer flanks (does the trench feel like a route or a trap; the Anvil and the Spine as perches: too strong in calm air?); the storm (is spawning in the dunes in a storm fair; should calm last longer so the outer perches matter?); Neon Docks' depot (dead ends: fun or annoying) and the barges (does anyone go out on the water; falling in).
 - 27.0 items: the spawn pads (do you notice them, does the flash read as "someone just spawned there"; is spawning next to a teammate good or confusing); spawn safety in your own play (killed right after spawning? spawned looking at a wall?); do matches feel like they happen all over the map, or aimless (bots wandering); Maglev's train still a shotgun lane?
 - 26.0 items: the three-corner HUD (is the team board in the way top left, is the score readable at a glance, does your gold row help); the reloads with headphones (does the pistol sound like a pistol, the SMG zip, the rifle's weight, the shotgun's shells and pump; is any too loud against the gunshots).
 - 25.0 items: Neon Block's fog (does it read as fog or as darkness; is 13 m too short for the street, too long; do the roofs feel like the place to snipe from); the new jungle and desert music (listen: no more siren? does the desert sound Arabic, or like a cliché?).

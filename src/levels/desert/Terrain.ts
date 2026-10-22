@@ -35,6 +35,30 @@ export function culvertFloor(x: number, z: number): number | null {
   return (C.floor * (C.top - ax)) / (C.top - C.roof);
 }
 
+/**
+ * 28.0, the trench on the outer west flank (south half; its rotation is on the east flank in the north
+ * half): `x0..x1` wide, `z0..z1` long, `depth` m down from the dunes, ramped up to the sand over `ramp`
+ * m at both ends, with a side notch out to the east (the notch's floor rises to the sand over its
+ * length). Its sides are vertical (the terrain is cut, as the culvert is) and lined with revetments
+ * (Arena.ts); its floor follows the dunes' own rise and fall.
+ */
+export const TRENCH = { x0: -76.8, x1: -73.2, z0: 4, z1: 50, depth: 1.3, ramp: 6, notch: { z0: 33, z1: 35, x1: -68.5 } };
+
+/** How far the trench cuts the sand at (x, z) (0 outside it), in the south-half frame. */
+function trenchCut(x: number, z: number) {
+  const T = TRENCH;
+  let d = 0;
+  if (x > T.x0 && x < T.x1 && z > T.z0 && z < T.z1) d = T.depth * Math.min(1, (z - T.z0) / T.ramp, (T.z1 - z) / T.ramp);
+  const N = T.notch;
+  if (x >= T.x1 && x < N.x1 && z > N.z0 && z < N.z1) d = Math.max(d, (T.depth * (N.x1 - x)) / (N.x1 - T.x1));
+  return d;
+}
+
+/** 28.0: the trench's cut at (x, z), point-symmetric (0 outside both trenches). */
+export function trenchDepth(x: number, z: number) {
+  return trenchCut(x, z) || trenchCut(-x, -z);
+}
+
 /** Smooth, deterministic 2D value noise in 0..1. */
 function hash(ix: number, iz: number) {
   let h = Math.imul(ix, 374761393) + Math.imul(iz, 668265263);
@@ -79,7 +103,8 @@ export function desertHeight(x: number, z: number): number {
   // Each base stands on a flat pad that blends back into the dunes.
   const k = basePad(x, z);
   if (k > 0) h += (BASE.y - h) * k;
-  return h;
+  // 28.0: the outer flanks' trenches.
+  return h - trenchDepth(x, z);
 }
 
 /** 1 on a base's pad, falling to 0 over BASE.pad.fall metres outside it. */

@@ -125,6 +125,20 @@ async function benchDesert(game: Game, dev: Dev, m: (name: string) => Promise<vo
   dev.tp(50, 2, 40, 0, 0);
   dev.look(0, 2, 0);
   await m('dunesStorm');
+  // 28.0: the outer flanks, in calm air (the long views): down the trench, from the Anvil's top over
+  // the hamlet to the compound's roofs, the wrecked convoy.
+  desert.storm.clock.set('calm', 0.06);
+  const H = (x: number, z: number) => game.col.terrain?.height(x, z) ?? 0;
+  dev.tp(-75, H(-75, 8), 8, 0, 0);
+  dev.look(-75, H(-75, 40) + 1, 40);
+  await m('trench');
+  dev.tp(-81, H(-81, 26.5) + 4.2, 26.5, 0, 0);
+  dev.look(-16, 3.5, 12);
+  await m('anvilTop');
+  dev.tp(68, H(68, 12), 12, 0, 0);
+  dev.look(76, 1.5, 40);
+  await m('convoy');
+  desert.storm.clock.set('peak', 1);
   // A wave in the dust: enemies spawned around and closing in.
   dev.tp(0, 0, 8, 0, 0);
   dev.look(0, 1.5, -10);
@@ -387,6 +401,10 @@ async function benchDocks(game: Game, dev: Dev, m: (name: string) => Promise<voi
     ['quayGantry', [19.2, 6.5, 26], [0, 2, -10]],
     ['craneNest', [21.3, 6.5, 0], [-6, 1, 6]],
     ['containerGantry', [-45, 2.6, 30], [-40, 1, -20]],
+    // 28.0: the old depot (its alley, its sniper stack over the maze) and the barges.
+    ['depot', [-66.6, 0, 46], [-60, 1.5, 0]],
+    ['sniperStack', [-64, 5.2, 16], [-30, 1, -10]],
+    ['barges', [51.9, -0.2, 50], [51.9, 0.5, -30]],
   ];
   for (const [name, p, l] of views) {
     dev.tp(p[0], p[1], p[2], 0, 0);

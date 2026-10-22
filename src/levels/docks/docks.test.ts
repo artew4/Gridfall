@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { BASE, CG, EXITS, QG, QUAY_X, WEST_X, WH, inBase, lanesOf, spawnsOf, stackColor, zoneAt } from './DocksLayout';
+import { BARGES, BASE, CG, CONT, DEPOT, EXITS, MAZE_WEST, QG, QUAY_X, WEST_X, WH, inBase, lanesOf, spawnsOf, stackColor, zoneAt } from './DocksLayout';
 
 describe('Neon Docks layout', () => {
   it('three lanes per team: containers (over the gantry), warehouse, waterfront (the quay, through the crane nest); OMEGA\'s mirrored and reversed', () => {
     const a = lanesOf('alpha'), o = lanesOf('omega');
-    expect(a.length).toBe(3);
+    // 28.0: and the two edges after them (the old depot, the barges).
+    expect(a.length).toBe(5);
     const mid = (L: { x: number; y: number; z: number }[]) => L.filter((p) => Math.abs(p.z) < 40);
     expect(Math.max(...mid(a[0]).map((p) => p.x))).toBeLessThan(-30);
     expect(mid(a[1]).every((p) => Math.abs(p.x) < 14)).toBe(true);
@@ -13,6 +14,10 @@ describe('Neon Docks layout', () => {
     expect(mid(a[0]).filter((p) => p.y > 2).length).toBeGreaterThanOrEqual(4);
     expect(mid(a[2]).filter((p) => p.y > 6).length).toBeGreaterThanOrEqual(1);
     for (let i = 0; i < 3; i++) expect(o[i].map((p) => [p.x, p.z, p.y])).toEqual(a[2 - i].map((p) => [p.x, -p.z, p.y]));
+    for (let i = 3; i < 5; i++) expect(o[i].map((p) => [p.x, p.z, p.y])).toEqual(a[7 - i].map((p) => [p.x, -p.z, p.y]));
+    // 28.0: the edges run outside the old map: west of the maze, out on the water.
+    expect(Math.max(...mid(a[3]).map((p) => p.x))).toBeLessThan(MAZE_WEST);
+    expect(Math.min(...mid(a[4]).map((p) => p.x))).toBeGreaterThan(QUAY_X + 2);
   });
 
   it('15.0: the yards open only to the flanks (no centre exit), the warehouse is roofless and 7 m', () => {
@@ -33,7 +38,8 @@ describe('Neon Docks layout', () => {
         for (const p of L) {
           expect(inBase(p, t === 'alpha' ? 'omega' : 'alpha')).toBe(false);
           expect(p.x).toBeGreaterThan(WEST_X);
-          expect(p.x).toBeLessThan(QUAY_X);
+          // 28.0: the barges' lane runs past the quay, on the decks.
+          expect(p.x).toBeLessThan(BARGES.hulls[0].x1);
         }
       }
     }
@@ -61,5 +67,30 @@ describe('Neon Docks layout', () => {
     expect(zoneAt(0, 0, 70)?.name).toBe('ALPHA SPAWN');
     expect(zoneAt(0, 0, -70)?.name).toBe('OMEGA SPAWN');
     for (const t of ['alpha', 'omega'] as const) for (const L of lanesOf(t)) for (const p of L) expect(zoneAt(p.x, 0, p.z)).not.toBeNull();
+  });
+});
+
+describe('28.0: the wider docks', () => {
+  it('the barges make one route on the water: hull, pontoon, hull … end to end, below the quay', () => {
+    const spans: [number, number][] = [];
+    for (const h of BARGES.hulls) spans.push([h.z0, h.z1], [-h.z1, -h.z0]);
+    for (const p of BARGES.pontoons) spans.push([p.z0, p.z1], [-p.z1, -p.z0]);
+    spans.push([BARGES.middle.z0, BARGES.middle.z1]);
+    spans.sort((a, b) => a[0] - b[0]);
+    for (let i = 1; i < spans.length; i++) expect(spans[i][0]).toBeCloseTo(spans[i - 1][1], 5);
+    expect(BARGES.deck).toBeLessThan(0);
+    expect(BARGES.hulls.every((h) => h.x0 > QUAY_X + 2)).toBe(true);
+    // Every hull has a gangway to the quay inside its length.
+    for (const h of BARGES.hulls) expect(BARGES.gangways.some((g) => g.z0 > h.z0 && g.z1 < h.z1)).toBe(true);
+  });
+
+  it("the old depot lies west of the maze's old wall; the sniper stack is two containers up", () => {
+    expect(WEST_X).toBeLessThan(MAZE_WEST - 10);
+    for (const [cx] of DEPOT.boxes) expect(cx).toBeLessThan(MAZE_WEST);
+    expect(DEPOT.stack.top).toBeCloseTo(2 * CONT.H);
+    expect(zoneAt(-66.6, 0, 12)?.name).toBe('OLD DEPOT');
+    expect(zoneAt(-64, DEPOT.stack.top, 18)?.name).toBe('SNIPER STACK');
+    expect(zoneAt(-64, 0, 18)?.name).toBe('OLD DEPOT');
+    expect(zoneAt(52, BARGES.deck, 20)?.name).toBe('THE BARGES');
   });
 });

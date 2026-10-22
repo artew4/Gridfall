@@ -86,6 +86,9 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Fog and music (25.0):
   - `tdmSim(...).fog` (a map with a ground fog): kills on the ground (both ends under its top), on the roofs (both over) and across, with medians and p10/p90; each gun's share of its time over the fog; the sight checks the fog cut. `tdmSim({ fog: false })` plays the map without the fog's sight cap and route bias.
   - `await __dev.musicSpectrum({ ids, seconds, intensity })`: each procedural theme rendered offline (all layers in at `intensity`, mixed as the game mixes it), and again through a high-pass at 1 kHz and 2.5 kHz: the share of the energy above each, the RMS and the peak (before the limiter).
+- Flanks (28.0):
+  - `tdmSim(...)` also reports `edge` (the share of bot time, combat time and kills on the map's outer edges, `TdmData.edgeOf`) and `xBands` (bot time, combat time and kills in 12 bands across the map's width), and takes `sight` (a fixed sight range for the match, the fog density with it: the desert's storm doesn't run in a sim; 24.5 is its peak).
+  - `bench(3)` gains views of the new pieces: the depot, the sniper stack and the barges (docks); the trench, the Anvil's top and the convoy (desert, calm).
 - Dynamic spawns (27.0):
   - `TDM.spawns = 'bases'` (DEV): a map with pads plays from its yards and 19.0 forward points again (the A/B).
   - `await __dev.tdmSim({ spawns: 'dynamic' | 'bases', cell: 8 })`: also reports `spawnSafety` (respawns; died within 3 s and 5 s; shot within 3 s; time to death and to first hit; the nearest hostile at spawn; fallbacks; rays and ms per pick; uses per pad) and `flow` (an occupancy grid of `cell` m over the walkable cells: coverage, the normalized entropy of bot time, the Gini of kills over cells, the busiest tenth's share of kills), and `patrol` (picks, to an active area, heard spawns, arrivals).

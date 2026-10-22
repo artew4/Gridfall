@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { worldBox, type StaticBuilder } from '../../world/Builder';
 import type { Collider, CollisionWorld } from '../../world/Collision';
-import { desertHeight } from './Terrain';
-import { BASE, CULVERT_LANE_SOUTH, LANES_NORTH, LANES_SOUTH, ROOF_LANE, rot } from './ArenaLayout';
+import { TRENCH, desertHeight } from './Terrain';
+import { BASE, CULVERT_LANE_SOUTH, LANES_NORTH, LANES_SOUTH, OUTER, OUTER_LANES_NORTH, OUTER_LANES_SOUTH, ROOF_LANE, rot } from './ArenaLayout';
 import type { Zone } from '../Level';
 
 /*
@@ -303,12 +303,167 @@ export function buildArena(k: ArenaKit): ArenaResult {
     goal(...P(flip, -61.4, 0));
   }
 
+  // ===================================================================== 28.0: the outer flanks
+  // Past the hamlet and the wadi, out by the cliffs: west (south half) a trench lined with sandbag
+  // revetments and broken by traverses, and the Anvil, a rock outcrop with a ramp up to a perch that
+  // sees the compound's roofs; east a wrecked convoy (a truck, an APC on its side, a burnt-out bus to
+  // fight through) and the Spine, a lower outcrop. Each is built again rotated: every flank gets a
+  // trench half and a convoy half.
+  const TRENCHES_S = zone('trenches-s', 'THE TRENCHES', 'الخنادق'), TRENCHES_N = zone('trenches-n', 'THE TRENCHES', 'الخنادق');
+  const CONVOY_S = zone('convoy-s', 'THE CONVOY', 'القافلة'), CONVOY_N = zone('convoy-n', 'THE CONVOY', 'القافلة');
+  /** Highest sand under a rect (its corners, edges' middles and centre). */
+  const high = (x0: number, z0: number, x1: number, z1: number) => {
+    let h = -Infinity;
+    for (const fx of [0, 0.5, 1]) for (const fz of [0, 0.5, 1]) h = Math.max(h, desertHeight(x0 + (x1 - x0) * fx, z0 + (z1 - z0) * fz));
+    return h;
+  };
+  /** A rock outcrop: a block (rock) with boulders on its flanks, a walkable top, a ramp down to the sand at its `ramp` end. */
+  const outcrop = (flip: boolean, o: { x0: number; z0: number; x1: number; z1: number; h: number; ramp: { x0: number; x1: number; z1: number } }) => {
+    const [x0, z0, x1, z1] = R(flip, o.x0, o.z0, o.x1, o.z1);
+    const top = high(x0, z0, x1, z1) + o.h;
+    solid(x0, z0, x1, z1, top, m.rock, 'concrete');
+    // Boulders against the faces (the block's corners hidden), and two on top at the far end (cover).
+    for (const [fx, fz, r] of [[0, 0.25, 1.6], [1, 0.6, 1.0], [0.4, 0, 1.5], [0, 0.85, 1.4]]) {
+      const [px, pz] = P(flip, o.x0 + (o.x1 - o.x0) * fx, o.z0 + (o.z1 - o.z0) * fz);
+      const y0 = desertHeight(px, pz) - 0.6;
+      b.add(k.boulder(r, top - 0.4 - y0), m.rock, px, (top - 0.4 + y0) / 2, pz, 0, k.rnd() * Math.PI, 0);
+      col.addCylinder(px, pz, r, y0, top - 0.4, 'concrete');
+    }
+    const far = o.ramp.z1 > o.z1 ? o.z0 : o.z1;
+    for (const fx of [0.25, 0.75]) {
+      const [px, pz] = P(flip, o.x0 + (o.x1 - o.x0) * fx, far + (far === o.z0 ? 1 : -1));
+      b.add(k.boulder(0.75, 1.1), m.rock, px, top + 0.55, pz, 0, k.rnd() * Math.PI, 0);
+      col.addCylinder(px, pz, 0.75, top, top + 1.1, 'concrete');
+    }
+    // The ramp: from the block's edge (top) down to the sand `ramp.z1`, a tilted rock slab over a
+    // smooth ramp collider; stepped fill under it (nobody walks under).
+    const rz0 = o.ramp.z1 > o.z1 ? o.z1 : o.ramp.z1, rz1 = o.ramp.z1 > o.z1 ? o.ramp.z1 : o.z0;
+    const [rx0, rzz0, rx1, rzz1] = R(flip, o.ramp.x0, rz0, o.ramp.x1, rz1);
+    const footZ = flip ? -o.ramp.z1 : o.ramp.z1;
+    const foot = desertHeight((rx0 + rx1) / 2, footZ) - 0.1;
+    const topAtMin = footZ > (rzz0 + rzz1) / 2;
+    col.addRamp(rx0, rzz0, rx1, rzz1, 'z', topAtMin ? top : foot, topAtMin ? foot : top);
+    const L = rzz1 - rzz0, H = top - foot;
+    const slab = new THREE.BoxGeometry(rx1 - rx0, 0.5, Math.hypot(L, H));
+    b.add(slab, m.rock, (rx0 + rx1) / 2, (top + foot) / 2 - 0.25, (rzz0 + rzz1) / 2, (topAtMin ? 1 : -1) * Math.atan2(H, L), 0, 0);
+    for (let i = 0; i < 4; i++) {
+      const a0 = rzz0 + (L * i) / 4, a1 = rzz0 + (L * (i + 1)) / 4;
+      const hAt = (zz: number) => foot + H * (topAtMin ? (rzz1 - zz) / L : (zz - rzz0) / L);
+      const c = col.add(rx0, foot - 0.5, a0, rx1, Math.min(hAt(a0), hAt(a1)) - 0.05, a1, 'concrete');
+      c.floor = false;
+    }
+    // On the graph: the ramp's foot, middle and top, onto the perch.
+    const n0 = out.nodes.push(new THREE.Vector3((rx0 + rx1) / 2, foot + 0.1, footZ)) - 1;
+    const n1 = out.nodes.push(new THREE.Vector3((rx0 + rx1) / 2, (top + foot) / 2, (rzz0 + rzz1) / 2)) - 1;
+    const edgeZ = topAtMin ? rzz0 : rzz1;
+    const n2 = out.nodes.push(new THREE.Vector3((rx0 + rx1) / 2, top, edgeZ + (topAtMin ? -1.2 : 1.2))) - 1;
+    const n3 = out.nodes.push(new THREE.Vector3((x0 + x1) / 2, top, (z0 + z1) / 2)) - 1;
+    out.links.push([n0, n1], [n1, n2], [n2, n3]);
+    out.testGoals.push(new THREE.Vector3((x0 + x1) / 2, top, (z0 + z1) / 2));
+    return top;
+  };
+  for (const flip of [false, true]) {
+    // ---- The trench: revetments (sandbag walls over the cut's sides, a little above the sand), the
+    // traverses across it (no shot down its length), its notch to the east left open.
+    const T = TRENCH;
+    const STEP = 3;
+    const revet = (x0: number, x1: number, za: number, zb: number) => {
+      for (let z = za; z < zb - 0.01; z += STEP) {
+        const z1 = Math.min(zb, z + STEP);
+        const [px0, pz0, px1, pz1] = R(flip, x0, z, x1, z1);
+        const rim = Math.max(high(px0 - 0.6, pz0, px0, pz1), high(px1, pz0, px1 + 0.6, pz1));
+        // Down to the trench's floor beside it (its footprint is on the rim; the cut is next to it).
+        solid(px0, pz0, px1, pz1, rim + 0.35, m.sandbag, 'sand', low(px0 - 0.6, pz0, px1 + 0.6, pz1) - 0.3);
+      }
+    };
+    revet(T.x0 - 0.4, T.x0, T.z0, T.z1);
+    revet(T.x1, T.x1 + 0.4, T.z0, T.notch.z0);
+    revet(T.x1, T.x1 + 0.4, T.notch.z1, T.z1);
+    revet(T.x1 + 0.4, T.notch.x1, T.notch.z0 - 0.4, T.notch.z0);
+    revet(T.x1 + 0.4, T.notch.x1, T.notch.z1, T.notch.z1 + 0.4);
+    for (const tr of OUTER.traverses) {
+      const [px0, pz0, px1, pz1] = R(flip, tr.x0, tr.z - 0.4, tr.x1, tr.z + 0.4);
+      solid(px0, pz0, px1, pz1, high(px0 - 1, pz0, px1 + 1, pz1) + 0.35, m.sandbag, 'sand');
+    }
+    // Its floor on the graph: the centre line, each traverse's gap, the notch.
+    for (let z = T.z0 + 2; z <= T.z1 - 2; z += 4) if (!OUTER.traverses.some((t) => Math.abs(t.z - z) < 1.5)) node(...P(flip, (T.x0 + T.x1) / 2, z));
+    for (const tr of OUTER.traverses) {
+      const gx = tr.x0 <= T.x0 + 0.01 ? (tr.x1 + T.x1) / 2 : (T.x0 + tr.x0) / 2;
+      for (const dz of [-1.6, 0, 1.6]) node(...P(flip, gx, tr.z + dz));
+    }
+    node(...P(flip, -71, 34));
+    node(...P(flip, -67.5, 34));
+    goal(...P(flip, (T.x0 + T.x1) / 2, 30));
+    out.zones.push({ zone: flip ? TRENCHES_N : TRENCHES_S, rect: R(flip, -89, 2, -64, 54) });
+
+    // ---- The outcrops.
+    outcrop(flip, OUTER.anvil);
+    outcrop(flip, OUTER.spine);
+
+    // ---- The convoy: a truck (cab, bed, its load), an APC on its side, a burnt-out bus (doors at its
+    // west side and its tail, windows down both sides, a roof).
+    {
+      const t = OUTER.truck;
+      const [cx0, cz0, cx1, cz1] = R(flip, t.x0, t.cab[0], t.x1, t.cab[1]);
+      const fc = desertHeight((cx0 + cx1) / 2, (cz0 + cz1) / 2);
+      solid(cx0, cz0, cx1, cz1, fc + 2.6, m.rust, 'metal');
+      const [bx0, bz0, bx1, bz1] = R(flip, t.x0, t.bed[0], t.x1, t.bed[1]);
+      solid(bx0, bz0, bx1, bz1, fc + 1.4, m.rust, 'metal');
+      const [lx0, lz0, lx1, lz1] = R(flip, t.x0 + 0.3, 12, t.x1 - 0.3, 14.2);
+      solid(lx0, lz0, lx1, lz1, fc + 2.5, m.crate, 'wood', fc + 1.4);
+      // Seen only (merged into the static mesh): wheels on the truck, a smashed windscreen.
+      const wheel = (x: number, y: number, z: number, r: number, w: number, alongX = true) => {
+        const [px, pz] = P(flip, x, z);
+        b.add(new THREE.CylinderGeometry(r, r, w, 12), m.darkMetal, px, y, pz, alongX ? 0 : Math.PI / 2, 0, alongX ? Math.PI / 2 : 0);
+      };
+      for (const wz of [9.2, 12.4, 15.2]) for (const wx of [t.x0 - 0.15, t.x1 + 0.15]) wheel(wx, fc + 0.5, wz, 0.55, 0.35);
+      {
+        const [wx, wz] = P(flip, (t.x0 + t.x1) / 2, t.cab[0] - 0.02);
+        b.add(new THREE.BoxGeometry(2.0, 0.8, 0.06), m.darkMetal, wx, fc + 1.9, wz);
+      }
+      const a = OUTER.apc;
+      const [ax0, az0, ax1, az1] = R(flip, a.x0, a.z0, a.x1, a.z1);
+      const fa = desertHeight((ax0 + ax1) / 2, (az0 + az1) / 2);
+      solid(ax0, az0, ax1, az1, fa + 2.6, m.darkMetal, 'metal');
+      // On its side: its wheels face the sky's way (east), its turret lies in the sand (west).
+      for (const wz of [22.9, 24.6, 26.3, 27.6]) wheel(a.x1 + 0.2, fa + 0.9, wz, 0.6, 0.4);
+      for (const wz of [22.9, 24.6, 26.3, 27.6]) wheel(a.x1 + 0.2, fa + 1.9, wz, 0.6, 0.4);
+      {
+        const [tx, tz] = P(flip, a.x0 - 0.7, 25);
+        b.add(new THREE.BoxGeometry(1.4, 1.1, 1.4), m.rust, tx, fa + 0.55, tz);
+        const [gx, gz] = P(flip, a.x0 - 2.2, 25);
+        b.add(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 8), m.darkMetal, gx, fa + 0.6, gz, 0, 0, Math.PI / 2);
+      }
+      const bus = OUTER.bus;
+      const fb = desertHeight(...P(flip, (bus.x0 + bus.x1) / 2, (bus.z0 + bus.z1) / 2));
+      walls(flip, [bus.x0, bus.z0, bus.x1, bus.z1], fb, bus.h, 0.25, m.rust, [
+        { side: 'w', at: 33.5, w: 1.3 }, { side: 'n', at: 74.8, w: 1.2 },
+        ...[35.5, 37.8, 40].flatMap((zz) => [{ side: 'w' as Side, at: zz, w: 1.3, y0: 1.2, y1: 2.15 }, { side: 'e' as Side, at: zz, w: 1.3, y0: 1.2, y1: 2.15 }]),
+        { side: 'e', at: 33.2, w: 1.3, y0: 1.2, y1: 2.15 },
+      ], 'metal');
+      const [rx0, rz0, rx1, rz1] = R(flip, bus.x0, bus.z0, bus.x1, bus.z1);
+      solid(rx0, rz0, rx1, rz1, fb + bus.h + 0.15, m.rust, 'metal', fb + bus.h);
+      for (const wz of [32.5, 39.5]) for (const wx of [bus.x0 - 0.15, bus.x1 + 0.15]) wheel(wx, fb + 0.5, wz, 0.55, 0.3);
+      // Through the bus: in at the side door, along the aisle, out at the tail.
+      const n = (x: number, z: number) => node(...P(flip, x, z));
+      const dOut = n(72.3, 33.5), dIn = n(74.8, 33.5), mid = n(74.8, 36.5), back = n(74.8, 32.2), tail = n(74.8, 29.4);
+      out.links.push([dOut, dIn], [dIn, mid], [dIn, back], [back, tail]);
+      rock(flip, 81.5, 13, 1.8, 3.0);
+      rock(flip, 67.5, 22, 1.6, 2.6);
+      rock(flip, 69, 44, 1.9, 3.1);
+      for (const [x, z] of [[73.4, 12], [76.9, 17], [76.6, 25], [80.6, 25], [72.9, 36.5], [76.7, 38.5], [69.2, 22]]) cover(...P(flip, x, z));
+      goal(...P(flip, 74.8, 36.5));
+      out.zones.push({ zone: flip ? CONVOY_N : CONVOY_S, rect: R(flip, 64, 2, 89, 56) });
+    }
+  }
+
   // Lanes, at floor height.
   // 12.0: waypoints may carry their floor height (the culvert, the roofs); the rest are on the ground.
   const lift = (l: (number[])[]) => l.map(([x, z, y]) => new THREE.Vector3(x, y ?? desertHeight(x, z), z));
   const rotLane = (l: (number[])[]) => l.map(([x, z, y]) => [...rot(x, z), ...(y === undefined ? [] : [y])]);
-  out.lanes.south = [...LANES_SOUTH.map(lift), lift(CULVERT_LANE_SOUTH), lift(ROOF_LANE.south)];
-  out.lanes.north = [...LANES_NORTH.map(lift), lift(rotLane(CULVERT_LANE_SOUTH)), lift(ROOF_LANE.north)];
+  // 28.0: and the outer flanks (5, 6).
+  out.lanes.south = [...LANES_SOUTH.map(lift), lift(CULVERT_LANE_SOUTH), lift(ROOF_LANE.south), ...OUTER_LANES_SOUTH.map(lift)];
+  out.lanes.north = [...LANES_NORTH.map(lift), lift(rotLane(CULVERT_LANE_SOUTH)), lift(ROOF_LANE.north), ...OUTER_LANES_NORTH.map(lift)];
   for (const l of [...out.lanes.south, ...out.lanes.north]) for (const p of l) out.nodes.push(p.clone());
   return out;
 }

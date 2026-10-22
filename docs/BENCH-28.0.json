@@ -1,0 +1,503 @@
+{
+  "version": "28.0 (Desert and Neon Docks: outer flanks rebuilt, dynamic spawn pads)",
+  "branch": "feature/docks-desert-spawns-28.0 from main @ b2f1b14",
+  "machine": "Apple M5, Chrome, Balanced",
+  "selfPlay": {
+    "method": "__dev.tdmSim, 7v7 (size 7), 50 tickets, bot-only. 'bases' = the 27.0 game (yards, old geometry); 'dynamic' = 28.0 (pads, new geometry). Desert sims hold the weather fixed (the storm doesn't run in a sim): calm unless `sight` says otherwise. Edges: TdmData.edgeOf (Desert |x| >= 44: hamlet, wadi, pump houses and the outer dunes; Docks x < -46 or x > 38). newZonesOnly: the new zones' time and kills exactly; newGeometryBands: 12 x bands over the width (Desert |x| >= 61.4; Docks x < -60.2 or x > 48.2, a lower bound for the depot)",
+    "desert": {
+      "bases (27.0)": {
+        "matches": 4,
+        "matchSeconds": 224.0,
+        "killsPerMin": 25.2,
+        "quietPct": 17.75,
+        "firstEngagementMedian": 13.25,
+        "killGini": 0.93,
+        "killsInTop10PctCells": 97.625,
+        "killCellsPct": 10.7,
+        "timeEntropy": 0.775,
+        "coveragePct": 38.175,
+        "edges (TdmData.edgeOf)": {
+          "timePct": 0.875,
+          "fightPct": 0.85,
+          "killPct": 0.55
+        },
+        "newZonesOnly": {
+          "zones": [
+            "THE TRENCHES",
+            "THE CONVOY"
+          ],
+          "timePct": 0,
+          "killPct": 0.0
+        },
+        "newGeometryBands": {
+          "timePct": 0,
+          "fightPct": 0,
+          "killPct": 0
+        },
+        "lanesTimePct": {
+          "west flank": 0.775,
+          "compound": 97.7,
+          "east flank": 1.55
+        },
+        "spawn": {
+          "respawns": 369,
+          "diedWithin3s": 0,
+          "diedWithin5s": 0,
+          "shotWithin3sPct": 0,
+          "timeToDeathMedian": 24.805,
+          "fallbacks": 0,
+          "raysPerPickMean": 0,
+          "msPerPickMax": 0
+        },
+        "stuck": 0
+      },
+      "dynamic (28.0)": {
+        "matches": 4,
+        "matchSeconds": 215.475,
+        "killsPerMin": 26.25,
+        "quietPct": 13.35,
+        "firstEngagementMedian": 9.2,
+        "killGini": 0.887,
+        "killsInTop10PctCells": 78.05,
+        "killCellsPct": 14.55,
+        "timeEntropy": 0.865,
+        "coveragePct": 62.05,
+        "edges (TdmData.edgeOf)": {
+          "timePct": 47.225,
+          "fightPct": 38.9,
+          "killPct": 38.4
+        },
+        "newZonesOnly": {
+          "zones": [
+            "THE TRENCHES",
+            "THE CONVOY"
+          ],
+          "timePct": 16.6,
+          "killPct": 4.8
+        },
+        "newGeometryBands": {
+          "timePct": 22.2,
+          "fightPct": 11.8,
+          "killPct": 8.8
+        },
+        "lanesTimePct": {
+          "west flank": 26.2,
+          "compound": 45.8,
+          "east flank": 28.0
+        },
+        "spawn": {
+          "respawns": 368,
+          "diedWithin3s": 0,
+          "diedWithin5s": 5,
+          "shotWithin3sPct": 1.9,
+          "timeToDeathMedian": 19.265,
+          "fallbacks": 0,
+          "raysPerPickMean": 4.075,
+          "msPerPickMax": 0.5
+        },
+        "stuck": 0
+      }
+    },
+    "docks": {
+      "bases (27.0)": {
+        "matches": 4,
+        "matchSeconds": 246.5,
+        "killsPerMin": 23.575,
+        "quietPct": 23.125,
+        "firstEngagementMedian": 16.175,
+        "killGini": 0.827,
+        "killsInTop10PctCells": 63.75,
+        "killCellsPct": 24.075,
+        "timeEntropy": 0.906,
+        "coveragePct": 81.275,
+        "edges (TdmData.edgeOf)": {
+          "timePct": 3.5,
+          "fightPct": 3.5,
+          "killPct": 3.875
+        },
+        "newZonesOnly": {
+          "zones": [
+            "OLD DEPOT",
+            "SNIPER STACK",
+            "THE BARGES"
+          ],
+          "timePct": 0,
+          "killPct": 0.0
+        },
+        "newGeometryBands": {
+          "timePct": 0,
+          "fightPct": 0,
+          "killPct": 0
+        },
+        "lanesTimePct": {
+          "containers": 42.375,
+          "warehouse": 31.95,
+          "waterfront": 25.675
+        },
+        "spawn": {
+          "respawns": 377,
+          "diedWithin3s": 0,
+          "diedWithin5s": 0,
+          "shotWithin3sPct": 0,
+          "timeToDeathMedian": 26.42,
+          "fallbacks": 0,
+          "raysPerPickMean": 0,
+          "msPerPickMax": 0
+        },
+        "stuck": 0
+      },
+      "dynamic (28.0)": {
+        "matches": 4,
+        "matchSeconds": 210.225,
+        "killsPerMin": 27.075,
+        "quietPct": 15.075,
+        "firstEngagementMedian": 9.075,
+        "killGini": 0.828,
+        "killsInTop10PctCells": 63.25,
+        "killCellsPct": 23.05,
+        "timeEntropy": 0.915,
+        "coveragePct": 84.425,
+        "edges (TdmData.edgeOf)": {
+          "timePct": 32.4,
+          "fightPct": 28.2,
+          "killPct": 26.925
+        },
+        "newZonesOnly": {
+          "zones": [
+            "OLD DEPOT",
+            "SNIPER STACK",
+            "THE BARGES"
+          ],
+          "timePct": 15.7,
+          "killPct": 9.5
+        },
+        "newGeometryBands": {
+          "timePct": 8.0,
+          "fightPct": 4.4,
+          "killPct": 2.6
+        },
+        "lanesTimePct": {
+          "containers": 48.1,
+          "warehouse": 23.625,
+          "waterfront": 28.275
+        },
+        "spawn": {
+          "respawns": 370,
+          "diedWithin3s": 0,
+          "diedWithin5s": 1,
+          "shotWithin3sPct": 3.8,
+          "timeToDeathMedian": 20.113,
+          "fallbacks": 0,
+          "raysPerPickMean": 5.275,
+          "msPerPickMax": 0.3
+        },
+        "stuck": 0
+      }
+    },
+    "desertWeather": {
+      "note": "the weather question: the same match with the sight range pinned (the bots read the fog density it implies); measured at the fin stage (before a pad moved into the convoy and the trench widened to 3.6 m)",
+      "peak storm, sight 24.5 m: dynamic": {
+        "matches": 3,
+        "matchSeconds": 219.4,
+        "killsPerMin": 26.467,
+        "quietPct": 13.667,
+        "firstEngagementMedian": 9.767,
+        "killGini": 0.903,
+        "killsInTop10PctCells": 84.033,
+        "killCellsPct": 13.133,
+        "timeEntropy": 0.862,
+        "coveragePct": 60.067,
+        "edges (TdmData.edgeOf)": {
+          "timePct": 38.833,
+          "fightPct": 30.867,
+          "killPct": 21.733
+        },
+        "newZonesOnly": {
+          "zones": [
+            "THE TRENCHES",
+            "THE CONVOY"
+          ],
+          "timePct": 9.1,
+          "killPct": 3.1
+        },
+        "newGeometryBands": {
+          "timePct": 14.7,
+          "fightPct": 7.5,
+          "killPct": 4.1
+        },
+        "lanesTimePct": {
+          "west flank": 23.067,
+          "compound": 54.1,
+          "east flank": 22.867
+        },
+        "spawn": {
+          "respawns": 277,
+          "diedWithin3s": 0,
+          "diedWithin5s": 3,
+          "shotWithin3sPct": 1.467,
+          "timeToDeathMedian": 20.107,
+          "fallbacks": 0,
+          "raysPerPickMean": 4.2,
+          "msPerPickMax": 0.4
+        },
+        "stuck": 0
+      },
+      "peak storm, sight 24.5 m: bases": {
+        "matches": 3,
+        "matchSeconds": 234.833,
+        "killsPerMin": 24.8,
+        "quietPct": 19.633,
+        "firstEngagementMedian": 13.5,
+        "killGini": 0.925,
+        "killsInTop10PctCells": 95.4,
+        "killCellsPct": 10.933,
+        "timeEntropy": 0.781,
+        "coveragePct": 40.6,
+        "edges (TdmData.edgeOf)": {
+          "timePct": 2.433,
+          "fightPct": 2.433,
+          "killPct": 1.367
+        },
+        "newZonesOnly": {
+          "zones": [
+            "THE TRENCHES",
+            "THE CONVOY"
+          ],
+          "timePct": 0.1,
+          "killPct": 0.0
+        },
+        "newGeometryBands": {
+          "timePct": 0.3,
+          "fightPct": 0.2,
+          "killPct": 0
+        },
+        "lanesTimePct": {
+          "west flank": 2.6,
+          "compound": 95.067,
+          "east flank": 2.333
+        },
+        "spawn": {
+          "respawns": 288,
+          "diedWithin3s": 0,
+          "diedWithin5s": 0,
+          "shotWithin3sPct": 0.333,
+          "timeToDeathMedian": 23.767,
+          "fallbacks": 0,
+          "raysPerPickMean": 0,
+          "msPerPickMax": 0
+        },
+        "stuck": 0
+      },
+      "sight 60 m: dynamic": {
+        "matches": 3,
+        "matchSeconds": 222.6,
+        "killsPerMin": 24.7,
+        "quietPct": 15.667,
+        "firstEngagementMedian": 9.9,
+        "killGini": 0.897,
+        "killsInTop10PctCells": 82.4,
+        "killCellsPct": 13.4,
+        "timeEntropy": 0.876,
+        "coveragePct": 60.533,
+        "edges (TdmData.edgeOf)": {
+          "timePct": 40.067,
+          "fightPct": 32.867,
+          "killPct": 32.733
+        },
+        "newZonesOnly": {
+          "zones": [
+            "THE TRENCHES",
+            "THE CONVOY"
+          ],
+          "timePct": 9.9,
+          "killPct": 1.8
+        },
+        "newGeometryBands": {
+          "timePct": 15.9,
+          "fightPct": 9.5,
+          "killPct": 5.1
+        },
+        "lanesTimePct": {
+          "west flank": 22.833,
+          "compound": 53.233,
+          "east flank": 23.933
+        },
+        "spawn": {
+          "respawns": 266,
+          "diedWithin3s": 0,
+          "diedWithin5s": 3,
+          "shotWithin3sPct": 1.933,
+          "timeToDeathMedian": 21.047,
+          "fallbacks": 0,
+          "raysPerPickMean": 4.3,
+          "msPerPickMax": 0.4
+        },
+        "stuck": 0
+      }
+    },
+    "tuning": {
+      "dyn1 (no edge lanes on the docks, default spawn weights)": {
+        "desert edge fight %": 44.65,
+        "desert shotWithin3s %": 5.15,
+        "desert diedWithin5s": "7 of 365",
+        "docks edge fight %": 16.5
+      },
+      "dyn2 (+docks edge lanes, desert spawnTuning near 60 / hardMin 24 / sight 80)": {
+        "desert edge fight %": 32.6,
+        "desert shotWithin3s %": 1.375,
+        "docks edge fight %": 26.6,
+        "docks shotWithin3s %": 4.275
+      },
+      "fin2 (+docks spawnTuning, a pad moved into each map's new geometry, desert HVAs incl. the trench)": {
+        "desert stuck": 3,
+        "desert new-zone time %": 16.4
+      },
+      "fin3 desert (trench HVAs dropped, trench 3.0 -> 3.6 m)": "0 stuck"
+    }
+  },
+  "roofSightlines": {
+    "method": "from each outer perch (eye 1.6 m over its floor) to 50 sample points 1.2 m over the compound's walkable roofs (barracks, motor pool, trading post, clinic, watchtower), calm air",
+    "anvil top (S-W), eye 8.5 m": "48/50, 58-112 m",
+    "anvil top (N-E)": "41/50, 57-109 m",
+    "spine top (S-E), eye 9.1 m": "45/50, 63-123 m",
+    "spine top (N-W)": "50/50, 62-122 m",
+    "trench rim": "10/50, 65-76 m",
+    "convoy, by the bus": "13/50, 67-99 m",
+    "hamlet ruin (old flank)": "0/50",
+    "wadi (old flank)": "16/50, 45-78 m"
+  },
+  "perf": {
+    "bench3": {
+      "docks": {
+        "views_fps_cpuMs_gpuMs (second run)": {
+          "alphaYard": [
+            60.3,
+            2.25,
+            6.25
+          ],
+          "stacks": [
+            60,
+            2.55,
+            6.27
+          ],
+          "stacksTop": [
+            60,
+            2.43,
+            6.34
+          ],
+          "warehouseFloor": [
+            60,
+            2.19,
+            6.22
+          ],
+          "catwalk": [
+            60,
+            2.45,
+            5.74
+          ],
+          "quay": [
+            60,
+            2.43,
+            6.25
+          ],
+          "crane": [
+            60,
+            2.22,
+            6.19
+          ],
+          "quayGantry": [
+            59.6,
+            2.25,
+            6.24
+          ],
+          "craneNest": [
+            60.3,
+            2.14,
+            6.24
+          ],
+          "containerGantry": [
+            60,
+            1.85,
+            6.26
+          ],
+          "depot": [
+            60,
+            2.3,
+            6.38
+          ],
+          "sniperStack": [
+            60,
+            2.14,
+            4.97
+          ],
+          "barges": [
+            60,
+            2.41,
+            5.95
+          ],
+          "firefight": [
+            60,
+            2.61,
+            6.18
+          ]
+        },
+        "discarded": "a first run's first 7 views at CPU 3.8-4.7 ms (warm-up, L-140)"
+      },
+      "desert": {
+        "views_fps_cpuMs_gpuMs (second run)": {
+          "yardCalm": [
+            60,
+            2.12,
+            5.65
+          ],
+          "towerView": [
+            60,
+            2.45,
+            5.88
+          ],
+          "yardStorm": [
+            60.3,
+            2.39,
+            5.77
+          ],
+          "interiorStorm": [
+            59.9,
+            2.21,
+            5.69
+          ],
+          "dunesStorm": [
+            60,
+            2.37,
+            5.34
+          ],
+          "trench": [
+            60,
+            1.84,
+            4.8
+          ],
+          "anvilTop": [
+            60,
+            2.37,
+            6.01
+          ],
+          "convoy": [
+            60,
+            1.6,
+            5.23
+          ],
+          "fightStorm": [
+            60,
+            2.71,
+            5.55
+          ]
+        }
+      },
+      "frameP99": "24-27 ms in every view of both maps, before the new views as well"
+    },
+    "geometry": "merged into each map's static meshes (StaticBuilder: no new draw calls by material); the pads one InstancedMesh a map"
+  },
+  "memory": {
+    "leakcheck": "node scripts/leakcheck.mjs 2 docks,desert,oldport: 0 alive"
+  },
+  "tests": 343
+}

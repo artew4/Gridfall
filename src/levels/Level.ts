@@ -71,6 +71,18 @@ export interface TdmData {
    * the yards and `forward` are not used. Absent: the yards.
    */
   pads?: [number, number, number, number][];
+  /**
+   * 28.0: the map's outer edges (the flank routes outside the main lanes), for the flow reports
+   * (`tdmSim(...).edge`: their share of bot time, combat time and kills).
+   */
+  edgeOf?(x: number, y: number, z: number): boolean;
+  /**
+   * 28.0: the map's own spawn weights over SpawnManager's SPAWN (the desert's open dunes: a wider
+   * pressure radius, a larger hard minimum, sight checked as far as a bot can see).
+   */
+  spawnTuning?: Partial<typeof import('./SpawnManager').SPAWN>;
+  /** 28.0: high-value areas the patrols search besides the pads and the lanes' waypoints (the edges). */
+  hvas?: THREE.Vector3[];
 }
 
 export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock' | 'crashsite' | 'oldport' | 'maglev';

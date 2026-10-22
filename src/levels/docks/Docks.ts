@@ -10,7 +10,7 @@ import type { RainAreas } from '../../world/Rain';
 import { chainLinkTexture, concreteTexture as pavedTexture, perforatedTexture } from '../../world/Textures';
 import { concreteTexture, steelTexture } from '../jungle/textures';
 import { corrugatedTexture, crateTexture } from '../desert/textures';
-import { BASE, CG, CONT, DECK, END_Z, EXITS, MAZE, QG, QUAY_X, WEST_X, WH, lanesOf, mz, spawnsOf, stackColor, zoneAt } from './DocksLayout';
+import { BARGES, BASE, CG, CONT, DECK, DEPOT, END_Z, EXITS, MAZE, QG, QUAY_X, WEST_X, WH, lanesOf, mz, spawnsOf, stackColor, zoneAt } from './DocksLayout';
 import type { Zone } from '../Level';
 
 /*
@@ -216,10 +216,55 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   water.position.set(GX1 + 200, -1.3, 0);
   scene.add(water);
   // Water barrier: a 1.6 m chain-link fence (you see and shoot through it, you can't climb it).
-  const fence = solid(QUAY_X - 0.1, 0, -END_Z, QUAY_X + 0.1, 1.6, END_Z, m.fence, 'metal', 1.6);
-  fence.ray = false;
+  // 28.0: in pieces, open where a gangway crosses to a barge.
+  const gaps = BARGES.gangways.flatMap((g) => [[g.z0, g.z1], [-g.z1, -g.z0]]).sort((a, b) => a[0] - b[0]);
+  let fz = -END_Z;
+  for (const [g0, g1] of [...gaps, [END_Z, END_Z]]) {
+    if (g0 - fz > 0.01) solid(QUAY_X - 0.1, 0, fz, QUAY_X + 0.1, 1.6, g0, m.fence, 'metal', 1.6).ray = false;
+    fz = g1;
+  }
   for (let z = -END_Z; z <= END_Z + 0.01; z += 6) b.add(new THREE.BoxGeometry(0.1, 1.6, 0.1), m.darkMetal, QUAY_X, 0.8, z);
   b.add(new THREE.BoxGeometry(0.08, 0.08, 2 * END_Z), m.darkMetal, QUAY_X, 1.55, 0);
+  // ---------------------------------------------------------------- 28.0: the barges
+  // Hulls to the deck (seen and solid: walked on), gangways over the gap from the quay, pontoons
+  // between; rails (1.05 m, never vaulted) along every edge over water but the joins.
+  const BG = BARGES;
+  const deckBox = (x0: number, z0: number, x1: number, z1: number, top: number, bottom: number, mat: THREE.Material) => solid2(x0, bottom, z0, x1, top, z1, mat, 'metal', 2);
+  for (const h of BG.hulls) {
+    deckBox(h.x0, h.z0, h.x1, h.z1, BG.deck, -1.9, m.hull);
+    const rails: [number, number, number, number][] = [[h.x1 - 0.3, h.z0, h.x1, h.z1]];
+    // The quay side, open at its gangway; the ends, open where a pontoon joins.
+    const g = BG.gangways.find((w) => w.z0 >= h.z0 && w.z1 <= h.z1)!;
+    rails.push([h.x0, h.z0, h.x0 + 0.3, g.z0], [h.x0, g.z1, h.x0 + 0.3, h.z1]);
+    const joins = [...BG.pontoons, BG.middle];
+    for (const zEnd of [h.z0, h.z1]) {
+      const p = joins.find((q) => Math.abs(q.z0 - zEnd) < 0.01 || Math.abs(q.z1 - zEnd) < 0.01);
+      const z0 = zEnd === h.z0 ? h.z0 : h.z1 - 0.3, z1 = z0 + 0.3;
+      if (p) rails.push([h.x0, z0, p.x0, z1], [p.x1, z0, h.x1, z1]);
+      else rails.push([h.x0, z0, h.x1, z1]);
+    }
+    for (const [x0, z0, x1, z1] of rails) solid2(x0, BG.deck, z0, x1, BG.deck + 1.05, z1, m.darkMetal, 'metal', 1);
+  }
+  for (const w of BG.gangways) solid2(QUAY_X - 0.1, -0.35, w.z0, BG.hulls[0].x0 + 0.2, -0.05, w.z1, m.deck, 'metal', 1);
+  const pontoon = (p: { x0: number; x1: number; z0: number; z1: number }, both: boolean) => {
+    const build = both ? solid2 : (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material, s: Collider['surface'], t: number) => [solid(x0, y0, z0, x1, y1, z1, mat, s, t)];
+    build(p.x0, -1.0, p.z0, p.x1, BG.pontoon, p.z1, m.deck, 'metal', 1);
+    build(p.x0 - 0.1, BG.pontoon, p.z0, p.x0, BG.pontoon + 1.05, p.z1, m.darkMetal, 'metal', 1);
+    build(p.x1, BG.pontoon, p.z0, p.x1 + 0.1, BG.pontoon + 1.05, p.z1, m.darkMetal, 'metal', 1);
+  };
+  for (const p of BG.pontoons) pontoon(p, true);
+  pontoon(BG.middle, false);
+  // Cargo on the decks: a container and a crate on the first, a two-high stack and a crate on the second.
+  const onDeck = (x0: number, z0: number, x1: number, z1: number, h: number, mat: THREE.Material, vault = false) => {
+    for (const c of solid2(x0, BG.deck, z0, x1, BG.deck + h, z1, mat, 'metal', 1)) c.vault = vault && h <= 1.05;
+  };
+  onDeck(52.78, 18.97, 55.22, 25.03, CONT.H, stacks.yellow);
+  onDeck(50.6, 11.2, 52.0, 12.6, 1.0, m.darkMetal, true);
+  onDeck(53.0, 42.97, 55.4, 49.03, CONT.H * 2, stacks.blue);
+  onDeck(50.4, 37.4, 51.8, 38.8, 1.0, m.darkMetal, true);
+  // The harbour is water: no ground under it (fall in and drown, DocksLevel.drown).
+  col.holes.push({ x0: QUAY_X + 1.1, z0: -400, x1: 400, z1: 400 });
+
   // West: the back of the next warehouse row (7 m); the forecourts' closures (4 m) either side of the yards.
   solid(WEST_X - 1, 0, -END_Z - 0.6, WEST_X, 7, END_Z + 0.6, m.wall, 'metal', 3);
   for (const s of [1, -1]) {
@@ -294,6 +339,18 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   container2(-44, 46, 'x', 2);
   container2(-24, 44, 'z', 1);
   vault2(-40, 52, -36, 52.6, 0.95, m.jersey);
+
+  // ---------------------------------------------------------------- 28.0: the old depot
+  // Two broken lines of containers along the moved wall, cross pieces closing corridors into dead
+  // ends; the two-high stack at z 18 is a sniper perch, up a steel stair from the z 27 gap.
+  for (const [cx, cz, along, n] of DEPOT.boxes) container2(cx, cz, along, n);
+  {
+    const S = DEPOT.stair;
+    stair2(S.x0, S.z0, S.x1, S.z1, 'z', -1, 0, DEPOT.stack.top, m.darkMetal, ['lo', 'hi']);
+    // A crate on the perch's far end: a little cover up there.
+    solid2(-65, DEPOT.stack.top, 15.4, -63, DEPOT.stack.top + 0.7, 16.4, m.darkMetal, 'metal', 1);
+  }
+  vault2(-62.78, 35.7, -59.22, 36.3, 0.95, m.jersey);
 
   // ---------------------------------------------------------------- lane 2: the warehouse
   const T = 0.4;
@@ -587,6 +644,17 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     chain(N(33.5, 0, 52.3 * s), N(33.5, 0.6, 49.8 * s), N(33.5, 1.2, 46.8 * s));
     for (const [x, z] of [[30, 42], [38, 42], [34, 44]]) N(x, 1.2, z * s);
   }
+  // 28.0: the depot's stair and perch (and a drop off it into the west alley); the barges, gangways
+  // and pontoons (their decks are below the quay: nodes at deck height).
+  for (const s of [1, -1]) {
+    chain(N(-64, 0, 28.6 * s), N(-64, DEPOT.stack.top / 2, 24.3 * s), N(-64, DEPOT.stack.top, 20.2 * s));
+    N(-64, DEPOT.stack.top, 17.8 * s);
+    drops.push([N(-64, DEPOT.stack.top, 17.8 * s), N(-66.6, 0, 17.8 * s)]);
+  }
+  for (const h of BARGES.hulls) for (let z = h.z0 + 2; z <= h.z1 - 2 + 0.01; z += 4) for (const x of [50.4, 51.9]) N2(x, BARGES.deck, z);
+  for (const g of BARGES.gangways) for (const x of [45.2, 47.6, 50.4]) N2(x, x < 46 ? 0 : x < 49 ? -0.05 : BARGES.deck, (g.z0 + g.z1) / 2);
+  for (const p of BARGES.pontoons) for (let z = p.z0; z <= p.z1 + 0.01; z += 3) N2(51.5, BARGES.pontoon, z);
+  for (let z = BARGES.middle.z0; z <= BARGES.middle.z1 + 0.01; z += 4) N(51.5, BARGES.pontoon, z);
   // Lane waypoints are nodes too.
   for (const L of lanesOf('alpha')) for (const p of L) N(p.x, p.y, p.z);
   // Floor lattice: 4 m in the maze, 6 m elsewhere; only where a body fits.
@@ -594,7 +662,7 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   const lattice = (xs: number[], step: number) => {
     for (const x of xs) for (let z = -BASE.z1 + 2; z <= BASE.z1 - 2; z += step) if (inside(x, z) && open(x, 0, z)) N(x, 0, z);
   };
-  lattice([-53, -49, -45, -41, -37, -33, -29, -25, -21, -17], 4);
+  lattice([-66.6, -61, -55.4, -53, -49, -45, -41, -37, -33, -29, -25, -21, -17], 4);
   lattice([-11, -5, 1, 7, 13, 19, 25, 31, 37, 43], 6);
 
   // Lanes must run over open floor, and no nav node may sit inside geometry.
@@ -638,6 +706,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
       [WH.x1, WH.z0, GX1, WH.z1],
       // 15.0: the warehouse is open to the sky.
       [WH.x0, WH.z0, WH.x1, WH.z1],
+      // 28.0: the harbour over the barges.
+      [GX1, -GZ, 60, GZ],
     ],
     surfaces: [
       { x0: 28, z0: 40, x1: 40, z1: 48, y: 1.2 },
@@ -647,6 +717,12 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
       { x0: QG.x0, z0: -QG.z, x1: QG.x1, z1: QG.z, y: QG.y },
       { x0: QG.x1, z0: -9, x1: QG.nest.x1, z1: 9, y: QG.y },
       { x0: CG.x0, z0: -CG.z, x1: CG.x1, z1: CG.z, y: CG.y },
+      // 28.0: the barges, the pontoons, the sniper stack.
+      ...BARGES.hulls.flatMap((h) => [{ x0: h.x0, z0: h.z0, x1: h.x1, z1: h.z1, y: BARGES.deck }, { x0: h.x0, z0: -h.z1, x1: h.x1, z1: -h.z0, y: BARGES.deck }]),
+      ...BARGES.pontoons.flatMap((p) => [{ x0: p.x0, z0: p.z0, x1: p.x1, z1: p.z1, y: BARGES.pontoon }, { x0: p.x0, z0: -p.z1, x1: p.x1, z1: -p.z0, y: BARGES.pontoon }]),
+      { ...BARGES.middle, y: BARGES.pontoon },
+      { x0: DEPOT.stack.x0, z0: DEPOT.stack.z0, x1: DEPOT.stack.x1, z1: DEPOT.stack.z1, y: DEPOT.stack.top },
+      { x0: DEPOT.stack.x0, z0: -DEPOT.stack.z1, x1: DEPOT.stack.x1, z1: -DEPOT.stack.z0, y: DEPOT.stack.top },
     ],
     shelters: [
       { x0: QG.x0, z0: -QG.z, x1: QG.x1, z1: QG.z, y: QG.y - 0.25 },

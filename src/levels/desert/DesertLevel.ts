@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
-import { buildTerrainMesh, CULVERT, DESERT_EXTENT, DESERT_TERRAIN } from './Terrain';
+import { buildTerrainMesh, CULVERT, DESERT_EXTENT, DESERT_TERRAIN, desertHeight } from './Terrain';
+import { rotatePads } from '../SpawnManager';
 import { buildOutpost, type OutpostResult } from './Outpost';
 import { Sandstorm } from './Sandstorm';
 import { DesertIntro } from './DesertIntro';
@@ -31,6 +32,16 @@ export const DESERT_INFO: LevelInfo = {
     tdm: { t1: 'GRIDFALL', t2: 'الموقع الصحراوي · DESERT OUTPOST', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>25 TICKETS EACH · LAST TEAM STANDING WINS' },
   },
 };
+
+/**
+ * 28.0: the spawn pads (TdmData.pads), ALPHA's half rotated 180° for OMEGA (the arena is
+ * point-symmetric), on the sand under them: [x, z, yaw]. The yard; beside the trench's north mouth;
+ * beside the burnt-out bus; inside a hamlet house; beside the wrecked truck (was the wadi: self-play put
+ * too little of the fight in the new outer flanks); the compound's south yard; by the west pump house. Proposed by __dev.spawnPads, placed by hand where the outer flanks needed one.
+ */
+const SPAWN_PADS = rotatePads(
+  ([[1.5, 63.6, 3.14], [-70, 44, 1.57], [70.2, 37, 4.71], [-59, 26.5, 1.57], [71.5, 18, 4.71], [0, 18, 3.14], [-55.5, 6, 1.57]] as const).map(([x, z, a]) => [x, desertHeight(x, z), z, a] as const),
+);
 
 /** Sun from the south-west, 40° up: long hard shadows across the yard. */
 const SUN_DIR = new THREE.Vector3(-0.55, 0.64, 0.53).normalize();
@@ -153,8 +164,26 @@ export class DesertLevel implements LevelRuntime {
         // ALPHA (the player's team) holds the south base, OMEGA the north.
         spawns: { alpha: o.arena.spawns.south, omega: o.arena.spawns.north },
         lanes: { alpha: o.arena.lanes.south, omega: o.arena.lanes.north },
+        // 28.0: spawn pads anywhere on the map (SpawnManager); the yards stay for the 'bases' A/B.
+        pads: SPAWN_PADS,
+        // 28.0: open dunes, long sight in calm air: pressure from further off, a larger minimum, sight
+        // checked out to 80 m (past the bots' 75 m cap). Self-play: shot within 3 s of a spawn 5.2% → see BENCH-28.0.
+        spawnTuning: { near: 60, hardMin: 24, sight: 80 },
+        // 28.0: the outer flanks' high-value areas for the patrols: the outcrops' tops, the bus (the trench
+        // is on the outer lanes already; searching it as well jammed bots in the corner by its notch).
+        hvas: [[-81, 26.5, 3.8], [80, 49.5, 3.4], [74.8, 36.5, 0]].flatMap(([x, z, up]) => [
+          new THREE.Vector3(x, desertHeight(x, z) + up, z),
+          new THREE.Vector3(-x, desertHeight(-x, -z) + up, -z),
+        ]),
         inBase: (team, p) => inBase(p.x, p.z, team === 'alpha' ? 'south' : 'north'),
         start: { x: 0, z: 63, yaw: 0, y: o.arena.spawns.south[0].y },
+        // 28.0: three lanes for the reports and the spawn balance (the director keeps its five): the
+        // west flank (the hamlet and the dunes beyond), the compound, the east flank; the yards none.
+        laneOf: (x, _y, z) => (Math.abs(z) > 56 && Math.abs(x) < 23 ? null : x < -40 ? 0 : x > 40 ? 2 : 1),
+        laneNames: ['west flank', 'compound', 'east flank'],
+        // 28.0: the outer edges: everything past the compound's approaches (hamlet, wadi, pump houses,
+        // the outer dunes).
+        edgeOf: (x) => Math.abs(x) >= 44,
       },
     };
   }

@@ -251,7 +251,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'dynamic' | 'bases'; cell?: number } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'dynamic' | 'bases'; cell?: number; sight?: number } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -305,6 +305,15 @@ export async function tdmSim(
   // Forward respawns are read at each respawn: held off for the whole match (A/B), restored below.
   TDM.force.noForward = opts.forward === false;
   const tdm = game.tdm;
+  // 28.0: a fixed sight range for the whole match (the level's weather doesn't run in a sim: the
+  // desert's storm stays where it was; `sight: 24.5` is its peak, 260 its calm).
+  const sight0 = game.ctx.sightRange;
+  const fog0 = (game.fog as { density?: number }).density;
+  if (opts.sight !== undefined) {
+    game.ctx.sightRange = opts.sight;
+    // The arena bots read the scene's fog (the storm drives it): the density that sight range implies.
+    if (fog0 !== undefined) (game.fog as { density: number }).density = Math.sqrt(Math.log(10)) / opts.sight;
+  }
   // 19.0, downtime: each life's time from spawn to its first round (time to first engagement), lives
   // that died without firing, and the map's quiet seconds (whole seconds in which nobody fired).
   const born = new Map<number, number>();
@@ -363,6 +372,15 @@ export async function tdmSim(
   const stuck: string[] = [];
   // 27.0, map use: an occupancy grid of `cell` m over the map's walkable cells (those with a nav node).
   const flow = flowGrid(game, opts.cell ?? 8);
+  // 28.0, across the map's width: bot time, combat time (engaging, pushing, breaking, flanking) and
+  // kills by x band (12 bands over the bounds), so an edge's share can be read at any threshold.
+  const xb = game.level.data.bounds;
+  const BANDS = 12;
+  const band = (x: number) => Math.max(0, Math.min(BANDS - 1, Math.floor(((x - xb.min.x) / (xb.max.x - xb.min.x)) * BANDS)));
+  const xTime = new Array(BANDS).fill(0), xFight = new Array(BANDS).fill(0), xKill = new Array(BANDS).fill(0);
+  const FIGHT = new Set(['engage', 'push', 'break', 'flank']);
+  const edgeOf = game.level.data.tdm?.edgeOf ?? null;
+  const edgeN = { time: 0, timeIn: 0, fight: 0, fightIn: 0 };
   const wall0 = performance.now();
   while (!tdm.winner && game.elapsed - t0 < maxSeconds) {
     for (let i = 0; i < (opts.chunk ?? 240) && !tdm.winner; i++) {
@@ -413,6 +431,17 @@ export async function tdmSim(
           const zn = zoneOf(b.pos.x, b.pos.y, b.pos.z);
           zoneT[zn] = (zoneT[zn] ?? 0) + 1;
           flow.add(b.pos.x, b.pos.z, 'occ');
+          xTime[band(b.pos.x)]++;
+          if (FIGHT.has(b.tac.action)) xFight[band(b.pos.x)]++;
+          // 28.0: the map's outer edges (TdmData.edgeOf).
+          if (edgeOf) {
+            edgeN.time++;
+            if (FIGHT.has(b.tac.action)) edgeN.fight++;
+            if (edgeOf(b.pos.x, b.pos.y, b.pos.z)) {
+              edgeN.timeIn++;
+              if (FIGHT.has(b.tac.action)) edgeN.fightIn++;
+            }
+          }
           const ln = tdmData?.laneOf?.(b.pos.x, b.pos.y, b.pos.z);
           if (ln !== undefined && ln !== null) laneT[ln]++;
           if (lastZone.get(b.uid) !== zn) {
@@ -437,6 +466,8 @@ export async function tdmSim(
   targets.hit = hit0;
   TDM.force.noForward = false;
   TDM.spawns = spawns0;
+  game.ctx.sightRange = sight0;
+  if (fog0 !== undefined) (game.fog as { density: number }).density = fog0;
   game.timeScale = 1;
   TDM.roster = roster0;
   ARENA.laneLeave = lane0;
@@ -505,6 +536,22 @@ export async function tdmSim(
     flow: (() => {
       for (const x of k) if (x.victimPos) flow.add(x.victimPos[0], x.victimPos[2], 'kill');
       return flow.report();
+    })(),
+    // 28.0: the outer edges' share of bot time, combat time and kills (null: the map defines none).
+    edge: edgeOf
+      ? {
+          timePct: +((100 * edgeN.timeIn) / Math.max(1, edgeN.time)).toFixed(1),
+          fightPct: +((100 * edgeN.fightIn) / Math.max(1, edgeN.fight)).toFixed(1),
+          killPct: +((100 * k.filter((x) => x.victimPos && edgeOf(x.victimPos[0], x.victimPos[1], x.victimPos[2])).length) / Math.max(1, k.length)).toFixed(1),
+        }
+      : null,
+    xBands: (() => {
+      for (const x of k) if (x.victimPos) xKill[band(x.victimPos[0])]++;
+      const pctOf = (a: number[]) => {
+        const t = a.reduce((u, v) => u + v, 0) || 1;
+        return a.map((v) => +((100 * v) / t).toFixed(1));
+      };
+      return { from: xb.min.x, to: xb.max.x, bands: BANDS, timePct: pctOf(xTime), fightPct: pctOf(xFight), killPct: pctOf(xKill) };
     })(),
     patrol: tdm.directors ? { picks: tdm.directors.alpha.patrolStats.picks + tdm.directors.omega.patrolStats.picks, toActive: tdm.directors.alpha.patrolStats.active + tdm.directors.omega.patrolStats.active, spawnsHeard: tdm.directors.alpha.patrolStats.spawnsHeard + tdm.directors.omega.patrolStats.spawnsHeard, arrivals: st.patrolArrive } : null,
     firstEngagement: {

@@ -94,6 +94,8 @@ export interface SpawnPick {
 }
 
 export class SpawnManager {
+  /** 28.0: the weights in use (SPAWN with the map's TdmData.spawnTuning over it). */
+  readonly S: typeof SPAWN;
   /** When each pad was last spawned on, and by which team. */
   private used = new Map<number, { t: number; team: TeamId }>();
   private deaths: { pos: THREE.Vector3; t: number }[] = [];
@@ -105,7 +107,10 @@ export class SpawnManager {
     /** True when nothing blocks a to b. */
     private los: (a: THREE.Vector3, b: THREE.Vector3) => boolean,
     private rand: () => number = Math.random,
-  ) {}
+    tuning: Partial<typeof SPAWN> = {},
+  ) {
+    this.S = { ...SPAWN, ...tuning };
+  }
 
   reset() {
     this.used.clear();
@@ -115,12 +120,12 @@ export class SpawnManager {
 
   noteDeath(pos: THREE.Vector3, now: number) {
     this.deaths.push({ pos: pos.clone(), t: now });
-    while (this.deaths.length && now - this.deaths[0].t > SPAWN.deathFor) this.deaths.shift();
+    while (this.deaths.length && now - this.deaths[0].t > this.S.deathFor) this.deaths.shift();
   }
 
   /** The cheap part of a pad's score (no rays); -Infinity: too close to a hostile. Also its nearest hostile. */
   cheap(pad: SpawnPad, _team: TeamId, hostiles: readonly SpawnUnit[], allies: readonly SpawnUnit[], now: number, laneNeed?: readonly number[]): { s: number; near: number } {
-    const S = SPAWN;
+    const S = this.S;
     const p = pad.pos;
     let s = 0, near = Infinity;
     for (const h of hostiles) {
@@ -156,8 +161,8 @@ export class SpawnManager {
     let seen = 0;
     _chest.set(pad.pos.x, pad.pos.y + 1.2, pad.pos.z);
     for (const h of hostiles) {
-      if (h.pos.distanceTo(pad.pos) > SPAWN.sight) continue;
-      if (spent.n >= SPAWN.maxRays) return Infinity;
+      if (h.pos.distanceTo(pad.pos) > this.S.sight) continue;
+      if (spent.n >= this.S.maxRays) return Infinity;
       spent.n++;
       _eye.set(h.pos.x, h.pos.y + 1.6, h.pos.z);
       if (this.los(_eye, _chest)) return ++seen;
@@ -185,7 +190,7 @@ export class SpawnManager {
         break;
       }
       if (seen !== Infinity && r.near > (fallback?.near ?? -1)) fallback = r;
-      if (spent.n >= SPAWN.maxRays) break;
+      if (spent.n >= this.S.maxRays) break;
     }
     const isFallback = !chosen;
     // Nothing clear: the least-seen pad tried; nothing tried (all too close): the one furthest from them.
@@ -214,7 +219,7 @@ export class SpawnManager {
    * none within openGap m of ALPHA's nor in sight of them (pad eye to pad eye).
    */
   opening(sizes: Record<TeamId, number>): Record<TeamId, SpawnPad[]> {
-    const S = SPAWN;
+    const S = this.S;
     const squads = (n: number) => Math.min(S.openPads, Math.max(1, Math.ceil(n / S.squad)));
     const sideOf = (t: TeamId) => this.pads.filter((p) => p.side === t);
     const alpha = spread(sideOf('alpha'), squads(sizes.alpha), this.rand);
@@ -291,4 +296,13 @@ export function laneNeed(lanes: readonly (number | null)[], weights: readonly nu
   }
   const W = weights.reduce((a, w) => a + w, 0) || 1;
   return weights.map((w, l) => (w / W - (n ? count[l] / n : w / W)) * L);
+}
+
+/**
+ * 28.0: a point-symmetric map's pads from its ALPHA half (the desert): those, and each rotated 180°
+ * about the origin for OMEGA: [x, y, z, yaw] → [−x, y, −z, yaw + π].
+ */
+export function rotatePads(half: readonly (readonly [number, number, number, number])[]): [number, number, number, number][] {
+  const wrap = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  return [...half.map((p) => [...p] as [number, number, number, number]), ...half.map(([x, y, z, a]) => [-x, y, -z, +wrap(a + Math.PI).toFixed(3)] as [number, number, number, number])];
 }

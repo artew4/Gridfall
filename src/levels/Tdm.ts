@@ -413,16 +413,21 @@ export class TdmRules implements ModeRules {
     const a = centre(this.data.spawns.alpha), o = centre(this.data.spawns.omega);
     const lane = this.data.laneOf;
     const pads: SpawnPad[] = raw.map(([x, y, z, yaw], id) => ({ id, pos: new THREE.Vector3(x, y, z), yaw, side: sideOf({ x, z }, a, o), lane: lane ? lane(x, y + 1, z) : null }));
-    this.spawner = new SpawnManager(pads, (p, q) => {
-      this.sched.spend(1);
-      return g.col.lineOfSight(p, q);
-    });
+    this.spawner = new SpawnManager(
+      pads,
+      (p, q) => {
+        this.sched.spend(1);
+        return g.col.lineOfSight(p, q);
+      },
+      Math.random,
+      this.data.spawnTuning,
+    );
     this.padMesh = new SpawnPads(pads);
     g.scene.add(this.padMesh.mesh);
     this.minimap?.drawPads(pads.map((p) => p.pos));
     // No bases, no front: the bots search the pads and the lanes' waypoints (ArenaDirector.setPatrol).
     if (this.directors) {
-      const hvas = [...pads.map((p) => p.pos), ...this.data.lanes.alpha.flat()];
+      const hvas = [...pads.map((p) => p.pos), ...(this.data.hvas ?? []), ...this.data.lanes.alpha.flat()];
       for (const t of TEAMS) this.directors[t].setPatrol(hvas);
     }
   }
