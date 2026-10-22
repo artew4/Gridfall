@@ -19,6 +19,7 @@ import { RANGED_ONLY, filterRoster, type RosterRequest, type Slot as RosterSlot,
 import { otherTeam, TEAMS, type Combatant, type TeamId } from '../combat/Team';
 import { DESERT_GARRISON } from '../entities/enemies/mercs';
 import { OPERATOR_KITS, type OperatorKit } from '../entities/enemies/operators';
+import { gunThemeFor, themedArm, themeRigGun } from '../entities/weapons/theme';
 import { ARMORY, dealArm, type BotArm, type WeaponId } from '../entities/weapons/armory';
 import { dealCallsigns } from '../enemies/Callsigns';
 import { rand } from '../core/math';
@@ -246,10 +247,10 @@ export class TdmRules implements ModeRules {
     g.projectiles.targets = {
       bots: this.bots,
       damage: TDM.botDamage,
-      hit: (e, dmg, dir, point, by) => {
+      hit: (e, dmg, dir, point, by, knock) => {
         if (by && by.team === e.team) this.friendlyDamage += dmg;
         if (isArenaBot(by) && e.alive) by.brain.onDealt(e, dmg, this.now);
-        e.takeHit(dmg, dir, point, this.ctxs[e.team], by);
+        e.takeHit(dmg, dir, point, this.ctxs[e.team], by, knock);
       },
       nearMiss: (e, dose, by) => (isArenaBot(e) ? e.brain.onNearMiss(this.ctxs[e.team], by) : e.suppress(dose, this.ctxs[e.team])),
     };
@@ -345,6 +346,8 @@ export class TdmRules implements ModeRules {
       s.kind === 'runner'
         ? arena ? new ArenaRunner(at, TDM.difficulty, look) : new Runner(at, TDM.difficulty, look)
         : arena ? new ArenaGunner(at, TDM.difficulty, g.scene, look, s.arm!) : new Gunner(at, TDM.difficulty, g.scene, null, look);
+    // 21.0: its gun wears the map's finish (as the player's does).
+    if (arena && s.kind === 'gunner' && e.rig.weapon) themeRigGun(e.rig.weapon, gunThemeFor(g.setting));
     e.team = s.team;
     e.name = s.name;
     e.invulnUntil = this.now + TDM.protect;
@@ -360,10 +363,12 @@ export class TdmRules implements ModeRules {
    * on a team at once (a squad of all shotguns, or all rifles, is no firefight to read).
    */
   private dealArm(team: TeamId): BotArm {
-    if (TDM.arms !== 'random') return ARMORY[TDM.arms].bot;
+    // 21.0: in the map's finish (kinetic rounds on a military map, Maglev's white-cyan bolts).
+    const theme = gunThemeFor(this.game.setting);
+    if (TDM.arms !== 'random') return themedArm(ARMORY[TDM.arms].bot, theme);
     const held: WeaponId[] = [];
     for (const s of this.slots) if (s.team === team && s.bot && s.arm) held.push(s.arm.id);
-    return dealArm(held, TDM.armCap);
+    return themedArm(dealArm(held, TDM.armCap), theme);
   }
 
   /** The base spawn furthest from every hostile, not on top of a body. */

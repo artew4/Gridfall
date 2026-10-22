@@ -5,6 +5,7 @@ import type { AudioEngine } from '../audio/AudioEngine';
 import type { Player } from './Player';
 import type { WeaponSpec } from '../entities/types';
 import { KITSUNE_9 } from '../entities/weapons/kitsune9';
+import { ballisticFor, gunMats, stripColour, type GunTheme } from '../entities/weapons/theme';
 
 /** The reload timeline below is authored for this length and scaled to each weapon's. */
 const BASE_RELOAD = 1.35;
@@ -73,6 +74,9 @@ export class Weapon {
   private sprintBlend = 0;
   private ammoDisplay = makeAmmoDisplay();
   private stripMat: THREE.MeshBasicMaterial;
+  /** 21.0: the finish the gun was built in (the map's), and the strips' full-ammo colour in it (null: no glow). */
+  theme: GunTheme = 'blaster';
+  private stripBase: THREE.Color | null = null;
   muzzleWorld = new THREE.Vector3();
   onReloadDone: () => void = () => {};
 
@@ -104,14 +108,16 @@ export class Weapon {
    * Swap the weapon (13.0: the loadout's pick, or the story's own). The previous model is freed: the viewmodel outlives levels,
    * so anything left behind here would leak across every switch.
    */
-  setSpec(spec: WeaponSpec) {
-    if (this.spec === spec && this.gun.children.length) return;
+  setSpec(spec: WeaponSpec, theme: GunTheme = this.theme) {
+    if (this.spec === spec && this.theme === theme && this.gun.children.length) return;
     this.disposeModel();
     this.spec = spec;
+    this.theme = theme;
     this.slide.position.set(0, 0, 0);
     this.mag.position.set(0, 0, 0);
     this.mag.rotation.set(0, 0, 0);
-    spec.build({ gun: this.gun, slide: this.slide, mag: this.mag, display: this.ammoDisplay.texture });
+    const mats = gunMats(theme);
+    spec.build({ gun: this.gun, slide: this.slide, mag: this.mag, display: this.ammoDisplay.texture, mats });
     this.magRest.copy(this.mag.position);
     // Muzzle flash: two crossed additive cards with a hot core, at the weapon's muzzle.
     const [fx, fy, fz] = spec.flash.at;
@@ -133,9 +139,21 @@ export class Weapon {
     }
     this.flashLight.color.set(spec.flash.light);
     this.flashLight.position.set(spec.muzzle[0], spec.muzzle[1] + 0.05, spec.muzzle[2] + 0.1);
-    this.gun.traverse((o) => {
-      if (o instanceof THREE.Mesh && o.userData.strip) o.material = this.stripMat;
-    });
+    // The strips take the shared ammo-strip material where the theme glows (on a military finish they
+    // stay plain metal). A material only the strips used is freed here: nothing else will.
+    this.stripBase = stripColour(theme);
+    if (this.stripBase) {
+      this.stripMat.color.copy(this.stripBase);
+      const replaced = new Set<THREE.Material>(), used = new Set<THREE.Material>();
+      this.gun.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        if (o.userData.strip) {
+          replaced.add(o.material as THREE.Material);
+          o.material = this.stripMat;
+        } else used.add(o.material as THREE.Material);
+      });
+      for (const m of replaced) if (!used.has(m)) m.dispose();
+    }
     this.maxAmmo = spec.mag;
     this.reset();
   }
@@ -155,6 +173,16 @@ export class Weapon {
     this.mag.clear();
     this.gun.clear();
     this.flashes = [];
+  }
+
+  /** 21.0: what the gun fires in its finish (every gun kinetic on a military map). */
+  get ballistic() {
+    return ballisticFor(this.spec.ballistic, this.theme);
+  }
+
+  /** 21.0: the report: the energy pistol's plasma becomes a plain pistol crack when it fires kinetic. */
+  get sound() {
+    return this.spec.sound === 'plasma' && this.ballistic === 'kinetic' ? 'pistol' : this.spec.sound;
   }
 
   /** "Low" for the HUD and the strips: three rounds on a pistol, a fifth of a rifle magazine. */
@@ -239,7 +267,7 @@ export class Weapon {
       f.scale.setScalar(rand(0.8, 1.25));
     }
     this.bloom = Math.min(1, this.bloom + this.spec.bloomPerShot);
-    this.audio.gunshot(this.spec.sound);
+    this.audio.gunshot(this.sound, this.ballistic === 'energy');
     this.ammoDisplay.draw(this.ammo, this.spec.mag, false);
     // Auto-reload on empty after the same short beat as before, but on the game clock (pauses with it).
     if (this.ammo === 0) this.autoReloadT = 0.25;
@@ -272,8 +300,9 @@ export class Weapon {
     this.cooldown -= dt;
     this.bloom = Math.max(0, this.bloom - dt * 1.8);
     // Drawing is quick (ready in ~0.25 s) so combat never waits on it; holstering is a touch slower.
+    // 21.0: how quick is the gun's own (the pistol's 22: ready in ~0.12 s; the shotgun's 7: ~0.35 s).
     const target = this.holstered ? 0 : this.raiseTarget;
-    this.raise = damp(this.raise, target, this.holstered ? 8 : this.raiseTarget > this.raise ? 10 : 5, dt);
+    this.raise = damp(this.raise, target, this.holstered ? 8 : this.raiseTarget > this.raise ? this.spec.handling.raise : 5, dt);
     this.root.visible = this.raise > 0.015;
     this.kickZ.update(dt);
     this.kickRot.update(dt);
@@ -405,13 +434,16 @@ export class Weapon {
     this.gun.rotation.set(this.kickRot.value * 0.02 * kick, this.kickSide.value * 0.01 * kick, this.kickSide.value * 0.015 * kick);
 
     // Strip glow tracks remaining ammo, flashing red when low.
-    if (!this.spec.ammoGlow) return;
+    // 21.0: in the theme's own colour (the corporate LED dimmer than the blaster neon), none on military.
+    if (!this.spec.ammoGlow || !this.stripBase) return;
     const frac = this.ammo / this.spec.mag;
+    const b = this.stripBase, k = b.b / 3;
     if (this.ammo <= this.lowAmmo && !this.reloading) {
       const p = 0.5 + 0.5 * Math.sin(time * 10);
-      this.stripMat.color.setRGB(2.5 + p, 0.2, 0.4);
+      this.stripMat.color.setRGB((2.5 + p) * k, 0.2 * k, 0.4 * k);
     } else {
-      this.stripMat.color.setRGB(0.25, 0.6 + 1.8 * frac, 0.8 + 2.2 * frac);
+      const f = 0.25 + 0.75 * frac;
+      this.stripMat.color.setRGB(b.r * (0.8 + 0.2 * frac), b.g * f, b.b * f);
     }
   }
 }

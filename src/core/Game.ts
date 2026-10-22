@@ -42,6 +42,7 @@ import { buildCoverSpots } from '../enemies/tactics/CoverSpots';
 import { PlayerUnit, registerUnit } from '../combat/PlayerUnit';
 import type { Combatant } from '../combat/Team';
 import { ARMORY, armoryByKey, type WeaponId } from '../entities/weapons/armory';
+import { gunThemeFor } from '../entities/weapons/theme';
 import { Loadout } from '../gameplay/Loadout';
 import { LoadoutView } from '../ui/LoadoutView';
 import { cleanName, loadName, saveName } from '../gameplay/PlayerName';
@@ -490,7 +491,9 @@ export class Game {
     if (!story) this.loadout.commit();
     const id = story ?? this.loadout.current;
     const spec = ARMORY[id].spec;
-    this.weapon.setSpec(spec);
+    // 21.0: the gun wears the map's finish, and handles as itself.
+    this.weapon.setSpec(spec, gunThemeFor(this.setting));
+    this.player.gun = spec.handling;
     this.hud.setWeapon(spec.name, fl(id), spec.mag, this.weapon.lowAmmo);
   }
 
@@ -828,7 +831,7 @@ export class Game {
     this.fx.muzzleSmoke(muzzle, dir);
     if (w.pellets) this.fx.muzzleSmoke(muzzle, dir);
     // 8.1: brass only from kinetic guns, onto the floor under the port (a catwalk, a roof, the street).
-    if (w.ballistic === 'kinetic') {
+    if (this.weapon.ballistic === 'kinetic') {
       const port = cam.localToWorld(this.weapon.camPoint(w.shell, this.player.ads, new THREE.Vector3()));
       this.fx.ejectShell(port, right, up, this.col.groundHeightAt(port.x, port.z, 0.1, this.player.pos.y + 0.3), true);
     }
@@ -839,7 +842,8 @@ export class Game {
     // One ray per pellet (one for ordinary guns, exactly the aimed ray). Pellets on the same enemy add
     // up into a single hit (one stagger, one hitmarker, one kill); a blast counts once per prop.
     const count = w.pellets?.count ?? 1;
-    const fall = w.pellets?.falloff;
+    // 21.0: single rounds fall off too (the pistol past 25 m, the SMG past 12, the rifle past 35).
+    const fall = w.pellets?.falloff ?? w.falloff;
     const onEnemy = new Map<Enemy, { dmg: number; point: THREE.Vector3; dir: THREE.Vector3 }>();
     const props = new Set<unknown>();
     const suppressed = new Map<Enemy, number>();
@@ -873,11 +877,13 @@ export class Game {
         target = null;
         eh = null;
       }
-      this.fx.tracer(muzzle, origin.clone().addScaledVector(pd, maxDist), tracer, w.ballistic);
+      this.fx.tracer(muzzle, origin.clone().addScaledVector(pd, maxDist), tracer, this.weapon.ballistic);
       this.nearMisses(origin, pd, maxDist, target, suppressed);
       if (target && eh) {
         const k = fall ? (eh.dist <= fall.near ? 1 : eh.dist >= fall.far ? fall.min : 1 - ((eh.dist - fall.near) / (fall.far - fall.near)) * (1 - fall.min)) : 1;
-        const dmg = w.damage * eh.mult * k * rand(0.95, 1.05);
+        // 21.0: the pistol's head hits are worth more than the hitbox's own ×2.
+        const head = eh.head && w.headMul ? w.headMul : 1;
+        const dmg = w.damage * eh.mult * head * k * rand(0.95, 1.05);
         const acc = onEnemy.get(target);
         if (acc) {
           acc.dmg += dmg;
@@ -902,7 +908,7 @@ export class Game {
       this.stats.hits++;
       let anyKill = false;
       for (const [e, h] of onEnemy) {
-        const killed = e.takeHit(h.dmg, h.dir, h.point, this.ctx, this.playerUnit);
+        const killed = e.takeHit(h.dmg, h.dir, h.point, this.ctx, this.playerUnit, w.knock);
         if (killed) {
           anyKill = true;
           this.rules.onKill?.();
@@ -935,10 +941,13 @@ export class Game {
     const p = this.player;
     const a = p.ads, c = p.crouch;
     const steady = 1 - 0.3 * c;
+    // 21.0: from the hip the gun's own multiplier (the SMG's 0.55 tight, the rifle's 2 wide), gone with the sights up.
+    const hip = lerp(this.weapon.spec.hip, 1, a);
     return (
-      this.weapon.spec.spread * (1 - 0.5 * a) * (1 - 0.15 * c) +
-      p.moveAmount * 0.012 * (1 - 0.75 * a) * steady +
-      this.weapon.bloom * 0.018 * (1 - 0.6 * a) * steady +
+      (this.weapon.spec.spread * (1 - 0.5 * a) * (1 - 0.15 * c) +
+        p.moveAmount * 0.012 * (1 - 0.75 * a) * steady +
+        this.weapon.bloom * 0.018 * (1 - 0.6 * a) * steady) *
+        hip +
       (p.onGround ? 0 : 0.03)
     );
   }

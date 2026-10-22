@@ -188,7 +188,7 @@ export class ArenaGunner extends Gunner implements ArenaBody {
       }
       ctx.projectiles.fire(muzzle, dir, ARENA.boltSpeed, this, { tag, round: arm, quiet: i > 0 });
     }
-    ctx.audio.enemyShot(muzzle, this.look.voice, arm.sound);
+    ctx.audio.enemyShot(muzzle, this.look.voice, arm.sound === 'plasma' && arm.ballistic === 'kinetic' ? 'pistol' : arm.sound, arm.ballistic === 'energy');
     const [cr, cg, cb] = arm.bolt.core;
     ctx.fx.add.spawn({ x: muzzle.x, y: muzzle.y, z: muzzle.z, r: cr * 1.2, g: cg * 1.2, b: cb * 1.2, size: arm.pellets > 1 ? 0.65 : 0.45, life: 0.06 });
     this.leanX.impulse(-1.2);

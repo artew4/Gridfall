@@ -645,9 +645,11 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (hs < me.speed * ARENA.run) return;
     const dx = me.vel.x / hs, dz = me.vel.z / hs;
     const toward = (p: THREE.Vector3, d: number) => ((p.x - me.pos.x) * dx + (p.z - me.pos.z) * dz) / Math.max(d, 1e-3) > 0.8;
-    const k = this.persona.slide;
+    // 21.0: the gun sets the liking too (a shotgun dives into range; it slides while engaging, not only pushing).
+    const k = this.persona.slide * me.arm.agility.slide;
+    const closing = next === 'push' || (next === 'engage' && me.arm.agility.slide > 1.5);
     let why: 'push' | 'dive' | 'exposed' | 'evade' | null = null;
-    if (next === 'push' && T && dT >= S.push[0] && dT <= S.push[1] && toward(T.pos, dT) && Math.random() < 0.6 * k) why = 'push';
+    if (closing && T && dT >= S.push[0] && dT <= S.push[1] && toward(T.pos, dT) && Math.random() < 0.6 * k) why = 'push';
     else if (next === 'break' && this.evading && !this.goal && Math.random() < ARENA.underFire.slide) why = 'evade';
     else if ((next === 'break' || next === 'retreat') && this.goal) {
       const d = Math.hypot(this.goal.x - me.pos.x, this.goal.z - me.pos.z);
@@ -756,7 +758,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   private hopping(ctx: EnemyCtx, A: ArenaCtx, T: Combatant, now: number): boolean {
     const C = ARENA.coverPush;
     const me = this.self;
-    if (!C.on || !C.arms.includes(me.arm.id)) return false;
+    // 21.0: a gun can hop on every map (the shotgun: BotArm.agility.hop).
+    if (!(C.on && C.arms.includes(me.arm.id)) && !me.arm.agility.hop) return false;
     const dT = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
     if (dT < C.minDist) {
       this.hop = null;
@@ -853,8 +856,10 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     this.updateAim(dt, now, T, tv, gunner);
 
     // ---- Movement by state.
-    const run = me.speed * (gunner ? ARENA.run : 1);
-    const sprint = me.speed * (gunner ? ARENA.sprint : 1.05);
+    // 21.0: the gun in hand sets the pace (the pistol runs fastest, the shotgun is heaviest).
+    const agile = gunner ? me.arm.agility.run : 1;
+    const run = me.speed * (gunner ? ARENA.run : 1) * agile;
+    const sprint = me.speed * (gunner ? ARENA.sprint : 1.05) * agile;
     if (this.swing) {
       this.melee(dt, ctx, desired);
     } else if (this.state === 'engage' && gunner && T && Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > me.arm.maxRange) {
@@ -863,7 +868,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     } else if (this.state === 'engage' && gunner && T) {
       strafing = true;
       // Aiming: feet planted while it focuses, then a walking strafe; from the hip, the full run.
-      const sp = this.aiming ? run * (this.focusT < this.focusNeed ? ARENA.ads.focusMove : ARENA.ads.walk) : run;
+      // 21.0: a pistol keeps its full run while aiming (no planted feet): it strafes hard the whole fight.
+      const am = me.arm.agility.aimMove;
+      const sp = this.aiming ? run * (am ?? (this.focusT < this.focusNeed ? ARENA.ads.focusMove : ARENA.ads.walk)) : run;
       this.strafe(dt, ctx, T, sp, desired);
     } else if (this.state === 'push' && gunner && T && tv && this.hopping(ctx, A, T, now)) {
       // 19.0: hop from cover to cover towards it (the spot is out of its sight), firing on the way.

@@ -2,7 +2,7 @@ import { flSpan } from './Flavor';
 import { ARMORY, ARMORY_ORDER, type WeaponId } from '../entities/weapons/armory';
 
 /**
- * 13.0, the loadout picker: three cards (SMG, rifle, shotgun) with their keys. Shown over the match
+ * 13.0, the loadout picker: a card per gun (21.0: pistol, SMG, rifle, shotgun) with its key. Shown over the match
  * intro and the first seconds in the spawn yard (a pick swaps the gun at once), and under the respawn
  * countdown in Team Deathmatch (a pick is queued for the next life). Keys 1–3 always work (the mouse
  * is usually captured); the cards are clickable whenever it isn't.
@@ -42,7 +42,7 @@ export class LoadoutView {
   show(on: boolean, queued?: WeaponId, carried?: WeaponId, next = false) {
     this.root.classList.toggle('hidden', !on);
     if (!on || !queued) return;
-    this.head.innerHTML = next ? `NEXT SPAWN ${flSpan('nextSpawn')} · PRESS 1 · 2 · 3` : `LOADOUT ${flSpan('loadout')} · PRESS 1 · 2 · 3`;
+    this.head.innerHTML = next ? `NEXT SPAWN ${flSpan('nextSpawn')} · PRESS 1 · 2 · 3 · 4` : `LOADOUT ${flSpan('loadout')} · PRESS 1 · 2 · 3 · 4`;
     for (const [id, c] of this.cards) {
       c.classList.toggle('on', id === queued);
       c.classList.toggle('held', id === carried && id !== queued);

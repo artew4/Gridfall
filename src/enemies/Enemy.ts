@@ -227,7 +227,8 @@ export abstract class Enemy implements Combatant {
   }
 
   /** Returns true if this hit killed the enemy. */
-  takeHit(dmg: number, dir: THREE.Vector3, point: THREE.Vector3, ctx: EnemyCtx, by: Combatant | null = null): boolean {
+  /** 21.0: `knock`, a hit that shoves (m/s along the shot, flat) and staggers (s) harder: the shotgun's. */
+  takeHit(dmg: number, dir: THREE.Vector3, point: THREE.Vector3, ctx: EnemyCtx, by: Combatant | null = null, knock?: { push: number; stagger: number }): boolean {
     if (!this.alive) return false;
     // Its own team's context (squad, kill credit), whoever deals the damage.
     ctx = this.lastCtx ?? ctx;
@@ -247,6 +248,12 @@ export abstract class Enemy implements Combatant {
     this.leanX.impulse(localZ * k);
     this.leanZ.impulse(-localX * k);
     this.vel.addScaledVector(dir, this.heavy ? 0.6 : 1.8);
+    if (knock) {
+      const h = Math.hypot(dir.x, dir.z) || 1, k = this.heavy ? 0.35 : 1;
+      this.vel.x += (dir.x / h) * knock.push * k;
+      this.vel.z += (dir.z / h) * knock.push * k;
+      this.stagger = Math.max(this.stagger, knock.stagger * k);
+    }
     ctx.fx.enemyHit(point, dir, this.accent, this.look.organic);
     ctx.audio.hitEnemy(point, this.heavy);
     this.onHit(ctx);

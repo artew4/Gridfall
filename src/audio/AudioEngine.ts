@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { rand } from '../core/math';
+import type { GunSound } from '../entities/types';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -901,7 +902,13 @@ export class AudioEngine {
   }
 
   // ------------------------------------------------------------------ weapon
-  gunshot(kind: 'plasma' | 'rifle' | 'shotgun' = 'plasma') {
+  /**
+   * The player's shot. 21.0: every gun has its own report, scaled to its weight: the shotgun a cannon
+   * (the loudest, the lowest, the longest), the SMG a buzzsaw (quiet, short, high, a little pitch
+   * wander so a stream of them buzzes), the pistol a sharp crack, the rifle between. `energy`: the
+   * SMG's energy variant (blaster and corporate maps), a short zap instead of the crack.
+   */
+  gunshot(kind: GunSound = 'plasma', energy = false) {
     if (!this.started) return;
     // The jungle falls silent around a gunshot, then the insects come back over a few seconds.
     if (this.insects) {
@@ -912,6 +919,8 @@ export class AudioEngine {
     }
     if (kind === 'rifle') return this.rifleShot();
     if (kind === 'shotgun') return this.shotgunShot();
+    if (kind === 'smg') return this.smgShot(energy);
+    if (kind === 'pistol') return this.pistolShot();
     const t = this.now();
     const o = this.out(null, 0.9);
     const p = rand(0.95, 1.05);
@@ -946,14 +955,45 @@ export class AudioEngine {
     this.burst(o, this.pink, 'bandpass', 700, 0.8, 0.22, 0.004, 0.12, t + 0.09 + rand(0, 0.03), 300);
   }
 
+  /** 21.0, the SMG: a buzzsaw. Each round small and short (no low punch, a tight high crack), quieter than the rifle. */
+  private smgShot(energy: boolean) {
+    const t = this.now();
+    const o = this.out(null, 0.38);
+    const p = rand(0.9, 1.12);
+    if (energy) {
+      this.tone(o, 'sawtooth', 2100 * p, 520, 0.22, 0.001, 0.05, t);
+      this.tone(o, 'square', 340 * p, 120, 0.18, 0.001, 0.045, t);
+      this.burst(o, this.white, 'bandpass', 3200 * p, 1.2, 0.35, 0.0005, 0.03, t);
+      return;
+    }
+    this.burst(o, this.white, 'highpass', 3200 * p, 0.7, 0.9, 0.0005, 0.02, t);
+    this.burst(o, this.white, 'bandpass', 1700 * p, 1.1, 0.7, 0.001, 0.045, t, 500);
+    this.tone(o, 'sine', 190 * p, 70, 0.5, 0.001, 0.04, t);
+    this.metal(o, rand(2600, 3000), 0.05, 0.025, [1, 2.2], t + 0.018);
+  }
+
+  /** 21.0, the pistol (kinetic): a sharp, bright crack and a short snap of the slide. */
+  private pistolShot() {
+    const t = this.now();
+    const o = this.out(null, 0.6);
+    const p = rand(0.95, 1.05);
+    this.burst(o, this.white, 'highpass', 2400 * p, 0.6, 1.0, 0.0005, 0.03, t);
+    this.burst(o, this.white, 'bandpass', 1400 * p, 0.9, 0.8, 0.001, 0.07, t, 400);
+    this.tone(o, 'sine', 140 * p, 50, 0.9, 0.002, 0.09, t);
+    this.metal(o, rand(2100, 2400), 0.07, 0.03, [1, 2.4], t + 0.03);
+    this.burst(o, this.pink, 'bandpass', 800, 0.8, 0.15, 0.004, 0.1, t + 0.08, 300);
+  }
+
   /**
    * Shotgun: a deep, wide boom (a heavy low thump and a broad noise blast), a ragged crack on top and
    * a long rolling tail. Slower and bigger than the rifle in every part.
    */
   private shotgunShot() {
     const t = this.now();
-    const o = this.out(null, 0.8);
+    const o = this.out(null, 1.0);
     const p = rand(0.95, 1.05);
+    // 21.0, the cannon: a sub-bass drop under the boom.
+    this.tone(o, 'sine', 60 * p, 24, 1.4, 0.004, 0.45, t);
     this.tone(o, 'sine', 85 * p, 32, 1.6, 0.003, 0.32, t);
     this.burst(o, this.brown, 'lowpass', 1400, 0.6, 1.4, 0.002, 0.35, t, 160);
     this.burst(o, this.white, 'lowpass', 5200 * p, 0.7, 0.9, 0.001, 0.12, t, 600);
@@ -1126,9 +1166,23 @@ export class AudioEngine {
   }
 
   /** A bot's shot. 13.0: `gun` (an armory weapon) decides the report; without it, the look's voice does. */
-  enemyShot(pos: V3, voice: 'synth' | 'human' = 'synth', gun?: 'plasma' | 'rifle' | 'shotgun') {
+  enemyShot(pos: V3, voice: 'synth' | 'human' = 'synth', gun?: GunSound, energy = false) {
     if (!this.started) return;
-    const o = this.out(pos, gun === 'shotgun' ? 0.9 : 0.7);
+    const o = this.out(pos, gun === 'shotgun' ? 1.0 : gun === 'smg' ? 0.4 : 0.7);
+    if (gun === 'smg') {
+      // 21.0: an SMG at range, a quick high rattle.
+      const t = this.now();
+      if (energy) this.tone(o, 'sawtooth', rand(1700, 2200), 500, 0.12, 0.001, 0.05, t);
+      else this.burst(o, this.white, 'highpass', rand(2600, 3200), 0.7, 0.4, 0.0005, 0.025, t);
+      this.burst(o, this.white, 'bandpass', rand(1300, 1700), 1, 0.3, 0.001, 0.04, t);
+      return;
+    }
+    if (gun === 'pistol') {
+      const t = this.now();
+      this.burst(o, this.white, 'highpass', 2000, 0.6, 0.45, 0.0005, 0.03, t);
+      this.burst(o, this.pink, 'bandpass', 1100, 0.8, 0.3, 0.002, 0.08, t);
+      return;
+    }
     if (gun === 'shotgun') {
       // A twelve-gauge at range: a heavy boom, a wide crack and a long rolling tail.
       const t = this.now();

@@ -1,39 +1,15 @@
 import * as THREE from 'three';
 import type { WeaponBuild, WeaponSpec } from '../types';
 
-/** Woodland camo for the furniture: olive base, blotches of dark green, brown and khaki (tiled). */
-function camoTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 128;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#4c5530';
-  g.fillRect(0, 0, 128, 128);
-  let seed = 7;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  for (const [col, n, r] of [['#2c3520', 14, 16], ['#5e4a30', 10, 13], ['#7d7a52', 8, 10], ['#1d2216', 9, 8]] as const) {
-    g.fillStyle = col;
-    for (let i = 0; i < n; i++) {
-      const x = rnd() * 128, y = rnd() * 128;
-      // Wrap each blotch so the texture tiles.
-      for (const dx of [-128, 0, 128]) for (const dy of [-128, 0, 128]) {
-        g.beginPath();
-        g.ellipse(x + dx, y + dy, r * (0.6 + rnd() * 0.8), r * (0.4 + rnd() * 0.6), rnd() * Math.PI, 0, Math.PI * 2);
-        g.fill();
-      }
-    }
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  return t;
-}
-
 /**
- * "Boar" pump-action shotgun (Deep Jungle): parkerized receiver and barrel, olive-drab camo stock and
- * fore-end, a magazine tube under the barrel, a bead sight. Eight pellets per shell inside a ~3.4°
- * cone, devastating up close and falling off past ~7 m; one pump between shells. Six in the tube,
- * loaded one at a time (and a pull of the trigger stops loading if there is a shell in it).
+ * "Boar" pump-action shotgun: receiver and barrel, stock and fore-end, a magazine tube under the
+ * barrel, a bead sight. The finish is the map's (theme.ts): parkerized steel and woodland camo on the
+ * military maps, gunmetal with a neon rib on the blaster ones, white and carbon on Maglev. One pump
+ * between shells; six in the tube, loaded one at a time (a pull of the trigger stops loading).
+ *
+ * 21.0, the close-quarters monster: eight pellets of 22 in a wide cone (~4.3°): a full shell is 176,
+ * past a bot's 150, inside 8 m; by 15 m each pellet is down to 8% and the cone has opened past a
+ * body. Every hit shoves and staggers. Heavier to carry (85% speed) and slow to the sights.
  */
 export const BOAR_SHOTGUN: WeaponSpec = {
   id: 'boar',
@@ -42,11 +18,15 @@ export const BOAR_SHOTGUN: WeaponSpec = {
   mag: 6,
   fireInterval: 0.82,
   reloadTime: 0.5,
-  damage: 17,
+  damage: 22,
   spread: 0.004,
   bloomPerShot: 0.35,
   kick: { z: 4.2, rot: 22, rotJitter: 3, side: 3.5, slide: 0 },
-  camera: { climb: 0.022, yaw: 0.006, pitchKick: 11, yawKick: 2.5, roll: 2.2, fov: 3.2, trauma: 0.2 },
+  // The cannon: the hardest punch, the widest FOV kick and the most screen shake in the arsenal.
+  camera: { climb: 0.026, yaw: 0.007, pitchKick: 13, yawKick: 3, roll: 2.6, fov: 4.5, trauma: 0.32 },
+  handling: { move: 0.85, adsMove: 0.55, adsIn: 0.25, adsOut: 0.18, raise: 7 },
+  hip: 1.0,
+  knock: { push: 3.2, stagger: 0.35 },
   rest: [0.17, -0.2, -0.36],
   // Down the vent rib (top 0.049) to the brass bead (0.052), cheek on the stock.
   ads: { sight: [0, 0.053, -0.655], z: -0.12, zoom: 0.85 },
@@ -56,22 +36,16 @@ export const BOAR_SHOTGUN: WeaponSpec = {
   tracer: [1.0, 0.72, 0.38],
   ballistic: 'kinetic',
   sound: 'shotgun',
-  pellets: { count: 8, spread: 0.06, falloff: { near: 7, far: 26, min: 0.2 } },
+  pellets: { count: 8, spread: 0.075, falloff: { near: 8, far: 15, min: 0.08 } },
   cycle: { start: 0.2, back: 0.13, forward: 0.15, travel: 0.1 },
   perRound: { open: 0.38, each: 0.5 },
   ammoGlow: false,
-  build({ gun, slide, mag }: WeaponBuild) {
-    const camo = camoTexture();
-    const park = new THREE.MeshStandardMaterial({ color: 0x45483f, metalness: 0.6, roughness: 0.42, envMapIntensity: 1.1 });
-    const steel = new THREE.MeshStandardMaterial({ color: 0x3e403e, metalness: 0.8, roughness: 0.35, envMapIntensity: 1.1 });
-    const wood = new THREE.MeshStandardMaterial({ map: camo, color: 0xffffff, roughness: 0.75, metalness: 0.05, envMapIntensity: 0.5 });
+  build({ gun, slide, mag, mats }: WeaponBuild) {
+    const { frame: park, steel, furniture: wood } = mats;
     const bead = new THREE.MeshStandardMaterial({ color: 0xd8c27a, metalness: 0.9, roughness: 0.25 });
     const hull = new THREE.MeshStandardMaterial({ color: 0x8c1d17, roughness: 0.55 });
     const brass = new THREE.MeshStandardMaterial({ color: 0xb08a3e, metalness: 0.9, roughness: 0.3 });
-    const glove = new THREE.MeshStandardMaterial({ color: 0x3a3a2c, roughness: 0.85 });
-    const sleeve = new THREE.MeshStandardMaterial({ map: camo, color: 0xb8b8a8, roughness: 0.92 });
-    // The camo texture lives on two materials; free it with the first (Weapon disposes materials, not maps).
-    wood.addEventListener('dispose', () => camo.dispose());
+    const { glove, sleeve } = mats;
     const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D, rx = 0, rz = 0) => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
       mesh.position.set(x, y, z);
@@ -95,6 +69,8 @@ export const BOAR_SHOTGUN: WeaponSpec = {
     // Barrel with a vent rib and a brass bead; the magazine tube below it, a cap at the end.
     cyl(0.013, 0.5, park, 0, 0.03, -0.42, gun);
     box(0.012, 0.006, 0.48, steel, 0, 0.046, -0.42, gun);
+    // 21.0: an accent line down each side of the rib (neon, an LED, or plain steel on a military finish).
+    for (const s of [-1, 1]) box(0.002, 0.003, 0.4, mats.glow, s * 0.0068, 0.045, -0.42, gun);
     const b0 = new THREE.Mesh(new THREE.SphereGeometry(0.0045, 8, 6), bead);
     b0.position.set(0, 0.052, -0.655);
     gun.add(b0);

@@ -22,21 +22,22 @@ function store(init: Record<string, string> = {}) {
 }
 
 describe('13.0: the armory', () => {
-  it('three weapons, keys 1–3 in order, each with a bot profile of its own id', () => {
-    expect(ARMORY_ORDER).toEqual(['smg', 'ar', 'shotgun']);
-    expect(ARMORY_ORDER.map((id) => ARMORY[id].key)).toEqual(['1', '2', '3']);
+  it('four weapons (21.0), keys 1–4 in order, each with a bot profile of its own id', () => {
+    expect(ARMORY_ORDER).toEqual(['pistol', 'smg', 'ar', 'shotgun']);
+    expect(ARMORY_ORDER.map((id) => ARMORY[id].key)).toEqual(['1', '2', '3', '4']);
     for (const id of ARMORY_ORDER) expect(ARMORY[id].bot.id).toBe(id);
-    expect(armoryByKey('Digit3')?.id).toBe('shotgun');
-    expect(armoryByKey('Numpad1')?.id).toBe('smg');
+    expect(armoryByKey('Digit4')?.id).toBe('shotgun');
+    expect(armoryByKey('Numpad2')?.id).toBe('smg');
+    expect(armoryByKey('Digit1')?.id).toBe('pistol');
     expect(armoryByKey('KeyR')).toBeNull();
     expect(isWeaponId('ar')).toBe(true);
     expect(isWeaponId('railgun')).toBe(false);
   });
 
-  it('the rifle is exactly the 7.0–12.0 arena rifle; the bot ranges are ordered shotgun < SMG < rifle', () => {
+  it('the rifle is the 7.0–12.0 arena rifle with a wider hip (21.0); the bot ranges are ordered shotgun < SMG < rifle', () => {
     const ar = ARMORY.ar.bot;
-    expect([ar.mag, ar.reload, ar.burst, ar.burstGap, ar.burstRest, ar.hipSpread, ar.damage]).toEqual([20, 1.5, 5, 0.1, 0.15, 0.012, 1]);
-    expect(ar.band).toEqual([9, 20]);
+    expect([ar.mag, ar.reload, ar.burst, ar.burstGap, ar.burstRest, ar.hipSpread, ar.damage]).toEqual([20, 1.5, 5, 0.1, 0.15, 0.02, 1]);
+    expect(ar.band).toEqual([10, 22]);
     expect(ar.aim).toMatchObject({ enter: 13, exit: 11 });
     expect(ar.maxRange).toBe(40);
     const sg = ARMORY.shotgun.bot, smg = ARMORY.smg.bot;
@@ -66,11 +67,11 @@ describe('13.0: the armory', () => {
       const a = dealArm([], Infinity, rng);
       n[a.id] = (n[a.id] ?? 0) + 1;
     }
-    for (const id of ARMORY_ORDER) expect(n[id]).toBeGreaterThan(850);
+    for (const id of ARMORY_ORDER) expect(n[id]).toBeGreaterThan(630);
     for (let i = 0; i < 200; i++) expect(dealArm(['shotgun', 'shotgun', 'ar'], 2, rng).id).not.toBe('shotgun');
-    for (let i = 0; i < 200; i++) expect(dealArm(['shotgun', 'shotgun', 'ar', 'ar'], 2, rng).id).toBe('smg');
+    for (let i = 0; i < 200; i++) expect(['smg', 'pistol']).toContain(dealArm(['shotgun', 'shotgun', 'ar', 'ar'], 2, rng).id);
     // Everything capped (a cap below the team size): still a gun.
-    expect(ARMORY_ORDER).toContain(dealArm(['smg', 'ar', 'shotgun'], 1, rng).id);
+    expect(ARMORY_ORDER).toContain(dealArm(['pistol', 'smg', 'ar', 'shotgun'], 1, rng).id);
   });
 });
 
@@ -91,7 +92,7 @@ describe('13.0: the loadout', () => {
     expect(s.m.get('gridfall.loadout')).toBe('smg');
     expect(l.commit()).toBe(true);
     expect(l.current).toBe('smg');
-    expect(l.entry.spec.name).toBe('KITSUNE-9');
+    expect(l.entry.spec.name).toBe('HORNET SMG');
     expect(l.commit()).toBe(false);
   });
 

@@ -45,6 +45,8 @@ interface Bolt {
   /** 13.0: how it looks in flight (the gun's, else the shooter's look's) and its damage share (1 = a rifle round). */
   bolt: EnemyLook['bolt'];
   dmg: number;
+  /** 21.0: the gun's round (falloff, head bonus, knock), or null. */
+  round: RoundSpec | null;
 }
 
 /** 13.0: what a gun puts on a round (armory BotArm): its look in flight and its damage share. */
@@ -52,6 +54,19 @@ export interface RoundSpec {
   ballistic: EnemyLook['ballistic'];
   bolt: EnemyLook['bolt'];
   damage: number;
+  /** 21.0: full damage to `near` m flown, `min` of it from `far` (the shotgun's pellets, the pistol's rounds). */
+  falloff?: { near: number; far: number; min: number };
+  /** 21.0: head hits deal this × on top of the hitbox's ×2 (the pistol). */
+  headMul?: number;
+  /** 21.0: a hit shoves (m/s) and staggers (s) the bot it lands on (the shotgun). */
+  knock?: { push: number; stagger: number };
+}
+
+/** 21.0: the share of a round's damage left after `d` m (1 inside `near`, `min` from `far`, linear between). */
+export function falloffAt(f: RoundSpec['falloff'] | undefined, d: number) {
+  if (!f || d <= f.near) return 1;
+  if (d >= f.far) return f.min;
+  return 1 - ((d - f.near) / (f.far - f.near)) * (1 - f.min);
 }
 
 export interface FireOpts {
@@ -71,7 +86,7 @@ export interface BoltTargets {
   bots: readonly Enemy[];
   /** Damage of a round to a bot before the hitbox multiplier. */
   damage: number;
-  hit(e: Enemy, dmg: number, dir: THREE.Vector3, point: THREE.Vector3, by: Combatant | null): void;
+  hit(e: Enemy, dmg: number, dir: THREE.Vector3, point: THREE.Vector3, by: Combatant | null, knock?: RoundSpec['knock']): void;
   nearMiss(e: Enemy, dose: number, by: Combatant | null): void;
 }
 
@@ -137,7 +152,7 @@ export class Projectiles {
       scene.add(m);
     }
     for (let i = 0; i < N; i++) {
-      this.bolts.push({ i, look, kinetic: false, color: new THREE.Color(), travel: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, whizzed: false, active: false, team: 'omega', by: null, dosed: new Set(), aimed: false, range: NaN, bolt: look.bolt, dmg: 1 });
+      this.bolts.push({ i, look, kinetic: false, color: new THREE.Color(), travel: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, whizzed: false, active: false, team: 'omega', by: null, dosed: new Set(), aimed: false, range: NaN, bolt: look.bolt, dmg: 1, round: null });
       this.free.push(N - 1 - i);
     }
     this.light = new THREE.PointLight(0xffa040, 0, 9, 2);
@@ -171,6 +186,7 @@ export class Projectiles {
     b.kinetic = (round?.ballistic ?? look.ballistic) === 'kinetic';
     b.bolt = round?.bolt ?? look.bolt;
     b.dmg = round?.damage ?? 1;
+    b.round = round ?? null;
     b.color.setRGB(...b.bolt.core);
     b.travel = 0;
     if (!opts.quiet) this.onFire(from, by);
@@ -226,7 +242,7 @@ export class Projectiles {
       const dy = Math.abs(closest.y - chest.y);
       const forPlayer = b.team !== this.playerTeam;
       if (player.alive && forPlayer && dxz < 0.45 && dy < 0.75 * k) {
-        this.onPlayerHit(10 * b.dmg, this.prev.clone(), b.by);
+        this.onPlayerHit(10 * b.dmg * falloffAt(b.round?.falloff, b.travel), this.prev.clone(), b.by);
         if (!Number.isNaN(b.range)) this.onTaggedHit?.(b.by, b.aimed, b.range);
         this.fx.sparks(closest.clone(), seg.clone().normalize().negate(), 10, new THREE.Color(1, 0.6, 0.2), 4);
         this.deactivate(b);
@@ -333,7 +349,9 @@ export class Projectiles {
       }
     }
     if (!best || !point) return false;
-    tg.hit(best, tg.damage * mult * b.dmg, dir.clone(), point, b.by);
+    const r = b.round;
+    const head = mult > 1.5 && r?.headMul ? r.headMul : 1;
+    tg.hit(best, tg.damage * mult * head * b.dmg * falloffAt(r?.falloff, b.travel), dir.clone(), point, b.by, r?.knock);
     if (!Number.isNaN(b.range)) this.onTaggedHit?.(b.by, b.aimed, b.range);
     this.deactivate(b);
     return true;

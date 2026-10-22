@@ -35,6 +35,7 @@ export function disposeScene(root: THREE.Object3D, scene?: THREE.Scene) {
   }
   for (const g of geos) g.dispose();
   for (const m of mats) m.dispose();
-  for (const t of texs) t.dispose();
+  // A texture marked shared (built once at module level, e.g. a weapon theme's camo) outlives any one scene.
+  for (const t of texs) if (!t.userData.shared) t.dispose();
   return { geometries: geos.size, materials: mats.size, textures: texs.size };
 }

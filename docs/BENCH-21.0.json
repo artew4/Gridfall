@@ -1,0 +1,46 @@
+{
+  "version": "21.0 (the weapon epic: biome weapon finishes, the asymmetric arsenal)",
+  "machine": "Apple M5 laptop, Chrome, Balanced preset (60 FPS cap, render scale 1.25 = 1820x1186), on mains power",
+  "branch": "feature/weapons-epic-21.0 from main @ 0beea88 (20.0)",
+  "killShare": {
+    "method": "tdmSim({}) bot vs bot with each map's own profile (Maglev 7v7 50 tickets, forward respawns; Neon Docks 5v5 25 tickets); the armory deal (uniform, at most two of one gun a team); kills by the killer's gun; 8 matches a cell",
+    "target": { "AR": 30, "SMG": 30, "SG": 25, "PST": 15 },
+    "before_20.0_maglev": { "note": "BENCH-20.0 selfPlay, three guns (the Kitsune as the SMG)", "kills": { "SMG": 110, "AR": 92, "SG": 87 }, "pct": { "SMG": 38.1, "AR": 31.8, "SG": 30.1 } },
+    "iterations": [
+      { "step": "first cut (bot pistol 1.0 dmg, head x1.5, band 7-16, max 30; shotgun pellet cone 0.07)", "maglev_4": { "AR": 23.7, "SG": 24.8, "SMG": 30.3, "PST": 21.1 }, "docks_4": { "SMG": 33.2, "AR": 28.3, "PST": 23.9, "SG": 14.7 } },
+      { "step": "bot pistol 0.85 dmg, max 26; shotgun cone 0.06", "docks_8": { "AR": 33.1, "SMG": 26.6, "PST": 23.7, "SG": 16.7 } },
+      { "step": "bot pistol 0.75 dmg, head x1.7 (still three head hits); shotgun run 0.92 -> 0.98, slide x2.6", "docks_8": { "AR": 31.3, "SMG": 31.5, "PST": 20.9, "SG": 16.3 } },
+      { "step": "shipped: shotgun bots cover-hop on every map; pistol band 6-14, max 22", "docks_8": { "AR": 35.9, "SMG": 30.3, "SG": 20.9, "PST": 12.9 }, "maglev_8": { "SG": 30.3, "SMG": 29.5, "AR": 24.5, "PST": 15.8 } }
+    ],
+    "shipped": {
+      "maglev": { "kills": { "SMG": 112, "SG": 115, "AR": 93, "PST": 60 }, "total": 380, "killRangeMedianM_perMatch": { "SG": [6.4, 8.5, 5.4, 6.5, 8, 5.5, 7.2, 6.8], "SMG": [11.1, 13.9, 11.7, 8.8, 6.4, 6.4, 10.2, 8.1], "AR": [8, 8.4, 14.6, 9.7, 12.3, 12.7, 8.8, 16.4], "PST": [5.4, 9.6, 6.5, 10.9, 6.7, 11, 6.7, 9.3] } },
+      "docks": { "kills": { "AR": 134, "SMG": 113, "SG": 78, "PST": 48 }, "total": 373, "killRangeMedianM_perMatch": { "SG": [7.2, 5.9, 8.9, 8.2, 9.9, 6.6, 6.5, 8.1], "SMG": [13.2, 14.6, 12.6, 13.9, 13.3, 14.1, 15.4, 14.1], "AR": [11.1, 12.4, 13.3, 9.3, 13.5, 12.6, 14.1, 18.5], "PST": [10.5, 6.4, 10.8, 14.8, 9.4, 8.5, 13, 11] } },
+      "pooled": { "kills": { "AR": 227, "SMG": 225, "SG": 193, "PST": 108 }, "total": 753, "pct": { "AR": 30.1, "SMG": 29.9, "SG": 25.6, "PST": 14.3 } }
+    }
+  },
+  "ttk_player_vs_bot_150hp": {
+    "method": "balance.test.ts arithmetic: rounds to kill x the interval between them, every round landing",
+    "pistol": { "body": "5 rounds, 0.64 s (to 25 m)", "head": "2 rounds, 0.16 s", "falloff": "25 -> 40 m, to 45%" },
+    "smg": { "body": "10 rounds, 0.50 s (to 12 m)", "head": "5 rounds, 0.22 s", "falloff": "12 -> 30 m, to 55%" },
+    "ar": { "body": "8 rounds, 0.64 s (to 35 m)", "head": "4 rounds, 0.28 s", "falloff": "35 -> 60 m, to 70%" },
+    "shotgun": { "body": "1 shell inside 8 m (8 x 22 = 176), 2 at 10 m, 10+ past 15 m", "falloff": "8 -> 15 m, to 8% a pellet" }
+  },
+  "handling": {
+    "columns": "move (x every speed), adsMove (x while aiming), adsIn s, adsOut s, raise (damping rate), hip (x the hip cone)",
+    "pistol": [1.08, 1.0, 0.1, 0.08, 22, 0.8],
+    "smg": [1.0, 0.7, 0.15, 0.12, 14, 0.55],
+    "ar": [0.95, 0.62, 0.2, 0.16, 10, 2.0],
+    "shotgun": [0.85, 0.55, 0.25, 0.18, 7, 1.0],
+    "before_21.0": [1.0, 0.62, 0.2, 0.16, 10, 1.0]
+  },
+  "bench3": {
+    "docks": { "views_fps_gpuMs_cpuMs": { "alphaYard": [60, 6.56, 2.23], "stacks": [60, 6.18, 2.58], "stacksTop": [60, 6.02, 2.51], "warehouseFloor": [60, 6.02, 2.36], "catwalk": [60, 6.16, 2.14], "quay": [60.3, 6.08, 2.29], "crane": [59.6, 5.67, 2.18], "quayGantry": [60, 6.25, 2.28], "craneNest": [60, 6.14, 2.01], "containerGantry": [60, 6.0, 2.18], "firefight": [60, 6.39, 2.22] } },
+    "maglev": { "views_fps_gpuMs_cpuMs": { "alphaYard": [60, 5.78, 2.3], "trainAisle": [60, 5.65, 2.78], "platform1": [60, 6.18, 2.2], "trackBed": [60, 6.11, 2.39], "mezzanine": [60.3, 6.3, 2.05], "bridge": [60, 5.84, 2.21], "roofUp": [60, 5.75, 2.19], "platformCover": [60, 6.48, 2.1], "billboardClose": [60, 6.11, 2.58], "glassWall": [60, 6.28, 2.37], "wholeHall": [60, 5.93, 2.35], "firefight": [60.3, 5.88, 2.16] }, "note": "a first Maglev run overlapped a timed-out bench still running in the same tab (trainAisle 13.3 FPS with normal CPU/GPU times); discarded, rerun clean" }
+  },
+  "memory": {
+    "gunCycle": { "method": "__dev.gunCycle(5) on Neon Docks: every gun in every finish (12 swaps a lap), a frame rendered each", "perLap": { "geometries": 178, "textures": 45, "programs": 61 }, "laps": 5, "growth": 0 },
+    "leakcheck": { "run": "node scripts/leakcheck.mjs 2 desert,docks,maglev", "aliveAfterGC": 0, "note": "desert lap 0 -> 1: +7 geometries, +1 texture (the theme's shared camo and bot-gun accents, built once); flat after" },
+    "stagecheck": { "run": "node scripts/stagecheck.mjs 4", "aliveAfterGC": 0 }
+  },
+  "tests": 263
+}

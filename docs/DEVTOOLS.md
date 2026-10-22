@@ -83,6 +83,10 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
 - Old Port (17.1):
   - `?setting=oldport`. `bench(3)` has an Old Port set: nine views (the hall, the upper floor in the skylight shafts, the yard, the stacks, the dock floor, the bridge, the sea quay into the sun side, the whole port) and a firefight. `tdmSim` lanes: warehouse, yard, dock.
   - `__game.level.debug()`: nav nodes and drops, skylight shafts, indoors, `drowned` (the sea fence should keep it 0).
+- Weapons (21.0):
+  - `await __dev.gun(id, theme?)`: puts `'pistol' | 'smg' | 'ar' | 'shotgun'` in his hands, in a finish (`'blaster' | 'military' | 'corporate'`; default: the map's). Returns the finish, what it fires and its sound.
+  - `await __dev.gunCycle(laps)`: every gun in every finish, a frame rendered each; GPU geometries, textures and programs after each lap (flat: the swaps free what they build).
+  - `tdmSim({ arms: 'pistol' })` arms every bot with one gun; `byWeapon` tags are `PST`, `SMG`, `AR`, `SG`.
 - Maglev overhaul (20.0):
   - `await __dev.sightlines({ front, minDist, pairs })`: eye-height lines between the nav graph's walkable nodes: `spawnToSpawn` (every node beyond `front` on one side to every one on the other: clear share, longest, the x bands that carry them) and `longPct` (random pairs `minDist`+ m apart, by band).
   - `await __dev.camo({ kit, setting })`: starts a TDM match with that operator kit and poses an OMEGA bot at 12/20/30 m in fixed views, rendering each with and without it: on-screen pixels, brightness contrast, colour difference.

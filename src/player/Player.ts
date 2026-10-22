@@ -5,6 +5,7 @@ import type { AudioEngine } from '../audio/AudioEngine';
 import { clamp, damp, lerp, Spring } from '../core/math';
 import { KEYS } from '../core/Bindings';
 import { SLIDE, slideStep } from './Slide';
+import type { GunHandling } from '../entities/types';
 
 const WALK = 5.0;
 const SPRINT = 7.8;
@@ -23,6 +24,8 @@ const CROUCH_EYE = 1.08;
  * with a smoothstep, so it is frame-rate independent and lands exactly, with no asymptotic tail.
  */
 export const HANDLING = { crouchSpeed: 0.55, adsSpeed: 0.62, adsIn: 0.2, adsOut: 0.16, crouchRate: 12, crouchStepVol: 0.35, adsSens: 0.7 };
+/** 21.0: the handling of no gun in particular (the 11.0 globals): what the player has until one is set. */
+export const BASE_GUN: GunHandling = { move: 1, adsMove: HANDLING.adsSpeed, adsIn: HANDLING.adsIn, adsOut: HANDLING.adsOut, raise: 10 };
 /** A tap of the crouch key toggles; held longer than this, it crouches only while held. */
 const CROUCH_TAP = 0.25;
 /** Longest move between two collision resolutions (well under the body radius). */
@@ -57,6 +60,8 @@ export class Player {
   /** 11.0: aim down sights. `aimWant` is set by the game each frame (RMB, weapon ready); `adsT` runs 0..1 linearly, `ads` is it eased. */
   aimWant = false;
   adsT = 0;
+  /** 21.0: the handling of the gun in hand (Game sets it with the weapon). */
+  gun: GunHandling = BASE_GUN;
   ads = 0;
   /**
    * 12.0, the sprint slide (Slide.ts): crouch pressed while sprinting. `slideV` is the speed left,
@@ -126,7 +131,7 @@ export class Player {
   update(dt: number, input: Input, controls: boolean, time: number) {
     // ADS: a linear clock eased with a smoothstep (see HANDLING). Sprinting or dying drops the sights.
     const aim = this.aimWant && controls && this.alive;
-    this.adsT = clamp(this.adsT + (aim ? dt / HANDLING.adsIn : -dt / HANDLING.adsOut), 0, 1);
+    this.adsT = clamp(this.adsT + (aim ? dt / this.gun.adsIn : -dt / this.gun.adsOut), 0, 1);
     this.ads = this.adsT * this.adsT * (3 - 2 * this.adsT);
     if (controls) {
       // Slower look while aiming: the zoom narrows the view, so the same hand movement stays as precise.
@@ -163,7 +168,8 @@ export class Player {
     }
     if (this.sliding) this.steerSlide(dt, wx, wz, wl);
     else {
-      const speed = (this.sprinting ? SPRINT : WALK) * lerp(1, HANDLING.crouchSpeed, this.crouch) * lerp(1, HANDLING.adsSpeed, this.ads);
+      // 21.0: the gun in hand sets the pace (a pistol carries faster than a shotgun) and what aiming costs.
+      const speed = (this.sprinting ? SPRINT : WALK) * this.gun.move * lerp(1, HANDLING.crouchSpeed, this.crouch) * lerp(1, this.gun.adsMove, this.ads);
       const accel = this.onGround ? 16 : 3;
       this.vel.x = damp(this.vel.x, wx * speed, accel, dt);
       this.vel.z = damp(this.vel.z, wz * speed, accel, dt);

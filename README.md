@@ -44,19 +44,20 @@ The main menu asks for the mode first, then shows the maps that have it. Type yo
 
 ## Gunplay
 
-- **The armory (13.0):** every gun works on every map. Pick one with **1 / 2 / 3** while a match starts, in the first seconds in your spawn yard, or (in TDM) while you wait to respawn, for your next life:
+- **The armory (13.0; four guns since 21.0):** every gun works on every map, and each wins somewhere and loses somewhere. Pick one with **1 / 2 / 3 / 4** while a match starts, in the first seconds in your spawn yard, or (in TDM) while you wait to respawn, for your next life:
 
   | Key | Gun | How it plays |
   |---|---|---|
-  | 1 | Kitsune-9, plasma SMG | fast, hard-hitting bolts; mid range; quick reload |
-  | 2 | Jackal AR | steady automatic fire; holds every range |
-  | 3 | Boar M12, pump shotgun | eight pellets a shell; lethal up close, useless far |
+  | 1 | Kitsune-9 pistol | the mobility gun: full speed while aiming, sights in 0.1 s, the fastest draw, big head hits; weak body damage, falls off past 25 m |
+  | 2 | Hornet SMG | the buzzsaw: highest fire rate, tight from the hip; climbs hard, weak rounds, falls off past 12 m |
+  | 3 | Jackal AR | the baseline: steady at mid and long range; wide from the hip |
+  | 4 | Boar M12, pump shotgun | one shell drops a man inside 8 m and shoves him back; useless past 15 m, heavy to carry |
 
-  The bots carry the same three: a shotgun bot rushes in, a rifle bot hangs back and aims. The story keeps its own gun (the Kitsune).
-
+  The bots carry the same four, and fight like them: pistol bots sprint and strafe, shotgun bots slide and hop from cover to close in, rifle bots hang back and aim. The story keeps its own gun (the Kitsune).
+- **Finishes by world (21.0):** the same guns wear the map's look, in your hands and the bots'. Neon worlds get dark metal and neon strips. Desert, jungle and port get matte black, olive and camo, nothing glowing, and every round is kinetic. The Maglev hall gets white polymer, carbon fibre and small cyan LEDs.
 - **Aim down sights (right mouse):** the view narrows by 15–28% (by weapon), and the gun comes up until its real sights line up with the centre of the screen: the rifle's red dot, the pistol's notch and post, the shotgun's bead.
   - **Steadier:** about half the base spread, a quarter of the movement spread, and less than half the recoil.
-  - **The cost:** you move at 62% speed, and the mouse turns 30% slower.
+  - **The cost:** you move slower (62% with the rifle, 70% with the SMG, 55% with the shotgun, full speed with the pistol), and the mouse turns 30% slower.
 - **Crouch (C):** a lower eye and a 1.2 m body. You fit under what a standing body can't, and enemies have less of you to see and hit.
   - **Steadier:** hip fire is about 30% tighter and steps are quiet.
   - **The cost:** you move at 55% speed.
@@ -150,7 +151,7 @@ Runtime dependencies: `three`, plus two self-hosted typefaces (`@fontsource/rajd
 | C (tap or hold) | Crouch: a tap toggles, a hold crouches while held. Quieter steps, tighter hip fire, a smaller target; slower. While sprinting: slide |
 | Space | Jump; vault low railings mid-jump |
 | Tab (hold) | Objective overview |
-| 1 / 2 / 3 | Pick your gun: as a match starts, in the first seconds in spawn, or while waiting to respawn (TDM) |
+| 1 / 2 / 3 / 4 | Pick your gun: as a match starts, in the first seconds in spawn, or while waiting to respawn (TDM) |
 | Esc | Pause: resume, restart, volume, graphics, quit to menu |
 
 `?setting=tokyo|desert|jungle|docks` in the URL opens a world directly.

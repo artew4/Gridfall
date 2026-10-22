@@ -4,6 +4,7 @@ import type { LevelLook } from '../levels/Level';
 import { crateTexture } from '../levels/desert/textures';
 import { makeAmmoDisplay } from '../world/Textures';
 import { disposeScene } from '../core/dispose';
+import { gunMats } from '../entities/weapons/theme';
 
 /*
   16.0, the main menu's live background (the brief's option B): the loadout's weapon turning slowly
@@ -167,7 +168,8 @@ export class MenuStage {
     this.gun.clear();
     const spec = ARMORY[id].spec;
     const slide = new THREE.Group(), mag = new THREE.Group();
-    spec.build({ gun: this.gun, slide, mag, display: this.display.texture });
+    // 21.0: the menu shows the blaster finish (the guns' home look); in a match they wear the map's.
+    spec.build({ gun: this.gun, slide, mag, display: this.display.texture, mats: gunMats('blaster') });
     this.display.draw(spec.mag, spec.mag, false);
     // A viewmodel comes with gloved hands on it: not on the crate.
     this.gun.traverse((o) => {

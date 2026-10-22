@@ -20,6 +20,37 @@ export function installDevTools(game: Game) {
       if (game.state === 'paused') g.resume();
       return game.state;
     },
+    /** 21.0: put a gun in his hands, in a finish (default: the map's). */
+    async gun(id: 'pistol' | 'smg' | 'ar' | 'shotgun', theme?: 'blaster' | 'military' | 'corporate') {
+      const { ARMORY } = await import('../entities/weapons/armory');
+      const { gunThemeFor } = await import('../entities/weapons/theme');
+      const spec = ARMORY[id].spec;
+      game.weapon.setSpec(spec, theme ?? gunThemeFor(game.setting));
+      game.player.gun = spec.handling;
+      game.hud.setWeapon(spec.name, '', spec.mag, game.weapon.lowAmmo);
+      return { name: spec.name, theme: game.weapon.theme, ballistic: game.weapon.ballistic, sound: game.weapon.sound };
+    },
+    /**
+     * 21.0: every gun in every finish, `laps` times over, rendered each time: GPU geometries, textures
+     * (and the programs) after each lap. Flat after the first lap: the swaps free what they build.
+     */
+    async gunCycle(laps = 4) {
+      const ids = ['pistol', 'smg', 'ar', 'shotgun'] as const, themes = ['blaster', 'military', 'corporate'] as const;
+      const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+      const info = game.renderer.renderer.info;
+      const out: { geometries: number; textures: number; programs: number }[] = [];
+      const start = game.weapon.spec;
+      for (let l = 0; l < laps; l++) {
+        for (const t of themes) for (const id of ids) {
+          await dev.gun(id, t);
+          await frame();
+        }
+        out.push({ geometries: info.memory.geometries, textures: info.memory.textures, programs: info.programs?.length ?? 0 });
+      }
+      game.weapon.setSpec(start, (await import('../entities/weapons/theme')).gunThemeFor(game.setting));
+      game.player.gun = start.handling;
+      return out;
+    },
     lock() {
       game.input.locked = true;
       if (game.state === 'paused') g.resume();
@@ -130,7 +161,7 @@ export function installDevTools(game: Game) {
       return (await import('./TdmCheck')).tdmBench(game, opts);
     },
     /** 7.0: a whole TDM match stepped headless at a fixed 1/60 s (bot vs bot): length, movement, aggression, AI cost. */
-    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | 'smg' | 'ar' | 'shotgun'; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean } = {}) {
+    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | 'pistol' | 'smg' | 'ar' | 'shotgun'; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean } = {}) {
       return (await import('./TdmCheck')).tdmSim(game, opts);
     },
     /**

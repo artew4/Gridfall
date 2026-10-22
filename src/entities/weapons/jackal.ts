@@ -2,9 +2,14 @@ import * as THREE from 'three';
 import type { WeaponBuild, WeaponSpec } from '../types';
 
 /**
- * "Jackal" assault rifle (Desert Outpost): black receiver, coyote-tan furniture, a curved magazine, a
- * red-dot sight, a vented handguard and a muzzle brake. No glowing parts: a working tool, not a toy.
+ * "Jackal" assault rifle: receiver, furniture, a curved magazine, a red-dot sight, a vented handguard
+ * and a muzzle brake. The finish is the map's (theme.ts): black and camo on the military maps, gunmetal
+ * with a neon rail on the blaster ones, white with carbon furniture on Maglev.
  * Full-auto at ~650 rpm, 30 rounds; less kick per shot than the pistol but a steady climb.
+ *
+ * 21.0, the baseline: the versatile mid-to-long range gun. Its hip fire is the arsenal's widest (2×,
+ * the SMG's 0.55×), its close-range time to kill slower than the shotgun's one shell; it keeps full
+ * damage to 35 m (70% from 60 m), and the 11.0 handling (aiming at 62% speed, 0.2 s sights).
  */
 export const JACKAL_AR: WeaponSpec = {
   id: 'jackal',
@@ -18,6 +23,9 @@ export const JACKAL_AR: WeaponSpec = {
   bloomPerShot: 0.11,
   kick: { z: 1.5, rot: 6.5, rotJitter: 2.5, side: 2.4, slide: 0.05 },
   camera: { climb: 0.0042, yaw: 0.0035, pitchKick: 3, yawKick: 1.2, roll: 0.6, fov: 0.8, trauma: 0.05 },
+  handling: { move: 0.95, adsMove: 0.62, adsIn: 0.2, adsOut: 0.16, raise: 10 },
+  hip: 2.0,
+  falloff: { near: 35, far: 60, min: 0.7 },
   rest: [0.18, -0.2, -0.36],
   // Through the red-dot tube to the dot on its lens; eye 15 cm behind the sight.
   ads: { sight: [0, 0.086, -0.083], z: -0.13, zoom: 0.72 },
@@ -28,15 +36,12 @@ export const JACKAL_AR: WeaponSpec = {
   ballistic: 'kinetic',
   sound: 'rifle',
   ammoGlow: false,
-  build({ gun, slide, mag }: WeaponBuild) {
-    const black = new THREE.MeshStandardMaterial({ color: 0x1f2022, metalness: 0.6, roughness: 0.45, envMapIntensity: 0.9 });
-    const worn = new THREE.MeshStandardMaterial({ color: 0x3a3a38, metalness: 0.75, roughness: 0.35, envMapIntensity: 1.1 });
-    const tan = new THREE.MeshStandardMaterial({ color: 0x8c7552, metalness: 0.05, roughness: 0.8, envMapIntensity: 0.5 });
+  build({ gun, slide, mag, mats }: WeaponBuild) {
+    const { frame: black, steel: worn, furniture: tan } = mats;
     // 11.0: you look through it now, so the lens is a faint tinted pane, not an opaque block.
     const glass = new THREE.MeshStandardMaterial({ color: 0x3a6a60, metalness: 0.2, roughness: 0.05, envMapIntensity: 1.6, transparent: true, opacity: 0.18, depthWrite: false });
     const reddot = new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 0.2, 0.15) });
-    const glove = new THREE.MeshStandardMaterial({ color: 0x7a6447, roughness: 0.85 });
-    const sleeve = new THREE.MeshStandardMaterial({ color: 0x8f8463, roughness: 0.9 });
+    const { glove, sleeve } = mats;
     const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D, rx = 0, rz = 0) => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
       mesh.position.set(x, y, z);
@@ -76,6 +81,8 @@ export const JACKAL_AR: WeaponSpec = {
     for (let i = 0; i < 5; i++) {
       box(0.056, 0.012, 0.026, black, 0, 0.012, -0.25 - i * 0.03, gun);
     }
+    // 21.0: an accent line down each side of the handguard (neon, an LED, or a plain steel strip).
+    for (const s of [-1, 1]) box(0.002, 0.004, 0.2, mats.glow, s * 0.028, 0.026, -0.31, gun);
     cyl(0.009, 0.17, worn, 0, 0.018, -0.5, gun);
     box(0.008, 0.032, 0.008, black, 0, 0.05, -0.41, gun);
     cyl(0.013, 0.055, black, 0, 0.018, -0.59, gun);

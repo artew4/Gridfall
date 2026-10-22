@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { Rig } from '../enemies/Models';
+import type { GunMats } from './weapons/theme';
 
 /** What a weapon builder fills in: the gun, the part that cycles on each shot, the magazine. */
 export interface WeaponBuild {
@@ -10,6 +11,22 @@ export interface WeaponBuild {
   mag: THREE.Group;
   /** The canvas ammo counter (only some weapons show it). */
   display: THREE.Texture;
+  /** 21.0: the materials by role, in the map's weapon theme (theme.ts). */
+  mats: GunMats;
+}
+
+/**
+ * 21.0, how a gun handles in the player's hands (the asymmetric balance; see armory.ts). Multipliers
+ * of the 11.0 handling: `move` on every speed while it is held, `adsMove` while aiming (the 11.0
+ * global was 0.62), the sights' times (s), how fast it comes up after a swap or a holster (the
+ * raise's damping rate; 10 before 21.0).
+ */
+export interface GunHandling {
+  move: number;
+  adsMove: number;
+  adsIn: number;
+  adsOut: number;
+  raise: number;
 }
 
 /**
@@ -18,6 +35,8 @@ export interface WeaponBuild {
  */
 /** 8.1: kinetic rounds (tracers, brass) or energy bolts (plasma). */
 export type Ballistic = 'kinetic' | 'energy';
+/** 21.0: the report: the pistol's crack, the SMG's buzz, the rifle, the shotgun; 'plasma' is the energy pistol. */
+export type GunSound = 'plasma' | 'pistol' | 'smg' | 'rifle' | 'shotgun';
 
 export interface WeaponSpec {
   id: string;
@@ -59,7 +78,7 @@ export interface WeaponSpec {
    * ejected; energy (the Kitsune's plasma): the neon blaster look, no casings.
    */
   ballistic: Ballistic;
-  sound: 'plasma' | 'rifle' | 'shotgun';
+  sound: GunSound;
   /**
    * Several hitscan rays per trigger pull (a shotgun): each pellet gets its own direction inside
    * `spread` (radians, uniform over the disc) around the aimed ray, and its damage falls off from
@@ -72,6 +91,16 @@ export interface WeaponSpec {
   perRound?: { open: number; each: number };
   /** Emissive strips show the remaining ammo (the Kitsune's look). */
   ammoGlow: boolean;
+  /** 21.0: handling (move speed held and aiming, the sights' times, the swap). */
+  handling: GunHandling;
+  /** 21.0: hip-fire cone multiplier (×, on the base spread, movement and bloom when not aiming): the SMG's is tight, the rifle's wide. */
+  hip: number;
+  /** 21.0: head hits deal this × (the hitbox's own head multiplier is 2): the pistol's precision reward. */
+  headMul?: number;
+  /** 21.0: damage falloff of a single round (pellets have their own): full to `near` m, `min` of it from `far` m. */
+  falloff?: { near: number; far: number; min: number };
+  /** 21.0: a hit shoves the target back (m/s) and staggers it (s): the shotgun's pushback. */
+  knock?: { push: number; stagger: number };
   build(b: WeaponBuild): void;
 }
 

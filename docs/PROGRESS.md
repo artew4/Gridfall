@@ -1223,8 +1223,44 @@ Branch `feature/maglev-overhaul-20.0`, from `main` @ `acc7422` (19.0, merged and
 - `leakcheck.mjs 2 maglev,crashsite,oldport`: 0 alive. Tests 254 (+5: platform cover, bulkhead stagger, forward points, the profile, the kit).
 - **Not explained:** one DEV session hung (the tab unresponsive for minutes) in a long combined check script; the same script passed twice in a fresh tab.
 
+## 21.0: the weapon epic (biome weapon finishes, the asymmetric arsenal)
+
+Branch `feature/weapons-epic-21.0`, from `main` @ `0beea88` (20.0, merged and deployed by the owner). Full numbers: `docs/BENCH-21.0.json`.
+
+### Weapon finishes by biome
+- **One model, three finishes** (`src/entities/weapons/theme.ts`). The gun models no longer name colours: they ask for material roles (frame, steel, polymer, furniture, trim, glow, glove, sleeve, cuff), and the map's theme answers.
+  - `blaster` (Tokyo, Neon Block, Neon Docks): dark gunmetal and graphite, neon strips.
+  - `military` (Desert, Jungle, Crash Site, Old Port): matte black, olive drab, woodland camo furniture and sleeves, nothing glowing, every gun kinetic (tracers, brass, a plain pistol crack instead of the plasma zap).
+  - `corporate` (Maglev): grey-white polymer, carbon-weave furniture, dim cyan LEDs.
+- **The bots carry the finish too:** their rig gun takes the theme's shared material plus two accent strips where the theme glows. Their energy rounds turn kinetic on military maps, white-cyan on Maglev.
+- **No per-build leaks:** each build gets fresh materials and the viewmodel frees them on swap, including a glow material only the ammo strips used. The camo and carbon textures are made once per theme and marked shared (`disposeScene` now skips shared textures).
+
+### The asymmetric arsenal (four guns, keys 1–4)
+- **Pistol (Kitsune-9):** 108% move speed and no speed lost while aiming, sights in 0.1 s, the fastest draw, head hits ×1.5 on top of ×2; 30 a round, falling to 45% from 25 to 40 m.
+- **SMG (Hornet, new model):** about 1090 rpm of 15-damage rounds, the hip cone ×0.55, the steepest climb per shot; falls to 55% from 12 to 30 m.
+- **Rifle (Jackal):** the baseline; hip cone ×2, full damage to 35 m.
+- **Shotgun (Boar):** 8 × 22 pellets (one shell kills inside 8 m), 8% a pellet past 15 m, a wider cone, 85% speed, slow sights; every hit shoves and staggers.
+- **Per-gun handling** (`GunHandling`, `Player.gun`): move, aiming move, sights in and out, draw speed. **Per-gun feel:** the shotgun the biggest punch, FOV kick and shake with a sub-bass drop; the SMG a quiet, short, high buzz; the pistol a sharp crack.
+- **Bots:** rounds fall off by distance flown, the pistol's head bonus, the shotgun's knock. Pistol bots run fastest and keep their full run while aiming. Shotgun bots slide most, slide while engaging, and push from cover to cover on every map.
+
+### Kill share (bot vs bot, 8 matches a map)
+| | Rifle | SMG | Shotgun | Pistol |
+|---|---|---|---|---|
+| Target | 30 | 30 | 25 | 15 |
+| Maglev (7v7, 380 kills) | 24.5 | 29.5 | 30.3 | 15.8 |
+| Neon Docks (5v5, 373 kills) | 35.9 | 30.3 | 20.9 | 12.9 |
+| Pooled (753 kills) | 30.1 | 29.9 | 25.6 | 14.3 |
+
+Each map leans its own way: the close-quarters hall favours the shotgun, the open docks the rifle. The first cut gave the pistol 21–24%: its bots, hard to hit at a full run, out-lived the others. It took less body damage (three head hits still kill), a shorter range, and the shotgun's cover-hop to get there.
+
+### Validation
+- `bench(3)`, Balanced: Neon Docks and Maglev 60 FPS in every view, GPU 5.6–6.6 ms.
+- `__dev.gunCycle(5)` (every gun in every finish): geometries, textures and programs flat. `leakcheck.mjs 2 desert,docks,maglev`: 0 alive. `stagecheck.mjs 4`: 0 alive.
+- Tests 263 (+9: the balance arithmetic, the themes, the four-gun armory).
+
 ## Next
 Human playtest:
+- 21.0 items: the four guns (does the pistol feel like a mobility gun or a peashooter; is the SMG's climb fun or annoying; does one shotgun shell feel fair to die to; is the rifle's wide hip fire too punishing), the finishes (the white Maglev guns in the bright hall, camo on the military maps), the sounds (the shotgun's cannon, the SMG's buzz).
 - 20.0 items: Maglev Terminal (is it still a sniper gallery anywhere; are the white operators fair to find or too hidden; do the platforms' chicanes give mid-range fights; does the zig-zag train still play as the shotgun lane); the bots (do they really dive for cover when you snipe them, or just jitter).
 - 19.0 items: Crash Site at 7v7 (is it constant action or chaos; do forward respawns feel fair or like spawning into fights; the undercroft, the hull and the shrine: do the three levels read; is the undergrowth too thick to see bots through), the jungle bots (do shotgun and SMG bots really come at you from cover).
 - 18.0 items: Maglev Terminal (does the train feel like a shotgun lane or a death trap, are the cab doors too strong as the straight way, do the platforms' duels work past the kiosks and columns, is the white too bright or flat, the glass), the terminal ambience.

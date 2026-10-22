@@ -76,7 +76,8 @@ export const FLAVOR = {
   // Survival death screen
   flatline: L('雨は止まない', 'الرمال لا تنام', 'ДОК НЕ СПИТ', 'ป่าไม่เคยหลับ'),
   // Weapons (the armory's guns, by id)
-  smg: L('狐', 'ثعلب', 'ЛИСА', 'จิ้งจอก'),
+  pistol: L('狐', 'ثعلب', 'ЛИСА', 'จิ้งจอก'),
+  smg: L('蜂', 'دبور', 'ШЕРШЕНЬ', 'แตน'),
   ar: L('豺', 'ابن آوى', 'ШАКАЛ', 'หมาใน'),
   shotgun: L('猪', 'خنزير بري', 'КАБАН', 'หมูป่า'),
 } satisfies Record<string, Line>;

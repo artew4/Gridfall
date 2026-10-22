@@ -2,22 +2,31 @@ import * as THREE from 'three';
 import type { WeaponBuild, WeaponSpec } from '../types';
 
 /**
- * The "Kitsune-9" plasma-assisted pistol (TokyoNight, the default): gunmetal slide with cyan strips
- * that show the remaining rounds, an ammo counter on the back, a glowing barrel ring.
- * Numbers and geometry are exactly the pre-3.5 Weapon.ts.
+ * The "Kitsune-9" pistol (21.0: the arsenal's pistol; 13.0–20.0 it was listed as the SMG): a slide
+ * with strips that show the remaining rounds, an ammo counter on the back, a barrel ring. The finish is
+ * the map's (theme.ts): neon strips and plasma on the blaster maps, a parkerized service pistol with
+ * kinetic rounds on the military ones, white polymer with a cyan LED on Maglev.
+ *
+ * 21.0, the mobility king: no speed lost while aiming, the fastest sights (0.1 s) and draw, a head
+ * hit worth 1.5× more; low body damage that falls to 45% between 25 and 40 m.
  */
 export const KITSUNE_9: WeaponSpec = {
   id: 'kitsune9',
   name: 'KITSUNE-9',
   jp: '狐',
   mag: 12,
-  fireInterval: 0.14,
-  reloadTime: 1.35,
-  damage: 34,
-  spread: 0.003,
-  bloomPerShot: 0.3,
-  kick: { z: 2.4, rot: 14, rotJitter: 2, side: 3, slide: 0.032 },
-  camera: { climb: 0.007, yaw: 0.002, pitchKick: 5, yawKick: 1.5, roll: 1, fov: 1.6, trauma: 0.08 },
+  fireInterval: 0.16,
+  reloadTime: 1.2,
+  damage: 30,
+  spread: 0.0025,
+  bloomPerShot: 0.22,
+  // A sharp snap: a short punch, little climb (it has to stay on the head).
+  kick: { z: 2.6, rot: 15, rotJitter: 2, side: 3, slide: 0.034 },
+  camera: { climb: 0.005, yaw: 0.002, pitchKick: 4.5, yawKick: 1.4, roll: 0.9, fov: 1.2, trauma: 0.07 },
+  handling: { move: 1.08, adsMove: 1.0, adsIn: 0.1, adsOut: 0.08, raise: 22 },
+  hip: 0.8,
+  headMul: 1.5,
+  falloff: { near: 25, far: 40, min: 0.45 },
   rest: [0.15, -0.145, -0.36],
   // Rear notch (top 0.0465) to front dot (0.048), held out at arm's length.
   ads: { sight: [0, 0.0475, -0.098], z: -0.3, zoom: 0.8 },
@@ -26,15 +35,11 @@ export const KITSUNE_9: WeaponSpec = {
   flash: { color: [6, 4.2, 2.6], size: 1, at: [0, 0.02, -0.15], light: 0xffa860 },
   tracer: [1.0, 0.75, 0.4],
   ballistic: 'energy',
+  // The plasma pistol's zap; the viewmodel makes it a plain pistol crack on a military map.
   sound: 'plasma',
   ammoGlow: true,
-  build({ gun, slide, mag, display }: WeaponBuild) {
-    const metal = new THREE.MeshStandardMaterial({ color: 0x6a6e78, metalness: 0.8, roughness: 0.32, envMapIntensity: 1.4 });
-    const polymer = new THREE.MeshStandardMaterial({ color: 0x2c2e35, metalness: 0.25, roughness: 0.5, envMapIntensity: 1.0 });
-    const accent = new THREE.MeshStandardMaterial({ color: 0xb0b5bf, metalness: 0.9, roughness: 0.18, envMapIntensity: 2 });
-    const glove = new THREE.MeshStandardMaterial({ color: 0x24242a, roughness: 0.65, metalness: 0.1 });
-    const sleeve = new THREE.MeshStandardMaterial({ color: 0x2a2d3a, roughness: 0.8 });
-    const strip = new THREE.MeshBasicMaterial({ color: 0x40e0ff });
+  build({ gun, slide, mag, display, mats }: WeaponBuild) {
+    const { frame: metal, polymer, trim: accent, glove, sleeve, glow: strip } = mats;
     const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D, rx = 0) => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
       mesh.position.set(x, y, z);
@@ -96,7 +101,7 @@ export const KITSUNE_9: WeaponSpec = {
     arm.rotation.z = 0.2;
     arm.position.set(0.035, -0.12, 0.24);
     hand.add(arm);
-    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.037, 0.012, 10), strip);
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.037, 0.012, 10), mats.cuff);
     cuff.userData.strip = true;
     cuff.rotation.copy(arm.rotation);
     cuff.position.set(0.02, -0.09, 0.105);
