@@ -13,11 +13,20 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function openChrome({ port = 9333, chrome = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'gridfall-cdp-'));
   const proc = spawn(chrome, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--window-size=1280,800', '--autoplay-policy=no-user-gesture-required', 'about:blank'], { stdio: 'ignore' });
-  const done = (code) => {
+  const cleanup = () => {
     try { proc.kill(); } catch {}
     try { rmSync(dir, { recursive: true, force: true }); } catch {}
+  };
+  const done = (code) => {
+    cleanup();
     process.exit(code);
   };
+  // 17.0: a script that throws (or is interrupted) must not leave headless Chrome behind. One left by
+  // a crashed leak check rendered the game in SwiftShader on four cores for hours.
+  process.on('exit', cleanup);
+  process.on('uncaughtException', (e) => { console.error(e); done(2); });
+  process.on('unhandledRejection', (e) => { console.error(e); done(2); });
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => done(130));
   // A tab of our own (Chrome also lists its UI surfaces, and the startup tab can be replaced).
   let ws;
   for (let i = 0; i < 60 && !ws; i++) {

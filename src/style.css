@@ -78,7 +78,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 #title .loading { margin-top: 60px; font-size: 11px; letter-spacing: 0.5em; color: var(--cyan-dim); }
 @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 
-#pause { background: rgba(0,0,0,0.55); backdrop-filter: blur(3px); }
+/* 17.0: no backdrop blur (a full-screen filter re-run on every composite over a frozen frame): a darker tint. */
+#pause { background: rgba(0,0,0,0.66); }
 #pause .big, #death .big { font-size: 34px; letter-spacing: 0.6em; font-weight: 200; color: #e8fbff; padding-left: 0.6em; }
 #pause .hint, #death .hint { margin-top: 26px; font-size: 11px; letter-spacing: 0.45em; color: var(--cyan-dim); animation: pulse 2.2s ease-in-out infinite; }
 #death { background: radial-gradient(ellipse at center, rgba(40,0,8,0.5) 0%, rgba(0,0,0,0.9) 80%); }
@@ -93,7 +94,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 #skip { z-index: 8; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 30px 15vh 0; font-size: 10px; letter-spacing: 0.4em; color: rgba(255,255,255,0.35); opacity: 0; }
 
 /* ---------- Pause menu ---------- */
-#pausemenu { z-index: 12; display: flex; align-items: center; justify-content: center; background: rgba(2, 3, 10, 0.62); backdrop-filter: blur(4px); pointer-events: auto; transition: opacity 0.25s ease; }
+#pausemenu { z-index: 12; display: flex; align-items: center; justify-content: center; background: rgba(2, 3, 10, 0.74); pointer-events: auto; transition: opacity 0.25s ease; }
 .pm-panel { width: min(420px, 90vw); padding: 30px 34px 22px; border: 1px solid var(--cyan-faint); border-left: 2px solid var(--cyan-dim); background: linear-gradient(180deg, rgba(8, 14, 26, 0.92), rgba(4, 6, 14, 0.92)); box-shadow: 0 0 40px rgba(34, 232, 255, 0.06), inset 0 0 30px rgba(34, 232, 255, 0.03); }
 .pm-title { font-size: 26px; font-weight: 200; letter-spacing: 0.55em; color: #e8fbff; margin-bottom: 22px; }
 .pm-title .jp, .pm-btn .jp, .pm-sep .jp { font-family: var(--jp); font-size: 11px; letter-spacing: 0.4em; color: var(--cyan-dim); margin-left: 14px; }
@@ -434,16 +435,19 @@ html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
 }
 .pm-btn.primary:not(:disabled) { border-color: var(--magenta); background: linear-gradient(90deg, rgba(255, 47, 208, 0.16), rgba(120, 235, 255, 0.04)); }
 
-/* Scanlines and a vignette over the title (and the pause menu): CSS only, no per-frame work. */
+/*
+  Scanlines and a vignette over the title (and the pause menu). 17.0: static and plainly blended. The
+  16.0 drift animated background-position under mix-blend-mode: overlay, which re-painted and
+  re-blended the whole screen on every display refresh (120 Hz on a ProMotion panel), behind a
+  paused game too, where nothing else was being drawn.
+*/
 #title::before, #pausemenu::before {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px);
-  mix-blend-mode: overlay; animation: scan-drift 9s linear infinite;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 3px);
 }
 #title::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(ellipse at 60% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%); }
 #title > *, #pausemenu > * { position: relative; z-index: 1; }
 #title > .controls { position: absolute; }
-@keyframes scan-drift { from { background-position: 0 0; } to { background-position: 0 90px; } }
 
 /* The stage screens (root, controls): the menu is a column on the left, the stage's gun on the right. */
 @media (min-width: 820px) {

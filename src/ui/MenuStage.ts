@@ -21,6 +21,12 @@ import { disposeScene } from '../core/dispose';
   vectors.
 */
 
+/**
+ * 17.0: the stage's resolution (CSS pixel multiple, under the preset's). It is fill-bound and sits
+ * behind the menu's HTML: 1.0 costs 3.3 ms of GPU a frame against 5.1 at Balanced's 1.25.
+ */
+export const STAGE_PIXEL_RATIO = 1;
+
 /** Where the weapon turns (world), and its stand height over the crate. */
 const SHOW = new THREE.Vector3(0, 0.8, 0);
 

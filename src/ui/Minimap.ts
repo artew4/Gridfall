@@ -33,6 +33,7 @@ export class Minimap {
   private floors: Record<Floor, HTMLCanvasElement>;
   private label = document.createElement('div');
   private dpr = Math.min(2, window.devicePixelRatio || 1);
+  private drawnAt = -Infinity;
 
   /** Level unloaded: remove the map from the HUD. */
   dispose() {
@@ -94,6 +95,10 @@ export class Minimap {
   }
 
   draw(player: THREE.Vector3, yaw: number, objective: THREE.Vector3 | null, blips: Blip[], station: THREE.Vector3 | null, route: THREE.Vector3[] = []) {
+    // 17.0: a 2D canvas redrawn (and re-uploaded by the compositor) at most 30 times a second.
+    const now = performance.now();
+    if (now - this.drawnAt < 1000 / 30 - 1) return;
+    this.drawnAt = now;
     const g = this.ctx;
     const s = this.dpr;
     g.setTransform(s, 0, 0, s, 0, 0);

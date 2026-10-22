@@ -1002,8 +1002,62 @@ Every label's decorative sub-text was Japanese until 15.0, on every map. It now 
 - **Known, not fixed:** on the jungle, a match started straight from the stage (only `__dev.start` can; DEPLOY is on the maps screen, which draws the level first) spends ~1 ms more in render submission for ~30 s. Through the menu, the bench equals `main`.
 - **Tests:** 215 (+4: every line in every biome in its script, none Japanese outside Tokyo; numerals; `setBiome`; the arenas' zone names).
 
+## 17.0: the thermal pass (cooler, same look)
+
+Branch `fix/thermal-optimization-17.0`, from `main` @ `dfe0baa` (16.0). The brief stopped feature work: the machine ran hot and throttled after 14.0–16.0. Every suspect was measured against 16.0, served from a worktree on another port in the same session, before anything changed. Full numbers: `docs/BENCH-17.0.json`.
+
+### What was hot, and the fixes
+1. **Point lights (14.0 Neon Block, Neon Docks).** three.js shades every drawn point light in every lit pixel. Neon Block has 34 and Docks 30; on Apple M5 the cost is flat to ~22, then climbs (Neon Block's alley: 12 lights 6.2 ms, 24 6.9, 28 8.9, 34 13–14).
+   - **Fix:** `src/core/LightPool.ts`. The level's lights move to a layer no camera draws. A fixed set of real lights (Power 8, Balanced 16, High 20, never more than the map has) copy the ones lighting the view: frustum-culled, ranked by intensity × apparent size of their range, faded in and out over 0.25 s.
+   - **Recompiles:** the slot count never changes, so nothing recompiles.
+   - **Exempt:** the muzzle flash and the rounds' glow stay real lights (`userData.unpooled`).
+   - **Cost:** 0.08 ms of CPU per frame.
+2. **The 16.0 menu CSS.**
+   - **The cause:** the scanlines drifted by animating `background-position` under `mix-blend-mode: overlay`, and the pause overlays had a backdrop blur. Together they made a full-screen repaint and re-blend at 120 Hz.
+   - **The hottest case:** the pause menu, where the game draws nothing: Chrome's GPU process used 57% of a core.
+   - **Fix:** static scanlines with plain alpha, and a darker tint instead of the blur.
+3. **A crashed leak check left headless Chrome rendering** (SwiftShader, ~400% CPU) for 4 h 38 min. `scripts/lib/cdp.mjs` now kills it on every exit path.
+4. **The menu stage draws at 1.0×** (`Renderer.setCeiling`, lifted when it closes). It is fill-bound: 5.1 → 3.2 ms per frame.
+5. **The TDM result screen draws the arena at 30 FPS** (a `results` state), not 60.
+6. **Both minimaps redraw at 30 Hz** (2D canvases; there was never a second camera).
+
+### Checked and left alone (measured)
+- **Device pixel ratio:** capped per preset since 3.2 (0.85 / 1.25 / 1.5, never above the display's), with adaptive resolution. In game views, 36% fewer pixels saved ~0.2 ms: the GPU clocks down below ~40% busy.
+- **Disposal:** see the VRAM cycle below.
+- **Shadow maps:** one shadow-casting sun per map, all static (drawn once). 2048 vs 1024 measured the same per frame, so they stay at 2048 (VRAM only; 1024 would double the texel size over 160–220 m frustums). This is the one point where the brief's rule was not applied.
+- **Post-processing:** bloom from a quarter-resolution base with 3 levels. The post chain cost ~0.1 ms in a game view.
+- **Background tab:** loop stopped, match paused, audio and music timers suspended (since 3.2). Re-verified: 0 s of simulation in 1 s hidden, renderer CPU 30.6% → 4.6%.
+
+### Results (Balanced, 60 FPS cap, Apple M5)
+| | 16.0 | 17.0 |
+|---|---|---|
+| Neon Block, `bench(3)` GPU ms (busy) | 7.5–13.4 (45–80%) | 6.1–6.7 (36–40%) |
+| Neon Block, back to back, three worst views | 12.1 / 12.4 / 11.5 | 6.6 / 6.1 / 6.1 |
+| Neon Docks, GPU ms | 6.5–8.3 (another run 6.8–11.0) | 6.0–6.8 |
+| Crash Site / Tokyo, GPU ms | 5.3–6.3 / 6.2–6.9 | 5.7–6.4 / 6.1–6.5 (few lights: unchanged) |
+| Menu stage, GPU ms at 30 FPS | 3.8–5.1 | 3.2 |
+| Pause menu: Chrome GPU process / renderer CPU | 57.3% / 13.0% | 1.9% / 3.6% |
+| Title with the game's loop stopped (CSS alone) | 41.6% / 20.2% | 2.4% / 3.4% |
+| Title, everything running | 47.3% / 23.9% | 12.6% / 17.3% |
+
+- **CPU per frame:** 1.2–3.3 ms in both builds; it moves ±1 ms with the match's state and the CPU's clock. Every view held 60 FPS in both builds.
+- **The ~6 ms floor:** every map now sits near 6 ms of GPU at ~37% busy, which is the clocked-down floor on this machine.
+- **VRAM** (`__dev.vramCycle({ laps: 3 })`: Neon Block → Crash Site → menu → Docks through the real UI): geometries, textures and programs equal lap over lap.
+  - Neon Block 230 / 62 / 73, Crash Site 121 / 28 / 53, menu stage 106 / 16 / 52, Docks 192 / 42 / 64.
+  - Drawn point lights: 18 / 4 / 2 / 18 (16.0: 34 / 4 / 2 / 30).
+  - 16.0 passes the same cycle: there was no GPU-memory leak; disposal has been strict since 13.0 and 16.0.
+- **Forced-GC checks:**
+  - `leakcheck.mjs 2 neonblock,crashsite,docks`: 0 of 48 tagged objects alive;
+  - `stagecheck.mjs 3`: 0 alive.
+- **Tests:** 221 (+7: the pool's ranking, fades, slot bound, layers, a small map's own count; the budgets; the result screen's cap).
+
+### Not done
+- **Old Port, the first 17.0 brief:** its branch `feature/daytime-docks-17.0` (`b30f914`) is parked, not merged. This brief replaced that work.
+- **Neon Block's look:** at 16 lights, the overview from the west roofs loses a little fill on far roofs. The alleys and lanes looked the same in screenshots with every light and with 12.
+
 ## Next
 Human playtest:
+- 17.0 items: does the machine stay cool (fans, temperature) in a Neon Block match and on the pause menu; does Neon Block still look right with its lights pooled (any light popping when you turn?); is the menu stage still crisp enough at 1.0×.
 - 16.0 items: the menu stage (is the gun readable, does the camera drift too much), the glitch and hover sounds (charming or tiring), Rajdhani at small sizes, the flavor scripts (do Arabic and Thai read as flavor or as noise, is the Cyrillic stencil look right for the docks).
 - 15.0 items: Crash Site (does the ridge pay for its exposure, is the ravine too dark, do the trenches read, the wreck's interior); the docks rework (does the roofless warehouse feel like a risk, do the gantries and the crane nest matter, do side exits feel natural).
 - 14.0 items: Neon Block in a full match: do the three levels pay off (roofs, landings, the footbridge), are the drop-downs readable and fun, is any spot too dark or too bright, is the koban too big; the operator skins: can you find a bot in the alleys at 20–40 m, do cyan and orange read as teams at a glance, do the accents feel like a giveaway.

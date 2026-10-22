@@ -1,0 +1,66 @@
+{
+  "version": "17.0 (thermal)",
+  "machine": "Apple M5 laptop, Chrome, Retina (devicePixelRatio 2, rAF 120 Hz), window 1456x949 CSS px, Balanced preset (60 FPS cap, render scale 1.25 = 1820x1186)",
+  "method": "16.0 (main @ dfe0baa) served from a git worktree on :5174 beside 17.0 on :5173, the same session; bench(3) per map; back-to-back perf(4) A/Bs on the worst views; Chrome process CPU from ps time deltas over 10 s",
+  "columns": "fps, cpuMsPerFrame, gpuMsPerFrame, gpuBusyPct, drawCalls",
+  "bench3": {
+    "neonblock": {
+      "16.0": { "alphaYard": [60, 2.14, 8.35, 50.1, 333], "mainStreet": [60, 2.09, 8.06, 48.4, 297], "lanternAlley": [60, 1.16, 13.1, 78.5, 319], "fireEscape": [60, 1.2, 13.38, 80.3, 356], "westRoofs": [60.3, 2.34, 7.5, 45.2, 327], "footbridge": [60, 1.89, 10.5, 63, 185], "eastRoofs": [60, 2.18, 9.17, 55, 298], "serviceAlley": [60, 1.2, 12.47, 74.8, 299], "wholeBlock": [60, 2.42, 9.36, 56.2, 381] },
+      "17.0": { "alphaYard": [60, 2.33, 6.34, 38.1, 333], "mainStreet": [60, 2.56, 6.45, 38.7, 297], "lanternAlley": [60, 2.5, 6.07, 36.4, 319], "fireEscape": [60, 2.46, 6.29, 37.7, 339], "westRoofs": [60.2, 2.29, 6.4, 38.5, 327], "footbridge": [59.9, 2.2, 6.06, 36.3, 185], "eastRoofs": [60, 2.17, 6.13, 36.8, 298], "serviceAlley": [60.3, 2.37, 6.4, 38.6, 224], "wholeBlock": [60, 2.4, 6.09, 36.5, 384], "firefight": [60, 2.26, 6.66, 40, 175] },
+      "pool": { "sources": 32, "slots": 16 },
+      "backToBack_perf4": { "16.0": { "lanternAlley": [60.2, 1.47, 12.09, 72.8], "fireEscape": [60, 1.35, 12.37, 74.2], "serviceAlley": [60, 1.9, 11.46, 68.8] }, "17.0": { "lanternAlley": [60, 2.36, 6.6, 39.6], "fireEscape": [60, 2.32, 6.14, 36.8], "serviceAlley": [60, 2.31, 6.09, 36.5] } }
+    },
+    "docks": {
+      "16.0": { "alphaYard": [60.3, 2.9, 6.55, 39.5, 294], "stacks": [60, 2.67, 7.13, 42.8, 242], "stacksTop": [60, 2.43, 6.54, 39.2, 186], "warehouseFloor": [60, 2.7, 7.47, 44.8, 256], "catwalk": [60, 2.55, 7.99, 47.9, 257], "quay": [60.3, 2.72, 8.27, 49.8, 337], "crane": [59.9, 2.34, 6.58, 39.4, 131], "quayGantry": [60, 2.49, 7.54, 45.2, 283], "craneNest": [60, 2.59, 7.41, 44.5, 328], "containerGantry": [60, 2.58, 6.85, 41.1, 203], "firefight": [60, 2.62, 7.12, 42.7, 265] },
+      "16.0_earlierRunSameDay_gpuMs": [6.8, 11.0],
+      "17.0": { "alphaYard": [60, 2.13, 6.31, 37.8, 298], "stacks": [60, 2.57, 6.09, 36.5, 217], "stacksTop": [60, 2.57, 6.24, 37.4, 186], "warehouseFloor": [60, 2.6, 6.18, 37.1, 255], "catwalk": [60.3, 2.11, 6.79, 40.9, 281], "quay": [60, 2.36, 6.63, 39.8, 310], "crane": [60.3, 2.23, 6.04, 36.4, 137], "quayGantry": [60, 1.89, 6.56, 39.4, 358], "craneNest": [60, 2.09, 6.38, 38.3, 207], "containerGantry": [60, 2.11, 6.44, 38.6, 324], "firefight": [59.7, 2.37, 6.3, 37.6, 286] },
+      "pool": { "sources": 28, "slots": 16 }
+    },
+    "crashsite": {
+      "16.0": { "alphaLZ": [60.3, 3, 5.46, 32.9, 203], "ridge": [59.9, 2.59, 5.26, 31.5, 200], "westTrench": [60, 1.99, 5.9, 35.4, 203], "wreckRoof": [60, 1.73, 6.32, 37.9, 129], "wreckInside": [60, 1.8, 5.71, 34.3, 130], "wholeMap": [60, 2.02, 6.21, 37.3, 293], "firefight": [60, 1.87, 5.99, 36, 182], "note": "ravine and eastBank invalid in this run (focus)" },
+      "17.0": { "alphaLZ": [60, 3.93, 6.35, 38.1, 203], "ridge": [60, 3.73, 6.14, 36.8, 200], "westTrench": [60.3, 3.84, 5.85, 35.3, 223], "wreckRoof": [60, 3.72, 6.19, 37.1, 104], "wreckInside": [60, 4.12, 5.94, 35.6, 155], "ravine": [60.3, 2.13, 5.71, 34.5, 230], "eastBank": [60, 2.06, 5.95, 35.7, 124], "wholeMap": [60, 2.03, 6.15, 36.9, 228], "firefight": [60, 2.14, 6.12, 36.7, 207] },
+      "pool": { "sources": 2, "slots": 2 },
+      "note": "2 point lights: the pool changes nothing here. The first views' CPU (3.7-4.1 ms vs 1.7-3.0) is the match's opening (spawns, first routes); the same views later read 2.0-2.1."
+    },
+    "tokyo": {
+      "16.0": { "plaza": [60, 2.45, 6.46, 38.7, 194], "rooftop": [60, 2.71, 6.23, 37.4, 331], "metroConcourse": [60, 2.12, 6.78, 40.7, 151], "platform": [60, 2.12, 6.63, 39.8, 159], "platformTrain": [60, 2.51, 6.62, 39.7, 286], "overpassTrain": [60, 2.37, 6.33, 38, 222], "pursuit": [60, 2.9, 6.89, 41.3, 333], "firefight": [60, 3.32, 6.55, 39.3, 426] },
+      "17.0": { "plaza": [60, 2.69, 6.33, 38, 194], "rooftop": [60, 2.64, 6.42, 38.5, 332], "metroConcourse": [60, 2.56, 6.28, 37.6, 150], "platform": [60, 2.52, 6.32, 37.9, 215], "platformTrain": [60.3, 2.49, 6.41, 38.7, 275], "overpassTrain": [59.9, 2.85, 6.2, 37.2, 222], "pursuit": [59.9, 3.04, 6.46, 38.7, 345], "firefight": [60, 2.99, 6.12, 36.7, 425] },
+      "pool": { "sources": 13, "slots": 13 }
+    }
+  },
+  "pointLightCurve_neonblockLanternAlley_gpuMs": { "0": 5.75, "12": 6.19, "16": 6.21, "20": 6.27, "22": 6.44, "24": 6.9, "26": 8.14, "28": 8.87, "34_asShipped": [13.1, 14.1], "40slots_allInFrustum": 40.6 },
+  "menuStage_30fps": { "16.0": { "gpuMs": [3.77, 5.08], "gpuBusy": [11.3, 15.2] }, "17.0_stageAt1x": { "gpuMs": 3.17, "gpuBusy": 9.5 }, "probe": { "pr1.25": 5.13, "pr1.0": 3.25, "rawNoPost": 2.66 } },
+  "chromeProcessCpuPct_10s": {
+    "title_loopRunning": { "16.0": { "gpuProcess": 47.3, "renderer": 23.9 }, "17.0": { "gpuProcess": 12.6, "renderer": 17.3 } },
+    "title_gameLoopStopped_cssOnly": { "16.0": { "gpuProcess": 41.6, "renderer": 20.2 }, "17.0": { "gpuProcess": 2.4, "renderer": 3.4 }, "17.0_titleGlitchPaused": { "gpuProcess": 1.9, "renderer": 1.8 } },
+    "pauseMenuOverMatch": { "16.0": { "gpuProcess": 57.3, "renderer": 13.0 }, "17.0": { "gpuProcess": 1.9, "renderer": 3.6 } },
+    "hiddenTab_17.0": { "before": { "gpuProcess": 17.4, "renderer": 30.6 }, "afterHiddenEvent": { "gpuProcess": 9.4, "renderer": 4.6 }, "simulationAdvancedIn1s": 0, "note": "document.hidden overridden (the pause overlay stays visible on screen, so compositing continues)" }
+  },
+  "csscheck_headless_mainThreadMsPerS": { "16.0": { "title": 3.6, "pauseMenu": 3.1 }, "17.0": { "title": 2.8, "pauseMenu": 0 } },
+  "shadowMapSize_crashsite_gpuMs": { "2048": [6.41, 6.75, 6.69, 6.29], "1024": [6.62, 6.36, 6.58, 6.33], "note": "static maps (drawn once): size has no per-frame cost; kept at 2048" },
+  "resolution_docks_gpuMs": { "1.25 (1820x1186)": [6.27, 6.06], "1.0 (1456x949)": [5.95, 6.05], "note": "game views are not fill-bound at this load: the GPU clocks down" },
+  "lightPoolCpuMsPerFrame": 0.08,
+  "vramCycle_laps3": {
+    "route": "neonblock -> crashsite -> menu (stage) -> docks, through the real UI",
+    "columns": "geometries, textures, programs, sceneObjects, drawnPointLights",
+    "17.0": {
+      "lap0": { "neonblock": [230, 62, 70, 570, 18], "crashsite": [121, 28, 53, 405, 4], "menu": [106, 16, 52, 73, 2], "docks": [192, 42, 64, 519, 18] },
+      "lap1": { "neonblock": [230, 62, 73, 570, 18], "crashsite": [121, 28, 53, 405, 4], "menu": [138, 33, 71, 73, 2], "docks": [192, 42, 64, 519, 18] },
+      "lap2": { "neonblock": [230, 62, 73, 570, 18], "crashsite": [121, 28, 53, 405, 4], "menu": [106, 16, 52, 73, 2], "docks": [192, 42, 64, 519, 18] },
+      "growthLastLap": "0 everywhere (the menu's lap-1 reading was taken while the level rebuilt behind the stage)",
+      "ok": true
+    },
+    "16.0": {
+      "lap0": { "neonblock": [230, 62, 70, 554, 34], "crashsite": [121, 28, 53, 403, 4], "menu": [106, 16, 52, 73, 2], "docks": [156, 42, 65, 143, 30] },
+      "lap1": { "neonblock": [230, 62, 74, 554, 34], "crashsite": [121, 28, 54, 403, 4], "menu": [106, 16, 53, 73, 2], "docks": [192, 42, 65, 503, 30] },
+      "lap2": { "neonblock": [230, 62, 74, 554, 34], "crashsite": [121, 28, 54, 403, 4], "menu": [106, 16, 53, 73, 2], "docks": [192, 42, 65, 503, 30] },
+      "growthLastLap": "0 everywhere: 16.0 had no GPU-memory leak either (lap 0's docks reading was taken mid-build)",
+      "ok": true
+    }
+  },
+  "forcedGC": {
+    "stagecheck": { "command": "node scripts/stagecheck.mjs 3", "aliveAfterGC": 0 },
+    "leakcheck": { "command": "node scripts/leakcheck.mjs 2 neonblock,crashsite,docks", "leftLevelsTagged": "6 x 8 objects", "aliveAfterGC": 0, "geometriesTexturesLap1vsLap2": "equal" }
+  },
+  "tests": 221
+}

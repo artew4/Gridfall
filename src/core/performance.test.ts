@@ -43,6 +43,8 @@ describe('frame pacing', () => {
     expect(effectiveCap(90, 'play', true)).toBe(90);
     expect(effectiveCap(120, 'endcard', true)).toBe(10);
     expect(effectiveCap(120, 'dead', true)).toBe(30);
+    expect(effectiveCap(60, 'results', true)).toBe(30);
+    expect(effectiveCap(30, 'results', true)).toBe(30);
   });
 });
 

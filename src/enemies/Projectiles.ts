@@ -141,6 +141,7 @@ export class Projectiles {
       this.free.push(N - 1 - i);
     }
     this.light = new THREE.PointLight(0xffa040, 0, 9, 2);
+    this.light.userData.unpooled = true;
     scene.add(this.light);
     this.setLook(look);
   }

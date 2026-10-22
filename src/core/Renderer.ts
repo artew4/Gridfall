@@ -266,9 +266,27 @@ export class Renderer {
     return Math.min(this.maxPixelRatio, 0.75);
   }
 
+  /**
+   * 17.0: a temporary resolution ceiling under the preset's (the menu's stage draws at 1.0: a dark,
+   * bloomed backdrop behind HTML text, and it is fill-bound: 5.1 → 3.3 ms of GPU a frame at 1.25 →
+   * 1.0 on Apple M5).
+   */
+  ceiling = Infinity;
+  /** The highest resolution allowed now: the preset's, under any temporary ceiling. */
+  get allowedPixelRatio() {
+    return Math.min(this.maxPixelRatio, this.ceiling);
+  }
+
+  /** Sets (Infinity: lifts) the temporary ceiling and applies it at once. */
+  setCeiling(pr: number) {
+    this.ceiling = pr;
+    this.renderer.setPixelRatio(this.allowedPixelRatio);
+    this.resize();
+  }
+
   /** Adaptive resolution: lowered when the frame rate sags, restored when there's headroom. */
   setPixelRatio(pr: number) {
-    const v = Math.max(this.minPixelRatio, Math.min(this.maxPixelRatio, pr));
+    const v = Math.max(Math.min(this.minPixelRatio, this.allowedPixelRatio), Math.min(this.allowedPixelRatio, pr));
     if (Math.abs(v - this.renderer.getPixelRatio()) < 0.01) return;
     this.renderer.setPixelRatio(v);
     this.resize();

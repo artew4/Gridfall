@@ -17,17 +17,24 @@ export interface PresetSpec {
   bloomLevels: 3 | 5;
   /** Decorative sign point lights (the fountain, metro, train and muzzle lights always stay). */
   signLights: boolean;
+  /**
+   * 17.0: real point lights the level's lights share (LightPool): the ones lighting the view, the
+   * best first. Every point light is a cost in every lit pixel; on Apple M5 (Neon Block, Balanced
+   * resolution) 12 to 22 cost the same (~6.2 ms of GPU a frame), then it climbs: 24 6.9 ms, 28
+   * 8.9 ms, every one of the 34 14 ms.
+   */
+  lights: number;
 }
 
 export const PRESETS: Record<QualityPreset, PresetSpec> = {
-  power: { label: 'POWER SAVING', fps: 30, pixelRatio: 0.85, bloomLevels: 3, signLights: false },
-  balanced: { label: 'BALANCED', fps: 60, pixelRatio: 1.25, bloomLevels: 3, signLights: true },
-  high: { label: 'HIGH QUALITY', fps: 120, pixelRatio: 1.5, bloomLevels: 3, signLights: true },
+  power: { label: 'POWER SAVING', fps: 30, pixelRatio: 0.85, bloomLevels: 3, signLights: false, lights: 8 },
+  balanced: { label: 'BALANCED', fps: 60, pixelRatio: 1.25, bloomLevels: 3, signLights: true, lights: 16 },
+  high: { label: 'HIGH QUALITY', fps: 120, pixelRatio: 1.5, bloomLevels: 3, signLights: true, lights: 20 },
 };
 
 export const FPS_CAPS: FpsCap[] = [30, 60, 90, 120];
 
-export type LoopState = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending' | 'endcard' | 'loading';
+export type LoopState = 'title' | 'intro' | 'play' | 'paused' | 'dead' | 'ending' | 'endcard' | 'results' | 'loading';
 
 /**
  * How often to draw in each state. Menus and the title don't need the full rate; a paused game
@@ -37,6 +44,8 @@ export function effectiveCap(cap: FpsCap, state: LoopState, focused: boolean): n
   if (state === 'paused') return 0;
   // Behind the (nearly opaque) end card, and the death screen's slow motion.
   if (state === 'endcard') return 10;
+  // 17.0: a match's result screen (TDM): the arena shows through a 50–90% dark vignette.
+  if (state === 'results') return Math.min(cap, 30);
   if (state === 'dead') return Math.min(cap, 30);
   if (state === 'title') return focused ? Math.min(cap, 30) : 10;
   return cap;

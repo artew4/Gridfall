@@ -34,6 +34,7 @@ export class TdmMinimap {
   private z0: number;
   private px: number;
   private dpr = Math.min(2, window.devicePixelRatio || 1);
+  private drawnAt = -Infinity;
 
   constructor(parent: HTMLElement, colliders: readonly Collider[], bounds: THREE.Box2) {
     this.root.className = 'minimap tdm-map';
@@ -94,6 +95,10 @@ export class TdmMinimap {
    * hostiles. Cheap: a blit and a few arcs.
    */
   draw(p: THREE.Vector3, yaw: number, allies: readonly MapDot[], hostiles: readonly MapDot[], name = '') {
+    // 17.0: a 2D canvas redrawn (and re-uploaded by the compositor) at most 30 times a second.
+    const now = performance.now();
+    if (now - this.drawnAt < 1000 / 30 - 1) return;
+    this.drawnAt = now;
     const g = this.g;
     g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     g.clearRect(0, 0, SIZE, SIZE);

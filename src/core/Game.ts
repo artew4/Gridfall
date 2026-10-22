@@ -4,6 +4,7 @@ import { Input } from './Input';
 import { InteractionController, type Interactable } from './Interaction';
 import { StaticBuilder } from '../world/Builder';
 import { FramePacer, PRESETS, effectiveCap } from './Performance';
+import { LightPool } from './LightPool';
 import { KEYS } from './Bindings';
 import { clamp, damp, lerp, rand } from './math';
 import { disposeScene } from './dispose';
@@ -23,7 +24,7 @@ import { Waves } from '../enemies/Waves';
 import type { Enemy, EnemyCtx, EnemyHit } from '../enemies/Enemy';
 import { Hud } from '../ui/Hud';
 import { fl, flWave, setBiome } from '../ui/Flavor';
-import { MenuStage } from '../ui/MenuStage';
+import { MenuStage, STAGE_PIXEL_RATIO } from '../ui/MenuStage';
 import { PauseMenu } from '../ui/PauseMenu';
 import { loadSettings, saveSettings, type Settings } from '../ui/Settings';
 import { StoryHud } from '../ui/StoryHud';
@@ -166,6 +167,8 @@ export class Game {
   private zoneCandidate: Zone | null = null;
   private zoneT = 0;
   private perf = { acc: 0, frames: 0, fps: 60, lowT: 0, highT: 0 };
+  /** 17.0: the loaded level's point lights share the preset's budget of real ones. */
+  lightPool: LightPool | null = null;
   private tmpHit: RayHit = { dist: 0, point: new THREE.Vector3(), normal: new THREE.Vector3(), surface: 'concrete' };
 
   constructor(container: HTMLElement) {
@@ -233,7 +236,7 @@ export class Game {
     this.pacer.reset();
     this.freshClock = true;
     this.renderer.renderer.setAnimationLoop((now) => {
-      const st = this.state === 'ending' && !this.endScreen.root.classList.contains('hidden') ? 'endcard' : this.state;
+      const st = this.state !== 'ending' ? this.state : !this.endScreen.root.classList.contains('hidden') ? 'endcard' : !this.tdmScreen.root.classList.contains('hidden') ? 'results' : this.state;
       if (!this.pacer.tick(now, effectiveCap(this.settings.fps, st, document.hasFocus()))) return;
       this.frame();
     });
@@ -263,9 +266,15 @@ export class Game {
     const p = PRESETS[this.settings.quality];
     const r = this.renderer;
     r.maxPixelRatio = Math.min(window.devicePixelRatio, p.pixelRatio);
-    r.renderer.setPixelRatio(r.maxPixelRatio);
+    r.renderer.setPixelRatio(r.allowedPixelRatio);
     r.resize();
     r.setBloomLevels(p.bloomLevels);
+    // A new light budget: new slots (the shaders recompile once, here rather than mid-fight).
+    if (this.lightPool && this.lightPool.budget !== p.lights) {
+      this.lightPool.dispose();
+      this.lightPool = new LightPool(this.scene, p.lights);
+      r.renderer.compile(this.scene, this.camera);
+    }
     if (this.level instanceof TokyoLevel) for (const g of this.level.signs) if (g.light) g.light.visible = p.signLights;
     this.perf.lowT = this.perf.highT = 0;
   }
@@ -333,6 +342,7 @@ export class Game {
     this.glows.buildHalos(s);
 
     this.muzzleLight = new THREE.PointLight(0xffa860, 0, 14, 2);
+    this.muzzleLight.userData.unpooled = true;
     s.add(this.muzzleLight);
 
     this.player = new Player(this.col, this.audio);
@@ -399,6 +409,8 @@ export class Game {
     this.renderer.setLook(level.look);
     level.setVisual?.(this.renderer.pipeline !== 'v37');
     this.hud.setPlace(level.info.place, level.info.clock);
+    // 17.0: the level's point lights behind the preset's budget of real ones (before the compile).
+    this.lightPool = new LightPool(s, PRESETS[this.settings.quality].lights);
     if (this.ready) this.applyGraphics();
     // Compile everything up front so the first shot doesn't hitch.
     this.renderer.renderer.compile(s, this.camera);
@@ -418,6 +430,8 @@ export class Game {
     this.barkView.clear();
     this.projectiles.clear();
     this.fx.clear();
+    this.lightPool?.dispose();
+    this.lightPool = null;
     this.level.dispose();
     this.audio.clearLevel();
     this.levelAudio = false;
@@ -682,6 +696,7 @@ export class Game {
     this.renderer.haze.px = 0;
     // The viewmodel's pass is off: the player's gun is not updated behind the menu.
     this.renderer.weaponPass.enabled = false;
+    this.renderer.setCeiling(STAGE_PIXEL_RATIO);
     const g = this.renderer.grade.uniforms;
     g.uFlash.value = 0;
     g.uDamage.value = 0;
@@ -699,6 +714,7 @@ export class Game {
     this.renderer.setScene(this.scene);
     this.renderer.setLook(this.level.look);
     this.renderer.weaponPass.enabled = true;
+    this.renderer.setCeiling(Infinity);
     this.renderer.renderer.renderLists.dispose();
     // Levels with static shadows (the jungle) redraw them once: the stage frames rendered no shadows.
     this.renderer.renderer.shadowMap.needsUpdate = true;
@@ -1046,6 +1062,7 @@ export class Game {
     // 11.0: with the sights up the viewmodel lens narrows a little too (the sight reads larger).
     this.weaponCamera.fov = 58 * lerp(1, 0.88, this.player.ads);
     this.weaponCamera.updateProjectionMatrix();
+    if (!this.stage) this.lightPool?.update(this.camera, rawDt);
     this.renderer.render(this.elapsed);
     this.adaptQuality(rawDt);
     input.endFrame();

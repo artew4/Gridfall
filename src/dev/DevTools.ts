@@ -141,6 +141,10 @@ export function installDevTools(game: Game) {
     async mapCycle(opts: { maps?: SettingId[]; laps?: number; play?: number } = {}) {
       return (await import('./MapCycle')).mapCycle(game, opts);
     },
+    /** 17.0: GPU memory (renderer.info) across Neon Block → Crash Site → menu → Docks, lap over lap. */
+    async vramCycle(opts: { laps?: number; play?: number } = {}) {
+      return (await import('./VramCycle')).vramCycle(game, opts);
+    },
     /** 7.0: tdmSim for the arena AI and the 6.0 tactical AI, n runs each, side by side. */
     async tdmAB(opts: { runs?: number; tickets?: number } = {}) {
       return (await import('./TdmCheck')).tdmAB(game, opts);
