@@ -285,8 +285,19 @@ export class TdmRules implements ModeRules {
     // The other team hears every shot.
     g.projectiles.onFire = (from, by) => {
       if (!by) return;
-      if (this.directors) this.directors[otherTeam(by.team)].heard(from, by, this.now, this.friends[otherTeam(by.team)]);
-      else this.squads[otherTeam(by.team)].hearShot(from, by);
+      if (this.directors) {
+        this.directors[otherTeam(by.team)].heard(from, by, this.now, this.friends[otherTeam(by.team)]);
+        // 35.0: a shot this close is heard by the bot itself, wherever it faces (squared distances).
+        const F = ARENA.flankThreat;
+        if (F.on) {
+          const r2 = F.hear * F.hear;
+          for (const e of this.bots) {
+            if (!e.alive || e.team === by.team || !isArenaBot(e)) continue;
+            const dx = e.pos.x - from.x, dz = e.pos.z - from.z;
+            if (dx * dx + dz * dz < r2) e.brain.onHeard(this.ctxs[e.team], by);
+          }
+        }
+      } else this.squads[otherTeam(by.team)].hearShot(from, by);
     };
     this.setupSpawns();
     const st = this.data.start;

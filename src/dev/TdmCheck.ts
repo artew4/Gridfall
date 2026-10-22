@@ -252,7 +252,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean; flankThreat?: boolean; scan?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -312,6 +312,10 @@ export async function tdmSim(
   // 33.0 A/B: `corridor: false` turns the corridor feelers off (after the profile, which may turn them on).
   const corridor0 = ARENA.corridor.on;
   if (opts.corridor !== undefined) ARENA.corridor.on = opts.corridor;
+  // 35.0 A/B: `flankThreat: false` is 34.0's awareness; `scan` the glances out of the half (Maglev's profile).
+  const flank0 = ARENA.flankThreat.on, scan0 = ARENA.scan.on;
+  if (opts.flankThreat !== undefined) ARENA.flankThreat.on = opts.flankThreat;
+  if (opts.scan !== undefined) ARENA.scan.on = opts.scan;
   // (And `directRise` again: the map's profile sets it at the match's start; L-165.)
   if (opts.directRise !== undefined) ARENA.directRise = opts.directRise;
   // 25.0 A/B: `fog: false` plays Neon Block without its ground fog's sight cap and route bias.
@@ -598,6 +602,8 @@ export async function tdmSim(
   STAMINA.on = stam0;
   ARENA.space.on = space0;
   ARENA.corridor.on = corridor0;
+  ARENA.flankThreat.on = flank0;
+  ARENA.scan.on = scan0;
   game.ctx.sightRange = sight0;
   if (fog0 !== undefined) (game.fog as { density: number }).density = fog0;
   game.timeScale = 1;
@@ -850,6 +856,8 @@ export async function tdmSim(
             breakPct: +((100 * st.breakT) / Math.max(1e-6, st.aliveT)).toFixed(1),
             switchesPerMin: +((st.switches / simT) * 60).toFixed(1),
             switchWhy: st.switchWhy,
+            // 35.0: shots heard close, hits noticed under spawn protection, turns to an unseen shooter, glances.
+            aware: st.aware,
             shots: st.shots,
             sightToShotMs: { median: +(q(st.reactions, 0.5) * 1000).toFixed(0), p90: +(q(st.reactions, 0.9) * 1000).toFixed(0), n: st.reactions.length },
             // 11.0: hip vs aimed (by range). Each round carries its mode and firing range; hit rates per range band.

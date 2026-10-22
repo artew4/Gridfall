@@ -1,0 +1,281 @@
+{
+  "version": "35.0 (Maglev AI awareness: a close flanker or a shooter outside the front cone is noticed and turned on)",
+  "branch": "feature/maglev-ai-35.0 from main @ 98dac8b",
+  "machine": "Apple M5, Chrome, Balanced",
+  "causes": {
+    "scoring": "the flank's only proximity term was 12/d and a switch needed a 15% margin, so a target already shooting back held the bot against a nearer attacker beside or behind it (in a push the bot also ran away from the flanker)",
+    "hearing": "a shot heard only plotted a team-board contact; Sensing skips anything over 110 deg behind a bot unless it is alerted, so a shooter behind was never looked at",
+    "spawnProtection": "Enemy.takeHit returned before onHit while protected: a bot by its zone never learned it had been shot",
+    "proximity": "nothing behind was noticed at any range without a hit or near miss"
+  },
+  "flankcheck": {
+    "method": "scripts/flankcheck.mjs: an OMEGA bot by OMEGA's zones fighting an ALPHA bot 14 m ahead that keeps hitting it; the player appears at 5/9/14 m, 90/135/180 deg off its line; silent / hits / misses (heard) / hits under spawn protection; 4 reps; game time from the first shot; headless at ~20 FPS (50 ms = 1 frame); runs without a line of sight for most of the run left out",
+    "34.0": {
+      "runs": 144,
+      "inSight": 98,
+      "cases": {
+        "silent 5-9 m": {
+          "switched": "3/23",
+          "medianMs": 50,
+          "p90Ms": 50
+        },
+        "silent 14 m": {
+          "switched": "0/3",
+          "medianMs": null,
+          "p90Ms": null
+        },
+        "hit 5-9 m": {
+          "switched": "14/20",
+          "medianMs": 100,
+          "p90Ms": 1850
+        },
+        "hit 14 m": {
+          "switched": "2/4",
+          "medianMs": 50,
+          "p90Ms": 50
+        },
+        "miss 5-9 m": {
+          "switched": "1/22",
+          "medianMs": 50,
+          "p90Ms": 50
+        },
+        "miss 14 m": {
+          "switched": "0/5",
+          "medianMs": null,
+          "p90Ms": null
+        },
+        "protectedHit 5-9 m": {
+          "switched": "4/15",
+          "medianMs": 2750,
+          "p90Ms": 2800
+        },
+        "protectedHit 14 m": {
+          "switched": "1/6",
+          "medianMs": 50,
+          "p90Ms": 50
+        }
+      }
+    },
+    "35.0": {
+      "runs": 144,
+      "inSight": 114,
+      "cases": {
+        "silent 5-9 m": {
+          "switched": "15/21",
+          "medianMs": 400,
+          "p90Ms": 400
+        },
+        "silent 14 m": {
+          "switched": "0/9",
+          "medianMs": null,
+          "p90Ms": null
+        },
+        "hit 5-9 m": {
+          "switched": "20/20",
+          "medianMs": 50,
+          "p90Ms": 100
+        },
+        "hit 14 m": {
+          "switched": "6/6",
+          "medianMs": 50,
+          "p90Ms": 50
+        },
+        "miss 5-9 m": {
+          "switched": "18/21",
+          "medianMs": 50,
+          "p90Ms": 300
+        },
+        "miss 14 m": {
+          "switched": "0/6",
+          "medianMs": null,
+          "p90Ms": null
+        },
+        "protectedHit 5-9 m": {
+          "switched": "21/21",
+          "medianMs": 50,
+          "p90Ms": 100
+        },
+        "protectedHit 14 m": {
+          "switched": "10/10",
+          "medianMs": 50,
+          "p90Ms": 100
+        }
+      }
+    }
+  },
+  "selfPlay": {
+    "method": "tdmSim Maglev 7v7, 4 matches a cell (8 for 'off'), two or four headless pages at once (the same load per A/B)",
+    "off (flankThreat: false, scan: false = 34.0)": {
+      "n": 8,
+      "kpm": 20.525,
+      "quiet": 24.262,
+      "stuck": 0,
+      "aiAvg": 0.097,
+      "aiP95": 0.4,
+      "aiP99": 0.65,
+      "aiWorst": 10.8,
+      "raysPerStep": 44.413,
+      "checksPerFrame": 4.762,
+      "raysPerFrame": 5.382,
+      "maxRays": 18,
+      "deferredPerFrame": 0.006,
+      "switchPerMin": 345.5,
+      "switchWhy": {
+        "lost": 9173,
+        "shotAt": 1399,
+        "threat": 3825,
+        "flank": 0
+      },
+      "aware": {
+        "heardClose": 0,
+        "protectedHits": 0,
+        "snaps": 0,
+        "scans": 0
+      },
+      "died3s": 0.25,
+      "s2s": 55
+    },
+    "flankThreat, glances at 75 deg (first build)": {
+      "n": 8,
+      "kpm": 19.688,
+      "quiet": 27.688,
+      "stuck": 0,
+      "aiAvg": 0.094,
+      "aiP95": 0.4,
+      "aiP99": 0.625,
+      "aiWorst": 10.6,
+      "raysPerStep": 41.2,
+      "checksPerFrame": 4.697,
+      "raysPerFrame": 5.331,
+      "maxRays": 18,
+      "deferredPerFrame": 0.005,
+      "switchPerMin": 365.65,
+      "switchWhy": {
+        "lost": 9130,
+        "shotAt": 3074,
+        "threat": 3541,
+        "flank": 229
+      },
+      "aware": {
+        "heardClose": 2641,
+        "protectedHits": 1,
+        "snaps": 2122,
+        "scans": 7526
+      },
+      "died3s": 0,
+      "s2s": 45
+    },
+    "flankThreat, no glances": {
+      "n": 4,
+      "kpm": 20.6,
+      "quiet": 21.35,
+      "stuck": 0,
+      "aiAvg": 0.095,
+      "aiP95": 0.4,
+      "aiP99": 0.625,
+      "aiWorst": 5.8,
+      "raysPerStep": 44.15,
+      "checksPerFrame": 4.939,
+      "raysPerFrame": 5.666,
+      "maxRays": 18,
+      "deferredPerFrame": 0.005,
+      "switchPerMin": 394.225,
+      "switchWhy": {
+        "lost": 4757,
+        "shotAt": 1441,
+        "threat": 1909,
+        "flank": 116
+      },
+      "aware": {
+        "heardClose": 1316,
+        "protectedHits": 2,
+        "snaps": 970,
+        "scans": 0
+      },
+      "died3s": 0,
+      "s2s": 40
+    },
+    "35.0 (flankThreat, glances at 50 deg)": {
+      "n": 4,
+      "kpm": 21.175,
+      "quiet": 22.275,
+      "stuck": 0,
+      "aiAvg": 0.099,
+      "aiP95": 0.425,
+      "aiP99": 0.675,
+      "aiWorst": 9.8,
+      "raysPerStep": 51.425,
+      "checksPerFrame": 4.934,
+      "raysPerFrame": 5.636,
+      "maxRays": 18,
+      "deferredPerFrame": 0.006,
+      "switchPerMin": 384.65,
+      "switchWhy": {
+        "lost": 4632,
+        "shotAt": 1307,
+        "threat": 1793,
+        "flank": 108
+      },
+      "aware": {
+        "heardClose": 1093,
+        "protectedHits": 0,
+        "snaps": 920,
+        "scans": 2564
+      },
+      "died3s": 0,
+      "s2s": 50
+    },
+    "notes": [
+      "glancing 75 deg off the heading put the way ahead outside the 60 deg front cone: quiet time 21 -> 28%, kills a minute down ~1; at 50 deg the cone still reaches 110 deg aside and the pace is the 34.0 bot's",
+      "AI ms per step is the whole arena AI; sensing rays per frame stay under the 18-ray cap in every arm"
+    ]
+  },
+  "perf": {
+    "bench3 maglev [fps, cpuMs, gpuMs, drawCalls, frameP99]": {
+      "alphaYard": [
+        60.3,
+        2.3,
+        5.34,
+        247,
+        24.6
+      ],
+      "trainAisle": [
+        60,
+        2.7,
+        6.38,
+        242,
+        26.1
+      ],
+      "platform1": [
+        60,
+        2.25,
+        6.02,
+        268,
+        23.8
+      ],
+      "trackBed": [
+        60,
+        2.71,
+        5.63,
+        243,
+        25.4
+      ],
+      "mezzanine": [
+        60,
+        2.66,
+        5.96,
+        331,
+        25.5
+      ],
+      "firefight": [
+        60,
+        2.09,
+        5.48,
+        330,
+        28.2
+      ]
+    },
+    "leakcheck": "maglev, docks (2 laps): 0 alive after GC"
+  },
+  "tests": 394
+}

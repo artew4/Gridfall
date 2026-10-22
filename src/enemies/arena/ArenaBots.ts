@@ -166,6 +166,9 @@ export class ArenaGunner extends Gunner implements ArenaBody {
     slidePose(this.rig, this.slipK);
   }
 
+  protected onShotProtected(ctx: EnemyCtx, by: Combatant) {
+    this.brain.onShotProtected(ctx, by);
+  }
   protected onHit(ctx: EnemyCtx) {
     this.brain.onHit(ctx, this.lastAttacker);
   }
@@ -306,6 +309,9 @@ export class ArenaRunner extends Runner implements ArenaBody {
     slidePose(this.rig, this.slipK);
   }
 
+  protected onShotProtected(ctx: EnemyCtx, by: Combatant) {
+    this.brain.onShotProtected(ctx, by);
+  }
   protected onHit(ctx: EnemyCtx) {
     this.brain.onHit(ctx, this.lastAttacker);
   }

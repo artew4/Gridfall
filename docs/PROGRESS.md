@@ -1820,8 +1820,63 @@ Branch `feature/night-tokyo-34.0`, from `main` @ `a0f7d1c` (33.1, merged). Full 
 - **Frame cost:** `bench(3)` on Neon Block: 60 FPS in all 14 views (4 new: the bridge, the rail, the market, the roof looking down); CPU 2.1–3.0 ms, GPU 5.9–6.6 ms (25.0: 5.4–6.4).
 - **Leaks:** `leakcheck` (Neon Block, Neon Docks, Deep Jungle): 0 alive after GC, Neon Block steady lap over lap. `vramCycle` (3 laps): 0 growth at every stop.
 
+## 35.0: Maglev AI awareness, flankers noticed
+
+Branch `feature/maglev-ai-35.0`, from `main` @ `98dac8b` (34.0, merged). Full numbers: `docs/BENCH-35.0.json`.
+
+### The flaw and its causes
+On Maglev Terminal, players flanking by OMEGA's or ALPHA's spawn zones shot bots in the side and back while the bots kept fighting the man in front. Measured first (`scripts/flankcheck.mjs`, below), then four causes found, all engine-wide:
+- **Target scoring:** a hostile's only proximity term was 12/d, and a switch needed a 15% margin. A target already shooting back (+3) held the bot against a nearer attacker beside or behind it. Pushing its target, the bot also ran away from the flanker, so the target's score kept rising.
+- **Hearing:** a shot heard only put a contact on the team's board. Sensing skips anything more than 110° behind a bot unless it is alerted (a hit or a near miss), so a shooter behind it was never even looked at.
+- **Spawn protection:** `Enemy.takeHit` returned before `onHit` while a bot was protected. A bot by its zone never learned it had been shot, and fought on with its back to the shooter once the protection wore off.
+- **No close sense:** nothing behind was noticed, at any range, without a hit or a near miss.
+
+### The fixes (`ARENA.flankThreat`, squared distances throughout)
+- **Pressing threats** in the target scoring: a hostile in sight that isn't the target scores + `bonus` (8) when either:
+  - it hit the bot in the last second from outside the 60° front cone (any range), or from nearer than the target;
+  - it is outside the cone, within 10 m and nearer than the target. This scales by nearness, × 0.5–1.
+
+  A pressing threat that outscores the target is switched to at once, with no margin, at most every 0.6 s. Only the nearer of two close hostiles gets the bonus, so the bot doesn't flip between them.
+- **Heard close:** a shot within 12 m alerts the bot that hears it (`brain.onHeard`, from `Tdm`'s `onFire`), so Sensing checks that way even behind it.
+- **Shot while protected:** `Enemy.onShotProtected` (a no-op for survival enemies) tells the arena brain who shot it; still no damage.
+- **Snap:** hit, or shot near, by one it can't see, a bot turns to where the shot came from for 0.7 s and decides again at once, until its eyes find the shooter.
+- **Sensing:** a hostile within 8 m is noticed even behind the bot. Anything within 10 m is re-checked at least every 0.15 s.
+- **Maglev's glances** (`ARENA.scan`, on through Maglev's profile): in its own half with no target in view, a moving bot glances 50° to one side, then the other, every 1.6–2.6 s for 0.35 s. Its sight cone sweeps the glass side halls (to 110° off its heading) while the way ahead stays in it. At 75° the way ahead fell out of the cone: quiet time rose from 21% to 28%.
+
+### Measured
+**`flankcheck`:** an OMEGA bot by OMEGA's zones fights an ALPHA bot 14 m ahead that keeps hitting it, and the player appears beside or behind it. Setup:
+- 5/9/14 m, at 90°/135°/180°, 4 runs a case;
+- reaction is game time from the first shot; the headless page runs at about 20 FPS, so 50 ms is one frame;
+- runs without a line of sight for most of the run are left out.
+
+| | 34.0 | 35.0 |
+|---|---|---|
+| hit, 5–9 m | 14 of 20 switched, median 100 ms, p90 1.85 s | 20 of 20, median 1 frame, p90 2 frames |
+| hit, 14 m | 2 of 4 | 6 of 6, 1 frame |
+| hit under spawn protection, 5–14 m | 5 of 21, median 2.75 s (after it wore off) | 31 of 31, median 1 frame |
+| missed shots (heard), 5–9 m | 1 of 22 | 18 of 21, median 1 frame, p90 300 ms |
+| silent, 5–9 m | 3 of 23 | 15 of 21, median 400 ms |
+| silent or missed, 14 m | 0 | 0 (out of hearing and the close sense, as meant) |
+
+**Self-play** (Maglev 7v7, `tdmSim`, the new awareness off against on, the same load):
+
+| | off (34.0's bot) | 35.0 |
+|---|---|---|
+| kills a minute | 20.5 | 21.2 |
+| quiet seconds | 24% | 22% |
+| AI ms a step (avg / p95 / p99) | 0.097 / 0.40 / 0.65 | 0.099 / 0.43 / 0.68 |
+| sensing rays a frame (max) | 5.4 (18) | 5.6 (18) |
+| switches a minute (pressing threats) | 346 (0) | 385 (108 in 4 matches) |
+| sight to first shot (median) | 55 ms | 50 ms |
+| stuck | 0 | 0 |
+
+No CPU spike: the AI's cost per step is within noise, and sensing stays under its 18-ray cap.
+
+**Frame cost:** `bench(3)` on Maglev: 60 FPS in all 6 views, CPU 2.1–2.7 ms, GPU 5.3–6.4 ms. `leakcheck` (Maglev, Neon Docks): 0 alive. Tests 394 (+6): the flank switch and its A/B, a hit from behind, two close hostiles without a flip-flop, the protected hit, the heard shot, the close sense.
+
 ## Next
 Human playtest:
+- 35.0 items: flank a bot on Maglev (by their zones, through the glass halls): does it turn on you now when you shoot it in the back or side, or when you fire close; does it feel fair or psychic (a silent player within 8 m behind is noticed); do bots still feel focused in a fight (not turning to every shot); the glances on the way out of their half (natural, or twitchy?).
 - 34.0 items: Neon Block's smog (does looking down from a roof feel blinding, or just murky; is about 11 m in the street too short; do the glows read as smog or as blur); do the bots feel fair in it (seen late when half hidden: does it match what you can see); the Lantern Bridge and the Transit Rail (do you find them, do the rail gaps work as drop-downs, the car as cover); the Lantern Market (does it play as a close-quarters room; the holograms: charming or noise); are the roofs now too strong (most of the long fights went up there).
 - 33.1 items: the ravine's end ramps (do you walk out at the ends without catching on anything; do the taller rims along them read as walls).
 - 33.0 items: Deep Jungle's outpost (does the lab on stilts read as a place; the roof: too strong a perch?), the tunnels (do you find and use them; the pits and the ravine mouths; too dark?), the plants (can you see enemies now, is it still a jungle), the overgrown containers, do bots still run into walls.

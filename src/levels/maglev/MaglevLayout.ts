@@ -249,12 +249,16 @@ export function zoneAt(x: number, y: number, z: number): Zone | null {
  *    shooter at once, diving or sliding into it, or sidesteps out of the line (ARENA.underFire);
  *  - a rifleman focusing an aimed shot keeps moving (35% of its run, was 12%) and walks its aimed
  *    fire at 45% (was 32%): no more statues on a platform.
+ * 35.0: lateral glances on the way out of its half (ARENA.scan).
  */
 export const MAGLEV_AI: ArenaProfile = {
   underFire: { on: true },
   ads: { focusMove: 0.35, walk: 0.45 },
   // Three on a contact, from 10 m: round the train and the platforms' cover, not into a queue.
   flank: { per: 3, min: 10 },
+  // 35.0: out of the zones (the glass halls either side of the train) and up its own half, glances to
+  // each side: the side halls and platforms seen into, not only the way ahead.
+  scan: { on: true },
 };
 
 /** 20.0: the team size here (self-play: 7v7 is the knee, as in the jungle) and the tickets (~3 min). */

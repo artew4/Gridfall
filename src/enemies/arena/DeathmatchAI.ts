@@ -220,6 +220,15 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   /** 30.0: its sprint's pool (its gun's weight class), and whether it is mid-sprint. */
   readonly stamina: Stamina;
   private sprintNow = false;
+  /** 35.0: a shooter it can't see that hit it or fired close: where it turns, until when. */
+  private readonly snapAt = new THREE.Vector3();
+  private snapUntil = -Infinity;
+  /** 35.0: when each hostile last hit it (uid → time; not a heard shot, unlike `alert`). */
+  private readonly hitAt = new Map<number, number>();
+  /** 35.0 (ARENA.scan): the next glance, the side it looks to, and until when. */
+  private scanNext = 0;
+  private scanSide = Math.random() < 0.5 ? -1 : 1;
+  private scanUntil = -Infinity;
 
   constructor(readonly self: ArenaBody, persona?: Persona) {
     this.persona = persona ?? drawPersona();
@@ -255,12 +264,53 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   /** Hit by `by`: look at it now, maybe jump out of the line. */
   onHit(ctx: EnemyCtx, by: Combatant | null) {
     if (by && !by.isPlayer && by.team === this.self.team) return;
-    if (by) this.alert.set(by.uid, ctx.time);
+    if (by) {
+      this.alert.set(by.uid, ctx.time);
+      this.hitAt.set(by.uid, ctx.time);
+    }
     this.notedFire(ctx, by, true);
     this.react(ctx.time, 0.6);
+    if (by) this.snap(ctx, by);
     this.jitter = Math.max(this.jitter, 0.015);
     // Aiming, it flinches (the jitter) and holds its shot rather than jumping out of it.
     if (!this.aiming && (this.state === 'engage' || this.state === 'push' || this.state === 'hunt') && Math.random() < ARENA.hitJump) this.tryJump(ctx, false);
+  }
+
+  /**
+   * 35.0: hit while spawn-protected (no damage): it still knows it was shot, and by whom (until then a
+   * protected bot noticed nothing, and fought on with its back to the shooter once it wore off).
+   */
+  onShotProtected(ctx: EnemyCtx, by: Combatant) {
+    if (!ARENA.flankThreat.on || by.team === this.self.team) return;
+    this.alert.set(by.uid, ctx.time);
+    this.hitAt.set(by.uid, ctx.time);
+    this.react(ctx.time, 0.6);
+    this.snap(ctx, by);
+    if (ctx.arena) ctx.arena.stats.aware.protectedHits++;
+  }
+
+  /**
+   * 35.0: `by` fired within ARENA.flankThreat.hear (the caller tests the squared distance): it heard
+   * where from, and looks (an alert lets Sensing check that way, even behind it).
+   */
+  onHeard(ctx: EnemyCtx, by: Combatant) {
+    if (!ARENA.flankThreat.on || by.team === this.self.team || by === this.target) return;
+    this.alert.set(by.uid, ctx.time);
+    this.react(ctx.time, 0.8);
+    this.snap(ctx, by);
+    if (ctx.arena) ctx.arena.stats.aware.heardClose++;
+  }
+
+  /**
+   * 35.0: turn to a shooter it doesn't see (not its target): drop what it was doing (the next decide
+   * comes at once) and face where the shot came from for ARENA.flankThreat.snap s.
+   */
+  private snap(ctx: EnemyCtx, by: Combatant) {
+    if (!ARENA.flankThreat.on || by === this.target || this.visible(by)) return;
+    this.snapAt.set(by.pos.x, by.pos.y + by.chestY, by.pos.z);
+    this.snapUntil = ctx.time + ARENA.flankThreat.snap;
+    this.urgent = true;
+    if (ctx.arena) ctx.arena.stats.aware.snaps++;
   }
 
   /** A round passed close: aim shakes a little (no pinning in the arena), maybe a jump. */
@@ -367,6 +417,22 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     return true;
   }
 
+  /**
+   * 35.0 (ARENA.scan): is it glancing aside now? Only with no target in view, in its own half; every
+   * `every` s it looks `hold` s to one side, the other side next time.
+   */
+  private glance(A: ArenaCtx, now: number) {
+    const S = ARENA.scan;
+    if (!S.on || this.visible(this.target) || A.director.progress(this.self.pos) > S.until) return false;
+    if (now < this.scanUntil) return true;
+    if (now < this.scanNext) return false;
+    this.scanSide = -this.scanSide;
+    this.scanUntil = now + S.hold;
+    this.scanNext = now + rand(S.every[0], S.every[1]);
+    A.stats.aware.scans++;
+    return true;
+  }
+
   // ------------------------------------------------------------------ decide
   decide(ctx: EnemyCtx) {
     const A = ctx.arena;
@@ -379,8 +445,13 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     }
     const dir = A.director;
     // ---- Target: the highest threat among those it sees and the board's fresh contacts.
-    let best: Combatant | null = null, bs = -Infinity, cur = -Infinity, bestShotMe = false, bestVis = false;
+    let best: Combatant | null = null, bs = -Infinity, cur = -Infinity, bestShotMe = false, bestVis = false, bestFlank = false;
     me.facing(_f);
+    const fx = _f.x, fz = _f.y;
+    const F = ARENA.flankThreat;
+    const R2 = F.radius * F.radius;
+    const cT = this.target;
+    const tD2 = cT && cT.alive ? (cT.pos.x - me.pos.x) ** 2 + (cT.pos.z - me.pos.z) ** 2 : Infinity;
     for (const h of hostilesOf(ctx)) {
       if (!h.alive) continue;
       const vis = !!this.seen.get(h.uid)?.vis;
@@ -404,23 +475,41 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       } else s -= age * 0.3;
       const shotMe = now - (this.alert.get(h.uid) ?? -Infinity) < 1.5;
       if (shotMe) s += 3;
+      // 35.0, a pressing threat (squared distances; the facing is the one from before this loop): one
+      // hitting it from outside its front cone, or nearer than what it fights; or one close on its
+      // flank or behind it and nearer than what it fights (the nearer the bigger).
+      let flank = false;
+      if (F.on && vis && h !== cT) {
+        const dx = p.x - me.pos.x, dz = p.z - me.pos.z, d2 = dx * dx + dz * dz;
+        const outside = dx * fx + dz * fz < F.cos * Math.sqrt(d2);
+        if (now - (this.hitAt.get(h.uid) ?? -Infinity) < F.hitFor && (outside || d2 < tD2)) {
+          s += F.bonus;
+          flank = true;
+        } else if (outside && d2 < R2 && d2 < tD2) {
+          s += F.bonus * (1 - (0.5 * d2) / R2);
+          flank = true;
+        }
+      }
       if (h === this.target) cur = s;
       if (s > bs) {
         bs = s;
         best = h;
         bestShotMe = shotMe;
         bestVis = vis;
+        bestFlank = flank;
       }
     }
     // Shoot what you can see: a visible threat replaces one out of view at once. Between two in
     // view it takes a clearly bigger threat (15%), at most every 0.4 s unless the new one is
     // shooting at us — no flicker between equals.
     const lost = !this.target || !this.target.alive || cur === -Infinity || (!this.visible(this.target) && bestVis);
-    if (best !== this.target && (lost || (bs > cur * ARENA.switchMargin && (bestShotMe || now - this.switchT > 0.4)))) {
+    // 35.0: a flank threat that outscores the target is turned on now, margin or not (not twice in `hold` s).
+    const flanked = bestFlank && bs > cur && now - this.switchT > F.hold;
+    if (best !== this.target && (lost || flanked || (bs > cur * ARENA.switchMargin && (bestShotMe || now - this.switchT > 0.4)))) {
       const had = this.visible(this.target);
       if (this.target && best) {
         A.stats.switches++;
-        A.stats.switchWhy[lost ? 'lost' : bestShotMe ? 'shotAt' : 'threat']++;
+        A.stats.switchWhy[lost ? 'lost' : flanked ? 'flank' : bestShotMe ? 'shotAt' : 'threat']++;
       }
       this.target = best;
       this.switchT = now;
@@ -1172,13 +1261,21 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       _aim.set(T.pos.x, T.pos.y + T.chestY, T.pos.z).addScaledVector(T.vel, flight);
       this.aimPoint.copy(_aim);
       me.face(_aim, dt, ARENA.yawRate);
+    } else if (now < this.snapUntil && !fleeing) {
+      // 35.0: shot at by one it can't see: it turns to the shot's origin, fast (its eyes then find it).
+      me.face(this.snapAt, dt, ARENA.yawRate);
     } else if (T && this.state !== 'advance' && this.state !== 'patrol' && !fleeing) {
       const c = A.director.contacts.get(T.uid);
       const p = c?.pos ?? T.pos;
       if (Math.hypot(p.x - me.pos.x, p.z - me.pos.z) < 25) me.face(_v.set(p.x, p.y + 1.3, p.z), dt, 12);
       else if (Math.hypot(me.vel.x, me.vel.z) > 0.3) me.face(_v.copy(me.pos).add(me.vel), dt, 10);
-    } else if (Math.hypot(me.vel.x, me.vel.z) > 0.3) me.face(_v.copy(me.pos).add(me.vel), dt, 10);
-    else if (this.scan && (this.state === 'patrol' || this.state === 'hold')) me.face(this.scan, dt, 5);
+    } else if (Math.hypot(me.vel.x, me.vel.z) > 0.3) {
+      // 35.0 (ARENA.scan): on the way out of its half, a glance to each side now and then.
+      if (this.glance(A, now)) {
+        const a = Math.atan2(me.vel.x, me.vel.z) + this.scanSide * ARENA.scan.angle * (Math.PI / 180);
+        me.face(_v.set(me.pos.x + Math.sin(a) * 10, me.pos.y + 1.5, me.pos.z + Math.cos(a) * 10), dt, 12);
+      } else me.face(_v.copy(me.pos).add(me.vel), dt, 10);
+    } else if (this.scan && (this.state === 'patrol' || this.state === 'hold')) me.face(this.scan, dt, 5);
 
     // ---- Fire (gunner) and reload.
     if (gunner) this.gun(dt, ctx, A, tv && !fleeing ? T : null, strafing);

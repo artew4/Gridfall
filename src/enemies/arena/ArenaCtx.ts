@@ -151,6 +151,32 @@ export const ARENA = {
   huntLead: 0.6,
   /** A new target must beat the current one by this factor (no flicker between equals). */
   switchMargin: 1.15,
+  /**
+   * 35.0, a close threat on the flank or behind (Maglev: players flanking by the spawn zones shot bots
+   * in the side and back for seconds while they kept fighting the man in front). Squared distances.
+   * A hostile in sight that is not what it fights is a pressing threat when:
+   *  - it hit the bot in the last `hitFor` s from outside the front cone (`cos`: 60°; any range), or
+   *    from nearer than what it fights: + `bonus`;
+   *  - or it is outside the front cone, within `radius` and nearer than what it fights: + `bonus` ×
+   *    (0.5 to 1, the nearer the more; never the farther of two, so two close hostiles don't flip it
+   *    back and forth).
+   * A pressing threat that outscores the target is switched to at once (no 15% margin), at most every
+   * `hold` s. Also:
+   *  - `hear`: a shot fired within it alerts the bot that hears it (it looks behind: Sensing).
+   *  - `close`: a hostile this near is checked even behind it, alerted or not; anything within
+   *    `radius` is checked at least every `closeEvery` s.
+   *  - `snap`: hit, or a shot heard close, by one it can't see: it turns to the shooter for this long.
+   * `on: false` is 34.0's bot (tdmSim A/B).
+   */
+  flankThreat: { on: true, radius: 10, cos: 0.5, bonus: 8, hitFor: 1, hold: 0.6, hear: 12, close: 8, closeEvery: 0.15, snap: 0.7 },
+  /**
+   * 35.0, scanning on the way out (a map's profile turns it on; Maglev): with no target in view and in
+   * its own half (director.progress under `until`), a moving bot glances to one side, then the other,
+   * every `every` s for `hold` s, `angle` degrees off its heading: its sight cone sweeps the side halls
+   * (to 110° off its heading) and the way ahead stays inside it (60°). At 75° the way ahead fell out of
+   * the cone: Maglev self-play, quiet time 21 -> 28%.
+   */
+  scan: { on: false, every: [1.6, 2.6] as [number, number], hold: 0.35, angle: 50, until: 0.1 },
   /** Melee (runner): reach to start and land a swing, windup, strike, recover (s). */
   melee: { start: 1.9, land: 2.5, windup: 0.28, strike: 0.12, recover: 0.3 },
   sense: {
@@ -308,7 +334,9 @@ export interface ArenaStats {
   breaks: number;
   switches: number;
   /** Why it switched: the old target died or vanished, the new one shot at it, or a bigger threat. */
-  switchWhy: { lost: number; shotAt: number; threat: number };
+  switchWhy: { lost: number; shotAt: number; threat: number; flank: number };
+  /** 35.0: shots heard close (alerts), hits taken under spawn protection (noticed), glances. */
+  aware: { heardClose: number; protectedHits: number; snaps: number; scans: number };
   shots: number;
   /**
    * 11.0: rounds fired aimed (long range, rifle raised) and from the hip; seconds aiming (all bots);
@@ -397,7 +425,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

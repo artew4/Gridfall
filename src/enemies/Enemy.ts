@@ -236,8 +236,12 @@ export abstract class Enemy implements Combatant {
     if (!this.alive) return false;
     // Its own team's context (squad, kill credit), whoever deals the damage.
     ctx = this.lastCtx ?? ctx;
-    // Friendly fire is off, and a fresh spawn is protected for a moment.
-    if ((by && by.team === this.team) || ctx.time < this.invulnUntil) return false;
+    // Friendly fire is off, and a fresh spawn is protected for a moment (35.0: it still notices).
+    if (by && by.team === this.team) return false;
+    if (ctx.time < this.invulnUntil) {
+      if (by) this.onShotProtected(ctx, by);
+      return false;
+    }
     if (by) this.lastAttacker = by;
     this.pressureT = ctx.time;
     this.hp -= dmg;
@@ -269,6 +273,8 @@ export abstract class Enemy implements Combatant {
   }
 
   protected onHit(_ctx: EnemyCtx) {}
+  /** 35.0: a hostile's round reached it while spawn-protected (no damage). */
+  protected onShotProtected(_ctx: EnemyCtx, _by: Combatant) {}
 
   protected onStunned() {}
 

@@ -13,7 +13,8 @@ import { ARENA_SEE } from '../../world/Visibility';
     3  anyone else inside the front cone every 0.3 s
     4  behind it, only if alerted      every 0.6 s
   Nothing is checked beyond range, and nothing behind (> 110°) unless it was alerted in the last
-  second: it can't see behind its back. Line of sight is symmetric (eye to chest either way), so one
+  second (35.0: or it is within ARENA.flankThreat.close, checked like a firing contact; anything within
+  its radius is checked at least every closeEvery s): it can't see behind its back. Line of sight is symmetric (eye to chest either way), so one
   ray answers a pair for both bots while neither has moved half a metre. A pair that misses the
   budget stays due and is first in line next frame.
 
@@ -146,7 +147,8 @@ export class Sensing {
           a.seen.set(h.uid, s);
         }
         const dx = h.pos.x - me.pos.x, dz = h.pos.z - me.pos.z;
-        const d = Math.hypot(dx, dz);
+        const d2 = dx * dx + dz * dz;
+        const d = Math.sqrt(d2);
         // Pre-filters, no ray: out of range; behind its back and nothing drew its eye there.
         if (d > Math.min(range, S.range)) {
           s.vis = false;
@@ -168,20 +170,24 @@ export class Sensing {
         const cos = d > 1e-3 ? (dx * fx + dz * fz) / d : 1;
         const isTarget = h === a.target;
         const view = a.view;
-        if (view ? cos < view.cos : cos < S.behind && !alerted && !isTarget) {
+        // 35.0: a hostile this close is noticed behind it too (footsteps, a shape at the edge of sight).
+        const F = ARENA.flankThreat;
+        const close = !view && F.on && d2 < F.close * F.close;
+        const near = !view && F.on && d2 < F.radius * F.radius;
+        if (view ? cos < view.cos : cos < S.behind && !alerted && !isTarget && !close) {
           s.vis = false;
           continue;
         }
         // Due on its timer, or at once when something new drew its eye (a hit, a near miss, a shot).
         if (now < s.next && !(alertT > s.at && !s.vis)) continue;
-        const pri = isTarget ? 0 : alerted ? 1 : hot(a, h) ? 2 : cos >= S.cone ? 3 : 4;
+        const pri = isTarget ? 0 : alerted ? 1 : hot(a, h) || close ? 2 : cos >= S.cone ? 3 : 4;
         const e = this.pool.pop() ?? ({} as Due);
         e.a = a;
         e.h = h;
         e.s = s;
         e.pri = pri;
         e.late = now - s.next;
-        e.every = view ? view.every : EVERY[pri];
+        e.every = view ? view.every : near ? Math.min(EVERY[pri], F.closeEvery) : EVERY[pri];
         due.push(e);
       }
     }

@@ -626,3 +626,121 @@ describe('32.0: space, the crowd flank', () => {
     }
   });
 });
+
+describe('35.0: a close threat on the flank or behind', () => {
+  const F = ARENA.flankThreat;
+  const at = (ctx: EnemyCtx, t: number) => ((ctx as { time: number }).time = t);
+  // Engaged with B 14 m ahead (+z), which keeps shooting it; the bot faces it (yaw 0).
+  const engaged = (opts: { hostiles: Combatant[] }) => {
+    const r = rig(v(0, 0, 0), { hostiles: opts.hostiles });
+    const B = opts.hostiles[0];
+    see(r.brain, B, true);
+    r.brain.alert.set(B.uid, 0);
+    r.brain.decide(r.ctx);
+    expect(r.brain.target).toBe(B);
+    return r;
+  };
+
+  it('a silent hostile 6 m to its side is turned on at once (no margin); 34.0\'s bot keeps the man in front', () => {
+    for (const on of [true, false]) {
+      const was = F.on;
+      F.on = on;
+      try {
+        const B = unit(v(0, 0, 14), 'omega', { yaw: Math.PI });
+        const P = unit(v(-6, 0, 0), 'omega', { yaw: -Math.PI / 2 });
+        const { brain, ctx } = engaged({ hostiles: [B, P] });
+        at(ctx, 1);
+        brain.alert.set(B.uid, 1);
+        see(brain, B, true, 1);
+        see(brain, P, true, 1);
+        brain.decide(ctx);
+        expect(brain.target).toBe(on ? P : B);
+      } finally {
+        F.on = was;
+      }
+    }
+  });
+
+  it('hit from behind at 14 m: it turns on the shooter as soon as it sees it', () => {
+    const B = unit(v(0, 0, 14), 'omega', { yaw: Math.PI });
+    const P = unit(v(0, 0, -14), 'omega', { yaw: 0 });
+    const { brain, ctx, stats } = engaged({ hostiles: [B, P] });
+    at(ctx, 1);
+    brain.alert.set(B.uid, 1);
+    see(brain, P, false, 1);
+    brain.onHit(ctx, P);
+    // Unseen yet: it turns to where the shot came from (and decides again at once).
+    expect(brain.urgent).toBe(true);
+    expect(stats.aware.snaps).toBe(1);
+    see(brain, B, true, 1.05);
+    see(brain, P, true, 1.05);
+    at(ctx, 1.05);
+    brain.decide(ctx);
+    expect(brain.target).toBe(P);
+    expect(stats.switchWhy.flank).toBe(1);
+  });
+
+  it('two close hostiles either side: it settles on the nearer, no flip-flop', () => {
+    const P1 = unit(v(5, 0, 0), 'omega', { yaw: -Math.PI / 2 });
+    const P2 = unit(v(-7, 0, 0), 'omega', { yaw: Math.PI / 2 });
+    const { brain, ctx, stats, me } = rig(v(0, 0, 0), { hostiles: [P1, P2] });
+    let switches = 0;
+    let last: Combatant | null = null;
+    for (let t = 0; t < 4; t += 0.1) {
+      at(ctx, t);
+      see(brain, P1, true, t);
+      see(brain, P2, true, t);
+      brain.decide(ctx);
+      if (brain.target !== last) switches++;
+      last = brain.target;
+      // It turns to its target.
+      if (brain.target) me.yaw = Math.atan2(brain.target.pos.x - me.pos.x, brain.target.pos.z - me.pos.z);
+    }
+    expect(brain.target).toBe(P1);
+    expect(switches).toBe(1);
+    expect(stats.switchWhy.flank).toBe(0);
+  });
+
+  it('hit under spawn protection: it still knows who shot it', () => {
+    const P = unit(v(0, 0, -8), 'omega');
+    const { brain, ctx, stats } = rig(v(0, 0, 0), { hostiles: [P] });
+    at(ctx, 2);
+    brain.onShotProtected(ctx, P);
+    expect(brain.alert.get(P.uid)).toBe(2);
+    expect(stats.aware.protectedHits).toBe(1);
+  });
+
+  it('a shot heard close alerts it (its own target\'s shots are no news)', () => {
+    const B = unit(v(0, 0, 14), 'omega');
+    const P = unit(v(0, 0, -9), 'omega');
+    const { brain, ctx, stats } = engaged({ hostiles: [B, P] });
+    at(ctx, 1);
+    brain.onHeard(ctx, B);
+    brain.onHeard(ctx, P);
+    expect(brain.alert.get(P.uid)).toBe(1);
+    expect(brain.alert.get(B.uid)).toBe(0);
+    expect(stats.aware.heardClose).toBe(1);
+  });
+});
+
+describe('35.0: sensing notices a hostile close behind it', () => {
+  it('8 m behind: checked (alerted or not); 12 m behind: not; 34.0\'s sensing: not', () => {
+    const run = (dz: number, on: boolean) => {
+      const was = ARENA.flankThreat.on;
+      ARENA.flankThreat.on = on;
+      try {
+        const me = unit(v(0, 0, 0), 'alpha', { yaw: 0 });
+        const h = unit(v(0, 0, dz), 'omega');
+        const a = agent(me);
+        const s = new Sensing(() => true);
+        s.update(0, [a], () => [h], () => false);
+        return !!a.seen.get(h.uid)?.vis;
+      } finally {
+        ARENA.flankThreat.on = was;
+      }
+    };
+    expect(run(-7.5, true)).toBe(true);
+    expect(run(-12, true)).toBe(false);
+    expect(run(-7.5, false)).toBe(false);
+  });
+});
