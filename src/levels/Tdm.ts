@@ -7,6 +7,7 @@ import { Gunner, Runner, type EnemyCtx, type TacticalEnemy } from '../enemies/En
 import { Squad } from '../enemies/tactics/Squad';
 import { ThinkScheduler } from '../enemies/tactics/Scheduler';
 import { ArenaGunner, ArenaRunner, isArenaBot } from '../enemies/arena/ArenaBots';
+import { anchorPosts, roleArm, type ArenaRole, type PostCandidate } from '../enemies/arena/Roles';
 import { ArenaDirector } from '../enemies/arena/ArenaDirector';
 import { Sensing } from '../enemies/arena/Sensing';
 import { ARENA, applyProfile, newArenaStats, type ArenaCtx, type ArenaStats } from '../enemies/arena/ArenaCtx';
@@ -53,7 +54,7 @@ import { SpawnPads } from '../world/SpawnPads';
 
 /** 37.1: a bot sent to the high ground (TdmData.highGround) has this much health and is in none of these states. */
 const WATCH_HP = 0.6;
-const FIGHTING = new Set<ArenaState>(['engage', 'push', 'break', 'retreat', 'flank']);
+const FIGHTING = new Set<ArenaState>(['engage', 'push', 'break', 'retreat', 'flank', 'stalk', 'recover']);
 
 const _eye = new THREE.Vector3();
 const _eye2 = new THREE.Vector3();
@@ -133,6 +134,8 @@ interface Slot {
   deaths: number;
   /** 13.0: the gun it was dealt for its current (or last) life. */
   arm: BotArm | null;
+  /** 42.0: its role this life (ARENA.roles). */
+  role?: ArenaRole;
 }
 
 /**
@@ -170,6 +173,9 @@ export interface KillRecord {
   zone?: string;
   /** 37.0: the zone the killer stood in (a fight inside a room: both in it). */
   killerZone?: string;
+  /** 42.0: the killer's and the victim's roles (ARENA.roles; 'player' for the human). */
+  killerArch?: string;
+  victimArch?: string;
 }
 
 export class TdmRules implements ModeRules {
@@ -403,6 +409,8 @@ export class TdmRules implements ModeRules {
     const n = TEAMS.reduce((k, t) => k + rosters[t].length, 0);
     const names = dealCallsigns(n, [g.playerUnit.name]);
     for (const team of TEAMS) for (const [, kind] of filterRoster(rosters[team], TDM.roster)) this.slots.push({ team, name: names.shift()!, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0, arm: null });
+    // 42.0: the anchors' posts (the patrol areas are set by now) and each team's size for its role shares.
+    this.setupAnchors();
     this.openingSpawns();
     for (const s of this.slots) this.spawn(s);
     this.showStanding();
@@ -474,7 +482,10 @@ export class TdmRules implements ModeRules {
     const look = TDM.skins === 'operators' ? OPERATOR_KITS[TDM.force.kit ?? this.data.kit ?? 'night'][s.team] : s.team === 'alpha' ? DESERT_GARRISON : g.level.info.enemies;
     const arena = this.ai === 'arena';
     // 13.0: a gun from the armory for this life (the 6.0 tactical bodies keep their own rifle).
-    s.arm = arena && s.kind === 'gunner' ? this.dealArm(s.team) : null;
+    // 42.0: the role first (its gun follows it): the one its team is furthest below its share of.
+    const dir = arena ? this.directors?.[s.team] : undefined;
+    s.role = dir && ARENA.roles.on && s.kind === 'gunner' ? dir.pickRole() : 'frontliner';
+    s.arm = arena && s.kind === 'gunner' ? this.dealArm(s.team, s.role) : null;
     const e: TacticalEnemy =
       s.kind === 'runner'
         ? arena ? new ArenaRunner(at, TDM.difficulty, look) : new Runner(at, TDM.difficulty, look)
@@ -483,6 +494,8 @@ export class TdmRules implements ModeRules {
     if (arena && s.kind === 'gunner' && e.rig.weapon) themeRigGun(e.rig.weapon, gunThemeFor(g.setting));
     e.team = s.team;
     e.name = s.name;
+    // (An anchor with no free post fights as a frontliner.)
+    if (dir && isArenaBot(e)) e.brain.role = s.role = dir.setRole(e.uid, s.role);
     e.invulnUntil = this.now + TDM.protect;
     // Facing the other base (enemy yaw: forward = (sin, cos); ALPHA's base is in the south). 27.0: the pad's way.
     e.yaw = pad ? pad.yaw : s.team === 'alpha' ? Math.PI : 0;
@@ -497,13 +510,78 @@ export class TdmRules implements ModeRules {
    * 13.0: a gun for a bot spawning on `team`: uniform over the armory, but never a third of one gun
    * on a team at once (a squad of all shotguns, or all rifles, is no firefight to read).
    */
-  private dealArm(team: TeamId): BotArm {
+  private dealArm(team: TeamId, role: ArenaRole = 'frontliner'): BotArm {
     // 21.0: in the map's finish (kinetic rounds on a military map, Maglev's white-cyan bolts).
     const theme = gunThemeFor(this.game.setting);
     if (TDM.arms !== 'random') return themedArm(ARMORY[TDM.arms].bot, theme);
     const held: WeaponId[] = [];
-    for (const s of this.slots) if (s.team === team && s.bot && s.arm) held.push(s.arm.id);
-    return themedArm(dealArm(held, TDM.armCap), theme);
+    // 42.0: with roles, the cap counts the bots of its role (the anchors' rifles don't use up the frontliners').
+    for (const s of this.slots) if (s.team === team && s.bot && s.arm && (!ARENA.roles.on || s.role === role)) held.push(s.arm.id);
+    const size = Math.round(ARENA.roles.share[role] * this.slots.filter((s) => s.team === team).length);
+    // 42.0: the role's guns (Roles.roleArm); without roles, uniform as 13.0.
+    return themedArm(ARENA.roles.on ? roleArm(role, held, TDM.armCap, Math.random, size) : dealArm(held, TDM.armCap), theme);
+  }
+
+  /**
+   * 42.0: each team's anchor posts (Roles.anchorPosts), once a match: candidates are the nav's nodes
+   * (every few, on the floor) and the patrol areas, the map's high ground among them; sightlines by the
+   * collision world's rays from eye height. As many as a quarter of the team, plus two, spread at
+   * least the density radius apart (12 m at least).
+   */
+  private setupAnchors() {
+    if (!this.directors) return;
+    const g = this.game;
+    const col = g.col;
+    const high = this.data.highGround?.points ?? [];
+    const nodes = g.nav.nodes;
+    const step = Math.max(1, Math.floor(nodes.length / 500));
+    const cands: PostCandidate[] = [];
+    // (Nav nodes stand 1 m over the floor; a post is a floor point.)
+    for (let i = 0; i < nodes.length; i += step) cands.push({ pos: new THREE.Vector3(nodes[i].x, nodes[i].y - 1, nodes[i].z) });
+    for (const p of this.directors.alpha.hvas) cands.push({ pos: p });
+    for (const p of high) cands.push({ pos: p, high: true });
+    const eye = new THREE.Vector3(), dir = new THREE.Vector3();
+    const sight = (from: THREE.Vector3, dx: number, dz: number, max: number) => {
+      eye.set(from.x, from.y + 1.5, from.z);
+      dir.set(dx, 0, dz);
+      return col.raycast(eye, dir, max)?.dist ?? max;
+    };
+    const R = this.data.spawnTuning?.densityR ?? SPAWN.densityR;
+    // A post a body can stand on: a nav node within 2 m of it on its level (a roof off the graph is none).
+    const reachable = (p: THREE.Vector3) => nodes.some((n) => Math.abs(n.x - p.x) < 2 && Math.abs(n.z - p.z) < 2 && Math.abs(n.y - 1 - p.y) < 0.6);
+    for (const t of TEAMS) {
+      const d = this.directors[t];
+      const home = this.zoner ? this.zoner.zonesOf(t).map((z) => z.centre) : t === 'alpha' ? this.data.spawns.alpha : this.data.spawns.omega;
+      const n = this.slots.filter((s) => s.team === t).length;
+      d.teamBots = n;
+      d.setAnchorPosts(
+        anchorPosts(cands, {
+          progress: (p) => d.progress(p),
+          axis: d.axisXZ,
+          sight,
+          floor: (p) => (col.terrain ? col.terrain.height(p.x, p.z) : 0),
+          count: Math.ceil(n * ARENA.roles.share.anchor) + 2,
+          gap: Math.max(12, R),
+          home,
+          reachable,
+          // The route from the nearest home point at most 1.5 × the straight line + 12 m (Old Port's
+          // stack tops, a stair away round the stack, held 14% of anchor time: they circled below).
+          walkOk: (p) => {
+            const h = home.reduce((a, b) => (Math.hypot(b.x - p.x, b.z - p.z) < Math.hypot(a.x - p.x, a.z - p.z) ? b : a));
+            // (Routed as the bots route: between points at node height, over the vault links.)
+            const path = g.nav.route(new THREE.Vector3(h.x, h.y + 1, h.z), new THREE.Vector3(p.x, p.y + 1, p.z), { vault: true });
+            if (!path.length) return false;
+            let len = 0, at = h;
+            for (const i of path) {
+              const n = nodes[i];
+              len += Math.hypot(n.x - at.x, n.z - at.z);
+              at = n;
+            }
+            return len <= 1.5 * Math.hypot(p.x - h.x, p.z - h.z) + 12;
+          },
+        }),
+      );
+    }
   }
 
   /** The base spawn furthest from every hostile, not on top of a body. */
@@ -865,6 +943,9 @@ export class TdmRules implements ModeRules {
       flank,
       zone: g.level.data.zoneAt(v.pos.x, v.pos.y, v.pos.z)?.name,
       killerZone: by ? g.level.data.zoneAt(by.pos.x, by.pos.y, by.pos.z)?.name : undefined,
+      // 42.0: each end's role this life (the human: 'player').
+      killerArch: by ? (by.isPlayer ? 'player' : this.directors?.[by.team].roles.get(by.uid)) : undefined,
+      victimArch: v.isPlayer ? 'player' : this.directors?.[v.team].roles.get(v.uid),
     });
     if (this.directors) {
       this.directors[otherTeam(v.team)].hostileDied(v, this.now);

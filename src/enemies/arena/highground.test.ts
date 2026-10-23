@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { ArenaDirector, type ArenaMember } from './ArenaDirector';
 import { ARENA } from './ArenaCtx';
 import { GANGWAY_HEADS, HIGH_GROUND, SHIP, zoneAt } from '../../levels/oldport/OldPortLayout';
@@ -19,6 +19,10 @@ function tick(d: ArenaDirector, now: number, members: ArenaMember[]) {
 }
 
 describe('37.1: the high-ground watch (TdmData.highGround)', () => {
+  // 42.0: with roles on the anchors hold the high ground and the watches are off: these are the 41.0 team.
+  const roles0 = ARENA.roles.on;
+  beforeEach(() => void (ARENA.roles.on = false));
+  afterEach(() => void (ARENA.roles.on = roles0));
   it('posts the nearest bot within reach to the post held least lately, and only that one', () => {
     const d = director();
     const a = bot(1, v(10, 0)), b = bot(2, v(3, 4)), far = bot(3, v(0, 50));

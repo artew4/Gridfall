@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { CollisionWorld, type Collider } from '../../world/Collision';
 import { Nav } from '../../enemies/Nav';
 import { ArenaDirector, type ArenaMember } from '../../enemies/arena/ArenaDirector';
@@ -165,6 +165,10 @@ describe('38.0: the flanks\' pull (ARENA.flankPull, TdmData.flankOf)', () => {
 });
 
 describe('38.0: high-ground watches at once (HighGround.count)', () => {
+  // 42.0: with roles on the anchors hold the high ground and the watches are off: these are the 41.0 team.
+  const roles0 = ARENA.roles.on;
+  beforeEach(() => void (ARENA.roles.on = false));
+  afterEach(() => void (ARENA.roles.on = roles0));
   const posts = [v(-80, 5, 0), v(80, 5, 0)];
   const bot = (uid: number, p: THREE.Vector3, alive = true): ArenaMember => ({ uid, pos: p, alive, isPlayer: false });
   const tick = (d: ArenaDirector, now: number, m: ArenaMember[]) => d.update(now, m, 7, { own: 50, theirs: 50 });

@@ -28,7 +28,8 @@ describe('30.0: the stamina bar stays off the layout', () => {
 describe('30.0: bots sprint for a reason', () => {
   it('retreat, flank, a close gun pushing, crossing ground a hostile sees; a rifle walks up to range', () => {
     const fn = ai.slice(ai.indexOf('  private sprintReason('), ai.indexOf('  // ------------------------------------------------------------------ act'));
-    expect(fn).toMatch(/st === 'retreat' \|\| st === 'break'\) return 'retreat'/);
+    // (42.0: a recovering anchor or wolf runs for cover as a retreat does.)
+    expect(fn).toMatch(/st === 'retreat' \|\| st === 'break'( \|\| st === 'recover')?\) return 'retreat'/);
     expect(fn).toMatch(/st === 'flank'\) return 'flank'/);
     expect(fn).toMatch(/arm\.id !== 'ar'/);
     expect(fn).toMatch(/return 'cross'/);

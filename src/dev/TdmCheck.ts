@@ -420,7 +420,7 @@ export async function tdmSim(
   // 31.0: along the base-to-base axis (z) too: where the front is.
   const zband = (z: number) => Math.max(0, Math.min(BANDS - 1, Math.floor(((z - xb.min.y) / (xb.max.y - xb.min.y)) * BANDS)));
   const zTime = new Array(BANDS).fill(0), zFight = new Array(BANDS).fill(0), zKill = new Array(BANDS).fill(0);
-  const FIGHT = new Set(['engage', 'push', 'break', 'flank']);
+  const FIGHT = new Set(['engage', 'push', 'break', 'flank', 'stalk']);
   // 29.0, the endgame: bots of a team on its last stand vs everyone before (samples every 15 steps):
   // the nearest living teammate (m), crouched, moving, holding; the standing counts when the first
   // team ran out of tickets; how often a team ended 1 v 1 or 1 v many.
@@ -445,6 +445,12 @@ export async function tdmSim(
   const HERD_N = 5, HERD_T = 5;
   const herdHist = new Map<number, { t: number; mates: Set<number> }[]>();
   const sites = { samples: 0, sum: 0, two: 0, three: 0 };
+  // 42.0, roles (every 15 steps, every living arena bot): per role, samples; alone (no teammate within
+  // 15 m) and the nearest teammate; in the enemy's half (its director's progress over 0.15); moving
+  // (> 1.5 m/s); an anchor within 2.5 m of its post; states. Each life's role and gun (by uid).
+  type RoleAcc = { n: number; alone: number; enemyHalf: number; moving: number; atPost: number; mates: number[]; states: Record<string, number> };
+  const roleAcc: Record<string, RoleAcc> = {};
+  const lifeRole = new Map<number, { role: string; arm: string }>();
   // 41.0, swarms: for every hostile some bot is after (fighting or chasing), how many are after it.
   const swarm = { n: 0, sum: 0, four: 0, max: 0 };
   // 33.0, wall-running: a bot whose velocity says it runs (> 1.5 m/s) while it covers less than 40% of
@@ -577,7 +583,9 @@ export async function tdmSim(
         if (steps % 60 === 0) {
           const r = track.get(b);
           // 29.0: holding a spot on the last stand is still on purpose, not stuck.
-          if (!r || Math.hypot(b.pos.x - r.x, b.pos.z - r.z) > 1.5 || b.tac.action === 'hold') track.set(b, { x: b.pos.x, z: b.pos.z, t: now });
+          // 42.0: and a bot recovering in cover (≤ roles.recoverMax), or an anchor fighting planted where it stands.
+          const still = b.tac.action === 'hold' || b.tac.action === 'recover' || (isArenaBot(b) && b.brain.role === 'anchor' && b.tac.action === 'engage');
+          if (!r || Math.hypot(b.pos.x - r.x, b.pos.z - r.z) > 1.5 || still) track.set(b, { x: b.pos.x, z: b.pos.z, t: now });
           else if (now - r.t > 15) {
             // 38.0: and where it was going (its goal, the route's next node, a vault or a jump under way).
             const br = isArenaBot(b) ? b.brain : null;
@@ -640,6 +648,26 @@ export async function tdmSim(
           if (!T?.alive) continue;
           fx.push((b.pos.x + T.pos.x) / 2);
           fz.push((b.pos.z + T.pos.z) / 2);
+        }
+        for (const team of ['alpha', 'omega'] as const) {
+          const D = tdm.directors?.[team];
+          const mine = tdm.bots.filter((o) => o.alive && o.team === team);
+          for (const b of mine) {
+            if (!isArenaBot(b) || !D) continue;
+            const role = ARENA.roles.on ? b.brain.role : 'frontliner';
+            if (!lifeRole.has(b.uid)) lifeRole.set(b.uid, { role, arm: b.arm.id });
+            const a = (roleAcc[role] ??= { n: 0, alone: 0, enemyHalf: 0, moving: 0, atPost: 0, mates: [], states: {} });
+            let near = Infinity;
+            for (const o of mine) if (o !== b) near = Math.min(near, Math.hypot(o.pos.x - b.pos.x, o.pos.z - b.pos.z));
+            a.n++;
+            a.mates.push(Math.min(near, 120));
+            if (near > 15) a.alone++;
+            if (D.progress(b.pos) > 0.15) a.enemyHalf++;
+            if (Math.hypot(b.vel.x, b.vel.z) > 1.5) a.moving++;
+            const post = role === 'anchor' ? D.anchorPost(b.uid) : null;
+            if (post && Math.hypot(post.x - b.pos.x, post.z - b.pos.z) < 2.5 && Math.abs(post.y - b.pos.y) < 1) a.atPost++;
+            a.states[b.brain.state] = (a.states[b.brain.state] ?? 0) + 1;
+          }
         }
         const on = new Map<number, number>();
         for (const b of tdm.bots) {
@@ -855,6 +883,38 @@ export async function tdmSim(
     clumps: (() => {
       const pc = (v: number) => +((100 * v) / Math.max(1, clump.samples)).toFixed(1);
       return { linkM: CLUMP_R, avgClump: +(clump.sum / Math.max(1, clump.samples)).toFixed(2), avgLargest: +(clump.largest / Math.max(1, clump.teamN)).toFixed(2), histPct: { 1: pc(clump.hist[0]), 2: pc(clump.hist[1]), 3: pc(clump.hist[2]), 4: pc(clump.hist[3]), 5: pc(clump.hist[4]), '6+': pc(clump.hist[5]) }, herdPct: pc(clump.herd), herdBy: clump.herdBy, bigBy: clump.bigBy };
+    })(),
+    // 42.0: the roles (see `roleAcc`): each role's share of bot time, lives, alone, the nearest teammate's
+    // median, in the enemy's half, moving, an anchor at its post, its top states; kills and deaths, K/D,
+    // kills from behind or the side (KillRecord.flank); the guns its lives carried; the role events.
+    roles: (() => {
+      const all = Object.values(roleAcc).reduce((x, a) => x + a.n, 0) || 1;
+      const pc = (v: number, n: number) => +((100 * v) / Math.max(1, n)).toFixed(1);
+      const out: Record<string, unknown> = {};
+      for (const [role, a] of Object.entries(roleAcc)) {
+        const m = a.mates.sort((x, y) => x - y);
+        const lives = [...lifeRole.values()].filter((l) => l.role === role);
+        const arms: Record<string, number> = {};
+        for (const l of lives) arms[l.arm] = (arms[l.arm] ?? 0) + 1;
+        const kills = k.filter((x) => x.killerArch === role), deaths = k.filter((x) => x.victimArch === role);
+        out[role] = {
+          timePct: pc(a.n, all),
+          lives: lives.length,
+          alonePct: pc(a.alone, a.n),
+          nearestMateMedian: +(m[Math.floor(m.length / 2)] ?? 0).toFixed(1),
+          enemyHalfPct: pc(a.enemyHalf, a.n),
+          movingPct: pc(a.moving, a.n),
+          atPostPct: role === 'anchor' ? pc(a.atPost, a.n) : undefined,
+          states: Object.fromEntries(Object.entries(a.states).sort((x, y) => y[1] - x[1]).slice(0, 6).map(([s2, v]) => [s2, pc(v, a.n)])),
+          kills: kills.length,
+          deaths: deaths.length,
+          kd: +(kills.length / Math.max(1, deaths.length)).toFixed(2),
+          killsFromBehindPct: pc(kills.filter((x) => x.flank).length, kills.length),
+          killRangeMedian: +q(kills.map((x) => x.dist), 0.5).toFixed(1),
+          arms: Object.fromEntries(Object.entries(arms).map(([g2, v]) => [g2, pc(v, lives.length)])),
+        };
+      }
+      return { ...out, events: { stalks: st.stalks, warnShots: st.warnShots, recovers: st.recovers, recoverEnd: st.recoverEnd, anchorArrive: st.anchorArrive } };
     })(),
     // 41.0: bots after one hostile at once (mean, share of hostiles with 4+, most); allies already in
     // the local area at each respawn (0, 1, 2, 3, 4+); the fireteams (size a bot is in, sends to

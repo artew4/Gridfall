@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Combatant, TeamId } from '../../combat/Team';
 import { ARENA } from './ArenaCtx';
 import type { HighGround } from '../../levels/Level';
+import { pickRole, type ArenaRole } from './Roles';
 
 /**
  * 37.1: seconds a posted bot has to reach its post, plus a second for every 2 m it starts from it
@@ -233,6 +234,8 @@ export class ArenaDirector {
     this.secFight = [];
     this.peelT = -Infinity;
     this.sectorStats = { peels: 0, ftSum: 0, ftN: 0 };
+    this.roles.clear();
+    this.seats.clear();
   }
 
   private note(now: number, what: string, detail = '') {
@@ -375,7 +378,11 @@ export class ArenaDirector {
 
   private updateWatch(now: number, bots: readonly ArenaMember[]) {
     const W = this.watchCfg;
-    if (!W || !W.points.length) return;
+    // 42.0: with roles, the anchors hold the high ground (its points are their best posts).
+    if (!W || !W.points.length || ARENA.roles.on) {
+      this.watches = [];
+      return;
+    }
     for (const w of [...this.watches]) {
       const bot = bots.find((b) => b.uid === w.uid);
       if (!bot && !w.arrived && w.lastAt) this.watchDiedAt.push(w.lastAt);
@@ -417,14 +424,22 @@ export class ArenaDirector {
     return this.watches.find((w) => w.uid === uid) ?? null;
   }
 
-  /** 37.1: the post `uid` is sent to, or null. */
+  /** 37.1: the post `uid` is sent to, or null. 42.0: an anchor's post. */
   watchPost(uid: number): THREE.Vector3 | null {
+    const a = this.seats.get(uid);
+    if (a) return this.anchorPostsList[a.post];
     const w = this.watchOf(uid);
     return w ? this.watchCfg!.points[w.post] : null;
   }
 
-  /** 37.1: `uid` is at its post: the hold starts (once). True the first time. */
+  /** 37.1: `uid` is at its post: the hold starts (once). True the first time. 42.0: an anchor's too. */
   watchArrived(uid: number, now: number, rand: () => number = Math.random) {
+    const a = this.seats.get(uid);
+    if (a) {
+      if (a.arrived) return false;
+      a.arrived = true;
+      return true;
+    }
     const w = this.watchOf(uid);
     if (!w || w.arrived) return false;
     const [h0, h1] = this.watchCfg!.hold;
@@ -434,9 +449,65 @@ export class ArenaDirector {
     return true;
   }
 
-  /** 37.1: `uid` is posted and already there (it fights from the post). */
+  /** 37.1: `uid` is posted and already there (it fights from the post). 42.0: an anchor too. */
   watchHeld(uid: number) {
+    const a = this.seats.get(uid);
+    if (a) return a.arrived;
     return !!this.watchOf(uid)?.arrived;
+  }
+
+  // ------------------------------------------------------------------ roles (42.0)
+  /** Each living bot's role this life (ARENA.roles); the human has none. */
+  roles = new Map<number, ArenaRole>();
+  /** The team's anchor posts (Roles.anchorPosts, best first), and which anchor holds each. */
+  anchorPostsList: THREE.Vector3[] = [];
+  private seats = new Map<number, { post: number; arrived: boolean }>();
+  /** The team's bot count (the shares are of it; Tdm sets it). */
+  teamBots = 0;
+
+  setAnchorPosts(posts: readonly THREE.Vector3[]) {
+    this.anchorPostsList = posts.map((p) => p.clone());
+    this.seats.clear();
+  }
+
+  /** A free post: the best one no anchor holds, or -1. */
+  private freePost() {
+    for (let i = 0; i < this.anchorPostsList.length; i++) if (![...this.seats.values()].some((a) => a.post === i)) return i;
+    return -1;
+  }
+
+  /** The role for a bot about to spawn (the shares of `teamBots`, the living bots' roles). */
+  pickRole(): ArenaRole {
+    const counts: Record<ArenaRole, number> = { frontliner: 0, wolf: 0, anchor: 0 };
+    for (const r of this.roles.values()) counts[r]++;
+    return pickRole(counts, Math.max(this.teamBots, this.roles.size + 1), ARENA.roles.share, this.freePost() >= 0);
+  }
+
+  /** `uid` has `role` this life; an anchor takes the best free post (none: it fights as a frontliner). */
+  setRole(uid: number, role: ArenaRole): ArenaRole {
+    if (role === 'anchor') {
+      const i = this.freePost();
+      if (i < 0) role = 'frontliner';
+      else this.seats.set(uid, { post: i, arrived: false });
+    }
+    this.roles.set(uid, role);
+    return role;
+  }
+
+  roleOf(uid: number): ArenaRole {
+    return (ARENA.roles.on && this.roles.get(uid)) || 'frontliner';
+  }
+
+  /** An anchor left its post (to recover): it must reach it again. */
+  leftPost(uid: number) {
+    const a = this.seats.get(uid);
+    if (a) a.arrived = false;
+  }
+
+  /** The anchor's post, if `uid` is an anchor with one (roles on). */
+  anchorPost(uid: number) {
+    const a = ARENA.roles.on ? this.seats.get(uid) : undefined;
+    return a ? this.anchorPostsList[a.post] : null;
   }
 
   // ------------------------------------------------------------------ patrol (27.0)
@@ -497,11 +568,20 @@ export class ArenaDirector {
     for (const [b, i] of this.hvaClaim) claims[i] += this.bodies(b);
     const need = this.laneNeed(uid);
     const sec = this.sectorTerms(uid);
+    const wolf = this.roleOf(uid) === 'wolf';
     let best = -1, bs = -Infinity;
     for (let i = 0; i < this.hvas.length; i++) {
       const h = this.hvas[i];
       const d = Math.hypot(h.x - p.x, h.z - p.z);
       if (i === prev || d < P.minGap) continue;
+      if (wolf) {
+        const s = this.wolfScore(i, d, claims[i], now, uid) + rand() * P.jitter;
+        if (s > bs) {
+          bs = s;
+          best = i;
+        }
+        continue;
+      }
       const own = this.lanes.length ? this.hvaLane[i] === this.laneFor(uid, p) : false;
       const wide = ARENA.space.on && need.length ? ARENA.space.width * need[this.hvaLane[i]] : 0;
       // 41.0: with sectors, an area's crowd counts as with ARENA.space on (the bot's own fireteam aside).
@@ -518,6 +598,28 @@ export class ArenaDirector {
     if (this.hvaHeat[best] > 0.1) this.patrolStats.active++;
     if (this.hvaFlank[best] > 0) this.patrolStats.flank++;
     return best;
+  }
+
+  /**
+   * 42.0: a wolf's worth of area `i` (ARENA.roles): past the middle toward their spawn (`rear` ×
+   * progress over 0), quiet (`quiet` less as its activity reaches patrol.heatCap), away from its team
+   * (`apart` per teammate within `apartR` m of it), unseen lately (patrol.stale), less for distance
+   * and for bots already headed there.
+   */
+  wolfScore(i: number, d: number, claimants: number, now: number, uid: number) {
+    const R = ARENA.roles;
+    const P = ARENA.patrol;
+    const h = this.hvas[i];
+    let near = 0;
+    for (const m of this.mates) if (m.alive && m.uid !== uid && Math.hypot(m.pos.x - h.x, m.pos.z - h.z) < R.apartR) near++;
+    // (The pull peaks a third of the way into their half and is gone by their spawn: round them, not into their zones.)
+    const p = this.progress(h);
+    return R.rear * 2 * Math.max(0, Math.min(p, R.rearTo - p)) + R.quiet * (1 - Math.min(1, this.hvaHeat[i] / P.heatCap)) - R.apart * near + P.stale * Math.min(1, (now - this.hvaSeen[i]) / P.staleT) - d / P.distM - P.claim * claimants;
+  }
+
+  /** 42.0: the base-to-base axis (unit, xz: x, z), ours to theirs. */
+  get axisXZ() {
+    return { x: this.axis.x, z: this.axis.y };
   }
 
   /**
@@ -664,6 +766,8 @@ export class ArenaDirector {
     this.laneOf.delete(v.uid);
     this.hvaClaim.delete(v.uid);
     this.commits.delete(v.uid);
+    this.roles.delete(v.uid);
+    this.seats.delete(v.uid);
     this.releasePush(v.uid);
     this.releaseFlank(v.uid);
     this.trades.push([now, -1]);
@@ -836,7 +940,9 @@ export class ArenaDirector {
    * 12 and 5: 3), between 1 and `sectors.team`.
    */
   fireteamSize(alive: number) {
-    return Math.max(1, Math.min(ARENA.sectors.team, Math.ceil(alive / Math.max(1, this.lanes.length))));
+    // 42.0: with roles, the fireteams are the frontliners' (half the team): at least pairs.
+    const least = ARENA.roles.on ? 2 : 1;
+    return Math.max(least, Math.min(ARENA.sectors.team, Math.ceil(alive / Math.max(1, this.lanes.length))));
   }
 
   /**
@@ -961,7 +1067,8 @@ export class ArenaDirector {
     for (const [uid] of this.holds) if (!bots.some((b) => b.uid === uid)) this.holds.delete(uid);
     // 41.0: the fireteams, and who is where.
     if (ARENA.sectors.on) {
-      this.formFireteams(bots);
+      // 42.0: wolves and anchors play alone.
+      this.formFireteams(ARENA.roles.on ? bots.filter((b) => this.roleOf(b.uid) === 'frontliner') : bots);
       this.countSectors(alive, now);
     }
     this.updateWatch(now, bots);

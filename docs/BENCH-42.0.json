@@ -1,0 +1,1367 @@
+{
+ "version": "42.0 (AI archetypes: frontliners, lone wolves, anchors; role guns; the warning shot; recover; bot regeneration)",
+ "branch": "feature/ai-archetypes-42.0 from main @ 79c0cb4",
+ "machine": "Apple M5, headless Chrome (SwiftShader)",
+ "method": "Bot-only self-play (node scripts/clumpcheck.mjs, __dev.tdmSim, no player), whole matches. 'off' is roles.on and regen.on false in the same build (the 41.0 team). Means with standard errors over matches. 'on' is the final build; 'onBeforeRoleGunCaps' the run before the per-role gun caps.",
+ "desert": {
+  "off": {
+   "matches": 6,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 31.6,
+    "se": 2.18
+   },
+   "quietLivePct": {
+    "mean": 10.33,
+    "se": 0.83
+   },
+   "avgClump": {
+    "mean": 2.03,
+    "se": 0.03
+   },
+   "herdPct": {
+    "mean": 1.08,
+    "se": 0.33
+   },
+   "fightSites": {
+    "mean": 2.62,
+    "se": 0.04
+   },
+   "hostiles4plusPct": {
+    "mean": 6.62,
+    "se": 0.24
+   },
+   "aiMsPerStep": {
+    "mean": 0.66,
+    "se": 0.07
+   },
+   "roles": {
+    "frontliner": {
+     "timePct": {
+      "mean": 100.0,
+      "se": 0.0
+     },
+     "alonePct": {
+      "mean": 25.05,
+      "se": 0.32
+     },
+     "nearestMateMedian": {
+      "mean": 8.6,
+      "se": 0.12
+     },
+     "enemyHalfPct": {
+      "mean": 9.45,
+      "se": 1.95
+     },
+     "movingPct": {
+      "mean": 85.37,
+      "se": 1.34
+     },
+     "killsFromBehindPct": {
+      "mean": 22.4,
+      "se": 1.57
+     },
+     "killRangeMedian": {
+      "mean": 16.95,
+      "se": 0.54
+     },
+     "kills": 620,
+     "deaths": 633,
+     "kd": 0.98,
+     "armsPct": {
+      "smg": 24.6,
+      "shotgun": 25.0,
+      "ar": 21.6,
+      "pistol": 28.8
+     }
+    }
+   },
+   "events": {
+    "stalks": 0,
+    "warnShots": 0,
+    "recovers": 0,
+    "recoverEnd.healed": 0,
+    "recoverEnd.timeout": 0,
+    "recoverEnd.cornered": 0,
+    "anchorArrive": 0
+   }
+  },
+  "rolesOnRegenOff": {
+   "matches": 6,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 24.55,
+    "se": 0.74
+   },
+   "quietLivePct": {
+    "mean": 4.17,
+    "se": 0.56
+   },
+   "avgClump": {
+    "mean": 1.83,
+    "se": 0.05
+   },
+   "herdPct": {
+    "mean": 0.48,
+    "se": 0.2
+   },
+   "fightSites": {
+    "mean": 2.83,
+    "se": 0.06
+   },
+   "hostiles4plusPct": {
+    "mean": 5.43,
+    "se": 0.38
+   },
+   "aiMsPerStep": {
+    "mean": 0.84,
+    "se": 0.06
+   },
+   "roles": {
+    "frontliner": {
+     "timePct": {
+      "mean": 48.93,
+      "se": 0.35
+     },
+     "alonePct": {
+      "mean": 21.82,
+      "se": 0.49
+     },
+     "nearestMateMedian": {
+      "mean": 8.08,
+      "se": 0.21
+     },
+     "enemyHalfPct": {
+      "mean": 7.8,
+      "se": 0.85
+     },
+     "movingPct": {
+      "mean": 90.55,
+      "se": 0.81
+     },
+     "killsFromBehindPct": {
+      "mean": 15.98,
+      "se": 1.2
+     },
+     "killRangeMedian": {
+      "mean": 14.38,
+      "se": 0.68
+     },
+     "kills": 329,
+     "deaths": 435,
+     "kd": 0.76,
+     "armsPct": {
+      "shotgun": 41.8,
+      "pistol": 23.0,
+      "ar": 19.3,
+      "smg": 15.9
+     }
+    },
+    "wolf": {
+     "timePct": {
+      "mean": 24.73,
+      "se": 0.46
+     },
+     "alonePct": {
+      "mean": 38.23,
+      "se": 2.41
+     },
+     "nearestMateMedian": {
+      "mean": 11.7,
+      "se": 0.71
+     },
+     "enemyHalfPct": {
+      "mean": 23.92,
+      "se": 2.75
+     },
+     "movingPct": {
+      "mean": 78.87,
+      "se": 1.64
+     },
+     "killsFromBehindPct": {
+      "mean": 24.3,
+      "se": 5.39
+     },
+     "killRangeMedian": {
+      "mean": 14.22,
+      "se": 0.79
+     },
+     "kills": 154,
+     "deaths": 186,
+     "kd": 0.83,
+     "armsPct": {
+      "smg": 54.3,
+      "pistol": 45.7
+     }
+    },
+    "anchor": {
+     "timePct": {
+      "mean": 26.35,
+      "se": 0.55
+     },
+     "alonePct": {
+      "mean": 50.13,
+      "se": 1.28
+     },
+     "nearestMateMedian": {
+      "mean": 14.93,
+      "se": 0.48
+     },
+     "enemyHalfPct": {
+      "mean": 0.45,
+      "se": 0.23
+     },
+     "movingPct": {
+      "mean": 52.35,
+      "se": 0.76
+     },
+     "killsFromBehindPct": {
+      "mean": 17.18,
+      "se": 2.86
+     },
+     "killRangeMedian": {
+      "mean": 31.93,
+      "se": 0.84
+     },
+     "atPostPct": {
+      "mean": 30.1,
+      "se": 2.12
+     },
+     "kills": 196,
+     "deaths": 74,
+     "kd": 2.65,
+     "armsPct": {
+      "ar": 100.0
+     }
+    }
+   },
+   "events": {
+    "stalks": 107,
+    "warnShots": 0,
+    "recovers": 341,
+    "recoverEnd.healed": 0,
+    "recoverEnd.timeout": 162,
+    "recoverEnd.cornered": 45,
+    "anchorArrive": 73
+   }
+  },
+  "onBeforeRoleGunCaps": {
+   "matches": 6,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 25.88,
+    "se": 1.27
+   },
+   "quietLivePct": {
+    "mean": 2.57,
+    "se": 0.18
+   },
+   "avgClump": {
+    "mean": 1.71,
+    "se": 0.03
+   },
+   "herdPct": {
+    "mean": 0.18,
+    "se": 0.12
+   },
+   "fightSites": {
+    "mean": 2.88,
+    "se": 0.08
+   },
+   "hostiles4plusPct": {
+    "mean": 4.75,
+    "se": 0.2
+   },
+   "aiMsPerStep": {
+    "mean": 0.76,
+    "se": 0.1
+   },
+   "roles": {
+    "frontliner": {
+     "timePct": {
+      "mean": 48.13,
+      "se": 0.58
+     },
+     "alonePct": {
+      "mean": 24.35,
+      "se": 1.13
+     },
+     "nearestMateMedian": {
+      "mean": 9.0,
+      "se": 0.21
+     },
+     "enemyHalfPct": {
+      "mean": 9.8,
+      "se": 0.94
+     },
+     "movingPct": {
+      "mean": 91.38,
+      "se": 0.62
+     },
+     "killsFromBehindPct": {
+      "mean": 20.92,
+      "se": 2.25
+     },
+     "killRangeMedian": {
+      "mean": 13.07,
+      "se": 0.57
+     },
+     "kills": 348,
+     "deaths": 453,
+     "kd": 0.77,
+     "armsPct": {
+      "shotgun": 43.7,
+      "ar": 18.0,
+      "pistol": 21.4,
+      "smg": 16.9
+     }
+    },
+    "wolf": {
+     "timePct": {
+      "mean": 24.27,
+      "se": 0.15
+     },
+     "alonePct": {
+      "mean": 43.05,
+      "se": 1.29
+     },
+     "nearestMateMedian": {
+      "mean": 12.82,
+      "se": 0.4
+     },
+     "enemyHalfPct": {
+      "mean": 22.0,
+      "se": 2.77
+     },
+     "movingPct": {
+      "mean": 83.33,
+      "se": 0.56
+     },
+     "killsFromBehindPct": {
+      "mean": 23.87,
+      "se": 2.71
+     },
+     "killRangeMedian": {
+      "mean": 14.23,
+      "se": 0.36
+     },
+     "kills": 175,
+     "deaths": 197,
+     "kd": 0.89,
+     "armsPct": {
+      "smg": 46.1,
+      "pistol": 53.9
+     }
+    },
+    "anchor": {
+     "timePct": {
+      "mean": 27.6,
+      "se": 0.49
+     },
+     "alonePct": {
+      "mean": 51.03,
+      "se": 3.15
+     },
+     "nearestMateMedian": {
+      "mean": 15.28,
+      "se": 0.9
+     },
+     "enemyHalfPct": {
+      "mean": 1.73,
+      "se": 1.46
+     },
+     "movingPct": {
+      "mean": 49.43,
+      "se": 2.29
+     },
+     "killsFromBehindPct": {
+      "mean": 17.88,
+      "se": 2.11
+     },
+     "killRangeMedian": {
+      "mean": 29.4,
+      "se": 0.79
+     },
+     "atPostPct": {
+      "mean": 33.85,
+      "se": 1.29
+     },
+     "kills": 184,
+     "deaths": 64,
+     "kd": 2.88,
+     "armsPct": {
+      "ar": 100.0
+     }
+    }
+   },
+   "events": {
+    "stalks": 118,
+    "warnShots": 0,
+    "recovers": 347,
+    "recoverEnd.healed": 82,
+    "recoverEnd.timeout": 73,
+    "recoverEnd.cornered": 50,
+    "anchorArrive": 72
+   }
+  },
+  "on": {
+   "matches": 6,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 24.8,
+    "se": 0.84
+   },
+   "quietLivePct": {
+    "mean": 2.67,
+    "se": 0.43
+   },
+   "avgClump": {
+    "mean": 1.75,
+    "se": 0.04
+   },
+   "herdPct": {
+    "mean": 0.58,
+    "se": 0.35
+   },
+   "fightSites": {
+    "mean": 2.96,
+    "se": 0.08
+   },
+   "hostiles4plusPct": {
+    "mean": 4.77,
+    "se": 0.41
+   },
+   "aiMsPerStep": {
+    "mean": 0.76,
+    "se": 0.1
+   },
+   "roles": {
+    "frontliner": {
+     "timePct": {
+      "mean": 49.57,
+      "se": 0.33
+     },
+     "alonePct": {
+      "mean": 24.83,
+      "se": 1.5
+     },
+     "nearestMateMedian": {
+      "mean": 8.92,
+      "se": 0.38
+     },
+     "enemyHalfPct": {
+      "mean": 9.57,
+      "se": 1.54
+     },
+     "movingPct": {
+      "mean": 88.65,
+      "se": 0.67
+     },
+     "killsFromBehindPct": {
+      "mean": 18.22,
+      "se": 1.97
+     },
+     "killRangeMedian": {
+      "mean": 18.87,
+      "se": 2.04
+     },
+     "kills": 384,
+     "deaths": 421,
+     "kd": 0.91,
+     "armsPct": {
+      "ar": 35.6,
+      "shotgun": 42.2,
+      "pistol": 12.1,
+      "smg": 10.2
+     }
+    },
+    "wolf": {
+     "timePct": {
+      "mean": 23.9,
+      "se": 0.36
+     },
+     "alonePct": {
+      "mean": 44.17,
+      "se": 0.85
+     },
+     "nearestMateMedian": {
+      "mean": 13.22,
+      "se": 0.34
+     },
+     "enemyHalfPct": {
+      "mean": 25.45,
+      "se": 2.32
+     },
+     "movingPct": {
+      "mean": 81.55,
+      "se": 0.67
+     },
+     "killsFromBehindPct": {
+      "mean": 18.95,
+      "se": 4.46
+     },
+     "killRangeMedian": {
+      "mean": 13.57,
+      "se": 0.72
+     },
+     "kills": 158,
+     "deaths": 207,
+     "kd": 0.76,
+     "armsPct": {
+      "pistol": 50.6,
+      "smg": 49.4
+     }
+    },
+    "anchor": {
+     "timePct": {
+      "mean": 26.53,
+      "se": 0.55
+     },
+     "alonePct": {
+      "mean": 49.22,
+      "se": 3.38
+     },
+     "nearestMateMedian": {
+      "mean": 14.85,
+      "se": 1.25
+     },
+     "enemyHalfPct": {
+      "mean": 0.4,
+      "se": 0.21
+     },
+     "movingPct": {
+      "mean": 49.15,
+      "se": 2.2
+     },
+     "killsFromBehindPct": {
+      "mean": 24.52,
+      "se": 3.97
+     },
+     "killRangeMedian": {
+      "mean": 30.8,
+      "se": 1.6
+     },
+     "atPostPct": {
+      "mean": 36.33,
+      "se": 3.72
+     },
+     "kills": 147,
+     "deaths": 72,
+     "kd": 2.04,
+     "armsPct": {
+      "ar": 100.0
+     }
+    }
+   },
+   "events": {
+    "stalks": 108,
+    "warnShots": 0,
+    "recovers": 418,
+    "recoverEnd.healed": 112,
+    "recoverEnd.timeout": 95,
+    "recoverEnd.cornered": 45,
+    "anchorArrive": 99
+   }
+  }
+ },
+ "oldport": {
+  "off": {
+   "matches": 6,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 25.4,
+    "se": 1.3
+   },
+   "quietLivePct": {
+    "mean": 10.67,
+    "se": 0.35
+   },
+   "avgClump": {
+    "mean": 1.96,
+    "se": 0.04
+   },
+   "herdPct": {
+    "mean": 0.37,
+    "se": 0.14
+   },
+   "fightSites": {
+    "mean": 1.78,
+    "se": 0.04
+   },
+   "hostiles4plusPct": {
+    "mean": 4.95,
+    "se": 0.34
+   },
+   "aiMsPerStep": {
+    "mean": 0.13,
+    "se": 0.01
+   },
+   "roles": {
+    "frontliner": {
+     "timePct": {
+      "mean": 100.0,
+      "se": 0.0
+     },
+     "alonePct": {
+      "mean": 27.68,
+      "se": 1.34
+     },
+     "nearestMateMedian": {
+      "mean": 7.92,
+      "se": 0.6
+     },
+     "enemyHalfPct": {
+      "mean": 8.1,
+      "se": 1.08
+     },
+     "movingPct": {
+      "mean": 85.92,
+      "se": 2.09
+     },
+     "killsFromBehindPct": {
+      "mean": 11.88,
+      "se": 0.5
+     },
+     "killRangeMedian": {
+      "mean": 10.48,
+      "se": 0.24
+     },
+     "kills": 566,
+     "deaths": 586,
+     "kd": 0.97,
+     "armsPct": {
+      "ar": 21.9,
+      "smg": 24.1,
+      "pistol": 27.5,
+      "shotgun": 26.5
+     }
+    }
+   },
+   "events": {
+    "stalks": 0,
+    "warnShots": 0,
+    "recovers": 0,
+    "recoverEnd.healed": 0,
+    "recoverEnd.timeout": 0,
+    "recoverEnd.cornered": 0,
+    "anchorArrive": 0
+   }
+  },
+  "onBeforeRoleGunCaps": {
+   "matches": 6,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 21.63,
+    "se": 0.99
+   },
+   "quietLivePct": {
+    "mean": 5.65,
+    "se": 0.73
+   },
+   "avgClump": {
+    "mean": 1.64,
+    "se": 0.02
+   },
+   "herdPct": {
+    "mean": 0.17,
+    "se": 0.17
+   },
+   "fightSites": {
+    "mean": 1.8,
+    "se": 0.05
+   },
+   "hostiles4plusPct": {
+    "mean": 3.7,
+    "se": 0.24
+   },
+   "aiMsPerStep": {
+    "mean": 0.15,
+    "se": 0.01
+   },
+   "roles": {
+    "frontliner": {
+     "timePct": {
+      "mean": 42.83,
+      "se": 0.72
+     },
+     "alonePct": {
+      "mean": 29.98,
+      "se": 1.92
+     },
+     "nearestMateMedian": {
+      "mean": 9.77,
+      "se": 0.5
+     },
+     "enemyHalfPct": {
+      "mean": 11.18,
+      "se": 1.16
+     },
+     "movingPct": {
+      "mean": 89.58,
+      "se": 1.71
+     },
+     "killsFromBehindPct": {
+      "mean": 8.87,
+      "se": 1.35
+     },
+     "killRangeMedian": {
+      "mean": 9.23,
+      "se": 0.36
+     },
+     "kills": 291,
+     "deaths": 320,
+     "kd": 0.91,
+     "armsPct": {
+      "ar": 13.0,
+      "shotgun": 55.5,
+      "pistol": 17.0,
+      "smg": 14.5
+     }
+    },
+    "wolf": {
+     "timePct": {
+      "mean": 27.45,
+      "se": 0.37
+     },
+     "alonePct": {
+      "mean": 38.85,
+      "se": 2.38
+     },
+     "nearestMateMedian": {
+      "mean": 11.85,
+      "se": 0.53
+     },
+     "enemyHalfPct": {
+      "mean": 15.57,
+      "se": 1.5
+     },
+     "movingPct": {
+      "mean": 83.4,
+      "se": 1.68
+     },
+     "killsFromBehindPct": {
+      "mean": 8.18,
+      "se": 1.61
+     },
+     "killRangeMedian": {
+      "mean": 11.58,
+      "se": 0.78
+     },
+     "kills": 189,
+     "deaths": 205,
+     "kd": 0.92,
+     "armsPct": {
+      "pistol": 51.5,
+      "smg": 48.5
+     }
+    },
+    "anchor": {
+     "timePct": {
+      "mean": 29.72,
+      "se": 0.48
+     },
+     "alonePct": {
+      "mean": 44.35,
+      "se": 2.06
+     },
+     "nearestMateMedian": {
+      "mean": 13.82,
+      "se": 0.53
+     },
+     "enemyHalfPct": {
+      "mean": 0.37,
+      "se": 0.19
+     },
+     "movingPct": {
+      "mean": 65.1,
+      "se": 1.18
+     },
+     "killsFromBehindPct": {
+      "mean": 11.43,
+      "se": 3.6
+     },
+     "killRangeMedian": {
+      "mean": 20.37,
+      "se": 0.66
+     },
+     "atPostPct": {
+      "mean": 7.55,
+      "se": 1.34
+     },
+     "kills": 151,
+     "deaths": 125,
+     "kd": 1.21,
+     "armsPct": {
+      "ar": 100.0
+     }
+    }
+   },
+   "events": {
+    "stalks": 119,
+    "warnShots": 0,
+    "recovers": 392,
+    "recoverEnd.healed": 74,
+    "recoverEnd.timeout": 60,
+    "recoverEnd.cornered": 100,
+    "anchorArrive": 40
+   }
+  },
+  "on": {
+   "matches": 6,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 21.35,
+    "se": 0.87
+   },
+   "quietLivePct": {
+    "mean": 4.33,
+    "se": 0.56
+   },
+   "avgClump": {
+    "mean": 1.66,
+    "se": 0.05
+   },
+   "herdPct": {
+    "mean": 0.42,
+    "se": 0.24
+   },
+   "fightSites": {
+    "mean": 1.86,
+    "se": 0.05
+   },
+   "hostiles4plusPct": {
+    "mean": 2.43,
+    "se": 0.27
+   },
+   "aiMsPerStep": {
+    "mean": 0.16,
+    "se": 0.01
+   },
+   "roles": {
+    "frontliner": {
+     "timePct": {
+      "mean": 43.78,
+      "se": 0.64
+     },
+     "alonePct": {
+      "mean": 28.77,
+      "se": 2.12
+     },
+     "nearestMateMedian": {
+      "mean": 9.12,
+      "se": 0.54
+     },
+     "enemyHalfPct": {
+      "mean": 7.95,
+      "se": 0.75
+     },
+     "movingPct": {
+      "mean": 86.43,
+      "se": 1.7
+     },
+     "killsFromBehindPct": {
+      "mean": 9.23,
+      "se": 0.84
+     },
+     "killRangeMedian": {
+      "mean": 10.62,
+      "se": 0.26
+     },
+     "kills": 321,
+     "deaths": 315,
+     "kd": 1.02,
+     "armsPct": {
+      "shotgun": 39.8,
+      "ar": 36.7,
+      "pistol": 11.7,
+      "smg": 11.8
+     }
+    },
+    "wolf": {
+     "timePct": {
+      "mean": 26.9,
+      "se": 0.58
+     },
+     "alonePct": {
+      "mean": 39.52,
+      "se": 2.53
+     },
+     "nearestMateMedian": {
+      "mean": 12.17,
+      "se": 0.68
+     },
+     "enemyHalfPct": {
+      "mean": 15.4,
+      "se": 3.38
+     },
+     "movingPct": {
+      "mean": 81.93,
+      "se": 1.69
+     },
+     "killsFromBehindPct": {
+      "mean": 4.53,
+      "se": 1.62
+     },
+     "killRangeMedian": {
+      "mean": 10.45,
+      "se": 0.31
+     },
+     "kills": 175,
+     "deaths": 206,
+     "kd": 0.85,
+     "armsPct": {
+      "pistol": 52.5,
+      "smg": 47.5
+     }
+    },
+    "anchor": {
+     "timePct": {
+      "mean": 29.35,
+      "se": 0.27
+     },
+     "alonePct": {
+      "mean": 43.0,
+      "se": 1.68
+     },
+     "nearestMateMedian": {
+      "mean": 13.35,
+      "se": 0.44
+     },
+     "enemyHalfPct": {
+      "mean": 0.37,
+      "se": 0.25
+     },
+     "movingPct": {
+      "mean": 64.77,
+      "se": 1.76
+     },
+     "killsFromBehindPct": {
+      "mean": 9.83,
+      "se": 2.51
+     },
+     "killRangeMedian": {
+      "mean": 23.2,
+      "se": 1.46
+     },
+     "atPostPct": {
+      "mean": 10.42,
+      "se": 1.22
+     },
+     "kills": 121,
+     "deaths": 114,
+     "kd": 1.06,
+     "armsPct": {
+      "ar": 100.0
+     }
+    }
+   },
+   "events": {
+    "stalks": 84,
+    "warnShots": 0,
+    "recovers": 433,
+    "recoverEnd.healed": 89,
+    "recoverEnd.timeout": 77,
+    "recoverEnd.cornered": 87,
+    "anchorArrive": 36
+   }
+  }
+ },
+ "maglev": {
+  "on": {
+   "matches": 4,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 14.35,
+    "se": 0.5
+   },
+   "quietLivePct": {
+    "mean": 4.22,
+    "se": 0.73
+   },
+   "avgClump": {
+    "mean": 1.85,
+    "se": 0.03
+   },
+   "herdPct": {
+    "mean": 0.72,
+    "se": 0.35
+   },
+   "fightSites": {
+    "mean": 1.84,
+    "se": 0.05
+   },
+   "hostiles4plusPct": {
+    "mean": 3.65,
+    "se": 0.34
+   },
+   "aiMsPerStep": {
+    "mean": 0.09,
+    "se": 0.0
+   },
+   "roles": {
+    "frontliner": {
+     "timePct": {
+      "mean": 42.45,
+      "se": 1.28
+     },
+     "alonePct": {
+      "mean": 24.12,
+      "se": 1.24
+     },
+     "nearestMateMedian": {
+      "mean": 6.83,
+      "se": 0.49
+     },
+     "enemyHalfPct": {
+      "mean": 12.95,
+      "se": 1.54
+     },
+     "movingPct": {
+      "mean": 90.05,
+      "se": 1.9
+     },
+     "killsFromBehindPct": {
+      "mean": 9.43,
+      "se": 2.67
+     },
+     "killRangeMedian": {
+      "mean": 8.05,
+      "se": 0.36
+     },
+     "kills": 193,
+     "deaths": 235,
+     "kd": 0.82,
+     "armsPct": {
+      "shotgun": 56.5,
+      "ar": 7.8,
+      "pistol": 18.0,
+      "smg": 17.6
+     }
+    },
+    "wolf": {
+     "timePct": {
+      "mean": 27.07,
+      "se": 0.51
+     },
+     "alonePct": {
+      "mean": 36.68,
+      "se": 2.91
+     },
+     "nearestMateMedian": {
+      "mean": 10.9,
+      "se": 0.62
+     },
+     "enemyHalfPct": {
+      "mean": 14.5,
+      "se": 0.91
+     },
+     "movingPct": {
+      "mean": 82.35,
+      "se": 2.07
+     },
+     "killsFromBehindPct": {
+      "mean": 20.0,
+      "se": 4.51
+     },
+     "killRangeMedian": {
+      "mean": 12.02,
+      "se": 0.68
+     },
+     "kills": 121,
+     "deaths": 157,
+     "kd": 0.77,
+     "armsPct": {
+      "pistol": 54.8,
+      "smg": 45.2
+     }
+    },
+    "anchor": {
+     "timePct": {
+      "mean": 30.5,
+      "se": 0.89
+     },
+     "alonePct": {
+      "mean": 35.52,
+      "se": 2.63
+     },
+     "nearestMateMedian": {
+      "mean": 10.45,
+      "se": 0.9
+     },
+     "enemyHalfPct": {
+      "mean": 0.43,
+      "se": 0.24
+     },
+     "movingPct": {
+      "mean": 61.95,
+      "se": 2.14
+     },
+     "killsFromBehindPct": {
+      "mean": 19.15,
+      "se": 2.66
+     },
+     "killRangeMedian": {
+      "mean": 28.1,
+      "se": 0.6
+     },
+     "atPostPct": {
+      "mean": 22.55,
+      "se": 0.74
+     },
+     "kills": 110,
+     "deaths": 43,
+     "kd": 2.56,
+     "armsPct": {
+      "ar": 100.0
+     }
+    }
+   },
+   "events": {
+    "stalks": 118,
+    "warnShots": 0,
+    "recovers": 320,
+    "recoverEnd.healed": 93,
+    "recoverEnd.timeout": 66,
+    "recoverEnd.cornered": 47,
+    "anchorArrive": 42
+   }
+  },
+  "rolesOnRegenOff": {
+   "matches": 4,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 14.38,
+    "se": 0.63
+   },
+   "quietLivePct": {
+    "mean": 9.43,
+    "se": 0.69
+   },
+   "avgClump": {
+    "mean": 1.9,
+    "se": 0.01
+   },
+   "herdPct": {
+    "mean": 0.9,
+    "se": 0.57
+   },
+   "fightSites": {
+    "mean": 1.66,
+    "se": 0.03
+   },
+   "hostiles4plusPct": {
+    "mean": 3.38,
+    "se": 0.26
+   },
+   "aiMsPerStep": {
+    "mean": 0.1,
+    "se": 0.0
+   },
+   "roles": {
+    "frontliner": {
+     "timePct": {
+      "mean": 42.6,
+      "se": 0.95
+     },
+     "alonePct": {
+      "mean": 24.12,
+      "se": 0.82
+     },
+     "nearestMateMedian": {
+      "mean": 6.85,
+      "se": 0.17
+     },
+     "enemyHalfPct": {
+      "mean": 9.7,
+      "se": 1.25
+     },
+     "movingPct": {
+      "mean": 87.58,
+      "se": 2.24
+     },
+     "killsFromBehindPct": {
+      "mean": 9.05,
+      "se": 2.89
+     },
+     "killRangeMedian": {
+      "mean": 8.97,
+      "se": 0.23
+     },
+     "kills": 196,
+     "deaths": 225,
+     "kd": 0.87,
+     "armsPct": {
+      "shotgun": 56.4,
+      "ar": 8.9,
+      "pistol": 18.6,
+      "smg": 16.1
+     }
+    },
+    "wolf": {
+     "timePct": {
+      "mean": 27.05,
+      "se": 1.31
+     },
+     "alonePct": {
+      "mean": 31.78,
+      "se": 2.09
+     },
+     "nearestMateMedian": {
+      "mean": 9.57,
+      "se": 0.82
+     },
+     "enemyHalfPct": {
+      "mean": 9.1,
+      "se": 1.2
+     },
+     "movingPct": {
+      "mean": 79.62,
+      "se": 1.71
+     },
+     "killsFromBehindPct": {
+      "mean": 6.28,
+      "se": 0.9
+     },
+     "killRangeMedian": {
+      "mean": 10.3,
+      "se": 1.23
+     },
+     "kills": 112,
+     "deaths": 150,
+     "kd": 0.75,
+     "armsPct": {
+      "smg": 50.9,
+      "pistol": 49.1
+     }
+    },
+    "anchor": {
+     "timePct": {
+      "mean": 30.35,
+      "se": 0.39
+     },
+     "alonePct": {
+      "mean": 27.45,
+      "se": 2.21
+     },
+     "nearestMateMedian": {
+      "mean": 8.78,
+      "se": 0.46
+     },
+     "enemyHalfPct": {
+      "mean": 0.97,
+      "se": 0.79
+     },
+     "movingPct": {
+      "mean": 65.1,
+      "se": 1.95
+     },
+     "killsFromBehindPct": {
+      "mean": 14.43,
+      "se": 4.28
+     },
+     "killRangeMedian": {
+      "mean": 33.62,
+      "se": 1.98
+     },
+     "atPostPct": {
+      "mean": 18.73,
+      "se": 0.38
+     },
+     "kills": 109,
+     "deaths": 56,
+     "kd": 1.95,
+     "armsPct": {
+      "ar": 100.0
+     }
+    }
+   },
+   "events": {
+    "stalks": 71,
+    "warnShots": 0,
+    "recovers": 268,
+    "recoverEnd.healed": 0,
+    "recoverEnd.timeout": 132,
+    "recoverEnd.cornered": 35,
+    "anchorArrive": 30
+   }
+  }
+ },
+ "otherMaps2Matches": {
+  "favelas": {
+   "killsPerMin": 21.2,
+   "quietLivePct": 7.3,
+   "stuck": 0,
+   "anchorAtPostPct": 46.0,
+   "anchorKd": 9.34,
+   "wolfEnemyHalfPct": 5.7,
+   "wolfKd": 0.64
+  },
+  "maglev": {
+   "killsPerMin": 14.6,
+   "quietLivePct": 6.2,
+   "stuck": 0,
+   "anchorAtPostPct": 24.8,
+   "anchorKd": 4.04,
+   "wolfEnemyHalfPct": 14.5,
+   "wolfKd": 0.78
+  },
+  "docks": {
+   "killsPerMin": 21.2,
+   "quietLivePct": 9.1,
+   "stuck": 0,
+   "anchorAtPostPct": 43.8,
+   "anchorKd": 1.71,
+   "wolfEnemyHalfPct": 26.8,
+   "wolfKd": 1.0
+  },
+  "crashsite": {
+   "killsPerMin": 18.5,
+   "quietLivePct": 3.2,
+   "stuck": 0,
+   "anchorAtPostPct": 14.1,
+   "anchorKd": 1.5,
+   "wolfEnemyHalfPct": 7.7,
+   "wolfKd": 1.29
+  },
+  "neonblock": {
+   "killsPerMin": 10.2,
+   "quietLivePct": 23.0,
+   "stuck": 0,
+   "anchorAtPostPct": 42.7,
+   "anchorKd": 1.12,
+   "wolfEnemyHalfPct": 30.9,
+   "wolfKd": 0.84
+  }
+ },
+ "warncheck": {
+  "map": "maglev",
+  "runs": 10,
+  "wolfBehind": {
+   "runs": "10/10",
+   "sightToFirstMsMedian": 309,
+   "firstRoundWide": "10/10",
+   "firstPassMedianM": 1.45
+  },
+  "wolfFacing": {
+   "runs": "4/10",
+   "sightToFirstMsMedian": 50,
+   "firstRoundWide": "0/4",
+   "firstPassMedianM": 0.2
+  },
+  "frontlinerBehind": {
+   "runs": "7/10",
+   "sightToFirstMsMedian": 50,
+   "firstRoundWide": "2/7",
+   "firstPassMedianM": 0.75
+  },
+  "note": "runs short of 10: the bot never registered the player in 4 s after the harness reset its sight memory (a harness limit, not a role behaviour)"
+ },
+ "steps": [
+  "first cut: anchors at their post 9.5% (nav-node posts stood 1 m in the air: never 'there'), wolves in the enemy half 6% (pulled into every fight by the radar), frontliner fireteams of 1 (6 frontliners over Desert's 7 lanes)",
+  "posts on the floor and on the nav, the walk from home scored, routes checked; wolves take only busy contacts and visible ones in range; the rear pull peaks a third into their half; frontliners in pairs at least; recover under 75% health",
+  "Old Port: anchors sniped on their posts broke in and out of one spot (the 20.0 long-range evade): 2 stuck in 6; anchors and wolves skip that evade (hurt, they recover)",
+  "the stuck check exempts a recovering bot and an anchor fighting planted (both still by design)",
+  "kills a minute fell with roles on; regen off measured the same (Desert 24.6 vs 25.9, Maglev 14.4 vs 14.4): the drop is the roles",
+  "frontliners carried rifles 13-18% (the anchors' rifles used up the team's 13.0 cap of 2): the cap counts the role's own bots, sized to its share (rifles 36%, shotguns 40-42%)"
+ ]
+}

@@ -280,6 +280,42 @@ export const ARENA = {
    *    to the neediest sector.
    * `on: false` is 40.0's bot (the A/B).
    */
+  /**
+   * 42.0, archetypes (ArenaDirector.pickRole, dealt at each spawn to keep the team near `share`):
+   *  - frontliner: the 41.0 bot (fireteams, sectors, the caps); dealt mostly a shotgun or rifle.
+   *  - wolf: alone (no fireteam). Patrols areas in the enemy's half (`rear` × progress past the middle)
+   *    (`rear` × 2 × min(progress, `rearTo` − progress): a third into their half, none by their spawn)
+   *    that are quiet (`quiet`, less as their activity rises) and away from teammates (`apart` per
+   *    teammate within `apartR` m); hunts a contact from behind it (`behind` m behind where it faces).
+   *    It takes on a contact out of its sight only while a teammate is fighting it (it comes at a busy
+   *    one), and one in sight only within its gun's range (or one shooting at it). In sight of a target that faces away (more than `stalkCos` off it), further than `close` m and
+   *    not shooting at it, it stalks: closes in without firing. Dealt a pistol or SMG.
+   *  - anchor: holds a post (ArenaDirector.setAnchorPosts: long sightlines toward the enemy, height, a
+   *    wall at its back, the map's high ground) as the 37.1 watch holds one, never hunting; fights from
+   *    it out to `anchorRange` × its gun's range; never pushes or flanks. Dealt the rifle. With roles
+   *    on, the 37.1 watches are off (the anchors hold the high ground).
+   *  - warning shot: a wolf opening fire on the human from outside his view (more than `warnCos` off
+   *    where he faces) waits `warn` s first, and its first round misses (`warnMiss` m wide).
+   *  - recover: an anchor or wolf hit under `recoverBelow` of its health (not finishing a target under `finishHp` within its push range)
+   *    breaks off: the nearest spot out of the shooter's sight (a BREAK's), crouched, until its health
+   *    is back to `recoverHp` (ARENA.regen) or `recoverMax` s; cornered (a hostile in sight within
+   *    `corner` m), it fights. `recoverCd` s before the next.
+   * `on: false` is the 41.0 team (every bot a frontliner, the 37.1 watches).
+   */
+  roles: {
+    on: true,
+    share: { frontliner: 0.5, wolf: 0.25, anchor: 0.25 },
+    rear: 1.6, rearTo: 0.7, quiet: 0.8, apart: 0.9, apartR: 25, behind: 9,
+    stalkCos: Math.cos((100 * Math.PI) / 180), close: 11,
+    anchorRange: 1.4,
+    warnCos: Math.cos((90 * Math.PI) / 180), warn: [0.2, 0.4] as [number, number], warnMiss: 1.4,
+    finishHp: 0.3, recoverBelow: 0.75, recoverHp: 0.9, recoverMax: 14, corner: 8, recoverCd: 5,
+  },
+  /**
+   * 42.0, health back as the human's comes back (Player: 5 s after the last damage, 5% of it a second):
+   * the arena bots alike (a recovering anchor or wolf waits on it). Off: no regeneration (≤ 41.0).
+   */
+  regen: { on: true, delay: 5, rate: 0.05 },
   sectors: { on: true, team: 3, join: 1.5, follow: 0.6, followMin: 5, commit: 3, commitTtl: 1, overPen: 3, overFlank: true, site: 4, mateR: 4, crowd: 4, crowdPen: 1.5, need: 1, peelCd: 4 },
   /**
    * 14.0, high ground: a flank's spot may be a floor up to `up` m above the contact (a landing, a
@@ -431,6 +467,13 @@ export interface ArenaStats {
   /** 41.0: hostiles passed over as over-committed (left to those on them), followers sent to their leader. */
   capSkips: number;
   follows: number;
+  /** 42.0: wolves' stalks begun, warning shots (the first round wide), recoveries begun and how each ended. */
+  stalks: number;
+  warnShots: number;
+  recovers: number;
+  recoverEnd: { healed: number; timeout: number; cornered: number };
+  /** 42.0: anchors that reached their post. */
+  anchorArrive: number;
 }
 
 /**
@@ -463,7 +506,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0, capSkips: 0, follows: 0 };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0, capSkips: 0, follows: 0, stalks: 0, warnShots: 0, recovers: 0, recoverEnd: { healed: 0, timeout: 0, cornered: 0 }, anchorArrive: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

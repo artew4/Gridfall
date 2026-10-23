@@ -103,6 +103,15 @@ function directClear(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {
   return !!nav.vaultEdges && from.distanceTo(to) < 14 && nav.clearVault(from, to);
 }
 
+/**
+ * 42.0: health comes back as the human's does (ARENA.regen): `delay` s after the last damage, `rate`
+ * of it a second.
+ */
+export function regen(e: { alive: boolean; hp: number; maxHp: number; pressureT: number }, dt: number, now: number) {
+  const R = ARENA.regen;
+  if (R.on && e.alive && e.hp < e.maxHp && now - e.pressureT > R.delay) e.hp = Math.min(e.maxHp, e.hp + R.rate * e.maxHp * dt);
+}
+
 export class ArenaGunner extends Gunner implements ArenaBody {
   brain: DeathmatchBrain;
   air: Air = { up: false, vy: 0, t: 0 };
@@ -147,6 +156,7 @@ export class ArenaGunner extends Gunner implements ArenaBody {
   }
 
   protected think(dt: number, ctx: EnemyCtx) {
+    regen(this, dt, ctx.time);
     this.laser.visible = false;
     const desired = _d.set(0, 0, 0);
     const crouch = this.brain.act(dt, ctx, desired);
@@ -291,6 +301,7 @@ export class ArenaRunner extends Runner implements ArenaBody {
   }
 
   protected think(dt: number, ctx: EnemyCtx) {
+    regen(this, dt, ctx.time);
     const desired = _d.set(0, 0, 0);
     this.brain.act(dt, ctx, desired);
     stepSlip(this.slip, dt, desired, this.made);

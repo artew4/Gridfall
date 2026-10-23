@@ -31,7 +31,7 @@ for (const map of MAPS) {
     const r = JSON.parse(await ev(page(`
       const t = ${TUNE};
       const r = await __dev.tdmSim(t ? (t.spawnTune || t.tune ? t : { tune: t }) : {});
-      return JSON.stringify({ kpm: r.killsPerMin, simSeconds: r.simSeconds, winner: r.ended, clumps: r.clumps, fightSites: r.fightSites, killSpread: r.killSpread, quietLivePct: r.quietLivePct, stuck: r.stuck.length, spread: { groupedPct: r.spread.groupedPct, nearestMateMedian: r.spread.nearestMateMedian, laneCoverPct: r.spread.laneCoverPct }, laneTimePct: r.laneTimePct, killsByLane: r.killsByLane, swarm: r.swarm, spawnLocal: r.spawnLocal, fireteams: r.fireteams, ai_ms: r.ai_ms });
+      return JSON.stringify({ kpm: r.killsPerMin, simSeconds: r.simSeconds, winner: r.ended, clumps: r.clumps, fightSites: r.fightSites, killSpread: r.killSpread, quietLivePct: r.quietLivePct, stuck: r.stuck.length, stuckWhy: r.stuck, spread: { groupedPct: r.spread.groupedPct, nearestMateMedian: r.spread.nearestMateMedian, laneCoverPct: r.spread.laneCoverPct }, laneTimePct: r.laneTimePct, killsByLane: r.killsByLane, swarm: r.swarm, spawnLocal: r.spawnLocal, fireteams: r.fireteams, roles: r.roles, ai_ms: r.ai_ms });
     `)));
     r.map = map;
     rs.push(r);

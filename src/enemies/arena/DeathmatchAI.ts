@@ -12,6 +12,7 @@ import type { Seen, SenseAgent } from './Sensing';
 import type { ArenaContact } from './ArenaDirector';
 import { ARENA_SEE, contrastAt, densityOfSightRange, fogRange } from '../../world/Visibility';
 import { ARMORY, type BotArm } from '../../entities/weapons/armory';
+import type { ArenaRole } from './Roles';
 
 /*
   The deathmatch brain (7.0): one per arena bot. Two rates, like 5.0, but both fast:
@@ -54,7 +55,7 @@ import { ARMORY, type BotArm } from '../../entities/weapons/armory';
 /** 37.1: how far a bot holding a high-ground post strafes from it (m: a bridge roof is 3 × 5 m). */
 const WATCH_LEASH = 1.2;
 
-export type ArenaState = 'emerge' | 'advance' | 'patrol' | 'hold' | 'hunt' | 'engage' | 'push' | 'break' | 'flank' | 'retreat';
+export type ArenaState = 'emerge' | 'advance' | 'patrol' | 'hold' | 'hunt' | 'engage' | 'push' | 'break' | 'flank' | 'retreat' | 'stalk' | 'recover';
 
 /** 12.0: a bot's temperament (ARENA.persona). */
 export interface Persona {
@@ -154,6 +155,7 @@ export function focusFor(d: number, arm: BotArm = ARMORY.ar.bot) {
 const _aim = new THREE.Vector3();
 const _v = new THREE.Vector3();
 const _f = new THREE.Vector2();
+const _miss = new THREE.Vector3();
 
 export class DeathmatchBrain implements Thinker, SenseAgent {
   nextThink = 0;
@@ -209,6 +211,15 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   private droppedOn: Combatant | null = null;
   /** 12.0: its temperament. */
   readonly persona: Persona;
+  /** 42.0: its role this life (ARENA.roles; Tdm deals it at the spawn). */
+  role: ArenaRole = 'frontliner';
+  /** 42.0: recovering: wanted (a hit), who hit it, when it may again, how it went; the warning shot. */
+  private recoverWanted = false;
+  private recoverFrom: Combatant | null = null;
+  private recoverCd = -Infinity;
+  private warnFor = -1;
+  private warnAt = -Infinity;
+  private warnMiss = false;
   /** 12.0: the hostile it is flanking (or came round on: kills on it count as flank kills), and the flank's side. */
   flankedOn = -1;
   private flankCd = -Infinity;
@@ -267,6 +278,17 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   /** Hit by `by`: look at it now, maybe jump out of the line. */
   onHit(ctx: EnemyCtx, by: Combatant | null) {
     if (by && !by.isPlayer && by.team === this.self.team) return;
+    // 42.0: an anchor or a wolf hit breaks off to recover (unless it is about to finish its target).
+    if (this.mayRecover(ctx.time) && this.self.hpFrac < ARENA.roles.recoverBelow) {
+      const T = this.target;
+      const finishing = !!T && T.alive && T.hpFrac <= ARENA.roles.finishHp && Math.hypot(T.pos.x - this.self.pos.x, T.pos.z - this.self.pos.z) <= this.self.arm.pushRange;
+      if (!finishing) {
+        this.recoverWanted = true;
+        this.recoverFrom = by;
+        this.urgent = true;
+        if (this.state === 'recover') this.goal = null;
+      }
+    }
     if (by) {
       this.alert.set(by.uid, ctx.time);
       this.hitAt.set(by.uid, ctx.time);
@@ -349,6 +371,51 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (A && this.state === 'retreat') A.stats.retreatDeaths++;
   }
 
+  /** 42.0: a floor point ~8 m straight away from `from`, on the nav (a recovery with no cover spot near). */
+  private awayFrom(ctx: EnemyCtx, from: Combatant) {
+    const me = this.self;
+    const dx = me.pos.x - from.pos.x, dz = me.pos.z - from.pos.z, d = Math.hypot(dx, dz) || 1;
+    return this.snapGoal(ctx, _v.set(me.pos.x + (dx / d) * 8, me.pos.y, me.pos.z + (dz / d) * 8), me.pos.y);
+  }
+
+  /** 42.0: how far it fires: its gun's range, an anchor's `roles.anchorRange` × that. */
+  private reachOf() {
+    const r = this.self.arm.maxRange;
+    return ARENA.roles.on && this.role === 'anchor' ? r * ARENA.roles.anchorRange : r;
+  }
+
+  /** 42.0: may it break off to recover (an anchor or a wolf, roles on, not on its cooldown)? */
+  private mayRecover(now: number) {
+    return ARENA.roles.on && (this.role === 'anchor' || this.role === 'wolf') && now >= this.recoverCd && this.self.kind === 'gunner';
+  }
+
+  /** 42.0: a hostile in its sight within `roles.corner` m (it fights instead of hiding). */
+  private cornered(ctx: EnemyCtx) {
+    const r2 = ARENA.roles.corner ** 2;
+    const me = this.self;
+    for (const h of hostilesOf(ctx)) if (h.alive && this.visible(h) && (h.pos.x - me.pos.x) ** 2 + (h.pos.z - me.pos.z) ** 2 < r2) return true;
+    return false;
+  }
+
+  /**
+   * 42.0: a wolf stalks `T` (closes in without firing): it is in sight, faces away from it (more than
+   * `roles.stalkCos` off), is further than `roles.close` m and hasn't shot at it lately.
+   */
+  private stalkable(T: Combatant, dT: number, now: number) {
+    const R = ARENA.roles;
+    if (!R.on || this.role !== 'wolf' || dT <= R.close || now - (this.alert.get(T.uid) ?? -Infinity) < 1.5) return false;
+    T.facing(_f);
+    const me = this.self;
+    return (_f.x * (me.pos.x - T.pos.x) + _f.y * (me.pos.z - T.pos.z)) / Math.max(1e-3, dT) < R.stalkCos;
+  }
+
+  /** 42.0: a point `roles.behind` m behind where `who` faces from `at` (a wolf's way in), on the nav. */
+  private behindOf(ctx: EnemyCtx, who: Combatant, at: THREE.Vector3) {
+    who.facing(_f);
+    const b = ARENA.roles.behind;
+    return this.snapGoal(ctx, _v.set(at.x - _f.x * b, at.y, at.z - _f.y * b), at.y);
+  }
+
   private dealtTo(uid: number, now: number) {
     let s = 0;
     for (const [t, u, d] of this.dealt) if (u === uid && now - t < ARENA.pushWindow) s += d;
@@ -363,6 +430,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
 
   private setState(s: ArenaState, ctx: EnemyCtx, A: ArenaCtx) {
     if (s === this.state) return;
+    if (s === 'stalk') A.stats.stalks++;
     if (this.state === 'push') A.director.releasePush(this.self.uid);
     if (this.state === 'flank') {
       A.director.releaseFlank(this.self.uid);
@@ -447,6 +515,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       return;
     }
     const dir = A.director;
+    const wolf = ARENA.roles.on && this.role === 'wolf';
     // ---- Target: the highest threat among those it sees and the board's fresh contacts.
     let best: Combatant | null = null, bs = -Infinity, cur = -Infinity, bestShotMe = false, bestVis = false, bestFlank = false;
     me.facing(_f);
@@ -471,6 +540,12 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       const shotMe = now - (this.alert.get(h.uid) ?? -Infinity) < 1.5;
       // 41.0: chased by as many of the team as may (ARENA.sectors.commit): out of sight it is left to
       // them; in sight it is still shot, after a target nobody holds. One shooting at it is fair game.
+      // 42.0: a wolf goes for a contact out of its sight only while a teammate is fighting it (a busy
+      // one: it comes at it from behind), and for one in sight only within its gun's range.
+      if (wolf && !shotMe && h !== cT) {
+        if (!vis && (!c || c.by < 0 || c.by === me.uid || now - c.seenT > 1)) continue;
+        if (vis && d > me.arm.maxRange) continue;
+      }
       let over = false;
       if (h !== cT && !shotMe && dir.overCommitted(h.uid, me.uid, now, p)) {
         if (!vis) {
@@ -527,6 +602,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       }
       this.target = best;
       this.switchT = now;
+      this.warnFor = -1;
       // A new face to settle on: an aimed shot takes its focus again.
       this.focusT = 0;
       // Snap + spread: a fresh target blooms; switching from one in view keeps part of the bloom.
@@ -547,24 +623,42 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const attackers = [...this.alert.values()].filter((t) => now - t < 1.5).length;
     this.hpLog.push([now, me.hpFrac]);
     while (this.hpLog.length && now - this.hpLog[0][0] > ARENA.retreat.window) this.hpLog.shift();
-    let next: ArenaState;
+    let next: ArenaState = 'patrol';
     let retreatWhy: 'unseen' | 'outnumbered' | null = null;
     // 37.1: posted to the high ground (ArenaDirector.watch), not on the last stand: it goes there with
     // nothing in sight, and once there it fights from the post (no strafing off it, no hunting down).
     this.watchAt = holding(dir) ? null : dir.watchPost(me.uid);
-    if (this.state === 'retreat' && this.keepRetreating(ctx, A, T, tv, dT, contact)) next = 'retreat';
+    // 42.0: recovering until its health is back (ARENA.regen), out of time, or cornered.
+    let recoverEnd: 'healed' | 'timeout' | 'cornered' | null = null;
+    if (this.state === 'recover') {
+      const R = ARENA.roles;
+      recoverEnd = this.cornered(ctx) ? 'cornered' : me.hpFrac >= R.recoverHp ? 'healed' : this.stateT >= R.recoverMax ? 'timeout' : null;
+      if (recoverEnd) {
+        A.stats.recoverEnd[recoverEnd]++;
+        this.recoverCd = now + R.recoverCd;
+      }
+    }
+    if (this.state === 'recover' && !recoverEnd && !holding(dir)) next = 'recover';
+    else if (this.recoverWanted && !holding(dir) && !this.cornered(ctx) && me.hpFrac < ARENA.roles.recoverHp) {
+      next = 'recover';
+      A.stats.recovers++;
+      dir.leftPost(me.uid);
+    } else if (this.state === 'retreat' && this.keepRetreating(ctx, A, T, tv, dT, contact)) next = 'retreat';
     else if ((retreatWhy = this.retreatWhy(ctx, now, T, tv, dT))) next = 'retreat';
     else if (this.state === 'break' && this.stateT < ARENA.breakMax && (this.reloading || this.stateT < 0.5)) next = 'break';
     // Reloading is done on the move unless someone is shooting at it.
     else if (gunner && tv && now > this.breakCd && ((this.reloading && attackers >= 1) || (me.hpFrac < ARENA.breakHp && T.hpFrac > me.hpFrac) || attackers >= 2)) next = 'break';
     // 20.0: shot at from far off, and not winning that duel (it isn't its target, or its own aimed
     // shot isn't nearly ready): out of the line now (ARENA.underFire), not a step later.
-    else if (gunner && this.evadeNow(now, T, dT)) {
+    // (42.0: not an anchor or a wolf: hurt, they recover; an anchor's long duels are its job. On Old
+    // Port an anchor sniped on its post broke in and out of one spot for 15 s and more.)
+    else if (gunner && !(ARENA.roles.on && (this.role === 'anchor' || this.role === 'wolf')) && this.evadeNow(now, T, dT)) {
       next = 'break';
       this.evading = true;
       this.evadeCd = now + ARENA.underFire.cooldown;
     }
-    else if (this.watchAt && (!tv || dir.watchHeld(me.uid))) next = 'hold';
+    // 42.0: an anchor holds its post with nothing in reach of it (it never hunts or runs up).
+    else if (this.watchAt && (!tv || dir.watchHeld(me.uid) || (this.role === 'anchor' && dT > this.reachOf()))) next = 'hold';
     else if (T && (tv || (contact && now - contact.t < ARENA.contactTtl))) {
       // 12.0: a bold bot pushes sooner (higher health, less damage dealt), a careful one later.
       const ag = this.persona.aggro;
@@ -577,17 +671,22 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       // it barks, two at most). A gunner pushes only what it can see.
       // 11.0: a gunner rushes only what is within pushRange; further out it keeps aiming.
       const reach = !gunner || dT <= me.arm.pushRange;
-      if (!pushing && hurt && reach && (tv || !gunner) && dir.claimPush(me.uid, T.uid, now, !gunner)) {
+      // 42.0: an anchor never leaves its post to rush, flank or go round; a wolf never goes round with a crowd.
+      const anchor = ARENA.roles.on && this.role === 'anchor';
+      if (!pushing && hurt && reach && (tv || !gunner) && !anchor && dir.claimPush(me.uid, T.uid, now, !gunner)) {
         this.pushUntil = now + ARENA.pushMax;
         pushing = true;
       }
       // 12.0: out of its sight but in a teammate's (the shared spotting): go round.
-      const flanking = !pushing && !tv && !!contact && !LS && this.wantsFlank(ctx, A, T, contact, now);
+      const flanking = !pushing && !tv && !!contact && !LS && !anchor && this.wantsFlank(ctx, A, T, contact, now);
       // 32.0: one of a crowd fighting from one spot goes round, shooting as it goes (ARENA.space).
-      const going = !pushing && tv && !LS && this.crowdFlank(ctx, A, T, now);
-      next = pushing ? 'push' : going ? 'flank' : tv ? 'engage' : flanking ? 'flank' : 'hunt';
+      const going = !pushing && tv && !LS && !anchor && !wolf && this.crowdFlank(ctx, A, T, now);
+      // 42.0: a wolf behind one that faces away closes in before it fires.
+      const stalk = !pushing && tv && !LS && this.stalkable(T, dT, now);
+      next = pushing ? 'push' : stalk ? 'stalk' : going ? 'flank' : tv ? 'engage' : flanking ? 'flank' : 'hunt';
     } else next = holding(A.director) ? 'hold' : A.director.patrol ? 'patrol' : 'advance';
     this.setState(next, ctx, A);
+    this.recoverWanted = false;
     if (retreatWhy) {
       A.stats.retreats++;
       A.stats.retreatWhy[retreatWhy]++;
@@ -605,7 +704,14 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.goal = this.flankGoal;
       this.flankGoal = null;
     } else if (next === 'break' && !this.goal && (this.evading && this.snipedBy ? this.snipedBy : T)) this.goal = this.breakSpot(ctx, A, (this.evading && this.snipedBy ? this.snipedBy : T)!);
-    else if (next === 'hunt' && contact) {
+    else if (next === 'recover' && !this.goal) {
+      // 42.0: out of the shooter's sight (the nearest such spot, further than a BREAK looks), else away.
+      const from = this.recoverFrom?.alive ? this.recoverFrom : T;
+      this.goal = from ? this.breakSpot(ctx, A, from, ARENA.breakRadius * 2) ?? this.awayFrom(ctx, from) : null;
+    } else if (next === 'hunt' && contact && ARENA.roles.on && this.role === 'wolf' && Math.hypot(contact.pos.x - me.pos.x, contact.pos.z - me.pos.z) > ARENA.roles.behind * 1.5) {
+      // 42.0: a wolf comes at a contact from behind it.
+      this.goal = this.behindOf(ctx, T!, contact.pos) ?? contact.pos.clone();
+    } else if (next === 'hunt' && contact) {
       this.goal = this.laneGoal(ctx, A, contact.pos) ?? this.approach(ctx, A, T!, contact.pos) ?? _v.copy(contact.pos).addScaledVector(contact.vel, ARENA.huntLead).clone();
       if (!this.laneTo && !this.approaching) this.goal.y = contact.pos.y;
     } else if (next === 'hunt' && T && !contact) this.goal = T.pos.clone();
@@ -991,7 +1097,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // the stair.)
     const there = Math.hypot(P.x - me.pos.x, P.z - me.pos.z) < 2 && Math.abs(P.y - me.pos.y) < 0.4;
     this.goal = there ? null : new THREE.Vector3(P.x + Math.cos(this.seed) * 0.3, P.y, P.z + Math.sin(this.seed) * 0.3);
-    if (there && A.director.watchArrived(me.uid, now)) A.stats.watchHolds++;
+    if (there && A.director.watchArrived(me.uid, now)) A.stats[ARENA.roles.on && this.role === 'anchor' ? 'anchorArrive' : 'watchHolds']++;
     const c = A.director.freshest(me.pos, now);
     this.scanA += (this.seed > Math.PI ? 1 : -1) * 0.45;
     const s = (this.scan ??= new THREE.Vector3());
@@ -1007,7 +1113,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   private planPatrol(ctx: EnemyCtx, A: ArenaCtx) {
     const me = this.self;
     const now = ctx.time;
-    const c = A.director.freshest(me.pos, now, me.uid);
+    // 42.0: a wolf keeps to its way round (it takes on busy contacts through its target choice).
+    const c = ARENA.roles.on && this.role === 'wolf' ? null : A.director.freshest(me.pos, now, me.uid);
     if (c && Math.hypot(c.pos.x - me.pos.x, c.pos.z - me.pos.z) <= ARENA.patrol.radar) {
       this.goal = c.pos.clone();
       return;
@@ -1199,12 +1306,12 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   }
 
   /** The nearest spot within 7 m the threat can't see (one ray each, two tries), else null (it strafes out). */
-  private breakSpot(ctx: EnemyCtx, A: ArenaCtx, T: Combatant): THREE.Vector3 | null {
+  private breakSpot(ctx: EnemyCtx, A: ArenaCtx, T: Combatant, radius = ARENA.breakRadius): THREE.Vector3 | null {
     const me = this.self;
     const cands: [number, THREE.Vector3][] = [];
     for (const p of ctx.coverPoints) {
       const d = Math.hypot(p.x - me.pos.x, p.z - me.pos.z);
-      if (d > ARENA.breakRadius || Math.abs(p.y - me.pos.y) > 1) continue;
+      if (d > radius || Math.abs(p.y - me.pos.y) > 1) continue;
       const dt = Math.hypot(p.x - T.pos.x, p.z - T.pos.z);
       if (dt < 5) continue;
       // Away from the threat is better than towards it.
@@ -1229,7 +1336,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
    */
   private sprintReason(A: ArenaCtx, T: Combatant | null, tv: boolean, gunner: boolean, now: number): 'cross' | 'flank' | 'push' | 'retreat' | null {
     const st = this.state;
-    if (st === 'retreat' || st === 'break') return 'retreat';
+    if (st === 'retreat' || st === 'break' || st === 'recover') return 'retreat';
+    if (st === 'stalk') return 'flank';
     if (st === 'flank') return 'flank';
     const close = !gunner || this.self.arm.id !== 'ar';
     if (st === 'push') return close ? 'push' : null;
@@ -1326,6 +1434,17 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
         me.tac.action = 'windup';
         me.tac.actionT = 0;
       }
+    } else if (this.state === 'stalk' && T) {
+      // 42.0: closing in behind it, gun down (it fires once it turns, or close enough: engage).
+      me.steer(T.pos, sprint, ctx, dt, desired);
+    } else if (this.state === 'recover') {
+      // 42.0: into cover out of the shooter's sight, then down behind it until it has healed.
+      if (this.goal) {
+        if (me.steer(this.goal, sprint, ctx, dt, desired) < 0.7) {
+          desired.set(0, 0, 0);
+          this.goal = null;
+        }
+      } else crouch = 1;
     } else if (this.state === 'break') {
       if (this.goal) {
         const d = me.steer(this.goal, sprint, ctx, dt, desired);
@@ -1397,7 +1516,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     } else if (this.scan && (this.state === 'patrol' || this.state === 'hold')) me.face(this.scan, dt, 5);
 
     // ---- Fire (gunner) and reload.
-    if (gunner) this.gun(dt, ctx, A, tv && !fleeing ? T : null, strafing);
+    const holdFire = this.state === 'stalk' || this.state === 'recover';
+    if (gunner) this.gun(dt, ctx, A, tv && !fleeing && !holdFire ? T : null, strafing);
     me.tac.phase = tv && gunner && !this.reloading ? (this.aiming && this.focusT < this.focusNeed ? 'aim' : 'fire') : this.reloading ? 'reload' : '';
     if (this.aiming) A.stats.aimT += dt;
 
@@ -1458,6 +1578,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // 41.0: a target the team has enough on already (ARENA.sectors): it shoots from where it is, it
     // doesn't close in (the fight doesn't grow into a crowd).
     if (radial > 0 && !away && ctx.arena && ctx.arena.director.overCommitted(T.uid, me.uid, ctx.time, T.pos)) radial = 0;
+    // 42.0: an anchor fights from where it stands (its post), never closing in.
+    if (radial > 0 && !away && ARENA.roles.on && this.role === 'anchor') radial = 0;
     const k = away ? 1 : ARENA.strafe;
     desired.set((-tz * this.strafeDir * k + tx * radial) * speed, 0, (tx * this.strafeDir * k + tz * radial) * speed);
     // 32.0, spread: a teammate fighting beside it: strafe away from it and ease off it (ARENA.space).
@@ -1514,7 +1636,37 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (err > ARENA.fireCone) return;
     // Aimed: nothing leaves the barrel until it has settled on the target; nothing beyond effective range.
     if (this.aiming && this.focusT < this.focusNeed) return;
-    if (Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > arm.maxRange) return;
+    if (Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > this.reachOf()) return;
+    // 42.0, the warning shot: a wolf opening up on the human from outside his view waits a moment,
+    // and its first round goes wide (he hears it, and has his chance to turn).
+    const now = ctx.time;
+    if (this.warnFor !== T.uid) {
+      this.warnFor = T.uid;
+      const R = ARENA.roles;
+      if (R.on && this.role === 'wolf' && T.isPlayer) {
+        T.facing(_f);
+        const dx = me.pos.x - T.pos.x, dz = me.pos.z - T.pos.z, d = Math.hypot(dx, dz) || 1;
+        if ((_f.x * dx + _f.y * dz) / d < R.warnCos) {
+          this.warnAt = now + rand(R.warn[0], R.warn[1]);
+          this.warnMiss = true;
+        }
+      }
+    }
+    if (now < this.warnAt) return;
+    if (this.warnMiss) {
+      this.warnMiss = false;
+      const dx = _aim.x - me.pos.x, dz = _aim.z - me.pos.z, d = Math.hypot(dx, dz) || 1;
+      const side = Math.random() < 0.5 ? 1 : -1, w = ARENA.roles.warnMiss;
+      _miss.set(_aim.x + (-dz / d) * side * w, _aim.y + 0.4, _aim.z + (dx / d) * side * w);
+      if (me.fireRound(ctx, _miss, 0, { aimed: false, range: d }) === 'fired') {
+        A.stats.warnShots++;
+        A.stats.shots++;
+        this.ammo--;
+        this.shotT = arm.burstGap;
+        this.reactPending = false;
+      }
+      return;
+    }
     let bloom = this.bloom;
     if (this.state === 'push') bloom = Math.min(bloom, ARENA.pushBloomMax);
     // Fog: aim degrades with the contrast lost on the way (and nothing is fired past fog sight).

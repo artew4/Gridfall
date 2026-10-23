@@ -116,7 +116,12 @@ describe('41.0 director: fireteams', () => {
     expect(new ArenaDirector('alpha', v(0, 50), v(0, -50), LANES).fireteamSize(5)).toBe(2);
     const five = [...LANES, ...LANES.slice(0, 2)];
     expect(new ArenaDirector('alpha', v(0, 50), v(0, -50), five).fireteamSize(12)).toBe(3);
+    // 42.0: with roles the fireteams are the frontliners' (half the team): pairs at least.
+    expect(new ArenaDirector('alpha', v(0, 50), v(0, -50), five).fireteamSize(3)).toBe(ARENA.roles.on ? 2 : 1);
+    const roles0 = ARENA.roles.on;
+    ARENA.roles.on = false;
     expect(new ArenaDirector('alpha', v(0, 50), v(0, -50), five).fireteamSize(3)).toBe(1);
+    ARENA.roles.on = roles0;
   });
 
   it('bots spawning together form fireteams; a member keeps its leader (lowest uid) and its sector', () => {

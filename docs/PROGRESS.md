@@ -2284,8 +2284,82 @@ Stuck 0 everywhere. AI cost per step within noise (Desert 0.72 → 0.69 ms).
 - Tests 473 (+20: `sectors.test.ts`): density, the fireteam curve, zones and pads, the local area per map, fireteam size and joining by the map's radius, leaders, the per-hostile and per-site caps, the radar passing over a full contact, sector terms, peels (never out of a fight), claims by bodies; 32.0's space tests run as the 32.0 bot.
 - `npm run build` clean. `bench(3)` not run (no visual change; AI cost above).
 
+## 42.0: AI archetypes and combat personalities
+
+Branch `feature/ai-archetypes-42.0`, from `main` @ `79c0cb4` (41.0, merged). Full numbers: `docs/BENCH-42.0.json`.
+
+### Roles (`Roles.ts`, `ArenaDirector`, `DeathmatchAI`; `ARENA.roles`)
+- **Dealing:** at each spawn, the role furthest below its share of the team: frontliner 50%, lone wolf 25%, anchor 25% (12 bots: 6/3/3; 4: 2/1/1). With no free post, an anchor fights as a frontliner. Nothing per frame.
+- **Frontliner:** the 41.0 bot. The fireteams are the frontliners' alone, in pairs at least.
+- **Lone wolf:** no fireteam.
+  - **Patrol:** it searches areas in the enemy's half, the pull peaking a third of the way in and gone by their spawn (round them, not into their zones). It prefers quiet areas (low activity) away from teammates.
+  - **Targets:** it takes on a contact out of its sight only while a teammate is fighting it (a busy one), from a point 9 m behind where the contact faces. One in sight counts only within its gun's range, or if it is shooting at the wolf. The radar's pull to the freshest contact is off for it.
+  - **Stalk:** with a target in sight that faces away (more than 100° off it), further than 11 m and not shooting at it, it closes in with its gun down.
+- **Anchor:** holds a post as the 37.1 watch holds one (it fights from it within a 1.2 m leash), never hunts, pushes, flanks or closes in. It fires out to 1.4 × its gun's range.
+- **Anchor posts:** found once a match per team.
+  - **Candidates:** nav nodes (on the floor) and the patrol areas in its own half, up to the middle, that a body can stand on.
+  - **Score:** the mean open sightline toward the enemy (9 rays), +4 a metre of height, +6 for a wall at the back, +20 for the map's high ground, −0.6 a metre of walk from the nearest home zone past 25 m.
+  - **Kept:** the best, at least the density radius (12 m or more) apart, and only those whose route from home is at most 1.5 × the straight line + 12 m.
+  - **Results:** Favelas' rooftops, Maglev's skybridges, Neon Block's 7.2 m roofs, the Docks' crane decks, Old Port's bridge and stack tops, the Desert's ruin towers. With roles on, the 37.1 watches are off.
+- **Guns (`roleArm`):**
+  - **Anchor:** the rifle, always.
+  - **Wolf:** pistol or SMG.
+  - **Frontliner:** shotgun 40%, rifle 40%, SMG and pistol 10% each.
+  - **The 13.0 cap** (at most 2 of a gun) now counts the role's own bots, sized to the gun's share (six frontliners: 3 shotguns, 3 rifles). With the team-wide cap, the anchors' rifles left the frontliners 13–18% rifles.
+
+### Game feel
+- **The warning shot:** a wolf opening fire on the human from outside his view (more than 90° off where he faces) waits 0.2–0.4 s, and its first round goes 1.4 m wide. `warncheck.mjs` on Maglev, 10 runs each:
+  - **A wolf behind him:** first round 309 ms after sight (median), wide 10 of 10, passing 1.45 m off his chest.
+  - **A wolf he faces:** 50 ms, wide 0 of 4.
+  - **A frontliner behind him:** 50 ms, wide 2 of 7 (spread).
+- **Recover:** an anchor or wolf hit under 75% of its health breaks off, unless it is about to finish a target under 30% within its push range.
+  - It goes to the nearest spot out of the shooter's sight within 14 m (else 8 m straight away), crouches, and waits for its health to come back to 90%.
+  - It ends after 14 s at most, or fights if a hostile it sees comes within 8 m. Then 5 s before the next.
+  - Anchors and wolves skip the 20.0 long-range evade (hurt, they recover). On Old Port a sniped anchor broke in and out of one spot for 15 s and more: 2 stuck in 6 matches before, 0 after.
+- **Regeneration** (`ARENA.regen`, the human's rule): 5 s after the last damage, 5% of its health a second, for every arena bot.
+
+### Results (bot-only, 6 matches each; off is roles and regen off in the same build: the 41.0 team)
+
+| | Desert 12v12: off → on | Old Port 7v7: off → on |
+|---|---|---|
+| Kills a minute | 31.6 → **24.8** | 25.4 → **21.4** |
+| Quiet (no shots, before the endgame) | 10.3 → **2.7%** | 10.7 → **4.3%** |
+| Herd (5+ together 5 s) | 1.1 → 0.6% | 0.4 → 0.4% |
+| Hostiles with 4+ bots on them | 6.6 → 4.8% | 5.0 → 2.4% |
+| Fights at once | 2.62 → 2.96 | 1.78 → 1.86 |
+| Stuck | 0 → 0 | 0 → 0 |
+
+| Role (Desert / Old Port) | Share | Alone | In the enemy's half | At its post | K/D | Kills from behind or side | Kill range |
+|---|---|---|---|---|---|---|---|
+| Frontliner | 50 / 44% | 25 / 29% | 10 / 8% | | 0.91 / 1.02 | 18 / 9% | 19 / 11 m |
+| Lone wolf | 24 / 27% | 44 / 40% | **25 / 15%** | | 0.76 / 0.85 | 19 / 5% | 14 / 10 m |
+| Anchor | 27 / 29% | 49 / 43% | 0 / 0% | **36 / 10%** | **2.04 / 1.06** | 25 / 10% | 31 / 23 m |
+
+**Other maps** (2 matches each, before the per-role gun caps):
+- **Kills a minute:** Favelas 21, Docks 21, Crash Site 18.5, Maglev 14.6, Neon Block 10.
+- **Anchors at their post:** 14–46%.
+- **Stuck:** 0 everywhere.
+
+**Not met, or costs:**
+- **Kills a minute fell** 15–22% on the Desert and Old Port (more on Maglev: 20.6 in 41.0, 14.4 now). At any moment a quarter of the team holds a post and a quarter is out on the flanks or recovering.
+  - Regen is not the cause: off it measured the same (Desert 24.6, Maglev 14.4). It shortens the dead time between fights (Maglev quiet 9.4 → 4.2%).
+  - The knobs: `ARENA.roles.share`, `roles.recoverBelow`.
+- **Old Port's anchors** reach their posts 10% of their time: the bridge is the contested middle, and 7v7 lives are short. The Desert's: 36%.
+- **Wolves on Old Port** rarely get behind anyone (5% of their kills from behind; 19% on the Desert): the map's lanes leave little way round.
+- **Anchors may be too strong on some maps** (2 matches): K/D 9.3 on the Favelas rooftops, 4.0 on Maglev.
+- **Wolves and anchors recover 15–24% of their time.**
+- **The warning shot** was measured with the scripted check only (bot-only matches have no human): 0 in self-play by design.
+
+### Checks
+- Tests 486 (+13: `roles.test.ts`): the role shares, the guns, the post score and choice, anchor seats as watch posts, the shares kept over the living, fireteams of frontliners only, the wolf's area score, watches off with roles, regeneration, the brain's role rules.
+- The 37.1 and 38.0 watch tests run as the 41.0 team. The 30.0 sprint test allows the recover.
+- `npm run build` clean.
+- AI cost per step as before (Desert 0.66 → 0.76 ms ±0.1, Old Port 0.13 → 0.16).
+- `bench(3)` not run (nothing drawn changed).
+
 ## Next
 Human playtest:
+- 42.0 items: do you notice the three kinds of enemy (squads pushing, someone alone coming round behind you, a rifle holding a roof); the warning shot (do you hear it and turn in time, or is it a free kill for you now); are the anchors fair or a wall (Favelas' roofs, Maglev's skybridges); does the slower kill pace feel tense or slow (`ARENA.roles.share` to change the mix); hurt enemies ducking out to heal: smart or annoying; `ARENA.roles.on = false` for the 41.0 bots side by side.
 - 41.0 items: does the enemy team come at you in twos and threes now, or still in a crowd; do your bots move as squads (a leader and one or two beside it) or still run off alone; does a fight elsewhere on the map still pull everyone (it shouldn't: three on one enemy at most); on the Desert, do squads leaving a spawn zone together feel like a wave; `ARENA.sectors.on = false` for a side-by-side.
 - 40.0 items: Favelas (does the rooftop layer read: can you tell where you can walk; the escadaria as the midline killing ground (29% of kills): too strong a funnel?; the alleys' track changes: winding or confusing; 10v10 on a dense map: chaos?; the dust motes and the kites; the samba; the Portuguese flavor; starting low on the street vs high on the crest: fair?).
 - 39.0 items: the four guns' recoil (the pistol's snap; the SMG's shake: too much, too little; pulling the rifle down in a burst: does it feel like skill or a chore; the shotgun's kick and punch: too violent?); the FOV punch (felt, or nauseating at 18 a second); does the view coming back after a burst feel natural.
