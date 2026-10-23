@@ -23,7 +23,10 @@ export const BOAR_SHOTGUN: WeaponSpec = {
   bloomPerShot: 0.35,
   kick: { z: 4.2, rot: 22, rotJitter: 3, side: 3.5, slide: 0 },
   // The cannon: the hardest punch, the widest FOV kick and the most screen shake in the arsenal.
-  camera: { climb: 0.026, yaw: 0.007, pitchKick: 13, yawKick: 3, roll: 2.6, fov: 4.5, trauma: 0.32 },
+  // 39.0: the biggest kick by far (~5°), the biggest punch, the slowest way back (2.2/s: 0.45 s to
+  // lose 63%; most of it gone by the next shell 0.82 s on).
+  recoil: { kick: 0.09, kickVar: 0.12, yaw: 0.014, recovery: 2.2, fov: 3.5, fovRecovery: 7 },
+  camera: { roll: 2.6, trauma: 0.32 },
   handling: { move: 0.85, adsMove: 0.55, adsIn: 0.25, adsOut: 0.18, raise: 7 },
   hip: 1.0,
   knock: { push: 3.2, stagger: 0.35 },

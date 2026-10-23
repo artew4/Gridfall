@@ -35,10 +35,11 @@ describe('21.0: the asymmetric arsenal (player)', () => {
     const s = ARMORY.smg.spec;
     for (const id of ARMORY_ORDER) if (id !== 'smg') expect(s.fireInterval).toBeLessThan(ARMORY[id].spec.fireInterval);
     for (const id of ARMORY_ORDER) if (id !== 'smg') expect(s.damage).toBeLessThanOrEqual(ARMORY[id].spec.damage);
-    // Great from the hip, the rifle bad; the SMG climbs the most per shot.
+    // Great from the hip, the rifle bad. (39.0: the least kick a shot, many a second: was the steepest
+    // per-shot climb; recoil.test.ts holds the four profiles.)
     expect(s.hip).toBeLessThan(1);
     expect(ARMORY.ar.spec.hip).toBeGreaterThanOrEqual(2 * s.hip * 1.5);
-    for (const id of ['pistol', 'ar'] as const) expect(s.camera.climb).toBeGreaterThan(ARMORY[id].spec.camera.climb);
+    for (const id of ARMORY_ORDER) if (id !== 'smg') expect(s.recoil.kick).toBeLessThan(ARMORY[id].spec.recoil.kick);
   });
 
   it('the pistol: the fastest sights and draw, full speed aimed, the head the fastest kill in its band', () => {
@@ -64,7 +65,7 @@ describe('21.0: the asymmetric arsenal (player)', () => {
     // The cannon: the biggest screen shake and FOV kick.
     for (const id of ARMORY_ORDER) if (id !== 'shotgun') {
       expect(g.camera.trauma).toBeGreaterThan(ARMORY[id].spec.camera.trauma);
-      expect(g.camera.fov).toBeGreaterThan(ARMORY[id].spec.camera.fov);
+      expect(g.recoil.fov).toBeGreaterThan(ARMORY[id].spec.recoil.fov);
     }
   });
 });

@@ -2070,8 +2070,62 @@ Self-play on the 38.0 map (6 matches each). "Live quiet" counts seconds nobody f
 - `leakcheck.mjs 2 desert,docks,oldport`: 0 alive.
 - Tests 429 (+14).
 
+## 39.0: Recoil, FOV punch, aim alignment
+
+Branch `feature/recoil-39.0`, from `main` @ `6574cd8` (38.0, merged).
+
+### What was there
+- **Each shot:** a permanent climb added to the mouse's pitch (it never came back) and camera-only springs (pitch, yaw, roll).
+- **The aim:** the shot left along the camera's direction from the last drawn frame. That is a frame behind any kick and includes the screen shake: 0.04–0.22° off what the screen showed at 60 FPS.
+- **The FOV punch:** fed through the sprint FOV's smoothing, so it eased in over a tenth of a second instead of hitting on the shot.
+- **No limit:** nothing kept climb plus kick from going past straight up (the mouse alone was clamped at ±1.45).
+
+### Recoil (`src/player/Recoil.ts`)
+- **An aim offset over the look** (pitch up, yaw either way):
+  - each shot feeds its kick in over 35 ms (a snap over a few frames, not a one-frame jump);
+  - the offset returns to the look at the gun's `recovery` (exponential, per second). A gun that fires faster than it recovers stacks its kicks.
+- **The view is the look plus the offset plus the screen shake** (`Player.viewPitch` / `viewYaw`). The camera is set from it, and the shot leaves along it (`viewBasis`) in the same frame. The mouse's own pitch is never touched.
+- **Pitch limit:** the view never pitches past ±1.5 rad (`VIEW_PITCH_MAX`; straight up is 1.571), however much stacks.
+- **The FOV punch:** set on the shot's own frame, falling back at the gun's `fovRecovery`.
+- **Scaling:** ADS (×0.45) and crouch (×0.85) scale the kick and the punch, as before.
+- **A hit flinches the aim** (0.006 rad up, a little sideways), recovered the same way.
+- **The roll and the screen shake** stay as they were.
+- **Cost:** 26 ns per update, no allocation.
+
+### The four guns (`WeaponSpec.recoil`: kick, kickVar, yaw, recovery, fov, fovRecovery)
+| | kick a shot | spread of it | sideways | recovery | FOV punch / fade |
+|---|---|---|---|---|---|
+| Kitsune-9 | 1.5° | ±15% | ±0.23° | 14/s (89% back by the next shot) | 0.6° / 22/s |
+| Hornet SMG | 0.5° (the least) | ±30% | ±0.52° (as much as up) | 8/s | 0.7° / 30/s (gone between rounds: a flutter) |
+| Jackal AR | 1.0° (even) | ±8% | ±0.4° | 3.5/s (28% back between rounds) | 1.5° / 14/s |
+| Boar | 5.2° | ±12% | ±0.8° | 2.2/s (the slowest) | 3.5° / 7/s |
+
+- **Measured in Chrome**, holding the trigger 1.5 s (60 FPS throughout; CPU 1.7–2.1 ms p50, ≤ 3.5 ms p99):
+
+  | | Pistol | SMG | Rifle | Shotgun |
+  |---|---|---|---|---|
+  | Peak kick | 1.2° | 1.2° | 3.3° | 4.9° |
+  | At release | 0.4° | 1.0° | 3.2° | 1.5° |
+  | 1 s later | 0° | 0° | 0.1° | 0.15° |
+
+  The rifle is the one you pull down.
+- **Aim:** every shot leaves within 0.012° of the view drawn that frame. The shotgun's 0.15° is its own shake, which lands after the pellets have left. Was 0.04–0.22° behind.
+- **Changed from 21.0:** the SMG had the steepest climb per shot. Per this brief it has the least kick a shot and shakes sideways instead. With the old permanent climb gone it is easier to keep on a body; its damage falloff (55% from 12 to 30 m) still limits its range.
+
+### Checks
+- Tests 441 (+12, `recoil.test.ts`):
+  - kick and recovery maths, the same at 20, 60 and 144 FPS;
+  - ADS and crouch scaling, the flinch;
+  - the punch on the shot's frame;
+  - each gun's profile against the brief;
+  - the camera's forward equal to the shot's direction mid-kick;
+  - the look unchanged;
+  - held fire looking straight up stopping short of the pole, the camera's up staying up.
+- The 21.0 balance test now holds the SMG's smallest kick (was the steepest climb).
+
 ## Next
 Human playtest:
+- 39.0 items: the four guns' recoil (the pistol's snap; the SMG's shake: too much, too little; pulling the rifle down in a burst: does it feel like skill or a chore; the shotgun's kick and punch: too violent?); the FOV punch (felt, or nauseating at 18 a second); does the view coming back after a burst feel natural.
 - 38.0 items: 12v12 on the Desert (busy or chaotic; the team board; spawning with 23 others); the ruins (do they read as ruins; the gallery as a perch: too strong, too exposed; the corner rooms and the court as close-quarters fights); do bots out on the flanks feel like flankers, or like bots wandering away from the fight; the trench now starting at the ruins.
 - 37.1 items: the bridge (do bots go up and hold it now and then; is a bot on the roof a fair threat or a free kill; the room under the hull got quieter: does it still feel used); if the room matters more than the bridge, `highGround.rise: 4.5` on Old Port (measured above).
 - 37.0 items: UNDER THE HULL (does it read as a place: the lamps, the dimness, the stands; too cramped or too open; does the ceiling feel low); spawning at the dock head (fair, or a pit you get shot into from the quays?); do fights happen under the ship for you as they do for the bots.

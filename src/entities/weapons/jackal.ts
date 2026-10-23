@@ -22,7 +22,11 @@ export const JACKAL_AR: WeaponSpec = {
   spread: 0.0035,
   bloomPerShot: 0.11,
   kick: { z: 1.5, rot: 6.5, rotJitter: 2.5, side: 2.4, slide: 0.05 },
-  camera: { climb: 0.0042, yaw: 0.0035, pitchKick: 3, yawKick: 1.2, roll: 0.6, fov: 0.8, trauma: 0.05 },
+  // 39.0: a heavy, even kick (little spread shot to shot), a moderate bounce sideways, and a slow way
+  // back: at 0.092 s a shot only 28% returns between rounds, so a burst stacks to ~3.5° up (1.6° with
+  // the sights up) unless the mouse pulls it down. A noticeable punch.
+  recoil: { kick: 0.018, kickVar: 0.08, yaw: 0.007, recovery: 3.5, fov: 1.5, fovRecovery: 14 },
+  camera: { roll: 0.6, trauma: 0.05 },
   handling: { move: 0.95, adsMove: 0.62, adsIn: 0.2, adsOut: 0.16, raise: 10 },
   hip: 2.0,
   falloff: { near: 35, far: 60, min: 0.7 },

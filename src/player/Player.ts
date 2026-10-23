@@ -6,6 +6,7 @@ import { clamp, damp, lerp, Spring } from '../core/math';
 import { KEYS } from '../core/Bindings';
 import { SLIDE, slideStep } from './Slide';
 import { Stamina } from '../combat/Stamina';
+import { Recoil, viewPitch } from './Recoil';
 import type { GunHandling } from '../entities/types';
 
 const WALK = 5.0;
@@ -82,13 +83,16 @@ export class Player {
   slideK = 0;
   private slideCd = 0;
   lastDamage = -100;
-  /** Camera kick from weapon recoil and hits. */
-  kickPitch = new Spring(120, 16);
-  kickYaw = new Spring(120, 16);
+  /**
+   * 39.0: the recoil the shots and hits put on the aim (pitch, yaw) and the FOV punch: the camera and
+   * the shot both read it (viewPitch / viewYaw). Was a permanent climb on `pitch` plus camera-only
+   * springs a shot saw a frame late.
+   */
+  recoil = new Recoil();
+  /** Roll from shots and hits: seen only (a roll doesn't move the aim). */
   kickRoll = new Spring(90, 10);
   landDip = new Spring(160, 14);
   trauma = 0;
-  fovPunch = 0;
   private sprintFov = 0;
   private lastStepIdx = 0;
   private wasOnGround = true;
@@ -120,8 +124,7 @@ export class Player {
     this.slideT = this.slideV = this.slideK = this.slideCd = 0;
     this.stamina.reset();
     this.trauma = 0;
-    this.kickPitch.reset();
-    this.kickYaw.reset();
+    this.recoil.reset();
     this.kickRoll.reset();
   }
 
@@ -307,12 +310,10 @@ export class Player {
       this.health = Math.min(this.maxHealth, this.health + 5 * dt);
     }
 
-    this.kickPitch.update(dt);
-    this.kickYaw.update(dt);
+    this.recoil.update(dt);
     this.kickRoll.update(dt);
     this.landDip.update(dt);
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
-    this.fovPunch = damp(this.fovPunch, 0, 10, dt);
     this.eyeY = damp(this.eyeY, this.pos.y + this.eyeHeight, 18, dt);
   }
 
@@ -385,12 +386,29 @@ export class Player {
     this.lastHitFrom.copy(from);
     this.trauma = Math.min(1, this.trauma + 0.45);
     this.kickRoll.impulse((Math.random() - 0.5) * 1.2);
-    this.kickPitch.impulse(0.6);
+    // 39.0: a hit flinches the aim a little (up, either side), recovered as the gun's kick is.
+    this.recoil.flinch(0.006, (Math.random() - 0.5) * 0.006);
     this.audio.playerHurt();
     if (this.health <= 0) {
       this.health = 0;
       this.alive = false;
     }
+  }
+
+  /** 39.0: the screen shake's share of the view (rad): trauma squared, two noisy sines. */
+  private shake(time: number, f: number, o: number) {
+    return Math.sin(time * f + o) * Math.sin(time * f * 0.71 + o * 2.3) * 0.03 * this.trauma * this.trauma;
+  }
+
+  /**
+   * 39.0: where the eyes and the gun point: the mouse's look, the recoil on it, the screen shake.
+   * The camera is set from these and the shot leaves along them (Game.shoot), the same frame.
+   */
+  viewPitch(time: number) {
+    return viewPitch(this.pitch + this.shake(time, 29, 3), this.recoil.pitch);
+  }
+  viewYaw(time: number) {
+    return this.yaw + this.recoil.yaw + this.shake(time, 31, 4);
   }
 
   /** Hip-fire field of view (deg); ADS narrows it by the weapon's zoom. */
@@ -411,15 +429,16 @@ export class Player {
     );
     cam.rotation.order = 'YXZ';
     cam.rotation.set(
-      this.pitch + this.kickPitch.value * 0.05 + sh(29, 3) * 0.03 * t2,
-      this.yaw + this.kickYaw.value * 0.05 + sh(31, 4) * 0.03 * t2,
+      this.viewPitch(time),
+      this.viewYaw(time),
       this.kickRoll.value * 0.05 + Math.cos(this.bobPhase) * 0.006 * bobAmt + sh(23, 5) * 0.04 * t2 + this.slideK * SLIDE.roll,
     );
     // ADS: the FOV follows the eased blend directly (no second smoothing on top, so no lag behind the
     // gun); sprint and punch are added and damped with the real frame time (3.x used a fixed 1/60 s).
     const zoomed = Player.FOV * lerp(1, adsZoom, this.ads);
-    this.sprintFov = damp(this.sprintFov, (this.sprinting ? 6 : 0) + this.slideK * SLIDE.fov + this.fovPunch, 8, dt);
-    cam.fov = zoomed + this.sprintFov;
+    this.sprintFov = damp(this.sprintFov, (this.sprinting ? 6 : 0) + this.slideK * SLIDE.fov, 8, dt);
+    // 39.0: the shot's punch on top at once (it was eased in through the sprint's smoothing).
+    cam.fov = zoomed + this.sprintFov + this.recoil.fov;
     cam.updateProjectionMatrix();
   }
 }

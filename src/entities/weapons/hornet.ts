@@ -22,7 +22,10 @@ export const HORNET_SMG: WeaponSpec = {
   bloomPerShot: 0.06,
   // Small, fast kicks (a buzz, not a punch), but a steep climb: the burst walks up the target.
   kick: { z: 1.0, rot: 4, rotJitter: 1.6, side: 1.6, slide: 0.035 },
-  camera: { climb: 0.0075, yaw: 0.0022, pitchKick: 2.2, yawKick: 0.6, roll: 0.35, fov: 0.5, trauma: 0.025 },
+  // 39.0: the least kick a shot, but 18 a second: the yaw shakes side to side (as much as the kick
+  // up), the view settles at ~1.2° up while the trigger is held; the FOV flutters with every round.
+  recoil: { kick: 0.009, kickVar: 0.3, yaw: 0.009, recovery: 8, fov: 0.7, fovRecovery: 30 },
+  camera: { roll: 0.35, trauma: 0.025 },
   handling: { move: 1.0, adsMove: 0.7, adsIn: 0.15, adsOut: 0.12, raise: 14 },
   hip: 0.55,
   falloff: { near: 12, far: 30, min: 0.55 },

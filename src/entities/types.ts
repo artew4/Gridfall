@@ -1,3 +1,4 @@
+import type { RecoilProfile } from '../player/Recoil';
 import type * as THREE from 'three';
 import type { Rig } from '../enemies/Models';
 import type { GunMats } from './weapons/theme';
@@ -55,8 +56,13 @@ export interface WeaponSpec {
   bloomPerShot: number;
   /** Viewmodel recoil springs per shot. */
   kick: { z: number; rot: number; rotJitter: number; side: number; slide: number };
-  /** Camera per shot: permanent climb, yaw jitter, spring kicks, FOV punch, screen trauma. */
-  camera: { climb: number; yaw: number; pitchKick: number; yawKick: number; roll: number; fov: number; trauma: number };
+  /**
+   * 39.0, the recoil on the aim per shot (player/Recoil.ts): the kick up and its spread, the kick
+   * sideways, how fast the view comes back, the FOV punch and how fast it fades.
+   */
+  recoil: RecoilProfile;
+  /** Camera per shot, seen only: roll and screen trauma (39.0: the climb, the kicks and the punch are `recoil`). */
+  camera: { roll: number; trauma: number };
   /** Where the viewmodel rests in camera space. */
   rest: [number, number, number];
   /**

@@ -1,3 +1,4 @@
+import { viewBasis } from '../player/Recoil';
 import * as THREE from 'three';
 // 25.0: patches three's fog chunks (ground fog) before any material compiles.
 import '../world/HeightFog';
@@ -851,9 +852,10 @@ export class Game {
   private shoot() {
     const cam = this.camera;
     const origin = cam.getWorldPosition(new THREE.Vector3());
-    const dir = cam.getWorldDirection(new THREE.Vector3());
-    const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
-    const up = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
+    // 39.0: along the view as it is now (the look, the recoil on it, the shake: what the camera is set
+    // from), not the camera's last drawn frame (a frame behind a kick).
+    const dir = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3();
+    viewBasis(this.player.viewPitch(this.elapsed), this.player.viewYaw(this.elapsed), dir, right, up);
     const w = this.weapon.spec;
     const spread = this.spreadNow();
     const a = Math.random() * Math.PI * 2;
@@ -956,16 +958,13 @@ export class Game {
       if (anyKill) this.player.trauma = Math.min(1, this.player.trauma + 0.12);
     }
 
-    // Camera kick: a bit of permanent climb plus a springy punch (per weapon). 11.0: a shouldered gun
+    // Recoil (39.0, per weapon: Recoil.ts): the aim kicked up and sideways, coming back at the gun's
+    // own rate, and the FOV punch; a roll and screen shake on top, seen only. 11.0: a shouldered gun
     // (ADS) kicks less than half as much, and a crouched stance a little less again.
     const c = w.camera;
     const k = lerp(1, 0.45, this.player.ads) * lerp(1, 0.85, this.player.crouch);
-    this.player.pitch += c.climb * k;
-    this.player.yaw += rand(-c.yaw, c.yaw) * k;
-    this.player.kickPitch.impulse(c.pitchKick * k);
-    this.player.kickYaw.impulse(rand(-c.yawKick, c.yawKick) * k);
+    this.player.recoil.fire(w.recoil, k);
     this.player.kickRoll.impulse(rand(-c.roll, c.roll) * k);
-    this.player.fovPunch = c.fov * k;
     this.player.trauma = Math.min(1, this.player.trauma + c.trauma * k);
   }
 

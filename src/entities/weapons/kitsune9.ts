@@ -22,7 +22,10 @@ export const KITSUNE_9: WeaponSpec = {
   bloomPerShot: 0.22,
   // A sharp snap: a short punch, little climb (it has to stay on the head).
   kick: { z: 2.6, rot: 15, rotJitter: 2, side: 3, slide: 0.034 },
-  camera: { climb: 0.005, yaw: 0.002, pitchKick: 4.5, yawKick: 1.4, roll: 0.9, fov: 1.2, trauma: 0.07 },
+  // 39.0: a fast kick that's gone again before the next shot (0.16 s apart: 89% recovered); a
+  // minimal punch.
+  recoil: { kick: 0.026, kickVar: 0.15, yaw: 0.004, recovery: 14, fov: 0.6, fovRecovery: 22 },
+  camera: { roll: 0.9, trauma: 0.07 },
   handling: { move: 1.08, adsMove: 1.0, adsIn: 0.1, adsOut: 0.08, raise: 22 },
   hip: 0.8,
   headMul: 1.5,
