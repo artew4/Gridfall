@@ -102,6 +102,9 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
   - `await __dev.fog()`: the live HeightFog module (`{ at, on }`): `at(from, to)` is the hidden share between two points as the picture draws it (the bots' sight uses the same function); a page `import()` of the module gets a second instance with the fog off, so tests in the page go through this.
   - `tdmSim(...).fog` now splits ground / roof / across by the fog's dense top (Neon Block 6.2 m: the landings and the footbridge count as ground).
   - `bench(3)` on Neon Block gains four views: the Lantern Bridge, the Transit Rail's deck, the Lantern Market, a roof looking down into the smog.
+- Old Port bridge (37.1):
+  - `node scripts/bridgecheck.mjs` (Node 22+, Google Chrome; `URL=`, `PORT=`, `ONLY_WATCH=1`): Old Port, one ALPHA bot moving, one OMEGA bot held and unkillable, nobody else (no respawns): posted to the bridge from six spots (gets there, holds it, comes down when released with nothing to fight), and hunting the target on the bridge or the deck from the north dock head (18 runs: gets up, or fights it from below; its longest stall not fighting); fails on a miss or an 8 s stall.
+  - `tdmSim(...)` reports `watch` (high-ground posts, arrivals, died and timed out on the way, seconds held, where the dead were) and `killsFromZone` (kills by where the killer stood).
 - Old Port shipyard (37.0):
   - `tdmSim(...)` reports `killsWithinZone` (kills with the killer in the victim's zone: a fight inside a room, not into it); the kill records carry `killerZone`.
   - `bench(3)` on Old Port gains two views under the hull (`underHull`, `underHullIn`).

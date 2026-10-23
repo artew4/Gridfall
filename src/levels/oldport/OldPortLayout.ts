@@ -120,6 +120,22 @@ export const LAMPS: { x: number; z: number; light?: boolean }[] = [
  * behind the cover, not the lane's line through it (6 matches without them: 3.8% of bot time in it).
  */
 export const UNDER_HVAS: [number, number, number][] = [[26.2, DOCK.floor, 9.8], [33.8, DOCK.floor, 5.4], [29.6, DOCK.floor, 4.6]].flatMap(([x, y, z]): [number, number, number][] => [[x, y, z], [x, y, -z]]);
+/**
+ * 37.1: the ship's high ground. 37.0 moved the dock lane under the hull and the bridge emptied (0.0% of
+ * bot time, 0 kills from it in 6 matches).
+ *  - `points`: kept watch on (TdmData.highGround, ArenaDirector.setWatch): the bridge roof (3.6). A
+ *    patrol weight alone didn't bring it back: a patrol rarely arrives anywhere in a 7v7 (a radar contact
+ *    pulls it off: 7–18 arrivals a match), so a team posts one bot at a time instead. Posts on the deck
+ *    too drew bots out of UNDER THE HULL (its time 4.0 → 2.6%): the bridge alone.
+ *  - GANGWAY_HEADS: the deck at the head of each west gangway (1.0, mirrored): patrol areas.
+ */
+export const GANGWAY_HEADS: [number, number, number][] = [[28, SHIP.deck, SHIP.gz], [28, SHIP.deck, -SHIP.gz]];
+export const HIGH_GROUND = {
+  points: [[30, SHIP.house.roof, 0]] as [number, number, number][],
+  hold: [10, 16] as [number, number],
+  every: 10,
+  reach: 35,
+};
 /** Where the lamps hang to (the cable from the keel), and their light. */
 export const LAMP = { drop: 0.9, color: 0xffb066, intensity: 9, range: 13 };
 /*

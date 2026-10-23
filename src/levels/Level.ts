@@ -91,6 +91,29 @@ export interface TdmData {
   spawnTuning?: Partial<typeof import('./SpawnManager').SPAWN>;
   /** 28.0: high-value areas the patrols search besides the pads and the lanes' waypoints (the edges). */
   hvas?: THREE.Vector3[];
+  /**
+   * 37.1: high ground a team keeps a watch on (ArenaDirector.setWatch): the points are patrol areas too.
+   * Every `every` s with no watch posted, the director sends the nearest bot within `reach` m of the
+   * post held least lately; there it stands and holds it for `hold` s, fighting from it.
+   */
+  highGround?: HighGround;
+}
+
+/** 37.1: high ground a team keeps a watch on (TdmData.highGround). */
+export interface HighGround {
+  points: THREE.Vector3[];
+  /** Seconds a posted bot holds it once there. */
+  hold: [number, number];
+  /** Seconds with no watch before the next is posted. */
+  every: number;
+  /** Only a bot within this many metres of the post is sent. */
+  reach: number;
+  /**
+   * Only a bot within this many metres of the post's height is sent (default: any). Old Port at 4.5
+   * (the quays and the deck, not the dock floor under the bridge): UNDER THE HULL kept 3.4% of bot time
+   * (1.7% without), the bridge fell to 0.5% (1.0%); off there, the brief wanted the bridge.
+   */
+  rise?: number;
 }
 
 export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock' | 'crashsite' | 'oldport' | 'maglev';

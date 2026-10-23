@@ -366,6 +366,9 @@ export interface ArenaStats {
   flankArrive: number;
   /** 27.0: patrols that reached their area. */
   patrolArrive: number;
+  /** 37.1: watches that reached their post (TdmData.highGround), and seconds on watch there. */
+  watchHolds: number;
+  watchT: number;
   /** 32.0: hunts sent round to a side approach, and crowded fighters sent round (ARENA.space). */
   approaches: number;
   crowdFlanks: number;
@@ -425,7 +428,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

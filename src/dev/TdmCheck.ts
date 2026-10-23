@@ -749,6 +749,8 @@ export async function tdmSim(
       };
       return { from: xb.min.x, to: xb.max.x, bands: BANDS, timePct: pctOf(xTime), fightPct: pctOf(xFight), killPct: pctOf(xKill) };
     })(),
+    // 37.1: the high-ground watch (TdmData.highGround): posted, got there, seconds held there.
+    watch: tdm.directors ? { posts: tdm.directors.alpha.watchStats.posts + tdm.directors.omega.watchStats.posts, arrivals: st.watchHolds, died: tdm.directors.alpha.watchStats.died + tdm.directors.omega.watchStats.died, timedOut: tdm.directors.alpha.watchStats.timedOut + tdm.directors.omega.watchStats.timedOut, heldSeconds: +st.watchT.toFixed(1), diedAt: [...tdm.directors.alpha.watchDiedAt, ...tdm.directors.omega.watchDiedAt] } : null,
     patrol: tdm.directors ? { picks: tdm.directors.alpha.patrolStats.picks + tdm.directors.omega.patrolStats.picks, toActive: tdm.directors.alpha.patrolStats.active + tdm.directors.omega.patrolStats.active, spawnsHeard: tdm.directors.alpha.patrolStats.spawnsHeard + tdm.directors.omega.patrolStats.spawnsHeard, arrivals: st.patrolArrive } : null,
     firstEngagement: {
       lives: firstShot.length + silentDeaths,
@@ -847,6 +849,8 @@ export async function tdmSim(
     killsByZone: k.reduce<Record<string, number>>((a, x) => ((a[x.zone ?? '-'] = (a[x.zone ?? '-'] ?? 0) + 1), a), {}),
     // 37.0: kills with the killer in the same zone as the victim (a fight inside it, not into it).
     killsWithinZone: k.reduce<Record<string, number>>((a, x) => (x.zone && x.zone === x.killerZone ? ((a[x.zone] = (a[x.zone] ?? 0) + 1), a) : a), {}),
+    // 37.1: kills by where the killer stood (high ground shooting down counts for its own zone).
+    killsFromZone: k.reduce<Record<string, number>>((a, x) => (x.killerZone ? ((a[x.killerZone] = (a[x.killerZone] ?? 0) + 1), a) : a), {}),
     arena:
       tdm.ai === 'arena'
         ? {

@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import type { Combatant, TeamId } from '../../combat/Team';
 import { ARENA } from './ArenaCtx';
+import type { HighGround } from '../../levels/Level';
+
+/**
+ * 37.1: seconds a posted bot has to reach its post, plus a second for every 2 m it starts from it
+ * (unopposed, Old Port's bridge took 9–24 s from the quays and the dock floor: stairs, the deck, stairs).
+ */
+const WATCH_TRAVEL = 20;
 
 /*
   The arena director (7.0), one per team. It replaces the 5.0 squad director in Team Deathmatch and
@@ -274,6 +281,96 @@ export class ArenaDirector {
       }
     }
     return best;
+  }
+
+  // ------------------------------------------------------------------ watch (37.1)
+  /**
+   * 37.1, high ground (TdmData.highGround): one bot of the team at a time is posted to it. With no watch
+   * for `every` s, the post held least lately gets the nearest bot within `reach` m of it; it has
+   * `travel` s to get there (released if it doesn't), then holds it `hold` s. The watch ends when that
+   * runs out or the bot dies; the next is posted `every` s later. Bots only: the human is never sent.
+   */
+  private watchCfg: HighGround | null = null;
+  watch: { uid: number; post: number; until: number; arrived: boolean; lastAt?: [number, number, number] } | null = null;
+  /** 37.1 (DEV): where posted bots were last seen before they died on the way. */
+  watchDiedAt: [number, number, number][] = [];
+  private watchNext = 0;
+  private postSeen: number[] = [];
+  private watchFree: (m: ArenaMember) => boolean = () => true;
+  /** 37.1 (DEV): watches posted, how many got there, and how the others ended (killed, out of time). */
+  watchStats = { posts: 0, arrivals: 0, died: 0, timedOut: 0 };
+
+  /**
+   * `free`: may this member be sent now (Tdm: a bot not in a fight, with most of its health). The
+   * nearest member regardless was usually one already fighting by the ship: 14 of 15 died on the way.
+   */
+  setWatch(cfg: HighGround | null, free: (m: ArenaMember) => boolean = () => true) {
+    this.watchCfg = cfg;
+    this.watchFree = free;
+    this.watch = null;
+    this.watchNext = 0;
+    this.postSeen = cfg ? cfg.points.map(() => -Infinity) : [];
+    this.watchStats = { posts: 0, arrivals: 0, died: 0, timedOut: 0 };
+  }
+
+  private updateWatch(now: number, bots: readonly ArenaMember[]) {
+    const W = this.watchCfg;
+    if (!W || !W.points.length) return;
+    const w = this.watch;
+    if (w) {
+      const alive = bots.some((b) => b.uid === w.uid);
+      if (!alive && !w.arrived && w.lastAt) this.watchDiedAt.push(w.lastAt);
+      if (alive) w.lastAt = bots.find((b) => b.uid === w.uid)!.pos.toArray().map((v) => +v.toFixed(1)) as [number, number, number];
+      if (alive && now <= w.until) return;
+      if (!w.arrived) this.watchStats[alive ? 'timedOut' : 'died']++;
+      this.watch = null;
+      this.watchNext = now + W.every;
+      return;
+    }
+    if (now < this.watchNext) return;
+    let post = 0;
+    for (let i = 1; i < W.points.length; i++) if (this.postSeen[i] < this.postSeen[post]) post = i;
+    const P = W.points[post];
+    // Only from the post's own lane: drafted from anywhere within reach, 9 of 20 died in the next lane
+    // over (Old Port's yard), crossing to the post.
+    const lane = this.lanes.length ? this.nearestLane(P) : -1;
+    let best: ArenaMember | null = null, bd = W.reach;
+    for (const m of bots) {
+      const d = Math.hypot(m.pos.x - P.x, m.pos.z - P.z);
+      if (d < bd && Math.abs(m.pos.y - P.y) <= (W.rise ?? Infinity) && (lane < 0 || this.laneFor(m.uid, m.pos) === lane) && this.watchFree(m)) {
+        bd = d;
+        best = m;
+      }
+    }
+    // Nobody free near enough: look again shortly (the post stays first in line).
+    if (!best) {
+      this.watchNext = now + 2;
+      return;
+    }
+    this.watch = { uid: best.uid, post, until: now + WATCH_TRAVEL + bd / 2, arrived: false };
+    this.postSeen[post] = now;
+    this.watchStats.posts++;
+  }
+
+  /** 37.1: the post `uid` is sent to, or null. */
+  watchPost(uid: number): THREE.Vector3 | null {
+    return this.watch && this.watch.uid === uid ? this.watchCfg!.points[this.watch.post] : null;
+  }
+
+  /** 37.1: `uid` is at its post: the hold starts (once). True the first time. */
+  watchArrived(uid: number, now: number, rand: () => number = Math.random) {
+    const w = this.watch;
+    if (!w || w.uid !== uid || w.arrived) return false;
+    const [h0, h1] = this.watchCfg!.hold;
+    w.arrived = true;
+    w.until = now + h0 + rand() * (h1 - h0);
+    this.watchStats.arrivals++;
+    return true;
+  }
+
+  /** 37.1: `uid` is posted and already there (it fights from the post). */
+  watchHeld(uid: number) {
+    return !!this.watch && this.watch.uid === uid && this.watch.arrived;
   }
 
   // ------------------------------------------------------------------ patrol (27.0)
@@ -557,6 +654,7 @@ export class ArenaDirector {
     this.anchorN = alive.length;
     if (alive.length) this.anchor.divideScalar(alive.length);
     for (const [uid] of this.holds) if (!bots.some((b) => b.uid === uid)) this.holds.delete(uid);
+    this.updateWatch(now, bots);
     // 27.0: an area anyone of the team stands near has been looked at.
     if (this.patrol)
       for (const m of alive)

@@ -1,0 +1,22 @@
+{
+  "version": "37.1 (Old Port bridge hotfix: a high-ground watch; the gangway heads patrolled; hunts over a strict lane)",
+  "branch": "feature/old-port-37.1 from main @ 7f93af4",
+  "machine": "headless Chrome, tdmSim at a fixed 1/60 s (self-play), scripts/bridgecheck.mjs",
+  "config": { "post": [30, 3.6, 0], "hold": [10, 16], "every": 10, "reach": 35, "rise": "off", "travel": "20 s + 1 s per 2 m", "free": "not engage/push/break/retreat/flank, hp >= 0.6, on the post's lane", "leash": 1.2, "arrive": "2 m, 0.4 m of height" },
+  "selfPlay_7v7_6_matches": {
+    "37.0": { "kpm": 24.5, "quietPct": 18.8, "bridgePct": 0.0, "bridgeKillsFrom": 0, "bridgeDeaths": 0, "deckPct": 5.0, "deckKillsFrom": 76, "underHullPct": 4.0, "underHullKillsFrom": 33, "stuck": 0 },
+    "37.1": { "kpm": 25.9, "quietPct": 19.4, "bridgePct": 1.1, "bridgeKillsFrom": 7, "bridgeDeaths": 8, "deckPct": 8.8, "deckKillsFrom": 101, "underHullPct": 2.0, "underHullKillsFrom": 8, "stuck": 0, "watchPerMatch": { "posts": [10, 13], "arrivals": [1, 4], "heldSeconds": [2.6, 29.4] } }
+  },
+  "variants_6_matches": {
+    "patrolBonusOnly": { "bridgePct": 0.1, "highHoldsPerMatch": [0, 3], "patrolArrivalsPerMatch": [7, 18] },
+    "watchNearestAny": { "bridgePct": 0.3, "diedOnTheWayOfPosts": "14 of 15 (2 matches)" },
+    "watchFreeBots": { "bridgePct": 0.8, "diedAt": "9 of 20 in the yard (x < 18)" },
+    "watchOwnLane": { "bridgePct": 0.9, "bridgeKillsFrom": 9 },
+    "standingOnRoof": { "bridgeDeaths": 14, "bridgeKillsFrom": 5 },
+    "leashedStrafe": { "bridgePct": 1.3, "bridgeKillsFrom": 7, "bridgeDeaths": 8 },
+    "rise_4_5": { "bridgePct": 0.5, "bridgeKillsFrom": 2, "underHullPct": 3.4, "underHullKillsFrom": 8 }
+  },
+  "huntOverStrictLane": { "probe": "18 hunts from the north dock head onto the ship (other bots fighting)", "37.0": "17/18 up, p90 16.3 s", "37.1": "18/18 up, p90 14.7 s" },
+  "bridgecheck": { "runs": 2, "passed": "24/24 both", "watch": { "upSeconds": [6.9, 13.2], "held5s": "6/6", "downSeconds": [1.1, 2.1] }, "hunts": { "up": "16/18 and 18/18 (the rest fought the target in sight from below)", "medianSeconds": [4.0, 4.5], "p90Seconds": [5.1, 5.4] }, "stallsOver8s": 0 },
+  "tests": 415
+}

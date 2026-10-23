@@ -11,7 +11,8 @@ import { ArenaDirector } from '../enemies/arena/ArenaDirector';
 import { Sensing } from '../enemies/arena/Sensing';
 import { ARENA, applyProfile, newArenaStats, type ArenaCtx, type ArenaStats } from '../enemies/arena/ArenaCtx';
 import type { DeathmatchBrain } from '../enemies/arena/DeathmatchAI';
-import type { Spot } from '../enemies/arena/ArenaDirector';
+import type { ArenaMember, Spot } from '../enemies/arena/ArenaDirector';
+import type { ArenaState } from '../enemies/arena/DeathmatchAI';
 import { PlayerSense } from '../enemies/arena/PlayerSense';
 import type { SenseAgent } from '../enemies/arena/Sensing';
 import { TdmMinimap, spotAlpha, type MapDot } from '../ui/TdmMinimap';
@@ -49,6 +50,10 @@ import { SpawnPads } from '../world/SpawnPads';
   minimap that fades 2.5 s after the last sighting, and a contact on the bots' board (which they push
   and flank on). OMEGA's bots share theirs the same way.
 */
+
+/** 37.1: a bot sent to the high ground (TdmData.highGround) has this much health and is in none of these states. */
+const WATCH_HP = 0.6;
+const FIGHTING = new Set<ArenaState>(['engage', 'push', 'break', 'retreat', 'flank']);
 
 const _eye = new THREE.Vector3();
 const _eye2 = new THREE.Vector3();
@@ -549,7 +554,16 @@ export class TdmRules implements ModeRules {
     // No bases, no front: the bots search the pads and the lanes' waypoints (ArenaDirector.setPatrol).
     if (this.directors) {
       const hvas = [...pads.map((p) => p.pos), ...(this.data.hvas ?? []), ...this.data.lanes.alpha.flat()];
-      for (const t of TEAMS) this.directors[t].setPatrol(hvas);
+      // 37.1: who may be sent to the high ground: an arena bot out of any fight, with most of its health.
+      const watchFree = (m: ArenaMember) => {
+        const c = m as unknown as Combatant;
+        return isArenaBot(c) && c.hpFrac >= WATCH_HP && !FIGHTING.has(c.brain.state);
+      };
+      for (const t of TEAMS) {
+        // 37.1: the high ground is patrolled too, and kept watch on.
+        this.directors[t].setPatrol([...hvas, ...(this.data.highGround?.points ?? [])]);
+        this.directors[t].setWatch(this.data.highGround ?? null, watchFree);
+      }
     }
   }
 
@@ -600,7 +614,16 @@ export class TdmRules implements ModeRules {
     // The patrols search both teams' zones (where the enemy comes from) and the lanes.
     if (this.directors) {
       const hvas = [...zones.map((z) => z.centre), ...(this.data.hvas ?? []), ...this.data.lanes.alpha.flat()];
-      for (const t of TEAMS) this.directors[t].setPatrol(hvas);
+      // 37.1: who may be sent to the high ground: an arena bot out of any fight, with most of its health.
+      const watchFree = (m: ArenaMember) => {
+        const c = m as unknown as Combatant;
+        return isArenaBot(c) && c.hpFrac >= WATCH_HP && !FIGHTING.has(c.brain.state);
+      };
+      for (const t of TEAMS) {
+        // 37.1: the high ground is patrolled too, and kept watch on.
+        this.directors[t].setPatrol([...hvas, ...(this.data.highGround?.points ?? [])]);
+        this.directors[t].setWatch(this.data.highGround ?? null, watchFree);
+      }
     }
     return true;
   }

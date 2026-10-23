@@ -1949,8 +1949,57 @@ Without the patrol points (6 matches): 3.8% of bot time in the room, 27 kills (1
 
 **Frame cost:** `bench(3)` on Old Port: 60 FPS in all 12 views (2 new under the hull: CPU 2.8 / 2.2 ms, GPU 6.2 / 5.8 ms). `leakcheck` (Old Port, Neon Docks, 2 laps): 0 alive, geometries flat. Tests 408 (+8).
 
+## 37.1: Old Port bridge hotfix, high ground kept watch on
+
+Branch `feature/old-port-37.1`, from `main` @ `7f93af4` (37.0, merged). Full numbers: `docs/BENCH-37.1.json`.
+
+### The problem
+37.0 moved the dock lane under the hull, and the ship's bridge emptied: 0.0% of bot time and 0 kills from it in 6 matches.
+
+### What was tried first (measured, dropped)
+**A patrol weight:** the bridge and the gangway heads as patrol areas worth more the longer they went unvisited, held longer on arrival. Bridge time stayed at 0.1%. The patrol counters showed why: in a 7v7 a patrol rarely arrives anywhere (200+ picks, 7–18 arrivals a match), because a radar contact pulls it off.
+
+### The fix: a watch (`TdmData.highGround`, `ArenaDirector.setWatch`)
+- **Posting:** a team posts one bot at a time to the high ground. With no watch for `every` s, the director sends a bot that is:
+  - the nearest one within `reach` m of the post held least lately;
+  - on the post's own lane;
+  - free: an arena bot not fighting, pushing, breaking, retreating or flanking, with 60%+ health.
+- **On the way:** the bot has 20 s + 1 s per 2 m to get there; it sprints and fights what it sees on the way.
+- **At the post:** it holds standing (a crouch hides it behind the bridge's rails) for `hold` s, watching the freshest contact or sweeping out and down. Fighting from there, it strafes within 1.2 m of the post. It counts as there within 2 m and 0.4 m of the post's height: within 1 m it stopped near the top of the roof's stair.
+- **Old Port:** post the bridge roof (on the mirror line: fair to both); `hold` 10–16 s, `every` 10 s, `reach` 35 m. The deck at the head of each west gangway is patrolled (mirrored).
+- **Each fix measured** (6 matches each):
+  - the nearest bot regardless was usually one already fighting by the ship (14 of 15 died on the way): free bots only;
+  - 9 of 20 died crossing the yard: the post's lane only;
+  - deck posts drew bots out of the room under the hull: the bridge alone;
+  - a bot standing on the roof was shot off it (14 deaths there to 5 kills): the leashed strafe.
+- **Fixed on the way (engine-wide):** a hunt along a strict lane closed on a contact high over the lane at the waypoint under its feet. On Old Port that is a target on the deck, hunted along the lane under the hull: the hunter turned for it, back for the lane, and paced the scaffold stair. Now a contact more than 2 m over the lane's waypoint is routed to directly. Hunts from the north dock head onto the ship: 17/18 → 18/18 up, p90 16.3 → 14.7 s; the same probe on 37.0 had the same failure, so it's older than the watch.
+- **DEV:**
+  - `tdmSim(...)`: `watch` (posts, arrivals, died, timedOut, heldSeconds, diedAt) and `killsFromZone` (where the killer stood);
+  - `scripts/bridgecheck.mjs`.
+
+### Measured (self-play 7v7, 6 matches each)
+| | 37.0 | 37.1 |
+|---|---|---|
+| bridge time | 0.0% | 1.1% |
+| kills from the bridge (deaths there) | 0 (0) | 7 (8) |
+| deck time / kills from it | 5.0% / 76 | 8.8% / 101 |
+| UNDER THE HULL time / kills from it | 4.0% / 33 | 2.0% / 8 |
+| watches posted / reached the bridge a match | – | 10–13 / 1–4 (most of the rest killed on the way), held 3–29 s |
+| kills a minute | 24.5 | 25.9 |
+| stuck bots | 0 | 0 |
+
+**`scripts/bridgecheck.mjs`** (one bot moving, one held; 2 runs, 24/24 both):
+- **Watches:** a posted bot reaches the bridge from the quays, the dock floor and both dock heads in 6.9–13.2 s, is still on the roof 5 s later, and once released is off it in 1.1–2.1 s.
+- **Hunts:** from the north dock head onto the bridge or the deck, 16/18 and 18/18 got up (median 4.0–4.5 s, p90 5.4 s); the rest fought the target in sight from below.
+- **Stalls:** none over 8 s.
+
+My first versions of the check left the other bots held where they spawned. They were in sight, got shot, and came back as fresh bots: every fight in those runs was the harness's.
+
+**The trade-off:** the deck, the bridge and the room under the hull share one lane's bots. Whatever brings the fight up onto the ship takes it out of the room below. Every variant with high ground on the ship had 4–12 kills from the room (33 before). `highGround.rise: 4.5` (send no bot from the dock floor) keeps the room at 3.4% of bot time, with the bridge at 0.5% and 2 kills from it. It is off: the brief wanted the bridge.
+
 ## Next
 Human playtest:
+- 37.1 items: the bridge (do bots go up and hold it now and then; is a bot on the roof a fair threat or a free kill; the room under the hull got quieter: does it still feel used); if the room matters more than the bridge, `highGround.rise: 4.5` on Old Port (measured above).
 - 37.0 items: UNDER THE HULL (does it read as a place: the lamps, the dimness, the stands; too cramped or too open; does the ceiling feel low); spawning at the dock head (fair, or a pit you get shot into from the quays?); do fights happen under the ship for you as they do for the bots.
 - 36.0 items: the first frame of a match (does the flight land cleanly in your eyes on every map; anything jarring in the last second of it); the countdown (3 s: long enough to pick a gun, too long?; readable on every map?); do the bots' poses during it look natural; the start itself (does everyone go at once, any unfair first shot).
 - 35.0 items: flank a bot on Maglev (by their zones, through the glass halls): does it turn on you now when you shoot it in the back or side, or when you fire close; does it feel fair or psychic (a silent player within 8 m behind is noticed); do bots still feel focused in a fight (not turning to every shot); the glances on the way out of their half (natural, or twitchy?).

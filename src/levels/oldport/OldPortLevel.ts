@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildOldPort, type OldPortResult } from './OldPort';
-import { BASE, PORT_TERRAIN, QUAY_X, WH, X_W, Z_END, DOCK, OLDPORT_AI, OLDPORT_TEAM_SIZE, OLDPORT_TICKETS, LANE_STRICT, LANE_WEIGHTS, UNDER_HVAS, forwardOf, inBase, laneOf, lanesOf, navCost, SPAWN_PADS, SPAWN_ZONES } from './OldPortLayout';
+import { BASE, PORT_TERRAIN, QUAY_X, WH, X_W, Z_END, DOCK, OLDPORT_AI, OLDPORT_TEAM_SIZE, OLDPORT_TICKETS, LANE_STRICT, LANE_WEIGHTS, GANGWAY_HEADS, HIGH_GROUND, UNDER_HVAS, forwardOf, inBase, laneOf, lanesOf, navCost, SPAWN_PADS, SPAWN_ZONES } from './OldPortLayout';
 import { hazeTexture, rippleNormalTexture } from './textures';
 import { buildGodRays, type GodRays } from '../jungle/GodRays';
 import { DesertIntro } from '../desert/DesertIntro';
@@ -236,8 +236,10 @@ export class OldPortLevel implements LevelRuntime {
         laneWeights: LANE_WEIGHTS,
         laneStrict: LANE_STRICT,
         arena: OLDPORT_AI,
-        // 37.0: UNDER THE HULL's corners, searched by the patrols.
-        hvas: UNDER_HVAS.map(([x, y, z]) => new THREE.Vector3(x, y, z)),
+        // 37.0: UNDER THE HULL's corners, searched by the patrols; 37.1: the deck at the gangways' heads.
+        hvas: [...UNDER_HVAS, ...GANGWAY_HEADS].map(([x, y, z]) => new THREE.Vector3(x, y, z)),
+        // 37.1: the ship's bridge: patrolled, and one bot of each team posted to it at a time (the gangway heads above: patrolled).
+        highGround: { ...HIGH_GROUND, points: HIGH_GROUND.points.map(([x, y, z]) => new THREE.Vector3(x, y, z)) },
         forward: { points: { alpha: forwardOf('alpha').filter(open), omega: forwardOf('omega').filter(open) }, safe: 22, sight: 45 },
       },
     };

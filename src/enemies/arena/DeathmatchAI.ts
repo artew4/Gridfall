@@ -51,6 +51,9 @@ import { ARMORY, type BotArm } from '../../entities/weapons/armory';
      ground with a contact close.
 */
 
+/** 37.1: how far a bot holding a high-ground post strafes from it (m: a bridge roof is 3 × 5 m). */
+const WATCH_LEASH = 1.2;
+
 export type ArenaState = 'emerge' | 'advance' | 'patrol' | 'hold' | 'hunt' | 'engage' | 'push' | 'break' | 'flank' | 'retreat';
 
 /** 12.0: a bot's temperament (ARENA.persona). */
@@ -533,6 +536,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     while (this.hpLog.length && now - this.hpLog[0][0] > ARENA.retreat.window) this.hpLog.shift();
     let next: ArenaState;
     let retreatWhy: 'unseen' | 'outnumbered' | null = null;
+    // 37.1: posted to the high ground (ArenaDirector.watch), not on the last stand: it goes there with
+    // nothing in sight, and once there it fights from the post (no strafing off it, no hunting down).
+    this.watchAt = holding(dir) ? null : dir.watchPost(me.uid);
     if (this.state === 'retreat' && this.keepRetreating(ctx, A, T, tv, dT, contact)) next = 'retreat';
     else if ((retreatWhy = this.retreatWhy(ctx, now, T, tv, dT))) next = 'retreat';
     else if (this.state === 'break' && this.stateT < ARENA.breakMax && (this.reloading || this.stateT < 0.5)) next = 'break';
@@ -545,6 +551,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.evading = true;
       this.evadeCd = now + ARENA.underFire.cooldown;
     }
+    else if (this.watchAt && (!tv || dir.watchHeld(me.uid))) next = 'hold';
     else if (T && (tv || (contact && now - contact.t < ARENA.contactTtl))) {
       // 12.0: a bold bot pushes sooner (higher health, less damage dealt), a careful one later.
       const ag = this.persona.aggro;
@@ -591,7 +598,10 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     } else if (next === 'hunt' && T && !contact) this.goal = T.pos.clone();
     else if (next === 'advance') this.planLane(ctx, A);
     else if (next === 'patrol') this.planPatrol(ctx, A);
-    else if (next === 'hold') this.planHold(ctx, A);
+    else if (next === 'hold') {
+      if (this.watchAt) this.planWatch(ctx, A);
+      else this.planHold(ctx, A);
+    }
 
     // A runner closing in leaps the last metres now and then.
     if (!gunner && tv && dT > 4 && dT < 9 && Math.random() < 0.08) this.tryJump(ctx, false);
@@ -869,6 +879,10 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     });
     const w = W[best];
     if (!far && w.y <= 1) return null;
+    // 37.1: a contact high over the lane (Old Port's deck and bridge over its lane under the hull) isn't
+    // closed on along it: the waypoint level with it was under its feet, and a hunter there turned for
+    // it, turned back for the lane, and paced the stair up (17 of 18 got up, median 12 s; one never).
+    if (at.y > w.y + 2) return null;
     if (Math.hypot(w.x - me.pos.x, w.z - me.pos.z) < 5 && Math.abs(w.y - me.pos.y) < 1.5) return null;
     this.laneTo = true;
     const off = w.y > 0.5 ? 0.4 : 1.2;
@@ -944,6 +958,30 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // Watching: the freshest threat, else outward from the team's centre.
     const lookAt = c?.pos ?? _v.set(me.pos.x * 2 - dir.anchor.x, me.pos.y, me.pos.z * 2 - dir.anchor.z);
     (this.scan ??= new THREE.Vector3()).set(lookAt.x, me.pos.y + 1.5, lookAt.z);
+  }
+
+  /** 37.1: the high-ground post it is sent to (ArenaDirector.watchPost), or null. */
+  private watchAt: THREE.Vector3 | null = null;
+
+  /**
+   * 37.1: to the post, then hold it standing (a crouch hides it behind the bridge's rails), facing the
+   * freshest contact, else a slow sweep out and down over the floors below.
+   */
+  private planWatch(ctx: EnemyCtx, A: ArenaCtx) {
+    const me = this.self;
+    const now = ctx.time;
+    const P = this.watchAt!;
+    // (2 m: the move eases in over its last metres, and a bridge roof is 3 × 5 m. On the post's own
+    // floor: within 1 m of its height a bot near the top of the roof's stair counted as there, and held
+    // the stair.)
+    const there = Math.hypot(P.x - me.pos.x, P.z - me.pos.z) < 2 && Math.abs(P.y - me.pos.y) < 0.4;
+    this.goal = there ? null : new THREE.Vector3(P.x + Math.cos(this.seed) * 0.3, P.y, P.z + Math.sin(this.seed) * 0.3);
+    if (there && A.director.watchArrived(me.uid, now)) A.stats.watchHolds++;
+    const c = A.director.freshest(me.pos, now);
+    this.scanA += (this.seed > Math.PI ? 1 : -1) * 0.45;
+    const s = (this.scan ??= new THREE.Vector3());
+    if (c) s.set(c.pos.x, c.pos.y + 1.2, c.pos.z);
+    else s.set(me.pos.x + Math.sin(this.scanA) * 14, me.pos.y - 2, me.pos.z + Math.cos(this.scanA) * 14);
   }
 
   /** 29.0: the hold spot, when it was picked, whether it is there. */
@@ -1235,10 +1273,26 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
         this.strafe(dt, ctx, T, sprint, desired, -1);
       }
     } else if (this.state === 'hold') {
-      // 29.0: no sprinting on the last stand; at the spot, down behind it.
+      // 29.0: no sprinting on the last stand; at the spot, down behind it. 37.1: a watch sprints to
+      // its post and stands there.
       A.stats.holdT += dt;
-      if (this.goal) me.steer(this.goal, run, ctx, dt, desired);
-      else crouch = 1;
+      if (this.goal) me.steer(this.goal, this.watchAt ? sprint : run, ctx, dt, desired);
+      else if (this.watchAt) {
+        A.stats.watchT += dt;
+        // Fighting from the post: a strafe across it (a standing target on a roof was shot off it: 14
+        // deaths there to 5 kills from it), held within WATCH_LEASH m of the post, never off it.
+        if (gunner && T && tv) {
+          strafing = true;
+          this.strafe(dt, ctx, T, run * ARENA.ads.walk, desired);
+          const ox = this.watchAt.x - me.pos.x, oz = this.watchAt.z - me.pos.z, o = Math.hypot(ox, oz);
+          const along = (desired.x * ox + desired.z * oz) / (o || 1);
+          if (o > WATCH_LEASH && along < 0) {
+            // Off the leash: drop the outward part, step back towards the post.
+            desired.x -= (ox / o) * along - (ox / o) * run * 0.5;
+            desired.z -= (oz / o) * along - (oz / o) * run * 0.5;
+          }
+        }
+      } else crouch = 1;
     } else if ((this.state === 'hunt' || this.state === 'advance' || this.state === 'patrol' || this.state === 'flank' || this.state === 'retreat') && this.goal) {
       // 29.0: on the last stand a hunt is walked, not sprinted (a retreat still runs flat out).
       // (Pressing on the clock it still runs, not sprints: the group moves as one.)
