@@ -126,7 +126,7 @@ export class ObjectiveHud {
       (info.where ? `<div class="ov-row"><b>WHERE</b><span>${info.where}</span></div>` : '') +
       (info.train ? `<div class="ov-row"><b>TRAIN</b><span>${info.train}</span></div>` : '') +
       (info.hint ? `<div class="ov-row"><b>HINT</b><span>${info.hint}</span></div>` : '') +
-      `<div class="ov-keys"><kbd>W A S D</kbd> move <kbd>X</kbd> holster / draw <kbd>E</kbd> interact <kbd>SHIFT</kbd> sprint <kbd>SPACE</kbd> jump · vault <kbd>ESC</kbd> pause</div>`;
+      `<div class="ov-keys"><kbd>W A S D</kbd> move <kbd>X</kbd> holster / draw <kbd>E</kbd> interact <kbd>SHIFT</kbd> sprint <kbd>SPACE</kbd> jump · vault · climb <kbd>ESC</kbd> pause</div>`;
   }
 
   update(dt: number) {

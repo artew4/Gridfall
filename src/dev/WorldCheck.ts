@@ -3,14 +3,20 @@ import { stairWallFlush, stairWallOverlaps } from '../world/StairFit';
 import type { Game } from '../core/Game';
 import type { Collider } from '../world/Collision';
 import { StaticBuilder, type VisualPiece } from '../world/Builder';
+import { findLedge, MANTLE } from '../player/Mantle';
+import { CROUCH_H } from '../player/Player';
 
 /** Player body used for every standability test (same as Player.ts / resolveCircle defaults). */
 const R = 0.35;
 /** Standing body height; `checkWorld({ bodyHeight })` scans with another (11.0: crouched, 1.2). */
 const STAND_H = 1.8;
-/** Highest ledge reachable by walking (ramps allow 0.5) and by jumping (apex ~0.77 m + step 0.3). */
+/**
+ * Highest ledge reachable by walking (ramps allow 0.5) and by jumping (apex ~0.77 m + step 0.3); 43.0:
+ * with the ledge grab, the apex (0.74 m at 60 FPS) plus the hands' reach (MANTLE.maxUp).
+ */
 const WALK_UP = 0.5;
-const JUMP_UP = 1.0;
+const JUMP_ONLY = 1.0;
+const climbOf = () => (MANTLE.on ? Math.max(JUMP_ONLY, 0.74 + MANTLE.maxUp) : JUMP_ONLY);
 /** How far outside the intended extent the scan looks for escapes. */
 const MARGIN = 12;
 
@@ -43,15 +49,17 @@ function isOpaqueSolidLooking(m: THREE.Material) {
 /**
  * DEV only. Systematic world validation on a 0.5 m grid with the real collision rules:
  *  - floor discovery (ground plane, box tops, ramps, cylinders) and standability (player cylinder);
- *  - reachability flood fill from the story start (walk ≤0.5 m up, jump ≤1.0 m up, any drop);
+ *  - reachability flood fill from the story start (walk ≤0.5 m up, jump ≤1.0 m up (43.0: climb ≤1.74 m
+ *    with the ledge grab, `climb`), any drop);
  *  - escapes (reachable cells beyond the intended extent), track-pit access, traps (reachable cells
  *    from which the start can't be reached again), long falls;
  *  - invisible walls (colliders that stop a reachable step but have no visible surface);
  *  - walk-through visuals (opaque drawn surfaces crossed by a reachable step at body height).
  * Results are clustered into regions with coordinates. Heuristics, not proofs: candidates are for review.
  */
-export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: boolean; from?: THREE.Vector3; bodyHeight?: number } = {}) {
+export function checkWorld(game: Game, opts: { cell?: number; stationOpen?: boolean; from?: THREE.Vector3; bodyHeight?: number; climb?: number } = {}) {
   const t0 = performance.now();
+  const JUMP_UP = opts.climb ?? climbOf();
   const H = opts.bodyHeight ?? STAND_H;
   const col = game.col;
   const cell = opts.cell ?? 0.5;
@@ -633,4 +641,84 @@ export function stressController(game: Game, opts: { samples?: number; seconds?:
   const byWhy: Record<string, number> = {};
   for (const f of fails) byWhy[f.why as string] = (byWhy[f.why as string] ?? 0) + 1;
   return { ms: Math.round(performance.now() - t0), samples: n, runs, failures: fails.length, byWhy, examples: fails.slice(0, 20) };
+}
+
+/**
+ * 43.0, the ledge grab over the level: from every `stride`-th cell reachable without it (climb 1.0),
+ * in 8 directions with the feet at a jump's apex (0.74 m), the real probe (Mantle.findLedge, the
+ * level's extent check as the player has it). Counts the ledges, the spots they land on, those spots
+ * no plain jump reached before ("new ground", clustered in 3 m cells with their zone and height), the
+ * ledges the extent refused, and the probe's cost. With the reachability before and after (counts by kind).
+ * `samples`: that many of the ledges met within 25° of head-on, with a face at least 0.6 m wide (the probe
+ * finds it 0.3 m to either side too: a body jumping at it doesn't glance off a post's edge or slide along
+ * a wall past its end), spread over the list (a cell, the direction's yaw, the spot, the rise).
+ */
+export function ledgeSurvey(game: Game, opts: { stride?: number; samples?: number } = {}) {
+  const t0 = performance.now();
+  const before = checkWorld(game, { climb: JUMP_ONLY });
+  const after = checkWorld(game);
+  const cells = before.reachableCells;
+  const stride = opts.stride ?? Math.max(1, Math.round(cells.length / 6000));
+  const key = (x: number, h: number, z: number) => Math.round(x * 2) + ',' + Math.round(z * 2) + ',' + Math.round(h * 2);
+  const old = new Set(cells.map(([x, h, z]) => key(x, h, z)));
+  const near = (p: THREE.Vector3) => {
+    for (const dx of [-0.5, 0, 0.5]) for (const dz of [-0.5, 0, 0.5]) for (const dh of [-0.5, 0, 0.5]) if (old.has(key(p.x + dx, p.y + dh, p.z + dz))) return true;
+    return false;
+  };
+  const ok = game.player.mantleOk;
+  const zoneAt = game.level.data.zoneAt;
+  const pos = new THREE.Vector3();
+  let probes = 0, ledges = 0, refused = 0, ms = 0;
+  const rise = { '0.3-0.5': 0, '0.5-0.75': 0, '0.75-1.0': 0 };
+  const spots = new Set<string>();
+  const fresh = new Map<string, { x: number; y: number; z: number; n: number; zone: string }>();
+  const found: { from: [number, number, number]; yaw: number; to: [number, number, number]; rise: number; headOn: boolean }[] = [];
+  for (let k = 0; k < cells.length; k += stride) {
+    const [x, h, z] = cells[k];
+    for (let d = 0; d < 8; d++) {
+      const a = (d * Math.PI) / 4;
+      pos.set(x, h + 0.74, z);
+      const s = performance.now();
+      const l = findLedge(game.col, pos, -Math.sin(a), -Math.cos(a), R, CROUCH_H, ok);
+      ms += performance.now() - s;
+      probes++;
+      if (!l) {
+        if (findLedge(game.col, pos, -Math.sin(a), -Math.cos(a), R, CROUCH_H)) refused++;
+        continue;
+      }
+      ledges++;
+      found.push({ from: [x, h, z], yaw: a, to: [l.to.x, l.to.y, l.to.z], rise: l.rise, headOn: l.nx * Math.sin(a) + l.nz * Math.cos(a) > 0.9 });
+      rise[l.rise <= 0.5 ? '0.3-0.5' : l.rise <= 0.75 ? '0.5-0.75' : '0.75-1.0']++;
+      spots.add(key(l.to.x, l.to.y, l.to.z));
+      if (near(l.to)) continue;
+      const c = `${Math.floor(l.to.x / 3)},${Math.floor(l.to.z / 3)},${Math.round(l.to.y)}`;
+      const f = fresh.get(c);
+      if (f) f.n++;
+      else fresh.set(c, { x: +l.to.x.toFixed(1), y: +l.to.y.toFixed(2), z: +l.to.z.toFixed(1), n: 1, zone: zoneAt(l.to.x, l.to.y, l.to.z)?.name ?? '(no zone)' });
+    }
+  }
+  const list = [...fresh.values()].sort((p, q) => q.n - p.n);
+  return {
+    ms: Math.round(performance.now() - t0),
+    cells: cells.length,
+    stride,
+    probes,
+    ledges,
+    spots: spots.size,
+    rise,
+    refusedByExtent: refused,
+    probeUs: +((ms / probes) * 1000).toFixed(2),
+    newGround: { clusters: list.length, noZone: list.filter((f) => f.zone === '(no zone)').length, top: list.slice(0, 12) },
+    samples: spread(
+      opts.samples ? found.filter((f) => f.headOn && [-0.3, 0.3].every((o) => findLedge(game.col, pos.set(f.from[0] + Math.cos(f.yaw) * o, f.from[1] + 0.74, f.from[2] - Math.sin(f.yaw) * o), -Math.sin(f.yaw), -Math.cos(f.yaw), R, CROUCH_H, ok))) : [],
+      opts.samples ?? 0,
+    ),
+    reach: { before: before.reachableNodes, after: after.reachableNodes, countsBefore: before.counts, countsAfter: after.counts },
+  };
+}
+
+/** `n` of `list`, evenly spread over it. */
+function spread<T>(list: T[], n: number): T[] {
+  const k = Math.min(n, list.length);
+  return Array.from({ length: k }, (_, i) => list[Math.floor((i * list.length) / k)]);
 }

@@ -1,0 +1,538 @@
+{
+ "version": "43.0",
+ "branch": "feature/parkour-43.0",
+ "machine": "Apple M5, headless Chrome (SwiftShader), dev server",
+ "method": {
+  "ledgecheck": "scripts/ledgecheck.mjs all 200: __dev.ledges() (findLedge from every cell a plain jump reaches, 8 directions, feet at the apex 0.74 m; the world check with climb 1.0 and 1.74) and __dev.stress({samples:200}) (6,400 real-controller runs a map, walk and sprint-jump with W, 20 and 60 FPS)",
+  "mantlecheck": "scripts/mantlecheck.mjs <map> 12: head-on, wide-faced ledges from the survey played through real key events in the live game (~20 FPS headless)",
+  "selfplay": "scripts/clumpcheck.mjs desert,favelas,oldport 2 (bots unchanged; stuck check)"
+ },
+ "ledgecheck": {
+  "tokyo": {
+   "ledges": 126,
+   "spots": 84,
+   "newGround": 24,
+   "newNoZone": 0,
+   "refused": 0,
+   "probeUs": 0.56,
+   "reach": "14464\u219214937",
+   "stress": "0/6400",
+   "stressGrabs": 122,
+   "rise": {
+    "0.3-0.5": 33,
+    "0.5-0.75": 63,
+    "0.75-1.0": 30
+   },
+   "stressWhy": {},
+   "escapesTrapsOutsideZones": {
+    "before": {},
+    "after": {}
+   }
+  },
+  "jungle": {
+   "ledges": 159,
+   "spots": 150,
+   "newGround": 74,
+   "newNoZone": 0,
+   "refused": 0,
+   "probeUs": 0.5,
+   "reach": "62087\u219263575",
+   "stress": "0/6400",
+   "stressGrabs": 190,
+   "rise": {
+    "0.3-0.5": 69,
+    "0.5-0.75": 55,
+    "0.75-1.0": 35
+   },
+   "stressWhy": {},
+   "escapesTrapsOutsideZones": {
+    "before": {},
+    "after": {}
+   }
+  },
+  "desert": {
+   "ledges": 67,
+   "spots": 66,
+   "newGround": 45,
+   "newNoZone": 0,
+   "refused": 0,
+   "probeUs": 1.06,
+   "reach": "120608\u2192121842",
+   "stress": "0/6400",
+   "stressGrabs": 171,
+   "rise": {
+    "0.3-0.5": 6,
+    "0.5-0.75": 32,
+    "0.75-1.0": 29
+   },
+   "stressWhy": {},
+   "escapesTrapsOutsideZones": {
+    "before": {},
+    "after": {}
+   }
+  },
+  "docks": {
+   "ledges": 16,
+   "spots": 16,
+   "newGround": 1,
+   "newNoZone": 0,
+   "refused": 0,
+   "probeUs": 0.39,
+   "reach": "88392\u219289018",
+   "stress": "1616/6400",
+   "stressGrabs": 48,
+   "rise": {
+    "0.3-0.5": 10,
+    "0.5-0.75": 3,
+    "0.75-1.0": 3
+   },
+   "stressWhy": {
+    "left the playable extent": 1604,
+    "fell below the lowest floor (track pit / under the world)": 12
+   },
+   "escapesTrapsOutsideZones": {
+    "before": {
+     "escape: reachable outside the playable extent": 20160,
+     "outside designed zones: reachable but not part of the level": 12704
+    },
+    "after": {
+     "escape: reachable outside the playable extent": 20160,
+     "outside designed zones: reachable but not part of the level": 12704
+    }
+   },
+   "note": "the escapes and the stress failures are there with the grab off too (1,620/6,400 off, 1,616 on; the same 20,160 escape cells): every failure starts at (-82.75, -91.75), outside the extent; pre-existing, not 43.0"
+  },
+  "oldport": {
+   "ledges": 33,
+   "spots": 32,
+   "newGround": 19,
+   "newNoZone": 0,
+   "refused": 0,
+   "probeUs": 0.34,
+   "reach": "41976\u219242356",
+   "stress": "0/6400",
+   "stressGrabs": 90,
+   "rise": {
+    "0.3-0.5": 0,
+    "0.5-0.75": 26,
+    "0.75-1.0": 7
+   },
+   "stressWhy": {},
+   "escapesTrapsOutsideZones": {
+    "before": {},
+    "after": {}
+   }
+  },
+  "maglev": {
+   "ledges": 124,
+   "spots": 124,
+   "newGround": 0,
+   "newNoZone": 0,
+   "refused": 0,
+   "probeUs": 0.39,
+   "reach": "24074\u219224114",
+   "stress": "0/6400",
+   "stressGrabs": 287,
+   "rise": {
+    "0.3-0.5": 0,
+    "0.5-0.75": 4,
+    "0.75-1.0": 120
+   },
+   "stressWhy": {},
+   "escapesTrapsOutsideZones": {
+    "before": {},
+    "after": {}
+   }
+  },
+  "crashsite": {
+   "ledges": 107,
+   "spots": 100,
+   "newGround": 58,
+   "newNoZone": 0,
+   "refused": 0,
+   "probeUs": 1.67,
+   "reach": "45914\u219246632",
+   "stress": "0/6400",
+   "stressGrabs": 179,
+   "rise": {
+    "0.3-0.5": 42,
+    "0.5-0.75": 59,
+    "0.75-1.0": 6
+   },
+   "stressWhy": {},
+   "escapesTrapsOutsideZones": {
+    "before": {},
+    "after": {}
+   }
+  },
+  "neonblock": {
+   "ledges": 28,
+   "spots": 25,
+   "newGround": 9,
+   "newNoZone": 0,
+   "refused": 0,
+   "probeUs": 0.32,
+   "reach": "34210\u219234834",
+   "stress": "0/6400",
+   "stressGrabs": 62,
+   "rise": {
+    "0.3-0.5": 0,
+    "0.5-0.75": 25,
+    "0.75-1.0": 3
+   },
+   "stressWhy": {},
+   "escapesTrapsOutsideZones": {
+    "before": {},
+    "after": {}
+   }
+  },
+  "favelas": {
+   "ledges": 9,
+   "spots": 9,
+   "newGround": 4,
+   "newNoZone": 0,
+   "refused": 0,
+   "probeUs": 0.34,
+   "reach": "39252\u219239284",
+   "stress": "0/6400",
+   "stressGrabs": 119,
+   "rise": {
+    "0.3-0.5": 0,
+    "0.5-0.75": 9,
+    "0.75-1.0": 0
+   },
+   "stressWhy": {},
+   "escapesTrapsOutsideZones": {
+    "before": {},
+    "after": {}
+   }
+  }
+ },
+ "mantlecheck": {
+  "favelas": {
+   "map": "favelas",
+   "ledges": 3,
+   "grabbedAndOnTop": 3,
+   "pullMs": [
+    259,
+    267,
+    267
+   ],
+   "dipMax": 0.086,
+   "firedInPull": 0,
+   "cpu": {
+    "groundUs": 22.7,
+    "airUs": 80,
+    "pullUs": 31.6,
+    "frames": {
+     "ground": 66,
+     "air": 15,
+     "pull": 19
+    },
+    "groundRays": 0
+   }
+  },
+  "tokyo": {
+   "map": "tokyo",
+   "ledges": 12,
+   "grabbedAndOnTop": 11,
+   "pullMs": [
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    217
+   ],
+   "dipMax": 0.089,
+   "firedInPull": 0,
+   "cpu": {
+    "groundUs": 38.4,
+    "airUs": 70.6,
+    "pullUs": 43.1,
+    "frames": {
+     "ground": 255,
+     "air": 68,
+     "pull": 65
+    },
+    "groundRays": 0
+   }
+  },
+  "docks": {
+   "map": "docks",
+   "ledges": 10,
+   "grabbedAndOnTop": 8,
+   "pullMs": [
+    235,
+    217,
+    217,
+    217,
+    217,
+    217,
+    217,
+    217
+   ],
+   "dipMax": 0.086,
+   "firedInPull": 0,
+   "cpu": {
+    "groundUs": 28.4,
+    "airUs": 53.1,
+    "pullUs": 35.7,
+    "frames": {
+     "ground": 218,
+     "air": 64,
+     "pull": 42
+    },
+    "groundRays": 0
+   }
+  },
+  "oldport": {
+   "map": "oldport",
+   "ledges": 12,
+   "grabbedAndOnTop": 12,
+   "pullMs": [
+    217,
+    217,
+    217,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267
+   ],
+   "dipMax": 0.086,
+   "firedInPull": 0,
+   "cpu": {
+    "groundUs": 27,
+    "airUs": 58.3,
+    "pullUs": 39.1,
+    "frames": {
+     "ground": 259,
+     "air": 60,
+     "pull": 69
+    },
+    "groundRays": 0
+   }
+  },
+  "desert": {
+   "map": "desert",
+   "ledges": 12,
+   "grabbedAndOnTop": 12,
+   "pullMs": [
+    234,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    285,
+    267,
+    267
+   ],
+   "dipMax": 0.088,
+   "firedInPull": 0,
+   "cpu": {
+    "groundUs": 38.4,
+    "airUs": 76.7,
+    "pullUs": 37,
+    "frames": {
+     "ground": 258,
+     "air": 60,
+     "pull": 73
+    },
+    "groundRays": 0
+   }
+  },
+  "maglev": {
+   "map": "maglev",
+   "ledges": 12,
+   "grabbedAndOnTop": 12,
+   "pullMs": [
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267
+   ],
+   "dipMax": 0.089,
+   "firedInPull": 0,
+   "cpu": {
+    "groundUs": 25.2,
+    "airUs": 81.7,
+    "pullUs": 45.8,
+    "frames": {
+     "ground": 258,
+     "air": 60,
+     "pull": 72
+    },
+    "groundRays": 0
+   }
+  },
+  "crashsite": {
+   "map": "crashsite",
+   "ledges": 12,
+   "grabbedAndOnTop": 12,
+   "pullMs": [
+    267,
+    267,
+    267,
+    217,
+    267,
+    267,
+    267,
+    217,
+    217,
+    217,
+    217,
+    217
+   ],
+   "dipMax": 0.086,
+   "firedInPull": 0,
+   "cpu": {
+    "groundUs": 37.2,
+    "airUs": 77.4,
+    "pullUs": 31.8,
+    "frames": {
+     "ground": 261,
+     "air": 62,
+     "pull": 66
+    },
+    "groundRays": 0
+   }
+  },
+  "neonblock": {
+   "map": "neonblock",
+   "ledges": 12,
+   "grabbedAndOnTop": 12,
+   "pullMs": [
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267,
+    267
+   ],
+   "dipMax": 0.088,
+   "firedInPull": 0,
+   "cpu": {
+    "groundUs": 31.5,
+    "airUs": 71.7,
+    "pullUs": 31.9,
+    "frames": {
+     "ground": 257,
+     "air": 60,
+     "pull": 72
+    },
+    "groundRays": 0
+   }
+  },
+  "jungle": {
+   "map": "jungle",
+   "ledges": 12,
+   "grabbedAndOnTop": 12,
+   "pullMs": [
+    217,
+    267,
+    267,
+    217,
+    217,
+    217,
+    267,
+    217,
+    217,
+    267,
+    267,
+    267
+   ],
+   "dipMax": 0.087,
+   "firedInPull": 0,
+   "cpu": {
+    "groundUs": 28.5,
+    "airUs": 62.3,
+    "pullUs": 39.4,
+    "frames": {
+     "ground": 263,
+     "air": 61,
+     "pull": 66
+    },
+    "groundRays": 0
+   }
+  },
+  "_misses": "3 of 97 (94 grabbed and on top): the tallest picks (rise 0.86-0.96 m: Tokyo 1, Docks 2). At the headless ~20 FPS the jump apex is ~0.65 m (0.74 at 60 FPS), so those tops are past the reach there: the jump integration is frame-rate dependent (pre-existing). Favelas has 3 head-on wide-faced ledges in all (its 1.2 m water tanks are vaulted, not grabbed)"
+ },
+ "cpuOldPortAB": {
+  "off": {
+   "groundUs": 39.8,
+   "airUs": 40,
+   "pullUs": 0,
+   "frames": {
+    "ground": 246,
+    "air": 145,
+    "pull": 0
+   },
+   "groundRays": 0
+  },
+  "on": {
+   "groundUs": 26.7,
+   "airUs": 61.7,
+   "pullUs": 37.7,
+   "frames": {
+    "ground": 262,
+    "air": 60,
+    "pull": 69
+   },
+   "groundRays": 0
+  },
+  "note": "two headless Chromes at once: ground frames (identical code) differ by 13 us between the runs, so the per-frame A/B is noise; the probe itself costs 0.3-1.7 us a call (ledgecheck probeUs), one call per airborne frame with W held past the apex"
+ },
+ "selfplay2matches": {
+  "desert": {
+   "kpm": 22.95,
+   "stuck": 0,
+   "quietLive": 2.55,
+   "aiMs": 0.69
+  },
+  "favelas": {
+   "kpm": 28.8,
+   "stuck": 0,
+   "quietLive": 9.85,
+   "aiMs": 0.17
+  },
+  "oldport": {
+   "kpm": 21.05,
+   "stuck": 0,
+   "quietLive": 5.1,
+   "aiMs": 0.14
+  }
+ },
+ "tests": {
+  "total": 498,
+  "new": 12,
+  "file": "src/player/mantle.test.ts"
+ }
+}

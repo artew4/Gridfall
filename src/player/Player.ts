@@ -8,6 +8,7 @@ import { SLIDE, slideStep } from './Slide';
 import { Stamina } from '../combat/Stamina';
 import { Recoil, viewPitch } from './Recoil';
 import type { GunHandling } from '../entities/types';
+import { findLedge, MANTLE, mantlePos, mantleStats, mantleTime } from './Mantle';
 
 const WALK = 5.0;
 const SPRINT = 7.8;
@@ -100,6 +101,22 @@ export class Player {
   private peakY = 0;
   /** World-space direction of the last hit, for the HUD indicator. */
   lastHitFrom = new THREE.Vector3();
+  /**
+   * 43.0, the ledge grab (Mantle.ts): `mantleT` s into the pull-up (-1: none), `mantleDur` long, from
+   * `mantleFrom` to `mantleTo`; `mantleK` 0…1…0 over it for the view. `mantleOk`: the level's say on
+   * a spot (Game: its extent).
+   */
+  mantleT = -1;
+  mantleDur = 0;
+  mantleK = 0;
+  mantleOk: ((p: THREE.Vector3) => boolean) | undefined;
+  private mantleFrom = new THREE.Vector3();
+  private mantleTo = new THREE.Vector3();
+  private mantleExit = 0;
+  /** The room over the ledge: he rises into it already crouched as low as it needs. */
+  private mantleRoom = BODY_H;
+  private mantleSide = 1;
+  private mantleCd = 0;
 
   constructor(private col: CollisionWorld, private audio: AudioEngine) {}
 
@@ -126,6 +143,13 @@ export class Player {
     this.trauma = 0;
     this.recoil.reset();
     this.kickRoll.reset();
+    this.mantleT = -1;
+    this.mantleK = this.mantleCd = 0;
+  }
+
+  /** 43.0: pulling himself up onto a ledge (no gravity, no WASD, no trigger). */
+  get mantling() {
+    return this.mantleT >= 0;
   }
 
   forward(out: THREE.Vector3) {
@@ -178,7 +202,7 @@ export class Player {
     this.sprinting = legs && (input.key('ShiftLeft') || input.key('ShiftRight'));
     this.sprinting = this.sprinting && wl > 0 && input.key('KeyW') && !aim && !this.sliding;
     // 30.0: no breath, no sprint (run dry, it walks until the pool is back to STAMINA.resume).
-    if (!this.stamina.canSprint) this.sprinting = false;
+    if (!this.stamina.canSprint || this.mantling) this.sprinting = false;
     // Sprinting stands you up (if there's room); crouched or aiming you can't sprint.
     if (this.sprinting && this.crouch > 0.05) {
       this.crouchToggle = false;
@@ -199,6 +223,50 @@ export class Player {
     }
     const x0 = this.pos.x, z0 = this.pos.z;
 
+    // 43.0: the pull-up runs on its own clock; otherwise the body moves, and in the air (W held, near the
+    // apex or falling) it may grab a ledge. On the ground nothing is cast.
+    this.mantleCd = Math.max(0, this.mantleCd - dt);
+    if (this.mantling) this.stepMantle(dt);
+    else {
+      this.move(dt, input, legs, time);
+      if (MANTLE.on && legs && this.alive && !this.onGround && !this.sliding && this.mantleCd <= 0 && input.key('KeyW') && this.vel.y < MANTLE.apexVy && this.vel.y > -MANTLE.maxFall) this.tryMantle();
+    }
+
+    if (this.sliding) {
+      // A wall eats the momentum: the slide keeps only the speed it actually made.
+      const made = Math.hypot(this.pos.x - x0, this.pos.z - z0) / dt;
+      if (made < this.slideV * 0.6) this.slideV = made;
+      if (this.slideV <= WALK * HANDLING.crouchSpeed || this.slideT >= SLIDE.maxT || !this.onGround || !this.alive || !controls) this.endSlide();
+    }
+    this.slideK = damp(this.slideK, this.sliding ? Math.min(1, this.slideV / SPRINT) : 0, 10, dt);
+
+    const hs = Math.hypot(this.vel.x, this.vel.z);
+    // Sliding: no steps, and the gun reads it as moving (but not as a run).
+    this.moveAmount = this.sliding ? Math.min(1, hs / WALK) * 0.6 : clamp(hs / WALK, 0, 1.6);
+    if (this.onGround && hs > 0.5 && !this.sliding) {
+      this.bobPhase += hs * dt * 1.75;
+      const idx = Math.floor(this.bobPhase / Math.PI);
+      if (idx !== this.lastStepIdx) {
+        this.lastStepIdx = idx;
+        // Crouched steps are quiet (11.0).
+        this.audio.footstep((this.sprinting ? 1 : 0.7) * lerp(1, HANDLING.crouchStepVol, this.crouch));
+      }
+    }
+
+    // Slow regen after a quiet period.
+    if (this.alive && time - this.lastDamage > 5 && this.health < this.maxHealth) {
+      this.health = Math.min(this.maxHealth, this.health + 5 * dt);
+    }
+
+    this.recoil.update(dt);
+    this.kickRoll.update(dt);
+    this.landDip.update(dt);
+    this.trauma = Math.max(0, this.trauma - dt * 1.6);
+    this.eyeY = damp(this.eyeY, this.pos.y + this.eyeHeight, 18, dt);
+  }
+
+  /** The body's step: the jump, gravity, the sub-stepped collision, the landing. */
+  private move(dt: number, input: Input, legs: boolean, time: number) {
     // A jump out of a slide keeps its momentum and stands up in the air.
     if (legs && this.alive && this.onGround && input.pressed.has('Space') && this.sliding) {
       this.endSlide();
@@ -283,38 +351,52 @@ export class Player {
     }
     this.fallSpeed = -this.vel.y;
     this.wasOnGround = this.onGround;
+  }
 
-    if (this.sliding) {
-      // A wall eats the momentum: the slide keeps only the speed it actually made.
-      const made = Math.hypot(this.pos.x - x0, this.pos.z - z0) / dt;
-      if (made < this.slideV * 0.6) this.slideV = made;
-      if (this.slideV <= WALK * HANDLING.crouchSpeed || this.slideT >= SLIDE.maxT || !this.onGround || !this.alive || !controls) this.endSlide();
+  /** 43.0: a ledge ahead (Mantle.findLedge)? Then the pull-up starts. */
+  private tryMantle() {
+    const l = findLedge(this.col, this.pos, -Math.sin(this.yaw), -Math.cos(this.yaw), this.radius, CROUCH_H, this.mantleOk);
+    if (!l) return;
+    mantleStats.grabs++;
+    this.mantleFrom.copy(this.pos);
+    this.mantleTo.copy(l.to);
+    this.mantleDur = mantleTime(l.rise);
+    this.mantleRoom = Math.min(BODY_H, l.room);
+    this.mantleT = 0;
+    // Out onto the ledge at least at `exit` (a sprint's jump keeps most of its pace).
+    this.mantleExit = Math.max(MANTLE.exit, Math.hypot(this.vel.x, this.vel.z) * 0.8);
+    this.mantleSide = Math.random() < 0.5 ? -1 : 1;
+    this.sprinting = false;
+    this.audio.footstep(0.9);
+  }
+
+  /** 43.0: the pull-up (Mantle.mantlePos): up, then over the lip; he lands on it moving forward. */
+  private stepMantle(dt: number) {
+    if (!this.alive) {
+      this.mantleT = -1;
+      this.mantleK = 0;
+      return;
     }
-    this.slideK = damp(this.slideK, this.sliding ? Math.min(1, this.slideV / SPRINT) : 0, 10, dt);
-
-    const hs = Math.hypot(this.vel.x, this.vel.z);
-    // Sliding: no steps, and the gun reads it as moving (but not as a run).
-    this.moveAmount = this.sliding ? Math.min(1, hs / WALK) * 0.6 : clamp(hs / WALK, 0, 1.6);
-    if (this.onGround && hs > 0.5 && !this.sliding) {
-      this.bobPhase += hs * dt * 1.75;
-      const idx = Math.floor(this.bobPhase / Math.PI);
-      if (idx !== this.lastStepIdx) {
-        this.lastStepIdx = idx;
-        // Crouched steps are quiet (11.0).
-        this.audio.footstep((this.sprinting ? 1 : 0.7) * lerp(1, HANDLING.crouchStepVol, this.crouch));
-      }
+    const x = this.pos.x, y = this.pos.y, z = this.pos.z;
+    this.mantleT += dt;
+    mantlePos(this.mantleFrom, this.mantleTo, this.mantleT, this.mantleDur, this.pos);
+    this.mantleK = Math.sin(Math.PI * Math.min(1, this.mantleT / this.mantleDur));
+    if (this.mantleT < this.mantleDur) {
+      // The real motion (what a bot leads its shot by).
+      if (dt > 0) this.vel.set((this.pos.x - x) / dt, (this.pos.y - y) / dt, (this.pos.z - z) / dt);
+      return;
     }
-
-    // Slow regen after a quiet period.
-    if (this.alive && time - this.lastDamage > 5 && this.health < this.maxHealth) {
-      this.health = Math.min(this.maxHealth, this.health + 5 * dt);
-    }
-
-    this.recoil.update(dt);
-    this.kickRoll.update(dt);
-    this.landDip.update(dt);
-    this.trauma = Math.max(0, this.trauma - dt * 1.6);
-    this.eyeY = damp(this.eyeY, this.pos.y + this.eyeHeight, 18, dt);
+    this.pos.copy(this.mantleTo);
+    this.mantleT = -1;
+    this.mantleK = 0;
+    this.mantleCd = MANTLE.cooldown;
+    const dx = this.mantleTo.x - this.mantleFrom.x, dz = this.mantleTo.z - this.mantleFrom.z, d = Math.hypot(dx, dz) || 1;
+    this.vel.set((dx / d) * this.mantleExit, 0, (dz / d) * this.mantleExit);
+    this.onGround = this.wasOnGround = true;
+    this.peakY = this.pos.y;
+    this.fallSpeed = 0;
+    this.landDip.impulse(-0.5);
+    this.audio.footstep(0.8);
   }
 
   private startSlide(speed: number) {
@@ -370,8 +452,9 @@ export class Player {
       }
     } else if (!this.alive) this.crouchToggle = false;
     const want = this.sliding || (controls && this.alive && this.crouchWanted(input)) ? 1 : 0;
-    // Standing up needs the room: under a low ceiling it rises only as far as that allows.
-    const room = this.roomAbove();
+    // Standing up needs the room: under a low ceiling it rises only as far as that allows (43.0: in a
+    // pull-up, the room over the ledge he is rising onto).
+    const room = this.mantling ? this.mantleRoom : this.roomAbove();
     const most = clamp((BODY_H - room) / (BODY_H - CROUCH_H), 0, 1);
     const target = Math.max(want, most);
     // Going down is immediate in height terms (never taller than the room), the rest is smoothed.
@@ -405,7 +488,8 @@ export class Player {
    * The camera is set from these and the shot leaves along them (Game.shoot), the same frame.
    */
   viewPitch(time: number) {
-    return viewPitch(this.pitch + this.shake(time, 29, 3), this.recoil.pitch);
+    // 43.0: the pull-up dips the view (no shot leaves during it).
+    return viewPitch(this.pitch + this.shake(time, 29, 3) - MANTLE.dip * this.mantleK, this.recoil.pitch);
   }
   viewYaw(time: number) {
     return this.yaw + this.recoil.yaw + this.shake(time, 31, 4);
@@ -431,7 +515,7 @@ export class Player {
     cam.rotation.set(
       this.viewPitch(time),
       this.viewYaw(time),
-      this.kickRoll.value * 0.05 + Math.cos(this.bobPhase) * 0.006 * bobAmt + sh(23, 5) * 0.04 * t2 + this.slideK * SLIDE.roll,
+      this.kickRoll.value * 0.05 + Math.cos(this.bobPhase) * 0.006 * bobAmt + sh(23, 5) * 0.04 * t2 + this.slideK * SLIDE.roll + this.mantleK * MANTLE.roll * this.mantleSide,
     );
     // ADS: the FOV follows the eased blend directly (no second smoothing on top, so no lag behind the
     // gun); sprint and punch are added and damped with the real frame time (3.x used a fixed 1/60 s).

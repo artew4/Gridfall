@@ -411,7 +411,8 @@ export class Weapon {
     // Sway lags behind mouse movement; bob follows footsteps.
     this.swayX = damp(this.swayX, clamp(-mouseDX * 0.0004, -0.03, 0.03), 10, dt);
     this.swayY = damp(this.swayY, clamp(mouseDY * 0.0004, -0.03, 0.03), 10, dt);
-    this.sprintBlend = damp(this.sprintBlend, player.sprinting && !this.reloading ? 1 : 0, 8, dt);
+    // 43.0: the pull-up lowers it as a sprint does (both hands on the ledge).
+    this.sprintBlend = damp(this.sprintBlend, (player.sprinting || player.mantling) && !this.reloading ? 1 : 0, player.mantling ? 16 : 8, dt);
     const bobAmt = player.onGround ? Math.min(player.moveAmount, 1.4) : 0.2;
     const bx = Math.cos(player.bobPhase) * 0.012 * bobAmt;
     const by = -Math.abs(Math.sin(player.bobPhase)) * 0.01 * bobAmt;

@@ -64,6 +64,7 @@ export type { Interactable };
 
 const SETTING_KEY = 'gridfall.setting';
 const OLD_SETTING_KEY = 'neonrain.setting'; // before 10.0
+const _mantleXZ = new THREE.Vector2();
 
 /** The menu's last chosen setting (per browser; separate from the audio/graphics settings). */
 function savedSetting(): SettingId {
@@ -372,6 +373,8 @@ export class Game {
       aboard: (p) => level.aboard(p),
     });
     this.safety.reset(this.player.pos);
+    // 43.0: a ledge grab lands inside the playable extent only.
+    this.player.mantleOk = (p) => d.bounds.containsPoint(_mantleXZ.set(p.x, p.z));
     // 13.0: the weapon is the player's (the loadout; the story's own in story mode), not the level's;
     // the level gives the survival enemies' look (and their rounds).
     this.armPlayer();
@@ -1040,7 +1043,7 @@ export class Game {
         if (input.pressed.has(KEYS.holster)) this.weapon.toggleHolster();
         if (input.pressed.has(KEYS.reload)) this.weapon.startReload();
         // 36.0: the trigger is held through TDM's pre-match countdown.
-        if (input.mouseDown && !this.player.held && this.weapon.tryFire()) this.shoot();
+        if (input.mouseDown && !this.player.held && !this.player.mantling && this.weapon.tryFire()) this.shoot();
       }
       this.player.applyCamera(this.camera, this.elapsed, rawDt, this.weapon.spec.ads.zoom);
       // What the squad can observe about him (each use is gated by its own visibility rule).

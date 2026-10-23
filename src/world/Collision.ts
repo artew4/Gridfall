@@ -330,8 +330,11 @@ export class CollisionWorld {
     return Math.hypot(p.x - pos.x, p.z - pos.z) > 0.01;
   }
 
-  /** Slab-method ray cast against every box (plus cylinders and the ground plane). */
-  raycast(origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number, out?: RayHit): RayHit | null {
+  /**
+   * Slab-method ray cast against every box (plus cylinders and the ground plane). `solid`: against
+   * what blocks a body instead of what stops a bullet (43.0, the ledge probe: a fence with no `ray`).
+   */
+  raycast(origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number, out?: RayHit, solid = false): RayHit | null {
     let best = maxDist;
     let bestC: Collider | null = null;
     let bestAxis = -1;
@@ -343,7 +346,7 @@ export class CollisionWorld {
     const list = this.query(Math.min(ox, ex), Math.min(oz, ez), Math.max(ox, ex), Math.max(oz, ez));
     for (let i = 0; i < list.length; i++) {
       const c = list[i];
-      if (!c.ray) continue;
+      if (solid ? !c.solid : !c.ray) continue;
       if (c.kind === 'cyl') {
         // Vertical cylinder: side wall, then the top cap.
         const px = ox - c.cx!, pz = oz - c.cz!;

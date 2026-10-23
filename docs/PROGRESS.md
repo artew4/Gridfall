@@ -2357,8 +2357,89 @@ Branch `feature/ai-archetypes-42.0`, from `main` @ `79c0cb4` (41.0, merged). Ful
 - AI cost per step as before (Desert 0.66 → 0.76 ms ±0.1, Old Port 0.13 → 0.16).
 - `bench(3)` not run (nothing drawn changed).
 
+## 43.0: parkour: the ledge grab
+
+Branch `feature/parkour-43.0`, from `main` @ `6ee486c` (42.0, merged). Full numbers: `docs/BENCH-43.0.json`.
+
+### The grab (`src/player/Mantle.ts`, `Player`; `MANTLE`)
+- **When it looks:** in the air, W held, at or past the jump's apex (vertical speed under 1.5 m/s) and not falling faster than 8 m/s; not sliding, not already pulling up, 0.3 s after the last grab. On the ground nothing is cast (`mantleStats`: probes, rays, grabs).
+- **Ray 1, the wall:** forward from the hips (0.4 m over the feet: a chest-height ray passes over the low ledges), 0.8 m from the body's centre, against what blocks a body, not what stops a bullet. A fence with no `ray` counts: `raycast(..., solid)`. The wall must face him (within 55° of head-on) and be upright. A vaultable rail or tank he is already high enough to clear (feet over its top − 0.62 m, the collision's own rule) is left to the vault, which keeps his pace.
+- **Ray 2, the ledge:** straight down where the body would stand (0.47 m past the face), from 1.0 m over the feet. It must find a flat top that is a floor, 0.3–1.0 m over the feet. Lower is a step the collision takes anyway; higher is out of reach. The top must also lie above where ray 1 met the wall: a floor found lower than that is past a parapet.
+- **Room:**
+  - The floor under the body there is that top, not a fence's edge with a drop past it.
+  - A crouched body fits: under 1.8 m of room he arrives crouched, under 1.2 m it is no ledge.
+  - The column he rises in is clear.
+  - The way over is clear at the shins and the chest (two more rays: a rail set back from the lip).
+  - The level's extent takes the spot (`Player.mantleOk`, set by Game).
+- **Reach:** the apex (0.74 m at 60 FPS) + 1.0 m: tops up to about 1.75 m over the floor he jumped from. A plain jump reaches 1.07 m (the apex and the collision's 0.3 m step).
+- **The pull-up:**
+  - Gravity and WASD are off, and the sprint drops.
+  - The height eases out over the first 62% (the arms snap him up). The step over the lip eases in and out and starts as the hands clear it, so the feet never move forward below the top.
+  - It lasts 0.2 + 0.08 × (rise / 1.0) s: 0.22–0.28 s.
+  - He comes out on the ledge at 3.2 m/s forward at least (80% of a sprint's pace), with a small landing dip.
+  - Under a low ceiling he rises already as low as the room there needs (without that, the standing body was pushed back off the ledge as it landed).
+  - `vel` is the real motion meanwhile, so the bots lead him right.
+- **Game feel:**
+  - The view dips 0.09 rad and rolls 0.035 rad (a random side) on a sine over the pull-up, in `viewPitch` so the camera and a shot agree (none leaves: the trigger is off during it).
+  - The gun drops to the sprint pose, twice as fast.
+  - A footstep on the grab and on the lip.
+- **Bots:** nothing of theirs changed. Their body (`Enemy.move`), their nav and its vault links are untouched; the one shared change is `raycast`'s optional `solid` flag (default as before).
+  - Arena bots don't climb as the player does: they jump only to dodge and vault walls flagged `vault` up to 1.35 m on nav links. They do not "share the same jump capability", so they don't follow him onto a 1.5 m box. Their routes don't go there, and they shoot at him.
+  - Self-play after the change: stuck 0 (Desert, Favelas, Old Port; 2 matches each); kills a minute as in 42.0 within the noise.
+
+### Results
+**The level, every map** (`ledgecheck.mjs`: the probe from every cell a plain jump reaches, 8 directions; the stress at 6,400 runs a map):
+
+| Map | Ledges | New ground (3 m cells) | Outside the zones | Escapes / traps / pit, before → after | Stress failures | Grabs in the stress | Probe |
+|---|---|---|---|---|---|---|---|
+| Tokyo | 126 | 24 | 0 | 0 → 0 | 0 / 6,400 | 122 | 0.56 µs |
+| Jungle | 159 | 74 | 0 | 0 → 0 | 0 / 6,400 | 190 | 0.50 µs |
+| Desert | 67 | 45 | 0 | 0 → 0 | 0 / 6,400 | 171 | 1.06 µs |
+| Docks | 16 | 1 | 0 | as before (see below) | 1,616 / 6,400 (1,620 with the grab off) | 48 | 0.39 µs |
+| Old Port | 33 | 19 | 0 | 0 → 0 | 0 / 6,400 | 90 | 0.34 µs |
+| Maglev | 124 | 0 | 0 | 0 → 0 | 0 / 6,400 | 287 | 0.39 µs |
+| Crash Site | 107 | 58 | 0 | 0 → 0 | 0 / 6,400 | 179 | 1.67 µs |
+| Neon Block | 28 | 9 | 0 | 0 → 0 | 0 / 6,400 | 62 | 0.32 µs |
+| Favelas | 9 | 4 | 0 | 0 → 0 | 0 / 6,400 | 119 | 0.34 µs |
+
+- **New ground** is the tops a plain jump didn't reach, by zone: for example Tokyo's TECH ROOF and SKY GARDEN, Old Port's BRICK WAREHOUSE and CONTAINER YARD, the Desert's OUTPOST YARD and SOUTH WADI. No ledge lands outside the extent (the extent check refused none), and no new escape or trap: the world check with the 1.74 m climb finds what it found with the jump's 1.0.
+- **Docks fails as before:** with the grab off, the same 1,620 failures and the same 20,160 escape cells. Every failure starts at (-82.75, -91.75), outside the extent. It predates 43.0 (earlier versions report the docks clean) and is not fixed here.
+- **Found by the stress test and fixed:**
+  - The first build pulled him through a barrier on Old Port (a deck's parapet), Maglev (the platform edge rail over the track bed) and Crash Site (the lab deck's rail): 3–4 runs in 6,400 each. Ray 2 had found a floor behind a wall taller than it. The top must now be above where ray 1 met the wall, and the way over must be clear at the shins and the chest: 0 since.
+  - On Favelas the probe took the 1.2 m water tanks as ledges, though the vault already carries him over them. A vaultable thing he is clearing is left to the vault.
+
+**The live game** (`mantlecheck.mjs`: head-on, wide-faced ledges from the survey, real key events, ~20 FPS headless):
+- **Grabbed and on top:** 94 of 97: Desert, Maglev, Crash Site, Neon Block, Old Port and the Jungle 12 of 12 each; Tokyo 11 of 12; Docks 8 of 10; Favelas 3 of 3 (all it has once the tanks are vaulted).
+- **The 3 misses** are the tallest picks (rise 0.86–0.96 m). At 20 FPS the jump's apex is about 0.65 m instead of 0.74, so those tops are past the reach. The jump's Euler step is frame-rate dependent (pre-existing); at 60 FPS the unit test takes a 1.7 m top.
+- **The pull-up:** 217–285 ms of game time (frames 50 ms apart), the view's deepest dip 0.05–0.09 rad, 0 rounds fired during one with the trigger held.
+
+**CPU:**
+- **On the ground:** 0 rays (`mantlecheck`: 0 over about 2,600 ground frames; a unit test pins it).
+- **In the air:** one probe a frame, with W held, past the apex: 0.3–1.7 µs a call (the survey, about 48,000 calls a map). That is under 0.002 ms of a 16.7 ms frame. The grab itself adds 2 more rays and a resolve, once.
+- `Player.update` per frame (headless): ground 23–40 µs, air 53–82, pull-up 28–46. An Old Port A/B with the grab off measured air 40 against 62 µs, but the same ground frames differed by 13 µs between the two runs (two Chromes at once): noise at this scale.
+
+**Bots** (self-play, 2 matches each, after the change): stuck 0 on the Desert, Favelas and Old Port; kills a minute 23.0 / 28.8 / 21.1 (42.0: 24.8 Desert, 21.4 Old Port over 6), AI 0.69 / 0.17 / 0.14 ms a step.
+
+### Checks
+- Tests 498 (+12: `mantle.test.ts`):
+  - a 1.5 m box is taken in 0.2–0.3 s with no overshoot; off, he stays down;
+  - 1.7 m is taken and 1.9 m is not;
+  - only with W held; no ray on the ground;
+  - the same spot at 30, 60 and 144 FPS;
+  - not a fence with a drop past it, not through a parapet or a rail set back from the lip;
+  - the room: under 1.0 m no grab, under 1.4 m he arrives crouched;
+  - the extent;
+  - a vaultable tank cleared at a sprint is vaulted, a taller one is grabbed;
+  - the view dips and comes back, and the sprint is off;
+  - the probe's rays;
+  - the motion goes up before over.
+- `npm run build` clean.
+- `bench(3)` not run: nothing drawn changed, and the CPU cost is in microseconds.
+- The README (the ledge grab, the Space row) and the story's key hint (jump · vault · climb) updated.
+
 ## Next
 Human playtest:
+- 43.0 items: the ledge grab. Does it fire when you mean it (jumping at a crate, a wall, a platform edge) and never when you don't (running past a wall, jumping beside a rail)? Is the 0.2–0.3 s pull-up quick enough to feel aggressive, and the dip and roll physical or nauseating (`MANTLE.dip`, `MANTLE.roll`)? Are the new crate and container tops fun perches, or too strong against bots that can't climb after you? Is 1.75 m the right reach (`MANTLE.maxUp`)? `__dev.mantle(false)` to compare.
 - 42.0 items: do you notice the three kinds of enemy (squads pushing, someone alone coming round behind you, a rifle holding a roof); the warning shot (do you hear it and turn in time, or is it a free kill for you now); are the anchors fair or a wall (Favelas' roofs, Maglev's skybridges); does the slower kill pace feel tense or slow (`ARENA.roles.share` to change the mix); hurt enemies ducking out to heal: smart or annoying; `ARENA.roles.on = false` for the 41.0 bots side by side.
 - 41.0 items: does the enemy team come at you in twos and threes now, or still in a crowd; do your bots move as squads (a leader and one or two beside it) or still run off alone; does a fight elsewhere on the map still pull everyone (it shouldn't: three on one enemy at most); on the Desert, do squads leaving a spawn zone together feel like a wave; `ARENA.sectors.on = false` for a side-by-side.
 - 40.0 items: Favelas (does the rooftop layer read: can you tell where you can walk; the escadaria as the midline killing ground (29% of kills): too strong a funnel?; the alleys' track changes: winding or confusing; 10v10 on a dense map: chaos?; the dust motes and the kites; the samba; the Portuguese flavor; starting low on the street vs high on the crest: fair?).

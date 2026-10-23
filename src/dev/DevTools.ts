@@ -179,8 +179,26 @@ export function installDevTools(game: Game) {
       w.__colDebug.set(on);
     },
     /** World validation: reachability, escapes, traps, invisible walls, walk-through visuals. */
-    async world(opts: { cell?: number; stationOpen?: boolean; bodyHeight?: number } = {}) {
+    async world(opts: { cell?: number; stationOpen?: boolean; bodyHeight?: number; climb?: number } = {}) {
       return (await import('./WorldCheck')).checkWorld(game, opts);
+    },
+    /** 43.0: the ledge grab over the level: ledges, new ground, the reach before and after (WorldCheck.ledgeSurvey). */
+    async ledges(opts: { stride?: number; samples?: number } = {}) {
+      return (await import('./WorldCheck')).ledgeSurvey(game, opts);
+    },
+    /** 43.0: the ledge probe's counts since load (probes, rays, grabs). */
+    async mantleStats() {
+      return { ...(await import('../player/Mantle')).mantleStats };
+    },
+    /** 43.0: the ledge grab on or off (A/B); returns the setting. */
+    async mantle(on?: boolean) {
+      const { MANTLE } = await import('../player/Mantle');
+      if (on !== undefined) MANTLE.on = on;
+      return MANTLE.on;
+    },
+    /** The live counts object (mantlecheck.mjs reads it each frame). */
+    async mantleStatsRef() {
+      return (await import('../player/Mantle')).mantleStats;
     },
     /** Real-controller stress runs from sampled reachable cells (walls, falls, voids). */
     async stress(opts: { samples?: number; seconds?: number; fps?: (number | 'spiky')[]; crouch?: boolean } = {}) {
