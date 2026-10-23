@@ -92,6 +92,12 @@ export interface TdmData {
   /** 28.0: high-value areas the patrols search besides the pads and the lanes' waypoints (the edges). */
   hvas?: THREE.Vector3[];
   /**
+   * 38.0: the map's flanks, for the patrols' pull towards them (ARENA.flankPull, on through the map's
+   * profile): how much of a flank (x, y, z) is, 0 in the centre (its fights heat the centre), the
+   * pull's weight out there (1 = ARENA.flankPull as it reads). Absent: no flanks, every area as before.
+   */
+  flankOf?(x: number, y: number, z: number): number;
+  /**
    * 37.1: high ground a team keeps a watch on (ArenaDirector.setWatch): the points are patrol areas too.
    * Every `every` s with no watch posted, the director sends the nearest bot within `reach` m of the
    * post held least lately; there it stands and holds it for `hold` s, fighting from it.
@@ -114,6 +120,8 @@ export interface HighGround {
    * (1.7% without), the bridge fell to 0.5% (1.0%); off there, the brief wanted the bridge.
    */
   rise?: number;
+  /** 38.0: watches at once, each on its own post (default 1). */
+  count?: number;
 }
 
 export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock' | 'crashsite' | 'oldport' | 'maglev';

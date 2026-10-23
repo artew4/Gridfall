@@ -172,7 +172,9 @@ export class Nav {
         const ni = this.nodes[i], nj = this.nodes[j];
         const rise = 0.5 + slope * Math.hypot(ni.x - nj.x, ni.z - nj.z);
         if (Math.abs(ni.y - nj.y) > rise || ni.distanceTo(nj) >= 14) continue;
-        if (this.clearVault(ni, nj) && this.walkable(ni, nj)) {
+        // 38.0: vaultable from both ends (a link is walked both ways; the wall's height is measured from
+        // the near floor: from the sand a trench's revetment is knee-high, from its floor 1.65 m).
+        if (this.clearVault(ni, nj) && this.clearVault(nj, ni) && this.walkable(ni, nj)) {
           ve[i].push(j);
           ve[j].push(i);
         }

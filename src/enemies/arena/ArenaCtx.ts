@@ -230,6 +230,13 @@ export const ARENA = {
    * for `dwell` s, then picks again. The team's radar reaches `radar` m on these maps: a contact
    * further off (out of sight, not shooting at the bot) is not hunted.
    */
+  /**
+   * 38.0, the flanks' pull (patrol maps that mark their flanks, TdmData.flankOf; on through a map's
+   * profile): an area on a flank scores `base` more, and up to `hot` more as the centre heats up (its
+   * deaths and gunfire, counted as lane pressure counts them, halving every `halfLife` s, over `ref`):
+   * a fight in the middle draws the patrols round it instead of into it.
+   */
+  flankPull: { on: false, base: 0.4, hot: 0.8, ref: 4, halfLife: 15 },
   patrol: { radar: 40, halfLife: 20, radius: 22, spawn: 0.6, near: 5, heat: 0.6, heatCap: 1.5, lane: 0.8, stale: 1.4, staleT: 40, distM: 110, claim: 0.7, jitter: 0.25, minGap: 9, dwell: [0.5, 1.4] as [number, number] },
   /**
    * 32.0, space (anti-clustering): a team uses the map's width instead of moving as one blob.

@@ -9,6 +9,15 @@ import type { HighGround } from '../../levels/Level';
  */
 const WATCH_TRAVEL = 20;
 
+/** 37.1: a bot posted to the high ground (38.0: one of the team's watches). */
+interface Watch {
+  uid: number;
+  post: number;
+  until: number;
+  arrived: boolean;
+  lastAt?: [number, number, number];
+}
+
 /*
   The arena director (7.0), one per team. It replaces the 5.0 squad director in Team Deathmatch and
   doesn't hand out roles: the bots pick their own fights. It shapes map control instead.
@@ -119,8 +128,18 @@ export class ArenaDirector {
   /** 32.0, spread: the members as last updated (patrol crowding), and the bots after each contact in order. */
   private mates: readonly ArenaMember[] = [];
   private hunters = new Map<number, Map<number, number>>();
-  /** 27.0 (DEV): patrol picks, and how many went to an area with activity. */
-  patrolStats = { picks: 0, active: 0, spawnsHeard: 0 };
+  /** 27.0 (DEV): patrol picks, and how many went to an area with activity. 38.0: and to a flank. */
+  patrolStats = { picks: 0, active: 0, spawnsHeard: 0, flank: 0 };
+  /** 38.0: the map's flanks (TdmData.flankOf), which areas lie on them, the centre's heat (ARENA.flankPull). */
+  private flankOf: ((x: number, y: number, z: number) => number) | null = null;
+  private hvaFlank: number[] = [];
+  centreHeat = 0;
+  private centreT = 0;
+  /**
+   * 38.0: a team is on its last stand (Tdm): the flanks' pull is off. With it on, the endgame's patrols
+   * went on out to the flanks instead of hunting the last few: 52 → 90–110 s, most to sudden death.
+   */
+  endgame = false;
   /** Event log for checks: [time, what, detail]. Bounded. */
   log: [number, string, string][] = [];
 
@@ -162,9 +181,29 @@ export class ArenaDirector {
   /** 15.0: something happened at `p` (a death, a shot): its lane gets hotter. 27.0: and the areas near it. */
   addHeat(p: { x: number; z: number }, amount: number, now: number) {
     this.activity(p, amount, now);
+    if (this.flankOf && this.flankOf(p.x, 0, p.z) <= 0) {
+      this.coolCentre(now);
+      this.centreHeat += amount;
+    }
     if (!ARENA.lanePressure.on || !this.lanes.length) return;
     this.coolTo(now);
     this.heat[this.nearestLane(p)] += amount;
+  }
+
+  /** 38.0: decay the centre's heat to `now`. */
+  private coolCentre(now: number) {
+    const dt = now - this.centreT;
+    if (dt <= 0) return;
+    this.centreHeat *= Math.pow(0.5, dt / ARENA.flankPull.halfLife);
+    this.centreT = now;
+  }
+
+  /** 38.0: the map's flanks (null: none, every area scored as before). Call after setPatrol. */
+  setFlanks(flankOf: ((x: number, y: number, z: number) => number) | null) {
+    this.flankOf = flankOf;
+    this.hvaFlank = this.hvas.map((h) => flankOf?.(h.x, h.y, h.z) ?? 0);
+    this.centreHeat = 0;
+    this.centreT = 0;
   }
 
   reset() {
@@ -289,9 +328,18 @@ export class ArenaDirector {
    * for `every` s, the post held least lately gets the nearest bot within `reach` m of it; it has
    * `travel` s to get there (released if it doesn't), then holds it `hold` s. The watch ends when that
    * runs out or the bot dies; the next is posted `every` s later. Bots only: the human is never sent.
+   * 38.0: up to `count` watches at once (default 1), each on a post nobody of the team is watching; a
+   * second is posted 2 s after the first (they don't leave together).
    */
   private watchCfg: HighGround | null = null;
-  watch: { uid: number; post: number; until: number; arrived: boolean; lastAt?: [number, number, number] } | null = null;
+  watches: Watch[] = [];
+  /** 37.1: the first watch (37.1 had one; a check may set it). */
+  get watch(): Watch | null {
+    return this.watches[0] ?? null;
+  }
+  set watch(w: Watch | null) {
+    this.watches = w ? [w] : [];
+  }
   /** 37.1 (DEV): where posted bots were last seen before they died on the way. */
   watchDiedAt: [number, number, number][] = [];
   private watchNext = 0;
@@ -307,7 +355,7 @@ export class ArenaDirector {
   setWatch(cfg: HighGround | null, free: (m: ArenaMember) => boolean = () => true) {
     this.watchCfg = cfg;
     this.watchFree = free;
-    this.watch = null;
+    this.watches = [];
     this.watchNext = 0;
     this.postSeen = cfg ? cfg.points.map(() => -Infinity) : [];
     this.watchStats = { posts: 0, arrivals: 0, died: 0, timedOut: 0 };
@@ -316,20 +364,18 @@ export class ArenaDirector {
   private updateWatch(now: number, bots: readonly ArenaMember[]) {
     const W = this.watchCfg;
     if (!W || !W.points.length) return;
-    const w = this.watch;
-    if (w) {
-      const alive = bots.some((b) => b.uid === w.uid);
-      if (!alive && !w.arrived && w.lastAt) this.watchDiedAt.push(w.lastAt);
-      if (alive) w.lastAt = bots.find((b) => b.uid === w.uid)!.pos.toArray().map((v) => +v.toFixed(1)) as [number, number, number];
-      if (alive && now <= w.until) return;
-      if (!w.arrived) this.watchStats[alive ? 'timedOut' : 'died']++;
-      this.watch = null;
-      this.watchNext = now + W.every;
-      return;
+    for (const w of [...this.watches]) {
+      const bot = bots.find((b) => b.uid === w.uid);
+      if (!bot && !w.arrived && w.lastAt) this.watchDiedAt.push(w.lastAt);
+      if (bot) w.lastAt = bot.pos.toArray().map((v) => +v.toFixed(1)) as [number, number, number];
+      if (bot && now <= w.until) continue;
+      if (!w.arrived) this.watchStats[bot ? 'timedOut' : 'died']++;
+      this.watches.splice(this.watches.indexOf(w), 1);
+      this.watchNext = Math.max(this.watchNext, now + W.every);
     }
-    if (now < this.watchNext) return;
-    let post = 0;
-    for (let i = 1; i < W.points.length; i++) if (this.postSeen[i] < this.postSeen[post]) post = i;
+    if (this.watches.length >= Math.min(W.count ?? 1, W.points.length) || now < this.watchNext) return;
+    let post = -1;
+    for (let i = 0; i < W.points.length; i++) if (!this.watches.some((w) => w.post === i) && (post < 0 || this.postSeen[i] < this.postSeen[post])) post = i;
     const P = W.points[post];
     // Only from the post's own lane: drafted from anywhere within reach, 9 of 20 died in the next lane
     // over (Old Port's yard), crossing to the post.
@@ -337,30 +383,38 @@ export class ArenaDirector {
     let best: ArenaMember | null = null, bd = W.reach;
     for (const m of bots) {
       const d = Math.hypot(m.pos.x - P.x, m.pos.z - P.z);
-      if (d < bd && Math.abs(m.pos.y - P.y) <= (W.rise ?? Infinity) && (lane < 0 || this.laneFor(m.uid, m.pos) === lane) && this.watchFree(m)) {
+      if (d < bd && Math.abs(m.pos.y - P.y) <= (W.rise ?? Infinity) && (lane < 0 || this.laneFor(m.uid, m.pos) === lane) && !this.watches.some((w) => w.uid === m.uid) && this.watchFree(m)) {
         bd = d;
         best = m;
       }
     }
     // Nobody free near enough: look again shortly (the post stays first in line).
+    // (38.0: the next post's turn comes round first; with one post, as 37.1.)
     if (!best) {
+      this.postSeen[post] = Math.max(this.postSeen[post], now - W.every);
       this.watchNext = now + 2;
       return;
     }
-    this.watch = { uid: best.uid, post, until: now + WATCH_TRAVEL + bd / 2, arrived: false };
+    this.watches.push({ uid: best.uid, post, until: now + WATCH_TRAVEL + bd / 2, arrived: false });
     this.postSeen[post] = now;
     this.watchStats.posts++;
+    this.watchNext = now + 2;
+  }
+
+  private watchOf(uid: number) {
+    return this.watches.find((w) => w.uid === uid) ?? null;
   }
 
   /** 37.1: the post `uid` is sent to, or null. */
   watchPost(uid: number): THREE.Vector3 | null {
-    return this.watch && this.watch.uid === uid ? this.watchCfg!.points[this.watch.post] : null;
+    const w = this.watchOf(uid);
+    return w ? this.watchCfg!.points[w.post] : null;
   }
 
   /** 37.1: `uid` is at its post: the hold starts (once). True the first time. */
   watchArrived(uid: number, now: number, rand: () => number = Math.random) {
-    const w = this.watch;
-    if (!w || w.uid !== uid || w.arrived) return false;
+    const w = this.watchOf(uid);
+    if (!w || w.arrived) return false;
     const [h0, h1] = this.watchCfg!.hold;
     w.arrived = true;
     w.until = now + h0 + rand() * (h1 - h0);
@@ -370,7 +424,7 @@ export class ArenaDirector {
 
   /** 37.1: `uid` is posted and already there (it fights from the post). */
   watchHeld(uid: number) {
-    return !!this.watch && this.watch.uid === uid && this.watch.arrived;
+    return !!this.watchOf(uid)?.arrived;
   }
 
   // ------------------------------------------------------------------ patrol (27.0)
@@ -384,7 +438,8 @@ export class ArenaDirector {
     this.hvaSeen = this.hvas.map(() => -Infinity);
     this.hvaLane = this.hvas.map((h) => (this.lanes.length ? this.nearestLane(h) : 0));
     this.hvaClaim.clear();
-    this.patrolStats = { picks: 0, active: 0, spawnsHeard: 0 };
+    this.hvaFlank = this.hvas.map((h) => this.flankOf?.(h.x, h.y, h.z) ?? 0);
+    this.patrolStats = { picks: 0, active: 0, spawnsHeard: 0, flank: 0 };
   }
 
   private coolAreas(now: number) {
@@ -422,6 +477,7 @@ export class ArenaDirector {
     if (!this.hvas.length) return -1;
     const P = ARENA.patrol;
     this.coolAreas(now);
+    this.coolCentre(now);
     const prev = this.hvaClaim.get(uid);
     this.hvaClaim.delete(uid);
     const claims = this.hvas.map(() => 0);
@@ -444,6 +500,7 @@ export class ArenaDirector {
     this.hvaClaim.set(uid, best);
     this.patrolStats.picks++;
     if (this.hvaHeat[best] > 0.1) this.patrolStats.active++;
+    if (this.hvaFlank[best] > 0) this.patrolStats.flank++;
     return best;
   }
 
@@ -451,7 +508,9 @@ export class ArenaDirector {
   patrolScore(i: number, d: number, claimants: number, now: number, ownLane = false, crowd = 0) {
     const P = ARENA.patrol;
     const S = ARENA.space;
-    return P.heat * Math.min(P.heatCap, this.hvaHeat[i]) + P.stale * Math.min(1, (now - this.hvaSeen[i]) / P.staleT) + (ownLane ? P.lane : 0) - d / P.distM - P.claim * claimants - (S.on ? S.patrol * crowd : 0);
+    const F = ARENA.flankPull;
+    const flank = F.on && !this.endgame ? this.hvaFlank[i] * (F.base + F.hot * Math.min(1, this.centreHeat / F.ref)) : 0;
+    return P.heat * Math.min(P.heatCap, this.hvaHeat[i]) + P.stale * Math.min(1, (now - this.hvaSeen[i]) / P.staleT) + (ownLane ? P.lane : 0) - d / P.distM - P.claim * claimants - (S.on ? S.patrol * crowd : 0) + flank;
   }
 
   /**

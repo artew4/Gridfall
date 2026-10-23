@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { worldBox, type StaticBuilder } from '../../world/Builder';
 import type { Collider, CollisionWorld } from '../../world/Collision';
 import { TRENCH, desertHeight } from './Terrain';
-import { BASE, CULVERT_LANE_SOUTH, LANES_NORTH, LANES_SOUTH, OUTER, OUTER_LANES_NORTH, OUTER_LANES_SOUTH, ROOF_LANE, rot } from './ArenaLayout';
+import { BASE, CULVERT_LANE_SOUTH, LANES_NORTH, LANES_SOUTH, OUTER, OUTER_LANES_NORTH, OUTER_LANES_SOUTH, ROOF_LANE, RUINS, rot } from './ArenaLayout';
 import type { Zone } from '../Level';
+import { buildRuins } from './Ruins';
 
 /*
   The arena's structures (6.0; layout and reasoning in ArenaLayout.ts). Everything is authored once in
@@ -39,6 +40,8 @@ export interface ArenaKit {
     tent: THREE.Material;
     wood: THREE.Material;
     crate: THREE.Material;
+    /** 38.0: the ruins' masonry (instanced, tinted per block). */
+    sandstone: THREE.Material;
   };
   boulder(r: number, h: number): THREE.BufferGeometry;
   rnd(): number;
@@ -55,9 +58,15 @@ export interface ArenaResult {
   lanes: { south: THREE.Vector3[][]; north: THREE.Vector3[][] };
   zones: { zone: Zone; rect: [number, number, number, number] }[];
   testGoals: THREE.Vector3[];
+  /** 38.0: the ruins' galleries (the watch posts, west then east) and the places in them the patrols search. */
+  ruins: { posts: THREE.Vector3[]; hvas: THREE.Vector3[] };
+  /** 38.0: the outcrops' tops (centres, on the rock), for the patrols. */
+  outcrops: THREE.Vector3[];
 }
 
 const DOOR_H = 2.3;
+/** 38.0: the trench's revetments over the sand beside them (over Nav's knee ray, KNEE = 0.4). */
+const REVET_H = 0.5;
 const WIN_Y0 = 1.15;
 const WIN_Y1 = 2.0;
 const FLIP_SIDE: Record<Side, Side> = { n: 's', s: 'n', w: 'e', e: 'w' };
@@ -69,7 +78,7 @@ export function buildArena(k: ArenaKit): ArenaResult {
   const ALPHA_BASE = zone('alpha-base', 'ALPHA BASE', 'قاعدة الحلفاء'), OMEGA_BASE = zone('omega-base', 'OMEGA BASE', 'قاعدة العدو');
   const HAMLET_S = zone('hamlet-s', 'SOUTH HAMLET', 'القرية الجنوبية'), HAMLET_N = zone('hamlet-n', 'NORTH HAMLET', 'القرية الشمالية');
   const WADI_S = zone('wadi-s', 'SOUTH WADI', 'الوادي الجنوبي'), WADI_N = zone('wadi-n', 'NORTH WADI', 'الوادي الشمالي');
-  const out: ArenaResult = { spawns: { south: [], north: [] }, coverPoints: [], nodes: [], links: [], lanes: { south: [], north: [] }, zones: [], testGoals: [] };
+  const out: ArenaResult = { spawns: { south: [], north: [] }, coverPoints: [], nodes: [], links: [], lanes: { south: [], north: [] }, zones: [], testGoals: [], ruins: { posts: [], hvas: [] }, outcrops: [] };
 
   /** Lowest terrain under a rect (corners and middle). */
   const low = (x0: number, z0: number, x1: number, z1: number) =>
@@ -346,8 +355,11 @@ export function buildArena(k: ArenaKit): ArenaResult {
     const L = rzz1 - rzz0, H = top - foot;
     const slab = new THREE.BoxGeometry(rx1 - rx0, 0.5, Math.hypot(L, H));
     b.add(slab, m.rock, (rx0 + rx1) / 2, (top + foot) / 2 - 0.25, (rzz0 + rzz1) / 2, (topAtMin ? 1 : -1) * Math.atan2(H, L), 0, 0);
-    for (let i = 0; i < 4; i++) {
-      const a0 = rzz0 + (L * i) / 4, a1 = rzz0 + (L * (i + 1)) / 4;
+    // 38.0: in steps of ≤ 0.3 m (were 4, up to 0.95 m: a body jumping at the ramp's side ended inside the
+    // fill under it, stress 18 of 160,000; the feet are lifted onto a ramp within 0.5 m of it).
+    const fills = Math.ceil(H / 0.3);
+    for (let i = 0; i < fills; i++) {
+      const a0 = rzz0 + (L * i) / fills, a1 = rzz0 + (L * (i + 1)) / fills;
       const hAt = (zz: number) => foot + H * (topAtMin ? (rzz1 - zz) / L : (zz - rzz0) / L);
       const c = col.add(rx0, foot - 0.5, a0, rx1, Math.min(hAt(a0), hAt(a1)) - 0.05, a1, 'concrete');
       c.floor = false;
@@ -360,6 +372,7 @@ export function buildArena(k: ArenaKit): ArenaResult {
     const n3 = out.nodes.push(new THREE.Vector3((x0 + x1) / 2, top, (z0 + z1) / 2)) - 1;
     out.links.push([n0, n1], [n1, n2], [n2, n3]);
     out.testGoals.push(new THREE.Vector3((x0 + x1) / 2, top, (z0 + z1) / 2));
+    out.outcrops.push(new THREE.Vector3((x0 + x1) / 2, top, (z0 + z1) / 2));
     return top;
   };
   for (const flip of [false, true]) {
@@ -373,7 +386,10 @@ export function buildArena(k: ArenaKit): ArenaResult {
         const [px0, pz0, px1, pz1] = R(flip, x0, z, x1, z1);
         const rim = Math.max(high(px0 - 0.6, pz0, px0, pz1), high(px1, pz0, px1 + 0.6, pz1));
         // Down to the trench's floor beside it (its footprint is on the rim; the cut is next to it).
-        solid(px0, pz0, px1, pz1, rim + 0.35, m.sandbag, 'sand', low(px0 - 0.6, pz0, px1 + 0.6, pz1) - 0.3);
+        // 38.0: 0.5 m over the sand (was 0.35: over a step, under the graph's knee ray, so links ran across
+        // it and bots routed over it stood pressed into it; vaulting it instead made links from the
+        // trench's shallow ramp a bot 0.1 m deeper couldn't climb).
+        solid(px0, pz0, px1, pz1, rim + REVET_H, m.sandbag, 'sand', low(px0 - 0.6, pz0, px1 + 0.6, pz1) - 0.3);
       }
     };
     revet(T.x0 - 0.4, T.x0, T.z0, T.z1);
@@ -394,7 +410,7 @@ export function buildArena(k: ArenaKit): ArenaResult {
     node(...P(flip, -71, 34));
     node(...P(flip, -67.5, 34));
     goal(...P(flip, (T.x0 + T.x1) / 2, 30));
-    out.zones.push({ zone: flip ? TRENCHES_N : TRENCHES_S, rect: R(flip, -89, 2, -64, 54) });
+    out.zones.push({ zone: flip ? TRENCHES_N : TRENCHES_S, rect: R(flip, -89, 10, -64, 54) });
 
     // ---- The outcrops.
     outcrop(flip, OUTER.anvil);
@@ -409,14 +425,14 @@ export function buildArena(k: ArenaKit): ArenaResult {
       solid(cx0, cz0, cx1, cz1, fc + 2.6, m.rust, 'metal');
       const [bx0, bz0, bx1, bz1] = R(flip, t.x0, t.bed[0], t.x1, t.bed[1]);
       solid(bx0, bz0, bx1, bz1, fc + 1.4, m.rust, 'metal');
-      const [lx0, lz0, lx1, lz1] = R(flip, t.x0 + 0.3, 12, t.x1 - 0.3, 14.2);
+      const [lx0, lz0, lx1, lz1] = R(flip, t.x0 + 0.3, t.cab[0] + 4, t.x1 - 0.3, t.cab[0] + 6.2);
       solid(lx0, lz0, lx1, lz1, fc + 2.5, m.crate, 'wood', fc + 1.4);
       // Seen only (merged into the static mesh): wheels on the truck, a smashed windscreen.
       const wheel = (x: number, y: number, z: number, r: number, w: number, alongX = true) => {
         const [px, pz] = P(flip, x, z);
         b.add(new THREE.CylinderGeometry(r, r, w, 12), m.darkMetal, px, y, pz, alongX ? 0 : Math.PI / 2, 0, alongX ? Math.PI / 2 : 0);
       };
-      for (const wz of [9.2, 12.4, 15.2]) for (const wx of [t.x0 - 0.15, t.x1 + 0.15]) wheel(wx, fc + 0.5, wz, 0.55, 0.35);
+      for (const wz of [1.2, 4.4, 7.2]) for (const wx of [t.x0 - 0.15, t.x1 + 0.15]) wheel(wx, fc + 0.5, t.cab[0] + wz, 0.55, 0.35);
       {
         const [wx, wz] = P(flip, (t.x0 + t.x1) / 2, t.cab[0] - 0.02);
         b.add(new THREE.BoxGeometry(2.0, 0.8, 0.06), m.darkMetal, wx, fc + 1.9, wz);
@@ -426,13 +442,17 @@ export function buildArena(k: ArenaKit): ArenaResult {
       const fa = desertHeight((ax0 + ax1) / 2, (az0 + az1) / 2);
       solid(ax0, az0, ax1, az1, fa + 2.6, m.darkMetal, 'metal');
       // On its side: its wheels face the sky's way (east), its turret lies in the sand (west).
-      for (const wz of [22.9, 24.6, 26.3, 27.6]) wheel(a.x1 + 0.2, fa + 0.9, wz, 0.6, 0.4);
-      for (const wz of [22.9, 24.6, 26.3, 27.6]) wheel(a.x1 + 0.2, fa + 1.9, wz, 0.6, 0.4);
+      for (const wz of [0.9, 2.6, 4.3, 5.6]) wheel(a.x1 + 0.2, fa + 0.9, a.z0 + wz, 0.6, 0.4);
+      for (const wz of [0.9, 2.6, 4.3, 5.6]) wheel(a.x1 + 0.2, fa + 1.9, a.z0 + wz, 0.6, 0.4);
       {
-        const [tx, tz] = P(flip, a.x0 - 0.7, 25);
-        b.add(new THREE.BoxGeometry(1.4, 1.1, 1.4), m.rust, tx, fa + 0.55, tz);
-        const [gx, gz] = P(flip, a.x0 - 2.2, 25);
-        b.add(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 8), m.darkMetal, gx, fa + 0.6, gz, 0, 0, Math.PI / 2);
+        // 38.0: on the sand under it and solid (moved with the APC, it floated 0.6 m over a dip: walk-through,
+        // world()), 1.3 m off the hull (touching it, a step up its side: a jump from it ended in the hull, stress).
+        const [tx, tz] = P(flip, a.x0 - 2, a.z0 + 3);
+        const ft = low(tx - 0.7, tz - 0.7, tx + 0.7, tz + 0.7) - 0.15;
+        b.add(new THREE.BoxGeometry(1.4, 1.1, 1.4), m.rust, tx, ft + 0.55, tz);
+        col.add(tx - 0.7, ft, tz - 0.7, tx + 0.7, ft + 1.1, tz + 0.7, 'metal').vault = true;
+        const [gx, gz] = P(flip, a.x0 - 3.5, a.z0 + 3);
+        b.add(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 8), m.darkMetal, gx, desertHeight(gx, gz) + 0.3, gz, 0, 0, Math.PI / 2);
       }
       const bus = OUTER.bus;
       const fb = desertHeight(...P(flip, (bus.x0 + bus.x1) / 2, (bus.z0 + bus.z1) / 2));
@@ -448,13 +468,28 @@ export function buildArena(k: ArenaKit): ArenaResult {
       const n = (x: number, z: number) => node(...P(flip, x, z));
       const dOut = n(72.3, 33.5), dIn = n(74.8, 33.5), mid = n(74.8, 36.5), back = n(74.8, 32.2), tail = n(74.8, 29.4);
       out.links.push([dOut, dIn], [dIn, mid], [dIn, back], [back, tail]);
-      rock(flip, 81.5, 13, 1.8, 3.0);
+      // (38.0: moved off the ruins, clear of the cliff's talus and the nav node by the spine's pocket.)
+      rock(flip, 79.5, 14, 1.4, 2.8);
       rock(flip, 67.5, 22, 1.6, 2.6);
       rock(flip, 69, 44, 1.9, 3.1);
-      for (const [x, z] of [[73.4, 12], [76.9, 17], [76.6, 25], [80.6, 25], [72.9, 36.5], [76.7, 38.5], [69.2, 22]]) cover(...P(flip, x, z));
+      for (const [x, z] of [[73.4, 17], [76.9, 19], [76.6, 26.5], [80.6, 26.5], [72.9, 36.5], [76.7, 38.5], [69.2, 22]]) cover(...P(flip, x, z));
       goal(...P(flip, 74.8, 36.5));
-      out.zones.push({ zone: flip ? CONVOY_N : CONVOY_S, rect: R(flip, 64, 2, 89, 56) });
+      out.zones.push({ zone: flip ? CONVOY_N : CONVOY_S, rect: R(flip, 64, 10, 89, 56) });
     }
+  }
+
+  // ===================================================================== 38.0: the ruins
+  // A sandstone caravanserai on each outer flank's midline, between the trench and the convoy (Ruins.ts).
+  {
+    const r = buildRuins({ col, scene: k.scene, mat: m.sandstone, rnd: k.rnd });
+    const n0 = out.nodes.length;
+    out.nodes.push(...r.nodes);
+    out.links.push(...r.links.map(([i, j]) => [n0 + i, n0 + j] as [number, number]));
+    out.coverPoints.push(...r.cover);
+    out.testGoals.push(...r.goals);
+    out.ruins = { posts: r.posts, hvas: r.hvas };
+    const RUINS_W = zone('ruins-w', 'THE RUINS', 'الأطلال'), RUINS_E = zone('ruins-e', 'THE RUINS', 'الأطلال');
+    out.zones.push({ zone: RUINS_W, rect: [RUINS.x0 - 2, -RUINS.z - 2, RUINS.x1 + 2, RUINS.z + 2] }, { zone: RUINS_E, rect: [-RUINS.x1 - 2, -RUINS.z - 2, -RUINS.x0 + 2, RUINS.z + 2] });
   }
 
   // Lanes, at floor height.

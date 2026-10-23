@@ -1997,8 +1997,82 @@ My first versions of the check left the other bots held where they spawned. They
 
 **The trade-off:** the deck, the bridge and the room under the hull share one lane's bots. Whatever brings the fight up onto the ship takes it out of the room below. Every variant with high ground on the ship had 4–12 kills from the room (33 before). `highGround.rise: 4.5` (send no bot from the dock floor) keeps the room at 3.4% of bot time, with the bridge at 0.5% and 2 kills from it. It is off: the brief wanted the bridge.
 
+## 38.0: Desert flanks and density
+
+Branch `feature/desert-38.0`, from `main` @ `b751587` (37.1, merged). Full numbers: `docs/BENCH-38.0.json`.
+
+### The problem (measured first, the 37.1 map, self-play)
+- The Desert was 5v5 (no `teamSize`): 42% of seconds with nobody firing, 12.9 kills a minute, 8-minute matches.
+- More bots fought in the middle: at 12v12 the compound took 81% of the kills, the flanks 19%, the outer flanks (the trench, the convoy) 1.2%.
+
+### The ruins (`Ruins.ts`, `RUINS`)
+- A sandstone caravanserai on each outer flank's midline (west: x −82 … −66, z −10 … 10; the east one its rotation), mirror-symmetric about z = 0, so both teams come at it the same way.
+- **Pieces:** walls in ruined stretches (2–3 m, rubble you vault, a 2 m breach), a south and a north gate under lintels, an east gate towards the pump house, an arch in the court, a well-house and a standing pier on the gates' and the breaches' lines, a corner room each side, a partition, fallen columns.
+- **The gallery:** a 1.7 m masonry terrace along the west side with a stair at each end (cheek wall on the court side). It is the high ground (`TdmData.highGround`).
+- **Built from primitives:** walls laid in courses of one block, columns stacked of one drum, each block off true and its own shade: 4 `InstancedMesh`es for both ruins, a few hundred instances. One collider per piece with the bounds of what is seen. Gaps between pieces are 0 or ≥ 1.3 m (a unit test holds it).
+- **Made room:** the trench starts at the south gate (z 4 → 12, its traverses with it), the convoy's truck stands 3 m off the north gate (a blast wall), the APC moved 1.5 m, a rock moved.
+- **Sightlines** (the longest clear eye-to-eye line north–south through the west flank; the east is its rotation): the trench and gate axis 90 → 58 m, x −71 120 → 48 m, x −70 102 → 58 m. The longest on the outer flank 120 → 80 m (the strip between the ruins and the pump house).
+
+### The AI
+- **The flanks' pull** (`ARENA.flankPull`, `TdmData.flankOf`, on through the Desert's profile; engine-wide, opt-in): a patrol area on a flank scores `base` (0.4) × its weight more, plus up to `hot` (0.8) × weight as the centre heats up (its deaths and gunfire, halving every 15 s). Weights: the hamlet and the wadi 0.6, the outer flanks 1.4.
+  - Off once a team is on its last stand: with it on, the patrols kept going out to the flanks instead of hunting the last few, and endgames ran 52 → 90–110 s, mostly to sudden death. With the switch, 57 s (pull off: 57 s).
+- **Watches at once** (`HighGround.count`): up to `count` bots of a team, each on its own post, the second posted 2 s after the first. The Desert keeps watch on both galleries (`count: 2`, hold 10–16 s, every 10 s, reach 40 m). Patrols search the ruins' corner rooms and east courts.
+- **The Desert's profile:** `directRise: 1` (the last map without the 23.0 rule: bots that saw a gallery walked into its stair's side).
+- **Fixed on the way:**
+  - the outcrops' patrol areas were the sand plus the outcrop's height, 0.65 m inside the rock, so the route's goal snapped to the node beside the Spine and bots stood there (the stuck bots of 28.0's self-play);
+  - the trench's revetments were 0.35 m over the sand, over a step but under the graph's knee ray: links ran across them and bots pressed into them (now 0.5 m);
+  - the outcrops' ramp fill came in 4 steps up to 0.95 m deep: a jump at a ramp's side ended in the fill (stress 18 of 160,000 on `main`; now steps of ≤ 0.3 m, 0);
+  - the APC's turret floated and could be walked through (`world()` on `main`);
+  - **engine-wide:** a vault link must be vaultable from both ends (it was tested from one and linked both ways). It drops 55 one-way links over the wadi's berms on sloping sand and none on any other map.
+
+### Team size: 12v12 (`DESERT_TEAM_SIZE`)
+Self-play on the 38.0 map (6 matches each). "Live quiet" counts seconds nobody fired before the first last stand: the endgame's standoffs swung single matches' totals from 6% to 51%.
+
+| a side | live quiet | all quiet | kills a minute | flank kills | edge kills | stuck |
+|---|---|---|---|---|---|---|
+| 8 | 29% | 33% | 18.7 | 45% | 35% | 0 |
+| 9 | 25% | 30% | 20.2 | 41% | 33% | 0 |
+| 10 | 15% | 24% | 24.1 | 33% | 25% | 0 |
+| 11 | 15% | 22% | 27.5 | 31% | 23% | 0 |
+| 12 | 11% | 26% | 28.2 | 30% | 23% | 0 |
+
+10 is the knee. 12 is the only size where every match stayed at 9–14% live quiet: 15 walkable 8 m cells a player, Neon Docks' 9v9 density. The 37.1 map at 5v5 was 42% quiet (all), at 12v12 13%. The cards, the briefing and the team board read 12v12 (the board holds 12 rows, about 37% of the screen's height).
+
+### Measured at 12v12 (self-play)
+| | 37.1 map (3 matches) | 38.0, pull off (6) | 38.0 (12) |
+|---|---|---|---|
+| kills in the centre / on the flanks | 81% / 19% | 83% / 17% | 74% / 26% (19–46% a match) |
+| kills on the edges (\|x\| ≥ 44) | 12% | 11% | 21% |
+| bot time on the flanks | 34% | 31% | 46% |
+| kills on the outer flanks | 1.2% | 1.3% | 2.7% |
+| the ruins: bot time / deaths / kills from them | – | 3.9% / 6 / 8 | 5.2% / 24 / 19 |
+| watches a match: posted / got there / held | – | 6.2 / 4.0 / 48 s | 7.4 / 5.3 / 66 s |
+| kills a minute | 35.7 | 35.0 | 31.9 |
+| quiet: live / all | – / 13% | 8% / 16% | 13% / 18% |
+| endgame | 55 s | 57 s | 57 s |
+| stuck bots | 0 | 0 | 0 |
+
+- **Not met:** the outer flanks (the trench, the ruins, the convoy) take 2.7% of the kills at 12v12 (8% at 8v8). Bots walk them (16% of bot time in those zones) and hold the galleries, but the fights stay with the crowds nearer the middle. The flanks as a whole are where the kills moved.
+- **Variance:** a match's flank share ran 19–46%; one of the twelve posted no watch at all.
+
+### Performance
+- `bench(3)` on the desert (Balanced, Apple M5; a new 12v12 TDM pass with the ruins' views): 60 FPS (59.6–60.3) in 13 of 14 views, CPU 1.6–3.6 ms, GPU 4.6–6.0 ms. The ruins are 4 instanced draws for both, a few hundred instances.
+- **The firefight in the court** (12v12, the player shooting): 59 FPS and 9.0 ms CPU in the final run (p99 frame 44.5 ms), 2.6–3.2 ms in two earlier runs. The heavy frames are route planning: a re-plan tests up to 128 graph entries for a clear corridor, 3 routes a frame, and at 12v12 a fight bunches them. Not changed here: it is the 7.0 budget on every map. The court at 12v12 without shooting, 20 s: 60 FPS, CPU p50 2.8, p95 4.5, p99 7.8 ms.
+- **Fixed (engine-wide, as old as 33.0):** a bot with no route looks up the nearest node it can walk to "once a re-plan", but the test was `pathT >= 0.55`, true for every frame of the first 0.05–0.35 s after each re-plan. That is a lookup of hundreds of rays a frame (3–12 ms of a 12v12 Desert frame in the court). It now looks once a re-plan.
+- **The sandstorm** was already on the GPU: grains and dust sheets are static instanced buffers moved in the shader, the CPU sets uniforms, both hidden in calm air. The storm costs 0.3 ms GPU over calm in the yard.
+- **Measuring:** bench views on an unfocused or hidden window report 0 frames (`valid: false`). The window went to the background 20 s into a run; a `visibilitychange` log showed it.
+
+### Checks
+- `levelAI`: runners 713/720, gunners 16/16 (`main`: 658/666 with fewer goals). The 7 misses are the same compound goals `main` misses; every ruin and outcrop goal reached.
+- `world()`: no findings (`main`: 2, the APC's turret); 24 notes of the gallery stairs flush with their cheek walls.
+- `stress`: 0 of 160,000 (`main`: 18), crouched 0 of 16,000.
+- Self-play: 0 stuck in 48 matches with the final AI (the sweep, the 12v12 runs, pull off); 3 wall-presses. After the last fixes (the turret, the no-route lookup), 3 more on the Desert and 2 on Old Port: 0 stuck.
+- `leakcheck.mjs 2 desert,docks,oldport`: 0 alive.
+- Tests 429 (+14).
+
 ## Next
 Human playtest:
+- 38.0 items: 12v12 on the Desert (busy or chaotic; the team board; spawning with 23 others); the ruins (do they read as ruins; the gallery as a perch: too strong, too exposed; the corner rooms and the court as close-quarters fights); do bots out on the flanks feel like flankers, or like bots wandering away from the fight; the trench now starting at the ruins.
 - 37.1 items: the bridge (do bots go up and hold it now and then; is a bot on the roof a fair threat or a free kill; the room under the hull got quieter: does it still feel used); if the room matters more than the bridge, `highGround.rise: 4.5` on Old Port (measured above).
 - 37.0 items: UNDER THE HULL (does it read as a place: the lamps, the dimness, the stands; too cramped or too open; does the ceiling feel low); spawning at the dock head (fair, or a pit you get shot into from the quays?); do fights happen under the ship for you as they do for the bots.
 - 36.0 items: the first frame of a match (does the flight land cleanly in your eyes on every map; anything jarring in the last second of it); the countdown (3 s: long enough to pick a gun, too long?; readable on every map?); do the bots' poses during it look natural; the start itself (does everyone go at once, any unfair first shot).

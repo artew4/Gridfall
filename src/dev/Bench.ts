@@ -129,7 +129,8 @@ async function benchDesert(game: Game, dev: Dev, m: (name: string) => Promise<vo
   // the hamlet to the compound's roofs, the wrecked convoy.
   desert.storm.clock.set('calm', 0.06);
   const H = (x: number, z: number) => game.col.terrain?.height(x, z) ?? 0;
-  dev.tp(-75, H(-75, 8), 8, 0, 0);
+  // (38.0: from its mouth at z 14: it starts there now, the ruins south of it.)
+  dev.tp(-75, H(-75, 14), 14, 0, 0);
   dev.look(-75, H(-75, 40) + 1, 40);
   await m('trench');
   dev.tp(-81, H(-81, 26.5) + 4.2, 26.5, 0, 0);
@@ -153,7 +154,44 @@ async function benchDesert(game: Game, dev: Dev, m: (name: string) => Promise<vo
   await m('fightStorm');
   game.waves.reset(game.scene);
   game.waves.state = 'idle';
+  // 38.0: Team Deathmatch at the map's 12v12 (23 bots and the player), the match running: the ruins
+  // (the court from the east gate, the gallery looking down into it, the whole west ruin from over the
+  // pump house), in calm air and in the storm, then a firefight in the court.
+  dev.start('tdm', 'desert');
+  dev.god();
   desert.storm.clock.set('calm', 0.06);
+  // (The match's setup, its vault links among it, ran into the first view's measurement: settle first.)
+  await wait(3000);
+  const ruinViews: [string, [number, number, number], [number, number, number]][] = [
+    ['ruinsCourt', [-67.4, H(-67.4, 0), 0], [-81, 4, 0]],
+    ['ruinsGallery', [-81, 5.3, 0], [-60, 1, 0]],
+    ['ruinsWhole', [-58, 9, 14], [-76, 2, -4]],
+  ];
+  for (const [name, p, l] of ruinViews) {
+    dev.tp(p[0], p[1], p[2], 0, 0);
+    dev.look(l[0], l[1], l[2]);
+    await m(name);
+  }
+  desert.storm.clock.set('peak', 1);
+  dev.tp(-67.4, H(-67.4, 0), 0, 0, 0);
+  dev.look(-81, 4, 0);
+  await m('ruinsStorm');
+  desert.storm.clock.set('calm', 0.06);
+  const tdm = game.tdm;
+  dev.tp(-72, H(-72, 2), 2, 0, 0);
+  const shooter = window.setInterval(() => {
+    let best: { x: number; y: number; z: number } | null = null, bd = 80;
+    for (const b of tdm.bots) if (b.alive && b.team === 'omega' && b.pos.distanceTo(game.player.pos) < bd) {
+      bd = b.pos.distanceTo(game.player.pos);
+      best = b.pos;
+    }
+    if (!best) return;
+    dev.look(best.x, best.y + 1.2, best.z);
+    dev.shoot();
+  }, 600);
+  await new Promise((r) => setTimeout(r, 4000));
+  await m('tdmFight');
+  clearInterval(shooter);
   return out;
 }
 

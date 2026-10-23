@@ -562,6 +562,7 @@ export class TdmRules implements ModeRules {
       for (const t of TEAMS) {
         // 37.1: the high ground is patrolled too, and kept watch on.
         this.directors[t].setPatrol([...hvas, ...(this.data.highGround?.points ?? [])]);
+        this.directors[t].setFlanks(this.data.flankOf?.bind(this.data) ?? null);
         this.directors[t].setWatch(this.data.highGround ?? null, watchFree);
       }
     }
@@ -622,6 +623,7 @@ export class TdmRules implements ModeRules {
       for (const t of TEAMS) {
         // 37.1: the high ground is patrolled too, and kept watch on.
         this.directors[t].setPatrol([...hvas, ...(this.data.highGround?.points ?? [])]);
+        this.directors[t].setFlanks(this.data.flankOf?.bind(this.data) ?? null);
         this.directors[t].setWatch(this.data.highGround ?? null, watchFree);
       }
     }
@@ -948,11 +950,15 @@ export class TdmRules implements ModeRules {
     if (!this.winner) {
       // 29.0: the frame's deaths are in: who stands, the sudden-death clocks, maybe the end.
       const o = this.rules.update(now, dt, this.standing());
-      if (this.directors)
+      if (this.directors) {
+        const ending = TEAMS.some((t) => this.rules.tickets[t] === 0);
         for (const t of TEAMS) {
           this.directors[t].lastStand = this.rules.tickets[t] === 0;
           this.directors[t].sudden = this.rules.sudden[t];
+          // 38.0: no flanks' pull once a team is down to its last lives (the hunt is on).
+          this.directors[t].endgame = ending;
         }
+      }
       if (o) this.end(o);
     }
     if (!this.winner) {

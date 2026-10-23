@@ -40,9 +40,10 @@ export function culvertFloor(x: number, z: number): number | null {
  * half): `x0..x1` wide, `z0..z1` long, `depth` m down from the dunes, ramped up to the sand over `ramp`
  * m at both ends, with a side notch out to the east (the notch's floor rises to the sand over its
  * length). Its sides are vertical (the terrain is cut, as the culvert is) and lined with revetments
- * (Arena.ts); its floor follows the dunes' own rise and fall.
+ * (Arena.ts); its floor follows the dunes' own rise and fall. 38.0: it starts 8 m further north (was
+ * z 4), where the ruins' south gate opens onto it.
  */
-export const TRENCH = { x0: -76.8, x1: -73.2, z0: 4, z1: 50, depth: 1.3, ramp: 6, notch: { z0: 33, z1: 35, x1: -68.5 } };
+export const TRENCH = { x0: -76.8, x1: -73.2, z0: 12, z1: 50, depth: 1.3, ramp: 6, notch: { z0: 33, z1: 35, x1: -68.5 } };
 
 /** How far the trench cuts the sand at (x, z) (0 outside it), in the south-half frame. */
 function trenchCut(x: number, z: number) {

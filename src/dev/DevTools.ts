@@ -247,7 +247,7 @@ export function installDevTools(game: Game) {
       return (await import('./TdmCheck')).tdmBench(game, opts);
     },
     /** 7.0: a whole TDM match stepped headless at a fixed 1/60 s (bot vs bot): length, movement, aggression, AI cost. */
-    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | 'pistol' | 'smg' | 'ar' | 'shotgun'; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; flankThreat?: boolean; scan?: boolean } = {}) {
+    async tdmSim(opts: { ai?: 'arena' | 'tactical'; tickets?: number; maxSeconds?: number; dt?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | 'pistol' | 'smg' | 'ar' | 'shotgun'; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; flankThreat?: boolean; scan?: boolean; flankPull?: boolean; watches?: number; tune?: Record<string, unknown> } = {}) {
       return (await import('./TdmCheck')).tdmSim(game, opts);
     },
     /**

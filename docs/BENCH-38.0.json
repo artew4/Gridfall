@@ -1,0 +1,307 @@
+{
+ "version": "38.0",
+ "branch": "feature/desert-38.0",
+ "machine": "Apple M5, Chrome, Balanced (bench); headless Chrome, tdmSim at a fixed 1/60 s (self-play, level checks)",
+ "baseline_37_1_map": {
+  "5v5": {
+   "matches": 3,
+   "kills": 314,
+   "killsPerMin": 12.9,
+   "quietPct": 42.3,
+   "centreKillPct": 67.8,
+   "flankKillPct": 32.2,
+   "edgeKillPct": 28.5,
+   "outerFlankKillPct": 3.8,
+   "flankTimePct": 48.1,
+   "stuck": 0,
+   "endgameSeconds": 92.5,
+   "matchSeconds": 487.5
+  },
+  "9v9": {
+   "matches": 3,
+   "kills": 338,
+   "killsPerMin": 23.8,
+   "quietPct": 25.3,
+   "centreKillPct": 84.9,
+   "flankKillPct": 15.1,
+   "edgeKillPct": 11.2,
+   "outerFlankKillPct": 2.1,
+   "flankTimePct": 32.5,
+   "stuck": 0,
+   "endgameSeconds": 65.0,
+   "matchSeconds": 284.5
+  },
+  "10v10": {
+   "matches": 3,
+   "kills": 341,
+   "killsPerMin": 26.7,
+   "quietPct": 19.6,
+   "centreKillPct": 80.9,
+   "flankKillPct": 19.1,
+   "edgeKillPct": 13.1,
+   "outerFlankKillPct": 0.9,
+   "flankTimePct": 33.2,
+   "stuck": 0,
+   "endgameSeconds": 69.2,
+   "matchSeconds": 259.4
+  },
+  "11v11": {
+   "matches": 3,
+   "kills": 339,
+   "killsPerMin": 32.2,
+   "quietPct": 14.7,
+   "centreKillPct": 84.1,
+   "flankKillPct": 15.9,
+   "edgeKillPct": 11.9,
+   "outerFlankKillPct": 0.9,
+   "flankTimePct": 27.4,
+   "stuck": 0,
+   "endgameSeconds": 53.1,
+   "matchSeconds": 216.9
+  },
+  "12v12": {
+   "matches": 3,
+   "kills": 345,
+   "killsPerMin": 35.7,
+   "quietPct": 13.0,
+   "centreKillPct": 80.9,
+   "flankKillPct": 19.1,
+   "edgeKillPct": 12.4,
+   "outerFlankKillPct": 1.2,
+   "flankTimePct": 33.7,
+   "stuck": 0,
+   "endgameSeconds": 55.3,
+   "matchSeconds": 194.8
+  }
+ },
+ "sweep_38_0": {
+  "8v8": {
+   "matches": 6,
+   "kills": 647,
+   "killsPerMin": 18.7,
+   "quietPct": 33.3,
+   "centreKillPct": 55.3,
+   "flankKillPct": 44.7,
+   "edgeKillPct": 35.3,
+   "outerFlankKillPct": 7.9,
+   "flankTimePct": 62.8,
+   "stuck": 0,
+   "endgameSeconds": 66.6,
+   "matchSeconds": 353.6,
+   "quietLivePct": 29.2
+  },
+  "9v9": {
+   "matches": 6,
+   "kills": 665,
+   "killsPerMin": 20.2,
+   "quietPct": 30.1,
+   "centreKillPct": 59.1,
+   "flankKillPct": 40.9,
+   "edgeKillPct": 32.5,
+   "outerFlankKillPct": 6.0,
+   "flankTimePct": 58.9,
+   "stuck": 0,
+   "endgameSeconds": 75.2,
+   "matchSeconds": 336.7,
+   "quietLivePct": 25.1
+  },
+  "10v10": {
+   "matches": 6,
+   "kills": 674,
+   "killsPerMin": 24.1,
+   "quietPct": 24.3,
+   "centreKillPct": 67.3,
+   "flankKillPct": 32.7,
+   "edgeKillPct": 24.5,
+   "outerFlankKillPct": 4.2,
+   "flankTimePct": 52.4,
+   "stuck": 0,
+   "endgameSeconds": 77.7,
+   "matchSeconds": 284.1,
+   "quietLivePct": 14.5
+  },
+  "11v11": {
+   "matches": 6,
+   "kills": 682,
+   "killsPerMin": 27.5,
+   "quietPct": 21.9,
+   "centreKillPct": 69.5,
+   "flankKillPct": 30.5,
+   "edgeKillPct": 22.9,
+   "outerFlankKillPct": 2.5,
+   "flankTimePct": 47.3,
+   "stuck": 0,
+   "endgameSeconds": 64.8,
+   "matchSeconds": 252.0,
+   "quietLivePct": 15.3
+  },
+  "12v12": {
+   "matches": 6,
+   "kills": 700,
+   "killsPerMin": 28.2,
+   "quietPct": 26.3,
+   "centreKillPct": 69.7,
+   "flankKillPct": 30.3,
+   "edgeKillPct": 22.7,
+   "outerFlankKillPct": 2.6,
+   "flankTimePct": 44.4,
+   "stuck": 0,
+   "endgameSeconds": 93.0,
+   "matchSeconds": 251.5,
+   "quietLivePct": 11.2
+  }
+ },
+ "final_12v12": {
+  "pullOff": {
+   "matches": 6,
+   "kills": 713,
+   "killsPerMin": 35.0,
+   "quietPct": 15.8,
+   "centreKillPct": 82.6,
+   "flankKillPct": 17.4,
+   "edgeKillPct": 11.2,
+   "outerFlankKillPct": 1.3,
+   "flankTimePct": 30.9,
+   "stuck": 0,
+   "endgameSeconds": 56.8,
+   "matchSeconds": 207.8,
+   "quietLivePct": 7.9
+  },
+  "shipped": {
+   "matches": 12,
+   "kills": 1385,
+   "killsPerMin": 31.9,
+   "quietPct": 17.7,
+   "centreKillPct": 73.7,
+   "flankKillPct": 26.3,
+   "edgeKillPct": 20.9,
+   "outerFlankKillPct": 2.7,
+   "flankTimePct": 45.8,
+   "stuck": 0,
+   "endgameSeconds": 57.4,
+   "matchSeconds": 219.5,
+   "quietLivePct": 12.9
+  },
+  "ruins": {
+   "botTimePct": 5.2,
+   "deaths": 24,
+   "killsFrom": 19,
+   "watchesPerMatch": {
+    "posted": 7.4,
+    "arrived": 5.3,
+    "heldSeconds": 65.5
+   }
+  }
+ },
+ "sightlines_west_flank_m": {
+  "columns": "main, 38.0",
+  "x-74": [
+   90,
+   58
+  ],
+  "x-71": [
+   120,
+   48
+  ],
+  "x-70": [
+   102,
+   58
+  ],
+  "x-69": [
+   80,
+   58
+  ],
+  "x-68.2": [
+   80,
+   80
+  ],
+  "x-66": [
+   80,
+   80
+  ]
+ },
+ "levelChecks": {
+  "levelAI": "runners 713/720 (main 658/666), gunners 16/16",
+  "world": "0 findings (main 2), 24 notes",
+  "stress": "0/160000 (main 18)",
+  "crouch": "0/16000",
+  "leakcheck": "0 alive (desert,docks,oldport x2)"
+ },
+ "bench3_desert": {
+  "columns": "fps, cpuMs, gpuMs",
+  "views": {
+   "yardCalm": [
+    60,
+    1.68,
+    5.63
+   ],
+   "towerView": [
+    60,
+    2.14,
+    5.87
+   ],
+   "yardStorm": [
+    60,
+    2.38,
+    6.0
+   ],
+   "interiorStorm": [
+    60.3,
+    1.88,
+    5.28
+   ],
+   "dunesStorm": [
+    60,
+    2.48,
+    5.48
+   ],
+   "trench": [
+    60,
+    1.86,
+    5.21
+   ],
+   "anvilTop": [
+    60,
+    2.51,
+    5.72
+   ],
+   "convoy": [
+    60,
+    1.63,
+    5.25
+   ],
+   "fightStorm": [
+    59.6,
+    2.5,
+    5.55
+   ],
+   "ruinsCourt": [
+    60.3,
+    2.7,
+    5.68
+   ],
+   "ruinsGallery": [
+    60,
+    2.62,
+    5.96
+   ],
+   "ruinsWhole": [
+    59.7,
+    2.05,
+    4.62
+   ],
+   "ruinsStorm": [
+    60,
+    3.62,
+    4.82
+   ],
+   "tdmFight": [
+    59,
+    8.98,
+    4.9
+   ]
+  },
+  "note": "tdmFight (12v12, the player shooting from the court) measured 2.6-3.2 ms CPU in two earlier runs; 9.0 ms here from route planning entry tests bunching up (p99 frame 44.5 ms). The court at 12v12 without shooting, 20 s: 60 FPS, CPU p50 2.8, p95 4.5, p99 7.8 ms."
+ },
+ "tests": 429
+}

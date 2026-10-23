@@ -2,11 +2,12 @@ import * as THREE from 'three';
 import type { Game } from '../core/Game';
 import { TDM } from '../levels/Tdm';
 import { ANY, RANGED_ONLY } from '../enemies/Roster';
-import { ARENA } from '../enemies/arena/ArenaCtx';
+import { ARENA, applyProfile, type ArenaProfile } from '../enemies/arena/ArenaCtx';
 import { STAMINA } from '../combat/Stamina';
 import { ARMORY, type WeaponId } from '../entities/weapons/armory';
 import type { TacticalEnemy } from '../enemies/Enemy';
 import { probe } from './PerfProbe';
+import { isArenaBot } from '../enemies/arena/ArenaBots';
 
 /*
   DEV only. Team Deathmatch checks on the real game loop (Desert Outpost):
@@ -252,7 +253,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean; flankThreat?: boolean; scan?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean; flankThreat?: boolean; scan?: boolean; flankPull?: boolean; watches?: number; tune?: ArenaProfile } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -306,8 +307,19 @@ export async function tdmSim(
   // 32.0 A/B: `space: false` is 31.0's bots (no spread in fights, patrols or hunts); set after the
   // map's profile (below), which may turn it on.
   const space0 = ARENA.space.on;
+  // 38.0 A/B: `watches`: the high ground's watches at once (0: none kept).
+  const td = game.level.data.tdm;
+  const hg0 = td?.highGround;
+  if (td && hg0 && opts.watches !== undefined) td.highGround = opts.watches ? { ...hg0, count: opts.watches } : undefined;
+  // (Read before the match's profile turns it on, as `space`.)
+  const pull0 = ARENA.flankPull.on;
   // 29.0: the map's tickets unless told (50 since 29.0; 25 forced before).
   startMatch(game, true, opts.tickets, ai, opts.size, opts.profile ?? true);
+  if (td) td.highGround = hg0;
+  // 38.0 A/B: `flankPull: false` (after the profile, which may turn it on); `tune`: any ARENA values on
+  // top of the map's profile (put back at the end).
+  if (opts.flankPull !== undefined) ARENA.flankPull.on = opts.flankPull;
+  const untune = applyProfile(opts.tune);
   if (opts.space !== undefined) ARENA.space.on = opts.space;
   // 33.0 A/B: `corridor: false` turns the corridor feelers off (after the profile, which may turn them on).
   const corridor0 = ARENA.corridor.on;
@@ -548,7 +560,11 @@ export async function tdmSim(
           // 29.0: holding a spot on the last stand is still on purpose, not stuck.
           if (!r || Math.hypot(b.pos.x - r.x, b.pos.z - r.z) > 1.5 || b.tac.action === 'hold') track.set(b, { x: b.pos.x, z: b.pos.z, t: now });
           else if (now - r.t > 15) {
-            stuck.push(`${b.name} ${b.tac.action}/${b.tac.phase} @${b.pos.x.toFixed(1)},${b.pos.z.toFixed(1)} t${(now - t0).toFixed(0)}`);
+            // 38.0: and where it was going (its goal, the route's next node, a vault or a jump under way).
+            const br = isArenaBot(b) ? b.brain : null;
+            const v3 = (p: { x: number; y: number; z: number } | null | undefined) => (p ? `${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}` : '-');
+            const nx = (b as unknown as { path: number[] }).path?.[0];
+            stuck.push(`${b.name} ${b.tac.action}/${b.tac.phase} @${b.pos.x.toFixed(1)},${b.pos.z.toFixed(1)} t${(now - t0).toFixed(0)}` + (br ? ` y${b.pos.y.toFixed(1)} goal ${v3(br.goal)} next ${v3(nx !== undefined ? game.nav.nodes[nx] : null)}` : ''));
             r.t = now;
           }
         }
@@ -610,7 +626,9 @@ export async function tdmSim(
   TDM.roster = roster0;
   ARENA.laneLeave = lane0;
   TDM.arms = arms0;
+  untune();
   ARENA.directRise = rise0;
+  ARENA.flankPull.on = pull0;
   ARENA.vantage.on = vantage0;
   ARENA.lanePressure.on = pressure0;
   Object.assign(rifle, { aim: rifle0.aim, hipSpread: rifle0.hip, maxRange: rifle0.max });
@@ -751,7 +769,7 @@ export async function tdmSim(
     })(),
     // 37.1: the high-ground watch (TdmData.highGround): posted, got there, seconds held there.
     watch: tdm.directors ? { posts: tdm.directors.alpha.watchStats.posts + tdm.directors.omega.watchStats.posts, arrivals: st.watchHolds, died: tdm.directors.alpha.watchStats.died + tdm.directors.omega.watchStats.died, timedOut: tdm.directors.alpha.watchStats.timedOut + tdm.directors.omega.watchStats.timedOut, heldSeconds: +st.watchT.toFixed(1), diedAt: [...tdm.directors.alpha.watchDiedAt, ...tdm.directors.omega.watchDiedAt] } : null,
-    patrol: tdm.directors ? { picks: tdm.directors.alpha.patrolStats.picks + tdm.directors.omega.patrolStats.picks, toActive: tdm.directors.alpha.patrolStats.active + tdm.directors.omega.patrolStats.active, spawnsHeard: tdm.directors.alpha.patrolStats.spawnsHeard + tdm.directors.omega.patrolStats.spawnsHeard, arrivals: st.patrolArrive } : null,
+    patrol: tdm.directors ? { picks: tdm.directors.alpha.patrolStats.picks + tdm.directors.omega.patrolStats.picks, toFlank: tdm.directors.alpha.patrolStats.flank + tdm.directors.omega.patrolStats.flank, toActive: tdm.directors.alpha.patrolStats.active + tdm.directors.omega.patrolStats.active, spawnsHeard: tdm.directors.alpha.patrolStats.spawnsHeard + tdm.directors.omega.patrolStats.spawnsHeard, arrivals: st.patrolArrive } : null,
     firstEngagement: {
       lives: firstShot.length + silentDeaths,
       median: +q(firstShot, 0.5).toFixed(1),
@@ -774,6 +792,14 @@ export async function tdmSim(
       };
     })(),
     quietPct: +((100 * (1 - Math.min(shotSec.size, Math.ceil(simT)) / Math.max(1, Math.ceil(simT))))).toFixed(1),
+    // 38.0: quiet seconds before the first team's last stand (the endgame's standoffs, a few
+    // survivors hiding on a 180 m map, ran single matches from 6% to 51%).
+    quietLivePct: (() => {
+      const end = Math.ceil(firstLast ? firstLast.t : simT);
+      let q = 0;
+      for (let t = Math.floor(t0); t < Math.floor(t0) + end; t++) if (!shotSec.has(t)) q++;
+      return +((100 * q) / Math.max(1, end)).toFixed(1);
+    })(),
     longestQuiet: (() => {
       let best = 0, run = 0;
       for (let t = Math.floor(t0); t < Math.ceil(t0 + simT); t++) {

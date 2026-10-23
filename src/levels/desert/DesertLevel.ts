@@ -10,15 +10,16 @@ import { DesertIntro } from './DesertIntro';
 import { detailTexture, sandTexture } from './textures';
 import { damp, smoothstep } from '../../core/math';
 import { DESERT_MERCS } from '../../entities/enemies/mercs';
-import { inBase } from './ArenaLayout';
+import { DESERT_AI, DESERT_TEAM_SIZE, flankOf, inBase } from './ArenaLayout';
 
 export const DESERT_INFO: LevelInfo = {
   id: 'desert',
   name: 'DESERT OUTPOST',
   biome: 'desert',
   jp: 'الموقع الصحراوي',
-  blurb: 'An outpost in open dunes, harsh sun, sandstorms that blind you. Survival or 5v5 Team Deathmatch.',
+  blurb: 'An outpost in open dunes, harsh sun, sandstorms that blind you. Survival or 12v12 Team Deathmatch: the compound, the hamlet and the wadi, the ruins by the cliffs.',
   modes: ['arcade', 'tdm'],
+  teamSize: DESERT_TEAM_SIZE,
   loading: 'RAISING THE OUTPOST…',
   windowTitle: 'Gridfall — Desert Outpost',
   enemies: DESERT_MERCS,
@@ -29,7 +30,7 @@ export const DESERT_INFO: LevelInfo = {
   clock: '14:10',
   cine: {
     arcade: { t1: 'GRIDFALL', t2: 'الموقع الصحراوي · DESERT OUTPOST', t3: 'ARCADE SURVIVAL · HOLD THE OUTPOST<br/>SANDSTORM WARNING · VISIBILITY WILL DROP' },
-    tdm: { t1: 'GRIDFALL', t2: 'الموقع الصحراوي · DESERT OUTPOST', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>25 TICKETS EACH · LAST TEAM STANDING WINS' },
+    tdm: { t1: 'GRIDFALL', t2: 'الموقع الصحراوي · DESERT OUTPOST', t3: 'TEAM DEATHMATCH 12v12 · ALPHA vs OMEGA<br/>THE COMPOUND · THE FLANKS · THE RUINS' },
   },
 };
 
@@ -183,10 +184,21 @@ export class DesertLevel implements LevelRuntime {
         spawnTuning: { near: 60, hardMin: 24, sight: 80 },
         // 28.0: the outer flanks' high-value areas for the patrols: the outcrops' tops, the bus (the trench
         // is on the outer lanes already; searching it as well jammed bots in the corner by its notch).
-        hvas: [[-81, 26.5, 3.8], [80, 49.5, 3.4], [74.8, 36.5, 0]].flatMap(([x, z, up]) => [
-          new THREE.Vector3(x, desertHeight(x, z) + up, z),
-          new THREE.Vector3(-x, desertHeight(-x, -z) + up, -z),
-        ]),
+        hvas: [
+          // 38.0: on the outcrops' tops as built (they were the sand plus the outcrop's height, 0.65 m into
+          // the rock: the route's goal snapped to the node beside the Spine, and a bot stood there, stuck).
+          ...o.arena.outcrops,
+          new THREE.Vector3(74.8, desertHeight(74.8, 36.5), 36.5),
+          new THREE.Vector3(-74.8, desertHeight(-74.8, -36.5), -36.5),
+          // 38.0: the ruins' corner rooms and east courts.
+          ...o.arena.ruins.hvas,
+        ],
+        // 38.0: the ruins' galleries, kept watch on (ArenaDirector.setWatch).
+        // Both at once (one a team on each, from that flank's own lane).
+        highGround: { points: o.arena.ruins.posts, hold: [10, 16], every: 10, reach: 40, count: 2 },
+        // 38.0: the flanks pull the patrols (more while the centre is hot); the 23.0 climbing rule.
+        flankOf: (x) => flankOf(x),
+        arena: DESERT_AI,
         inBase: (team, p) => inBase(p.x, p.z, team === 'alpha' ? 'south' : 'north'),
         start: { x: 0, z: 63, yaw: 0, y: o.arena.spawns.south[0].y },
         // 28.0: three lanes for the reports and the spawn balance (the director keeps its five): the

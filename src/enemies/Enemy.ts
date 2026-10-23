@@ -387,6 +387,7 @@ export abstract class Enemy implements Combatant {
       this.pathT = 0.6 + Math.random() * 0.3;
       this.path = this.routeTo(ctx, from, to);
       this.noRoute = this.path.length === 0;
+      this.ontoStale = true;
     }
     // Skip waypoints we can already see past (never across levels, or we'd cut under a walkway);
     // looked at five times a second, not every frame.
@@ -407,7 +408,10 @@ export abstract class Enemy implements Combatant {
     // the wall (bots ran into a ravine's rim for whole matches). Onto the graph instead: the nearest node
     // it can walk to (looked up on the re-plan timer); from there the next plan has an entry.
     if (this.noRoute) {
-      if (this.pathT >= 0.55 || !this.onto) {
+      // (Once a re-plan. 38.0: it read `pathT >= 0.55`, true for every frame of the first 0.05–0.35 s
+      // after each re-plan: a lookup of hundreds of rays a frame, 3–12 ms of a 12v12 Desert frame.)
+      if (this.ontoStale || !this.onto) {
+        this.ontoStale = false;
         const i = ctx.nav.nearestVisible(from);
         this.onto = i >= 0 ? ctx.nav.nodes[i] : null;
       }
@@ -416,8 +420,9 @@ export abstract class Enemy implements Combatant {
     }
     return goal;
   }
-  /** 33.0: the node it walks to when its goal has no route from here. */
+  /** 33.0: the node it walks to when its goal has no route from here (38.0: looked up again after a re-plan). */
   private onto: THREE.Vector3 | null = null;
+  private ontoStale = true;
 
   /** Can it walk straight from `from` to `to` (body height)? Arena bots (7.0) also count low walls they vault. */
   protected directClear(ctx: EnemyCtx, from: THREE.Vector3, to: THREE.Vector3) {

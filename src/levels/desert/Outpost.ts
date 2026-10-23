@@ -10,7 +10,7 @@ import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import { CLIFF, CLIFF_RECESS, CULVERT, DESERT_EXTENT, culvertFloor, desertHeight } from './Terrain';
 import * as T from './textures';
 import { buildArena, type ArenaResult } from './Arena';
-import { arenaKeepOut } from './ArenaLayout';
+import { arenaKeepOut, inRuins } from './ArenaLayout';
 
 /*
   Desert Outpost "Kestrel" (metres, y up, north = -z). The flat pad (y = 0) holds the compound inside
@@ -118,6 +118,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     bulb: new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 2.4, 1.4) }),
     palm: new THREE.MeshStandardMaterial({ color: 0x5b6a2e, roughness: 0.9, side: THREE.DoubleSide }),
     trunk: std(T.woodTexture(), 0x9c8466, 0.95),
+    // 38.0: the ruins' masonry: a pale weathered face each block tints (InstancedMesh colours).
+    sandstone: std(T.plasterTexture('#ece2d0'), 0xffffff, 0.95, 0, 0.2),
   };
 
   /** A box that is both seen and solid, with the same bounds. */
@@ -770,6 +772,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
       if ((Math.abs(x) < 32 && Math.abs(z) < 29) || arenaKeepOut(x, z, 1)) continue;
       const sc = 0.6 + rnd() * 0.9;
       const yaw = rnd() * Math.PI;
+      // 38.0: none in the ruins (skipped after its draws: the scatter and the cliffs after it stay as they were).
+      if (inRuins(x, z, 1)) continue;
       for (let k = 0; k < 3; k++) {
         mtx.compose(new THREE.Vector3(x, desertHeight(x, z) - 0.05, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw + (k * Math.PI) / 3, 0)), new THREE.Vector3(sc, sc, sc));
         parts.push(card.clone().applyMatrix4(mtx));
@@ -839,7 +843,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   const arena = buildArena({
     b, col, scene, rnd, boulder,
-    mats: { mud: m.mud, hesco: m.hesco, concrete: m.concrete, sandbag: m.sandbag, rock: m.rock, rust: m.rust, darkMetal: m.darkMetal, tent: m.tent, wood: m.wood, crate: crateMats.gear },
+    mats: { mud: m.mud, hesco: m.hesco, concrete: m.concrete, sandbag: m.sandbag, rock: m.rock, rust: m.rust, darkMetal: m.darkMetal, tent: m.tent, wood: m.wood, crate: crateMats.gear, sandstone: m.sandstone },
     flag: (c) => T.canvasTexture(c),
   });
 
