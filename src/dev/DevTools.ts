@@ -10,12 +10,14 @@ export function installDevTools(game: Game) {
      * Skip title and intro and play immediately (pointer lock is faked: automation can't hold it).
      * `setting` loads another level first (synchronously).
      */
-    start(mode: 'story' | 'arcade' | 'tdm' = 'story', setting?: SettingId) {
+    start(mode: 'story' | 'arcade' | 'tdm' = 'story', setting?: SettingId, opts: { preMatch?: boolean } = {}) {
       if (setting && setting !== game.setting) game.loadLevel(setting);
       if (!game.level.info.modes.includes(mode)) throw new Error(`${game.setting} has no ${mode} mode`);
       game.mode = mode;
       game.hud.show(game.hud.title, false);
       g.beginPlay();
+      // 36.0: checks and benches start live; { preMatch: true } keeps TDM's countdown (matchstart.mjs).
+      if (mode === 'tdm' && game.tdm.phase === 'PRE_MATCH' && !opts.preMatch) game.tdm.goLive(false);
       game.input.locked = true;
       if (game.state === 'paused') g.resume();
       return game.state;

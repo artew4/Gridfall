@@ -175,6 +175,11 @@ export interface IntroLike {
   t: number;
   update(dt: number, cam: THREE.PerspectiveCamera): IntroFrame;
   skip(): void;
+  /**
+   * 36.0: settle at these eyes, looking at `look`, instead of the map's start: the spawn the match
+   * has already dealt him (TDM), so the flight's last frame is his first.
+   */
+  landAt?(eye: THREE.Vector3, look: THREE.Vector3): void;
   dispose(): void;
 }
 

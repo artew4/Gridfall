@@ -53,6 +53,9 @@ import { SpawnPads } from '../world/SpawnPads';
 const _eye = new THREE.Vector3();
 const _eye2 = new THREE.Vector3();
 
+/** 36.0: the match's phase: the countdown with everyone held, then the match itself. */
+export type MatchPhase = 'PRE_MATCH' | 'LIVE';
+
 export const TDM = {
   /** 29.0: respawns per team (a death with none left is final): 50, whatever the team size. */
   tickets: 50,
@@ -61,6 +64,11 @@ export const TDM = {
   playerRespawn: 4,
   /** Spawn protection (s). */
   protect: 2,
+  /**
+   * 36.0: the pre-match countdown (s): everyone on his spot, feet and triggers held, the bots' brains
+   * and directors idle; only the loadout is open. The match clock and spawn protection start after it.
+   */
+  preMatch: 3,
   /** Damage of a bot's round to another bot (survival bolts only ever meet the player: 10). */
   botDamage: 20,
   /** Bots' difficulty (speed, damage step): wave 3 of survival. */
@@ -182,6 +190,13 @@ export class TdmRules implements ModeRules {
   private mousePrev = { l: false, r: false };
   private endT = 0;
   private startT = 0;
+  /**
+   * 36.0: PRE_MATCH from begin() (everyone set, held) until liveAt, then LIVE. The intro's flight runs
+   * before it, with the match already set up (prepare): it lands on the spawn he was dealt.
+   */
+  phase: MatchPhase = 'LIVE';
+  liveAt = 0;
+  private prepared = false;
   playerRespawnAt = Infinity;
   private killerName: string | null = null;
   private hostiles: Record<TeamId, Combatant[]> = { alpha: [], omega: [] };
@@ -234,7 +249,70 @@ export class TdmRules implements ModeRules {
   /** 19.0: puts back the ARENA values the map's profile changed (set while a match runs). */
   private unprofile: (() => void) | null = null;
 
+  /**
+   * 36.0: the match set up before the intro's flight (everyone on his opening spot, held), so the
+   * flight lands on the player's own spawn; begin() then only starts the countdown.
+   */
+  prepare() {
+    this.setup();
+    this.prepared = true;
+    this.hold(true);
+    // The flight is a cinematic: the match's HUD and his gun come up when it ends.
+    this.game.tdmHud.show(false);
+    this.minimap?.show(false);
+    this.game.weapon.raiseTarget = 0;
+  }
+
+  /** The match starts: set up (unless the intro already did), then the pre-match countdown. */
   begin() {
+    if (!this.prepared) this.setup();
+    this.prepared = false;
+    this.game.tdmHud.show(true);
+    this.minimap?.show(this.ai === 'arena' && TDM.spotting);
+    this.game.weapon.raiseTarget = 1;
+    const pre = TDM.preMatch;
+    if (pre > 0) {
+      this.phase = 'PRE_MATCH';
+      this.liveAt = this.now + pre;
+      this.hold(true);
+      this.game.countdown.set(pre);
+    } else this.goLive();
+  }
+
+  /**
+   * 36.0: the countdown has run out (or a DEV start skips it: `announce` false, no START!): feet,
+   * triggers and brains let go.
+   */
+  goLive(announce = true) {
+    const g = this.game;
+    const now = this.now;
+    this.prepared = false;
+    this.phase = 'LIVE';
+    this.liveAt = announce ? now : -Infinity;
+    if (!announce) g.countdown.set(null);
+    this.hold(false);
+    // The clock and every spawn protection count from here, not from the setup.
+    this.startT = now;
+    g.playerInvulnUntil = now + TDM.protect;
+    for (const b of this.bots) b.invulnUntil = now + TDM.protect;
+    // His spawn area (the weapon swap) opens now: the countdown's seconds don't use it up.
+    if (g.state === 'play') g.markSpawn();
+    g.hud.bannerShow('TEAM DEATHMATCH', fl('tdmBanner'), 2.6);
+  }
+
+  /** Every body of the match held on its spot (true) or let go. */
+  private hold(on: boolean) {
+    this.game.player.held = on;
+    for (const b of this.bots) b.held = on;
+  }
+
+  /** 36.0: under the intro's flight the bots stand on their spots (posed, held; nothing thinks). */
+  updateIntro(dt: number) {
+    if (!this.prepared) return;
+    for (const b of this.bots) b.update(dt, this.ctxs[b.team]);
+  }
+
+  private setup() {
     const g = this.game;
     this.clearBots();
     this.ticketMax = TDM.force.tickets ?? this.data.tickets ?? TDM.tickets;
@@ -321,7 +399,6 @@ export class TdmRules implements ModeRules {
     this.openingSpawns();
     for (const s of this.slots) this.spawn(s);
     this.showStanding();
-    g.hud.bannerShow('TEAM DEATHMATCH', fl('tdmBanner'), 2.6);
   }
 
   /** 7.0: a director per team, the shared sensing pass, vault links on the graph (once per level). */
@@ -815,6 +892,20 @@ export class TdmRules implements ModeRules {
       for (const b of this.bots) if (b.alive) (b.team === t ? f : h).push(b);
       if (!this.spectate) (t === 'alpha' ? f : h).push(g.playerUnit);
     }
+    // 36.0: the countdown: the bodies stand (posed, held), no brain, director or sensing pass runs.
+    if (this.phase === 'PRE_MATCH') {
+      if (now >= this.liveAt) this.goLive();
+      else {
+        g.countdown.set(this.liveAt - now);
+        for (const b of this.bots) b.update(dt, this.ctxs[b.team]);
+        this.zoneVisual?.update(dt, now);
+        this.padMesh?.update(dt);
+        g.tdmHud.update(dt, g.camera, this.friends.alpha);
+        return;
+      }
+    }
+    // The countdown's last word (START!) over the first moments of the match.
+    g.countdown.set(this.liveAt - now);
     if (this.directors) this.arenaFrame(now);
     else
       Squad.updateAll(this.sched, [
@@ -1096,6 +1187,10 @@ export class TdmRules implements ModeRules {
 
   reset() {
     this.stopSpectate();
+    this.phase = 'LIVE';
+    this.prepared = false;
+    this.hold(false);
+    this.game.countdown.set(null);
     this.clearBots();
     this.padMesh?.dispose();
     this.padMesh = null;

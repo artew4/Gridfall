@@ -53,6 +53,11 @@ export class Player {
   moveAmount = 0; // 0..1 horizontal speed fraction
   bobPhase = 0;
   eyeY = EYE;
+  /**
+   * 36.0: feet and trigger held (TDM's pre-match countdown): no walking, sprinting, sliding or
+   * jumping (Game holds the trigger); he still looks round, crouches, aims and picks his gun.
+   */
+  held = false;
   /** 11.0: 0 standing … 1 crouched (smoothed), and the collision height it gives. */
   crouch = 0;
   height = BODY_H;
@@ -102,7 +107,9 @@ export class Player {
     this.pitch = 0;
     this.health = this.maxHealth;
     this.alive = true;
-    this.eyeY = EYE;
+    // 36.0: the eyes at his feet's height from the first frame (EYE alone put them at 1.65 m over the
+    // world's zero, and on a raised spawn the camera rose to them over the next frames).
+    this.eyeY = y + EYE;
     this.crouch = 0;
     this.height = BODY_H;
     this.crouchToggle = false;
@@ -135,6 +142,7 @@ export class Player {
   update(dt: number, input: Input, controls: boolean, time: number) {
     // ADS: a linear clock eased with a smoothstep (see HANDLING). Sprinting or dying drops the sights.
     const aim = this.aimWant && controls && this.alive;
+    const legs = controls && !this.held;
     this.adsT = clamp(this.adsT + (aim ? dt / this.gun.adsIn : -dt / this.gun.adsOut), 0, 1);
     this.ads = this.adsT * this.adsT * (3 - 2 * this.adsT);
     if (controls) {
@@ -148,7 +156,7 @@ export class Player {
     this.slideCd = Math.max(0, this.slideCd - dt);
     const hs0 = Math.hypot(this.vel.x, this.vel.z);
     // 30.0: only out of an active sprint (it was sprinting last frame), and it costs stamina.
-    if (controls && this.alive && !this.sliding && this.sprinting && this.onGround && this.slideCd <= 0 && input.pressed.has(KEYS.crouch) && hs0 >= SPRINT * SLIDE.minEntry && this.stamina.slide()) {
+    if (legs && this.alive && !this.sliding && this.sprinting && this.onGround && this.slideCd <= 0 && input.pressed.has(KEYS.crouch) && hs0 >= SPRINT * SLIDE.minEntry && this.stamina.slide()) {
       this.startSlide(hs0);
     }
     this.updateCrouch(dt, input, controls);
@@ -156,7 +164,7 @@ export class Player {
     const fz = -Math.cos(this.yaw);
     let wx = 0;
     let wz = 0;
-    if (controls && this.alive) {
+    if (legs && this.alive) {
       if (input.key('KeyW')) { wx += fx; wz += fz; }
       if (input.key('KeyS')) { wx -= fx; wz -= fz; }
       if (input.key('KeyD')) { wx -= fz; wz += fx; }
@@ -164,7 +172,7 @@ export class Player {
     }
     const wl = Math.hypot(wx, wz);
     if (wl > 0) { wx /= wl; wz /= wl; }
-    this.sprinting = controls && (input.key('ShiftLeft') || input.key('ShiftRight'));
+    this.sprinting = legs && (input.key('ShiftLeft') || input.key('ShiftRight'));
     this.sprinting = this.sprinting && wl > 0 && input.key('KeyW') && !aim && !this.sliding;
     // 30.0: no breath, no sprint (run dry, it walks until the pool is back to STAMINA.resume).
     if (!this.stamina.canSprint) this.sprinting = false;
@@ -189,16 +197,16 @@ export class Player {
     const x0 = this.pos.x, z0 = this.pos.z;
 
     // A jump out of a slide keeps its momentum and stands up in the air.
-    if (controls && this.alive && this.onGround && input.pressed.has('Space') && this.sliding) {
+    if (legs && this.alive && this.onGround && input.pressed.has('Space') && this.sliding) {
       this.endSlide();
       this.crouchToggle = false;
       this.vel.y = JUMP_V;
       this.onGround = false;
       this.audio.footstep(0.6);
-    } else if (controls && this.alive && this.onGround && input.pressed.has('Space') && this.crouch > 0.3) {
+    } else if (legs && this.alive && this.onGround && input.pressed.has('Space') && this.crouch > 0.3) {
       // Space while crouched stands up instead of jumping (as long as there's room).
       this.crouchToggle = false;
-    } else if (controls && this.alive && this.onGround && input.pressed.has('Space')) {
+    } else if (legs && this.alive && this.onGround && input.pressed.has('Space')) {
       this.vel.y = JUMP_V;
       this.onGround = false;
       this.audio.footstep(0.6);

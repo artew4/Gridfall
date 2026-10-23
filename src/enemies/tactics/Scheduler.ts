@@ -68,6 +68,9 @@ export class ThinkScheduler {
     if (q.length > this.maxPerFrame) q.sort((a, b) => (a.urgent === b.urgent ? a.nextThink - b.nextThink : a.urgent ? -1 : 1));
     const n = Math.min(this.maxPerFrame, q.length);
     const out = q.slice(0, n);
+    // 36.0: the scratch list holds nobody between frames: a match that stops picking (the countdown,
+    // a map change behind an intro) must not keep the last level's bodies alive through it.
+    q.length = 0;
     for (const a of out) {
       const late = now - a.nextThink;
       if (!a.urgent && late > this.stats.maxLate) this.stats.maxLate = late;

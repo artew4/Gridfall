@@ -1874,8 +1874,49 @@ No CPU spike: the AI's cost per step is within noise, and sensing stays under it
 
 **Frame cost:** `bench(3)` on Maglev: 60 FPS in all 6 views, CPU 2.1–2.7 ms, GPU 5.3–6.4 ms. `leakcheck` (Maglev, Neon Docks): 0 alive. Tests 394 (+6): the flank switch and its A/B, a hit from behind, two close hostiles without a flip-flop, the protected hit, the heard shot, the close sense.
 
+## 36.0: match start, the camera snap and a pre-match countdown
+
+Branch `feature/match-start-36.0`, from `main` @ `4f55c3a` (35.0, merged). Full numbers: `docs/BENCH-36.0.json`.
+
+### The snap and its cause
+At the start of a TDM match the camera showed one spot for a moment, then snapped to the spawn zone. It was not a default (0,0,0) camera:
+- **The intro flew to the map's fixed start** (`data.tdm.start`), while the opening spawns (31.0's zones, dealt in pairs) were dealt only in `Tdm.begin()`, at the hand-off. The first frame of play cut 29.9 m (Maglev) to 65 m (Neon Docks).
+- **`Player.reset` set the eyes at 1.65 m over the world's zero**, not over the feet: on a raised spawn (Desert, 2.26 m) the camera then rose into the eyes over the next frames.
+
+### The fixes
+- **The match is set up when the intro starts** (`Tdm.prepare`: bots on their opening spots, the player on his, everyone held; the match HUD hidden and the gun lowered for the cinematic). The intro lands on his eyes at the spot dealt (`IntroLike.landAt`, in the desert-style and jungle intros). `beginPlay` puts the camera on him before anything is drawn. A rematch (no intro) sets itself up in `begin()`.
+- **`Player.reset`**: `eyeY = y + EYE`.
+
+### PRE_MATCH (`TDM.preMatch`, 3 s)
+- `Tdm.phase` is `'PRE_MATCH'` from `begin()` to `liveAt`, then `'LIVE'` (`goLive`).
+- **Player (`Player.held`):** no walking, sprinting, sliding or jumping (a `legs` gate), and `Game` holds the trigger. Looking, crouching, aiming, reloading still work. The loadout picker is up the whole time (`loadoutPhase` 'swap'): 1–4 change the gun at once (Kitsune-9, Hornet, Jackal, Boar).
+- **Bots (`Enemy.held`):** no think, no move, no fire; posed (the emerge pose played out to 0.6 s, upright, visor lit). `Tdm.update` runs no director, sensing pass, decides, tickets, respawns or spotting in the phase; the bodies, zone pads and HUD tags only.
+- **At START!:** the match clock, every spawn protection and his spawn area (the weapon swap) start then; the TEAM DEATHMATCH banner.
+- **The countdown (`ui/Countdown.ts`):** "3", "2", "1", "START!" (0.9 s), one DOM element per step built once, touched only on a step change; each centred by its box so its CSS animation owns `transform` and `opacity` alone. Nothing shows above 3 s left. A dark shadow under the glow (white on Maglev's white hall was unreadable).
+- **DEV:** `__dev.start(…)` goes live at once (every earlier check and bench measures what it did); `{ preMatch: true }` keeps the countdown.
+
+### Measured
+**`scripts/matchstart.mjs`** (six TDM maps × 2, headless, the real DEPLOY path: intro skipped like a click; W, Shift, Space and the trigger held through the countdown, picks 4 then 2):
+
+| | 35.0 | 36.0 |
+|---|---|---|
+| camera cut at the intro-to-play hand-off | 29.9–65 m (the map's start to the spawn dealt) | 0 m (largest move over 8 frames either side) |
+| first play frame vs his eyes | (the cut) | 0 m; a rematch's first frame 0 m |
+| eyes on a raised spawn (Desert, 2.26 m) | rose over the first frames | over the feet from the first frame |
+| during the countdown: his movement, his rounds | (no countdown) | 0, 0 |
+| during the countdown: bots' movement, turning, rounds | (no countdown) | 0, 0, 0 |
+| picks during it | | Boar, then Hornet, at once |
+| after START! in 1 s / 5 s | | he walks 1.7–7.9 m; bots move 18–27 m |
+
+**The countdown's cost** (Chrome's counters, a second, Maglev): countdown 6.4 layouts (0.5 ms), 6.4 style recalcs (0.24 ms), 6.4 ms of script; live play 10.4 (0.83 ms), 12.8 (0.38 ms), 13.1 ms. No layout from the countdown's animations; the phase is cheaper than play (no AI).
+
+**Frame cost:** `bench(3)` on Maglev: 60 FPS in all 12 views, CPU 2.2–2.7 ms, GPU 5.2–6.4 ms. Tests 400 (+6): the countdown's steps, its DOM writes, its keyframes; a held player; the reset's eyes; the scheduler's scratch list.
+
+**A leak the countdown uncovered:** `leakcheck` (Maglev, Neon Docks, 2 laps) found 7 tags of the last level alive. `ThinkScheduler.pick` kept its last frame's picks in a scratch list between frames; the first live frame used to replace them at once, but now the next map's intro and countdown pick nobody for seconds, so the old bots (and through their context the old player and collision world) stayed reachable. The list is emptied after every pick: 0 alive.
+
 ## Next
 Human playtest:
+- 36.0 items: the first frame of a match (does the flight land cleanly in your eyes on every map; anything jarring in the last second of it); the countdown (3 s: long enough to pick a gun, too long?; readable on every map?); do the bots' poses during it look natural; the start itself (does everyone go at once, any unfair first shot).
 - 35.0 items: flank a bot on Maglev (by their zones, through the glass halls): does it turn on you now when you shoot it in the back or side, or when you fire close; does it feel fair or psychic (a silent player within 8 m behind is noticed); do bots still feel focused in a fight (not turning to every shot); the glances on the way out of their half (natural, or twitchy?).
 - 34.0 items: Neon Block's smog (does looking down from a roof feel blinding, or just murky; is about 11 m in the street too short; do the glows read as smog or as blur); do the bots feel fair in it (seen late when half hidden: does it match what you can see); the Lantern Bridge and the Transit Rail (do you find them, do the rail gaps work as drop-downs, the car as cover); the Lantern Market (does it play as a close-quarters room; the holograms: charming or noise); are the roofs now too strong (most of the long fights went up there).
 - 33.1 items: the ravine's end ramps (do you walk out at the ends without catching on anything; do the taller rims along them read as walls).

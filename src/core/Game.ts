@@ -36,6 +36,7 @@ import { LEVELS, LEVEL_ORDER, levelEntry } from '../levels/registry';
 import { ArcadeRules } from '../levels/Arcade';
 import { TdmRules } from '../levels/Tdm';
 import { TdmHud, TdmScreen, type TdmLine } from '../ui/TdmHud';
+import { Countdown } from '../ui/Countdown';
 import type { TeamId } from '../combat/Team';
 import { TokyoLevel } from '../levels/tokyo/TokyoLevel';
 import { BarkView } from '../ui/BarkView';
@@ -111,6 +112,8 @@ export class Game {
   /** Team Deathmatch (6.0): its rules, score HUD and result screen. */
   tdm = new TdmRules(this);
   tdmHud: TdmHud;
+  /** 36.0: TDM's pre-match countdown (3, 2, 1, START!). */
+  countdown: Countdown;
   tdmScreen: TdmScreen;
   /** 13.0: the weapon he carries and the one he asked for next (every mode but the story), and its picker. */
   loadout = new Loadout();
@@ -190,6 +193,7 @@ export class Game {
     this.storyHud = new StoryHud(document.body);
     this.barkView = new BarkView(document.body);
     this.tdmHud = new TdmHud(document.body);
+    this.countdown = new Countdown(document.body);
     this.tdmScreen = new TdmScreen(document.body);
     // Callouts: the line above the speaker and its voice from where it stands (both TDM teams too).
     for (const sq of [this.waves.squad, this.tdm.squads.alpha, this.tdm.squads.omega])
@@ -512,6 +516,8 @@ export class Game {
   private loadoutPhase(): 'swap' | 'zone' | 'queue' | null {
     if (this.mode === 'story' || this.loading) return null;
     if (this.state === 'intro') return 'swap';
+    // 36.0: the countdown before a match: the full picker, whatever the spawn area's clock says.
+    if (this.state === 'play' && this.player.alive && this.player.held) return 'swap';
     if (this.state === 'play' && this.player.alive) {
       const z = this.spawnZone.update(this.player.pos, this.elapsed, this.stats.shots);
       return z === 'cards' ? 'swap' : z === 'prompt' ? 'zone' : null;
@@ -762,6 +768,13 @@ export class Game {
     // Story: the world is live during the opening (crowds, patrols on their beats, trains).
     this.rules.prepare?.();
     this.intro = this.level.createIntro(this.mode);
+    // 36.0: TDM has dealt his spawn already (prepare): the flight settles on his own eyes there, so its
+    // last frame is his first (it ended on the map's start, and the first frame of play cut to the zone).
+    if (this.rules === this.tdm) {
+      const p = this.player;
+      const eye = new THREE.Vector3(p.pos.x, p.eyeY, p.pos.z);
+      this.intro.landAt?.(eye, p.forward(new THREE.Vector3()).multiplyScalar(10).add(eye));
+    }
   }
 
   private skipIntro() {
@@ -792,6 +805,8 @@ export class Game {
     this.zone = null;
     this.interaction.reset();
     this.rules.begin(fromCheckpoint);
+    // 36.0: the camera on his eyes now, before anything is drawn (whatever the last frame showed).
+    this.player.applyCamera(this.camera, this.elapsed, 0, this.weapon.spec.ads.zoom);
     // 23.0: the first spawn opens the spawn area (the weapon swap); the story has no loadout.
     if (this.mode !== 'story') this.markSpawn();
     else this.spawnZone.close();
@@ -1025,7 +1040,8 @@ export class Game {
       if (controls && this.player.alive) {
         if (input.pressed.has(KEYS.holster)) this.weapon.toggleHolster();
         if (input.pressed.has(KEYS.reload)) this.weapon.startReload();
-        if (input.mouseDown && this.weapon.tryFire()) this.shoot();
+        // 36.0: the trigger is held through TDM's pre-match countdown.
+        if (input.mouseDown && !this.player.held && this.weapon.tryFire()) this.shoot();
       }
       this.player.applyCamera(this.camera, this.elapsed, rawDt, this.weapon.spec.ads.zoom);
       // What the squad can observe about him (each use is gated by its own visibility rule).

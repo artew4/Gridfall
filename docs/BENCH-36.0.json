@@ -1,0 +1,36 @@
+{
+  "version": "36.0 (match start: the first frame on the spawn dealt; a held PRE_MATCH countdown)",
+  "branch": "feature/match-start-36.0 from main @ 4f55c3a",
+  "machine": "Apple M5, Chrome, Balanced (bench); headless Chrome, SwiftShader, ~21 FPS (matchstart, leakcheck)",
+  "causes": {
+    "snap": "the TDM intro flew to the map's fixed data.tdm.start; the opening spawns (31.0 zones) were dealt in Tdm.begin() at the hand-off, so the first play frame cut to the zone",
+    "eyes": "Player.reset set eyeY = EYE (absolute), so on a raised spawn the damped eye rose over the first frames",
+    "leak_found": "ThinkScheduler kept its last frame's picks in a scratch list; with no AI frames through the next map's intro and countdown, the old level's bots (and through them its player, collision world) stayed reachable"
+  },
+  "matchstart": {
+    "runs": "6 TDM maps x 2, the real DEPLOY path (intro skipped like a click)",
+    "passed": "12 of 12",
+    "cut_35_0_m": { "maglev": 29.9, "neonblock": 38.5, "docks": 65, "desert": 55, "oldport": 36.4, "crashsite": 37.8 },
+    "camera_largest_move_over_handoff_m": 0,
+    "first_play_frame_vs_eyes_m": 0,
+    "rematch_first_frame_vs_eyes_m": 0,
+    "raised_spawn": { "map": "desert", "y": 2.26, "first_frame_vs_eyes_m": 0 },
+    "countdown_frames": "62-65 (3 s)",
+    "during_countdown": { "player_moved_m": 0, "player_rounds": 0, "bots_moved_m": 0, "bots_turned_rad": 0, "bot_rounds": 0, "held": "W, Shift, Space, trigger every frame" },
+    "picks_during_countdown": "Digit4 -> shotgun (Boar), Digit2 -> smg (Hornet), at once",
+    "steps_shown": "3, 2, 1, START!, none",
+    "after_start": { "player_walked_1s_m": [1.65, 7.87], "bots_moved_5s_m": [17.8, 26.6] }
+  },
+  "countdown_cost_per_second": {
+    "map": "maglev, headless, Chrome Performance.getMetrics",
+    "countdown": { "layouts": 6.4, "layoutMs": 0.5, "styleRecalcs": 6.4, "styleMs": 0.24, "scriptMs": 6.4 },
+    "live": { "layouts": 10.4, "layoutMs": 0.83, "styleRecalcs": 12.8, "styleMs": 0.38, "scriptMs": 13.1 }
+  },
+  "bench3_maglev": {
+    "fps": "59.6-60.3 in 12 views (all valid)",
+    "cpuMs": [2.17, 2.71],
+    "gpuMs": [5.17, 6.38]
+  },
+  "leakcheck": { "maps": "maglev, docks", "laps": 2, "aliveAfterGC_before_fix": 7, "aliveAfterGC": 0 },
+  "tests": 400
+}

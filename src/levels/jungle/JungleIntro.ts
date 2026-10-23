@@ -26,6 +26,11 @@ export class JungleIntro implements IntroLike {
     ]);
   }
 
+  landAt(eye: THREE.Vector3, look: THREE.Vector3) {
+    this.end.copy(eye);
+    this.endLook.copy(look);
+  }
+
   skip() {
     if (this.t < 8.6) this.t = 8.6;
   }

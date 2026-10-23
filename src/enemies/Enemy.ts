@@ -111,6 +111,11 @@ export abstract class Enemy implements Combatant {
   readonly maxHp: number;
   /** Spawn protection: hits before this sim time do nothing. */
   invulnUntil = -Infinity;
+  /**
+   * 36.0: held on its spot (TDM's pre-match countdown): no thinking, no moving, no firing; it stands
+   * as it came in (the emerge pose played out, then held).
+   */
+  held = false;
   /** Who hurt it last (kill credit). */
   lastAttacker: Combatant | null = null;
   private lastCtx: EnemyCtx | null = null;
@@ -127,6 +132,8 @@ export abstract class Enemy implements Combatant {
   dead = false;
   state = 'emerge';
   stateT = 0;
+  /** 36.0: how far into its emerge pose a held bot stands (s: upright, the visor lit). */
+  static HOLD_POSE = 0.6;
   protected flash = 0;
   protected stagger = 0;
   protected leanX = new Spring(140, 10);
@@ -505,6 +512,10 @@ export abstract class Enemy implements Combatant {
       this.leanZ.impulse((Math.random() - 0.5) * 6);
       this.move(new THREE.Vector3(), ctx, dt);
       this.onStunned();
+    } else if (this.held) {
+      this.stateT = Math.min(this.stateT, Enemy.HOLD_POSE);
+      this.vel.set(0, 0, 0);
+      this.animate(dt, ctx, 0);
     } else {
       this.think(dt, ctx);
       const hs = Math.hypot(this.vel.x, this.vel.z);
