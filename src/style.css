@@ -413,6 +413,8 @@ kbd { display: inline-block; min-width: 1.25rem; padding: 1px 0.375rem; margin: 
   --font-ar: 'Geeza Pro', 'Noto Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
   --font-ru: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
   --font-th: 'Thonburi', 'Noto Sans Thai', 'Leelawadee UI', Tahoma, sans-serif;
+  /* 40.0: Favelas' Portuguese: a condensed sign-painter sans. */
+  --font-pt: 'Avenir Next Condensed', 'Futura', 'Trebuchet MS', sans-serif;
 }
 
 /*
@@ -424,6 +426,8 @@ kbd { display: inline-block; min-width: 1.25rem; padding: 1px 0.375rem; margin: 
 html[data-biome="desert"] { --jp: var(--font-ar); }
 html[data-biome="docks"] { --jp: var(--font-ru); }
 html[data-biome="jungle"] { --jp: var(--font-th); }
+html[data-biome="favela"] { --jp: var(--font-pt); }
+html[data-biome="favela"] .jp, html[data-biome="favela"] #cine .t2 { letter-spacing: 0.12em !important; }
 html[data-biome="desert"] .jp, html[data-biome="desert"] #cine .t2, html[data-biome="desert"] .tdm-score .side em,
 html[data-biome="jungle"] .jp, html[data-biome="jungle"] #cine .t2, html[data-biome="jungle"] .tdm-score .side em { letter-spacing: 0.02em !important; padding-left: 0 !important; }
 html[data-biome="desert"] .jp, html[data-biome="desert"] #cine .t2 { letter-spacing: 0 !important; font-size: 1.12em; }
@@ -432,6 +436,7 @@ html .jp[lang="ja"], html [lang="ja"] .jp { font-family: var(--font-ja) !importa
 html .jp[lang="ar"] { font-family: var(--font-ar) !important; letter-spacing: 0 !important; }
 html .jp[lang="ru"] { font-family: var(--font-ru) !important; letter-spacing: 0.18em !important; }
 html .jp[lang="th"] { font-family: var(--font-th) !important; letter-spacing: 0.02em !important; }
+html .jp[lang="pt"] { font-family: var(--font-pt) !important; letter-spacing: 0.12em !important; }
 html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
 /* Prewarm: every flavor font laid out once at boot (Hud), off screen. */
 .fl-prewarm { position: fixed; left: -9999px; top: 0; opacity: 0; pointer-events: none; white-space: nowrap; }
@@ -643,7 +648,19 @@ html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
     linear-gradient(0deg, #dfe7eb 0 34%, transparent 34%),
     linear-gradient(180deg, #f6fafc 0%, #dbe7ed 60%, #c4d4dc 100%);
 }
+/* 40.0: Favelas: pastel houses stacked up a hill under a hot blue sky, a kite. */
+.mc-art[data-map="favelas"] {
+  background:
+    linear-gradient(45deg, transparent 0 48%, #e2503a 48% 52%, transparent 52%) 78% 16% / 1.1rem 1.1rem no-repeat,
+    repeating-linear-gradient(90deg, #e8b4b0 0 1.4rem, #f1d48a 1.4rem 2.6rem, #a9cbe0 2.6rem 3.8rem, #b6dcc0 3.8rem 5rem, #f0c6a0 5rem 6.2rem) bottom / 100% 26% no-repeat,
+    repeating-linear-gradient(90deg, #d7c2e4 0 1.8rem, #9fd1cf 1.8rem 3rem, #ecb98f 3rem 4.4rem, #f4e7c8 4.4rem 5.4rem) bottom 26% left 0 / 100% 18% no-repeat,
+    repeating-linear-gradient(90deg, #c9dca0 0 1.2rem, #e8b4b0 1.2rem 2.8rem, #a9cbe0 2.8rem 4rem) bottom 44% right 0 / 70% 16% no-repeat,
+    repeating-linear-gradient(90deg, #f1d48a 0 1.6rem, #b6dcc0 1.6rem 2.6rem) bottom 60% right 0 / 42% 14% no-repeat,
+    radial-gradient(circle at 18% 18%, rgba(255, 246, 214, 0.95) 0 1rem, transparent 3rem),
+    linear-gradient(180deg, #4f97d8 0%, #8cc1ea 55%, #d8e8ee 100%);
+}
 /* The light thumbnails' text needs a darker foot. */
+.map-card:has(.mc-art[data-map="favelas"]) .mc-art::after,
 .map-card:has(.mc-art[data-map="maglev"]) .mc-art::after, .map-card:has(.mc-art[data-map="oldport"]) .mc-art::after, .map-card:has(.mc-art[data-map="desert"]) .mc-art::after {
   background: linear-gradient(180deg, rgba(3, 5, 10, 0) 20%, rgba(3, 5, 10, 0.82) 55%, rgba(3, 5, 10, 0.96) 100%);
 }

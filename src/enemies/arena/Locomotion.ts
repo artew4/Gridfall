@@ -26,6 +26,7 @@ export const AIR_HEAD = 1.9;
 export function stepAir(air: Air, pos: THREE.Vector3, col: CollisionWorld, radius: number, dt: number) {
   air.vy -= ARENA.gravity * dt;
   const head = pos.y + AIR_HEAD;
+  const was = pos.y;
   pos.y += air.vy * dt;
   air.t += dt;
   if (air.vy > 0) {
@@ -36,7 +37,9 @@ export function stepAir(air: Air, pos: THREE.Vector3, col: CollisionWorld, radiu
     }
   }
   if (air.vy > 0 && air.t < 1.5) return false;
-  const g = col.groundHeightAt(pos.x, pos.z, radius * 0.6, pos.y, 0.05);
+  // 40.0: any floor the feet passed this step (falling at over 3 m/s a step crosses more than 5 cm: off
+  // the terrain, on Favelas' box floors, bots fell through the alleys and roofs into the fill under them).
+  const g = col.groundHeightAt(pos.x, pos.z, radius * 0.6, pos.y, Math.max(0.05, was - pos.y + 0.05));
   if (pos.y <= g || air.t > 2.5) {
     if (g > -Infinity) pos.y = Math.max(pos.y, g);
     air.up = false;

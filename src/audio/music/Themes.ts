@@ -444,4 +444,74 @@ export const JUNGLE_THEME: ThemeDef = {
   ],
 };
 
-export const PATTERN_THEMES: Record<string, ThemeDef> = { menu_theme: MENU_THEME, desert_theme: DESERT_THEME, docks_theme: DOCKS_THEME, jungle_theme: JUNGLE_THEME };
+/**
+ * 40.0, Favelas: samba from the hill. A ii–V–I–VI in C (Dm7, G7, Cmaj7, A7), the bateria's parts
+ * stepping in as the fight heats up: the ganzá and the cavaquinho's chops always, the surdo answering on
+ * the second beat, the tamborim's teleco-teco, the seven-string's bass walks, the agogô, the apito.
+ */
+const C_MAJOR = [48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72];
+export const FAVELA_THEME: ThemeDef = {
+  id: 'favela_theme',
+  bpm: 100,
+  gain: 0.62,
+  barsPerChord: 2,
+  chords: [
+    { root: 38, pad: [53, 57, 60, 62] },
+    { root: 43, pad: [53, 55, 59, 62] },
+    { root: 36, pad: [52, 55, 59, 60] },
+    { root: 45, pad: [49, 52, 55, 57] },
+  ],
+  scale: C_MAJOR,
+  layers: [
+    // The ganzá: every 16th, the beats and the "e"s pushed.
+    { id: 'ganza', on: 0, off: 0, level: 0.45, part: 'drums', play: (c) => c.I.shaker(c.bus, c.t, c.step % 4 === 0 ? 0.55 : c.step % 4 === 2 ? 0.42 : 0.26) },
+    {
+      // The cavaquinho: chords chopped on the off-16ths of the samba (the partido-alto's ghost of it).
+      id: 'cavaco', on: 0, off: 0, level: 0.5, part: 'synth',
+      play: (c) => {
+        if ([2, 5, 7, 10, 12, 15].includes(c.step)) for (const n of c.chord.pad) c.I.pluck(c.bus, c.t, n + 12, 0.32, { type: 'triangle', cutoff: 3200, decay: 0.12 });
+      },
+    },
+    {
+      // The surdos: the low one on beat 2 (the marcação), the high one answering on 1.
+      id: 'surdo', on: 0.25, off: 0.15, level: 0.75, part: 'drums',
+      play: (c) => {
+        if (c.step === 8) c.I.tom(c.bus, c.t, 58, 0.95);
+        else if (c.step === 0) c.I.tom(c.bus, c.t, 74, 0.55);
+        else if (c.step === 14 && c.rnd() < 0.5) c.I.tom(c.bus, c.t, 58, 0.35);
+      },
+    },
+    {
+      // The seven-string: the root on the beats, a walk up to the next chord in its last bar.
+      id: 'bass', on: 0.25, off: 0.15, level: 0.7, part: 'bass',
+      play: (c) => {
+        const r = c.chord.root;
+        if (c.step === 0 || c.step === 8) c.I.bass(c.bus, c.t, r, c.s16 * 3, 0.85, { cutoff: 520, env: 500 });
+        else if (c.step === 6 || c.step === 14) c.I.bass(c.bus, c.t, r + (c.bar % 2 ? 2 : 7), c.s16 * 1.6, 0.6, { cutoff: 520, env: 500 });
+      },
+    },
+    {
+      // The tamborim's teleco-teco.
+      id: 'tamborim', on: 0.45, off: 0.35, level: 0.5, part: 'drums',
+      play: (c) => {
+        if ([0, 3, 6, 10, 13].includes(c.step)) c.I.rim(c.bus, c.t, c.step === 0 ? 0.8 : 0.6);
+      },
+    },
+    {
+      // The agogô: two bells, high and low.
+      id: 'agogo', on: 0.6, off: 0.5, level: 0.4, part: 'drums',
+      play: (c) => {
+        if ([0, 4, 7, 10].includes(c.step)) c.I.metal(c.bus, c.t, 0.55, c.step === 4 || c.step === 10 ? 760 : 1020);
+      },
+    },
+    {
+      // The apito: the mestre's whistle calling the breaks, in the fight's heat.
+      id: 'apito', on: 0.78, off: 0.65, level: 0.32, part: 'lead',
+      play: (c) => {
+        if (c.bar % 4 === 3 && (c.step === 0 || c.step === 3 || c.step === 6)) c.I.flute(c.bus, c.t, 96 + (c.step === 6 ? 2 : 0), c.s16 * 1.2, 0.7);
+      },
+    },
+  ],
+};
+
+export const PATTERN_THEMES: Record<string, ThemeDef> = { menu_theme: MENU_THEME, desert_theme: DESERT_THEME, docks_theme: DOCKS_THEME, jungle_theme: JUNGLE_THEME, favela_theme: FAVELA_THEME };

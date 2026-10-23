@@ -2123,8 +2123,85 @@ Branch `feature/recoil-39.0`, from `main` @ `6574cd8` (38.0, merged).
   - held fire looking straight up stopping short of the pole, the camera's up staying up.
 - The 21.0 balance test now holds the SMG's smallest kick (was the steepest climb).
 
+## 40.0: Favelas (new map)
+
+Branch `feature/favelas-40.0`, from `main` @ `19381f6` (39.0, merged). Full numbers: `docs/BENCH-40.0.json`.
+
+### The map (`src/levels/favelas/`)
+A Rio hillside in the afternoon sun, Team Deathmatch only.
+
+**The terraces.** Five bands up the hill, each 20 m wide and 3 m above the last: the street at the bottom (A RUA), three alleys, the crest (O MIRANTE) under a 27 m earth cliff.
+
+**The houses.** Each band has two rows of one-storey houses with an alley between them. Every roof is level with the terrace above, so the roofs and the alleys above them are one walking layer, with the alleys below as trenches cut into it.
+
+**The alleys** are 4 m wide. Each one switches between a west and an east track at two little squares per half, so no line runs straight down an alley for more than one stretch.
+
+**Getting around:**
+- **Up:** escadarias up the whole hill (the central one at z = 0, one at each team's end), plus outside stairs onto the roofs. Each roof stair has a parapet and a top landing.
+- **Across:** two plank bridges over every alley, and gaps through the rows.
+- **Down:** drop off any roof edge.
+
+**Mirror-symmetric** about z = 0. Each team's deployment zones are the street (A), mid-hill (B) and the crest (C): every team starts low, middle and high.
+
+**Built from primitives:**
+- **Instanced:** the houses (10 faded pastels plus bare terracotta block), roof slabs, windows, coloured doors, the towers' zinc roofs, water tanks and laundry.
+- **World-space UVs:** a material patch maps render and brick by world position, so a stretched instanced box keeps them at real size.
+- **Canvas textures:** render, hollow block, cast concrete, corrugated zinc and earth.
+- **Seen only:** the gatos (wires) and the kites.
+
+**Atmosphere:**
+- one strong afternoon sun (static 2048 shadow map) and a strong sky fill;
+- a warm haze;
+- dust motes in the sun: 900 GPU-animated quads, one draw call, brighter towards the sun;
+- seven kites over the hill;
+- a procedural samba (`favela_theme`: ganzá, cavaquinho, surdo, tamborim, seven-string, agogô, apito with the fight);
+- a Portuguese UI flavor (biome `favela`: MATA-MATA EM EQUIPE, MOBILIZAR…).
+
+### Nav
+- 1,011 nodes and 123 drop links, built from the plan: down the alleys, a grid on every roof, the yards, both ends and the middle of every stair as climbing chains, nodes across each bridge.
+- **Drops** go off every roof edge, off the W rows' backs and off the yards' walls, but only where the way down is clear.
+- **No dead ends:** every node reachable from a spawn, and every reachable node can get back (a new graph check, drops included).
+
+### Fixed on the way
+- **Engine-wide:**
+  - **The swept landing.** A falling arena bot landed only on a floor within 5 cm over its feet, checked per step; at more than 3 m/s it stepped past box floors. Here every floor is a box: bots fell through alleys and roofs into the fill, were pushed metres sideways out of it, and stuck at y 0. `stepAir` now lands on any floor crossed in the step. Regression on Old Port and the Desert: 0 stuck.
+- **This map:**
+  - mirrored stairs that climb along z now climb the right way;
+  - drops under a bridge's end removed (a 6v6 endgame of patrols stuck at z ±24);
+  - parapets and landings so nobody steps off a roof onto a stair part way down (stress);
+  - bridge rails 0.18 m (thinner than the player's 0.15 m sub-step, a sprint-jump tunnelled through);
+  - a second bridge per alley (the cross gap had cut half the W roofs off);
+  - crates 1.4 m off walls and stair feet.
+- **Menu text:** "five to twelve a side" (was "five or seven"); the SMG blurb "Shakes; weak far." (39.0 made "Climbs" wrong).
+
+### Team size: 10v10 (self-play)
+| a side | matches | live quiet | all quiet | kills a minute | match | roof time / kills | stuck |
+|---|---|---|---|---|---|---|---|
+| 6 | 3 | 31% | 35% | 17.6 | 6.1 min | 24% / 17% | 0 |
+| 8 | 3 | 22% | 41% | 21.1 | 5.2 min | 20% / 13% | 0 |
+| 10 | 6 | 16% | 33% | 27.5 | 4.2 min | 22% / 18% | 0 |
+| 12 | 3 | 15% | 30% | 33.1 | 3.6 min | 20% / 13% | 0 |
+
+10 is the knee; 12 adds nothing.
+
+**Shipped, 10v10, 15 matches:**
+- **Pace:** 29.9 kills a minute; live quiet 16.1% (10–21% a match); first engagement 16 s.
+- **Height:** 87% of bot time off the street; rooftops 22% of bot time and 15% of kills.
+- **Kills by level:** low (street and band 1) 30%, middle 30%, high (crest side) 40%.
+- **The escadaria** takes 29% of the kills on 12% of the time: the midline, where both teams meet.
+- **Balance:** ALPHA 9, OMEGA 6.
+- **Movement:** 0 stuck, 0 wall-presses.
+
+### Checks
+- `world()` 0 findings; `stress` 0 of 160,000; `levelAI` runners 86/86 (twice), gunners 2/2.
+- `matchstart.mjs 2 favelas`: 2/2.
+- `bench(3)` on Favelas (new set, 10v10): 60 FPS in all 7 views (59.6–60.3), CPU 1.8–2.8 ms, GPU 4.2–5.2 ms, under 37k triangles.
+- `leakcheck.mjs 2 favelas,desert,oldport`: 0 alive.
+- Tests 453 (+12).
+
 ## Next
 Human playtest:
+- 40.0 items: Favelas (does the rooftop layer read: can you tell where you can walk; the escadaria as the midline killing ground (29% of kills): too strong a funnel?; the alleys' track changes: winding or confusing; 10v10 on a dense map: chaos?; the dust motes and the kites; the samba; the Portuguese flavor; starting low on the street vs high on the crest: fair?).
 - 39.0 items: the four guns' recoil (the pistol's snap; the SMG's shake: too much, too little; pulling the rifle down in a burst: does it feel like skill or a chore; the shotgun's kick and punch: too violent?); the FOV punch (felt, or nauseating at 18 a second); does the view coming back after a burst feel natural.
 - 38.0 items: 12v12 on the Desert (busy or chaotic; the team board; spawning with 23 others); the ruins (do they read as ruins; the gallery as a perch: too strong, too exposed; the corner rooms and the court as close-quarters fights); do bots out on the flanks feel like flankers, or like bots wandering away from the fight; the trench now starting at the ruins.
 - 37.1 items: the bridge (do bots go up and hold it now and then; is a bot on the roof a fair threat or a free kill; the room under the hull got quieter: does it still feel used); if the room matters more than the bridge, `highGround.rise: 4.5` on Old Port (measured above).

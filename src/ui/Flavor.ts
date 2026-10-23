@@ -8,7 +8,8 @@ import { jpNumber } from './jpNumber';
    - tokyo  (Tokyo Night, Neon Block): Japanese;
    - desert (Desert Outpost): Arabic;
    - docks  (Neon Docks): Russian, industrial (ДОК-7, ЗОНА ПОГРУЗКИ);
-   - jungle (Deep Jungle, Crash Site): Thai, and military grid references where a place is named.
+   - jungle (Deep Jungle, Crash Site): Thai, and military grid references where a place is named;
+   - favela (40.0, Favelas): Brazilian Portuguese (Rio's), in the same capitals as the English.
 
   One dictionary: key → the line in each biome. `setBiome` (the level manager, at every level load)
   switches it and rewrites every element marked `data-fl="key"` in one pass (no per-frame cost: the
@@ -18,68 +19,68 @@ import { jpNumber } from './jpNumber';
   Pure apart from `applyFlavor` (DOM): tested in flavor.test.ts.
 */
 
-export type Biome = 'tokyo' | 'desert' | 'docks' | 'jungle';
-export const BIOMES: readonly Biome[] = ['tokyo', 'desert', 'docks', 'jungle'];
+export type Biome = 'tokyo' | 'desert' | 'docks' | 'jungle' | 'favela';
+export const BIOMES: readonly Biome[] = ['tokyo', 'desert', 'docks', 'jungle', 'favela'];
 
 /** The script's language tag (the stylesheet picks font and spacing by it: Arabic and Thai take no tracking). */
-export const LANG: Record<Biome, string> = { tokyo: 'ja', desert: 'ar', docks: 'ru', jungle: 'th' };
+export const LANG: Record<Biome, string> = { tokyo: 'ja', desert: 'ar', docks: 'ru', jungle: 'th', favela: 'pt' };
 
 type Line = Record<Biome, string>;
-const L = (tokyo: string, desert: string, docks: string, jungle: string): Line => ({ tokyo, desert, docks, jungle });
+const L = (tokyo: string, desert: string, docks: string, jungle: string, favela: string): Line => ({ tokyo, desert, docks, jungle, favela });
 
 export const FLAVOR = {
   // HUD
-  vital: L('生命', 'الصحة', 'ЗДОРОВЬЕ', 'ชีวิต'),
-  wave: L('波', 'الموجة', 'ВОЛНА', 'คลื่น'),
-  waveBreak: L('小休止', 'استراحة', 'ПЕРЕДЫШКА', 'พัก'),
-  cleared: L('突破', 'تم التطهير', 'ЗАЧИЩЕНО', 'เคลียร์แล้ว'),
-  neutralized: L('排除', 'تم التحييد', 'НЕЙТРАЛИЗОВАН', 'กำจัดแล้ว'),
+  vital: L('生命', 'الصحة', 'ЗДОРОВЬЕ', 'ชีวิต', 'VIDA'),
+  wave: L('波', 'الموجة', 'ВОЛНА', 'คลื่น', 'ONDA'),
+  waveBreak: L('小休止', 'استراحة', 'ПЕРЕДЫШКА', 'พัก', 'PAUSA'),
+  cleared: L('突破', 'تم التطهير', 'ЗАЧИЩЕНО', 'เคลียร์แล้ว', 'LIMPO'),
+  neutralized: L('排除', 'تم التحييد', 'НЕЙТРАЛИЗОВАН', 'กำจัดแล้ว', 'NEUTRALIZADO'),
   // Main menu
-  callsign: L('名前', 'رمز النداء', 'ПОЗЫВНОЙ', 'สัญญาณเรียกขาน'),
-  mode: L('モード', 'النمط', 'РЕЖИМ', 'โหมด'),
-  map: L('舞台', 'الخريطة', 'КАРТА', 'แผนที่'),
-  armory: L('武器庫', 'مستودع السلاح', 'АРСЕНАЛ', 'คลังอาวุธ'),
-  settings: L('設定', 'الإعدادات', 'НАСТРОЙКИ', 'ตั้งค่า'),
-  controls: L('操作', 'التحكم', 'УПРАВЛЕНИЕ', 'การควบคุม'),
-  back: L('戻る', 'رجوع', 'НАЗАД', 'กลับ'),
-  deploy: L('出撃', 'انتشار', 'ВЫСАДКА', 'ส่งกำลัง'),
-  modeTdm: L('チーム戦', 'قتال الفرق', 'КОМАНДНЫЙ БОЙ', 'เดธแมตช์ทีม'),
-  modeArcade: L('生存', 'البقاء', 'ВЫЖИВАНИЕ', 'เอาชีวิตรอด'),
-  modeStory: L('脱出', 'الهروب', 'ПОБЕГ', 'หลบหนี'),
+  callsign: L('名前', 'رمز النداء', 'ПОЗЫВНОЙ', 'สัญญาณเรียกขาน', 'CODINOME'),
+  mode: L('モード', 'النمط', 'РЕЖИМ', 'โหมด', 'MODO'),
+  map: L('舞台', 'الخريطة', 'КАРТА', 'แผนที่', 'MAPA'),
+  armory: L('武器庫', 'مستودع السلاح', 'АРСЕНАЛ', 'คลังอาวุธ', 'ARSENAL'),
+  settings: L('設定', 'الإعدادات', 'НАСТРОЙКИ', 'ตั้งค่า', 'AJUSTES'),
+  controls: L('操作', 'التحكم', 'УПРАВЛЕНИЕ', 'การควบคุม', 'CONTROLES'),
+  back: L('戻る', 'رجوع', 'НАЗАД', 'กลับ', 'VOLTAR'),
+  deploy: L('出撃', 'انتشار', 'ВЫСАДКА', 'ส่งกำลัง', 'MOBILIZAR'),
+  modeTdm: L('チーム戦', 'قتال الفرق', 'КОМАНДНЫЙ БОЙ', 'เดธแมตช์ทีม', 'MATA-MATA EM EQUIPE'),
+  modeArcade: L('生存', 'البقاء', 'ВЫЖИВАНИЕ', 'เอาชีวิตรอด', 'SOBREVIVÊNCIA'),
+  modeStory: L('脱出', 'الهروب', 'ПОБЕГ', 'หลบหนี', 'FUGA'),
   // Pause menu
-  paused: L('一時停止', 'متوقف', 'ПАУЗА', 'หยุดชั่วคราว'),
-  resume: L('再開', 'استئناف', 'ПРОДОЛЖИТЬ', 'เล่นต่อ'),
-  restart: L('最初から', 'من البداية', 'ЗАНОВО', 'เริ่มใหม่'),
-  quitToMenu: L('メニューへ', 'إلى القائمة', 'В МЕНЮ', 'ไปที่เมนู'),
-  confirm: L('確認', 'تأكيد', 'ПОДТВЕРДИТЬ', 'ยืนยัน'),
-  audio: L('音量', 'الصوت', 'ЗВУК', 'เสียง'),
-  graphics: L('画質', 'الرسومات', 'ГРАФИКА', 'กราฟิก'),
-  muted: L('消音', 'كتم', 'БЕЗ ЗВУКА', 'ปิดเสียง'),
-  soundOn: L('音あり', 'مفعّل', 'ЗВУК ВКЛ', 'เปิดเสียง'),
-  powerSave: L('省電力', 'توفير الطاقة', 'ЭКОНОМ', 'ประหยัดพลังงาน'),
-  standard: L('標準', 'قياسي', 'СТАНДАРТ', 'มาตรฐาน'),
-  smooth: L('高', 'سلس', 'ПЛАВНО', 'ลื่นไหล'),
-  tips: L('ヒント', 'تلميحات', 'ПОДСКАЗКИ', 'คำแนะนำ'),
-  saved: L('設定は保存されます', 'يتم حفظ الإعدادات', 'НАСТРОЙКИ СОХРАНЕНЫ', 'บันทึกการตั้งค่าแล้ว'),
+  paused: L('一時停止', 'متوقف', 'ПАУЗА', 'หยุดชั่วคราว', 'PAUSADO'),
+  resume: L('再開', 'استئناف', 'ПРОДОЛЖИТЬ', 'เล่นต่อ', 'CONTINUAR'),
+  restart: L('最初から', 'من البداية', 'ЗАНОВО', 'เริ่มใหม่', 'RECOMEÇAR'),
+  quitToMenu: L('メニューへ', 'إلى القائمة', 'В МЕНЮ', 'ไปที่เมนู', 'PARA O MENU'),
+  confirm: L('確認', 'تأكيد', 'ПОДТВЕРДИТЬ', 'ยืนยัน', 'CONFIRMAR'),
+  audio: L('音量', 'الصوت', 'ЗВУК', 'เสียง', 'SOM'),
+  graphics: L('画質', 'الرسومات', 'ГРАФИКА', 'กราฟิก', 'GRÁFICOS'),
+  muted: L('消音', 'كتم', 'БЕЗ ЗВУКА', 'ปิดเสียง', 'MUDO'),
+  soundOn: L('音あり', 'مفعّل', 'ЗВУК ВКЛ', 'เปิดเสียง', 'SOM LIGADO'),
+  powerSave: L('省電力', 'توفير الطاقة', 'ЭКОНОМ', 'ประหยัดพลังงาน', 'ECONOMIA'),
+  standard: L('標準', 'قياسي', 'СТАНДАРТ', 'มาตรฐาน', 'PADRÃO'),
+  smooth: L('高', 'سلس', 'ПЛАВНО', 'ลื่นไหล', 'SUAVE'),
+  tips: L('ヒント', 'تلميحات', 'ПОДСКАЗКИ', 'คำแนะนำ', 'DICAS'),
+  saved: L('設定は保存されます', 'يتم حفظ الإعدادات', 'НАСТРОЙКИ СОХРАНЕНЫ', 'บันทึกการตั้งค่าแล้ว', 'AJUSTES SALVOS'),
   // Team Deathmatch
-  ally: L('味方', 'حليف', 'СВОИ', 'พวกเรา'),
-  enemy: L('敵', 'عدو', 'ЧУЖИЕ', 'ศัตรู'),
+  ally: L('味方', 'حليف', 'СВОИ', 'พวกเรา', 'ALIADOS'),
+  enemy: L('敵', 'عدو', 'ЧУЖИЕ', 'ศัตรู', 'INIMIGOS'),
   // 19.0: no team size (it is the map's: 5v5 on most, 7v7 on Crash Site).
-  tdmBanner: L('チームデスマッチ', 'قتال الفرق', 'КОМАНДНЫЙ БОЙ', 'เดธแมตช์ทีม'),
-  victory: L('勝利', 'نصر', 'ПОБЕДА', 'ชนะ'),
-  defeat: L('敗北', 'هزيمة', 'ПОРАЖЕНИЕ', 'แพ้'),
-  deploying: L('展開', 'جارٍ الانتشار', 'ВЫСАДКА', 'กำลังส่งกำลัง'),
-  nextMap: L('次の舞台', 'الخريطة التالية', 'СЛЕДУЮЩАЯ КАРТА', 'แผนที่ถัดไป'),
-  mainMenu: L('メニュー', 'القائمة', 'МЕНЮ', 'เมนู'),
-  loadout: L('装備', 'العتاد', 'СНАРЯЖЕНИЕ', 'อาวุธ'),
-  nextSpawn: L('次の装備', 'العتاد التالي', 'СЛЕД. ВЫСАДКА', 'อาวุธรอบถัดไป'),
+  tdmBanner: L('チームデスマッチ', 'قتال الفرق', 'КОМАНДНЫЙ БОЙ', 'เดธแมตช์ทีม', 'MATA-MATA EM EQUIPE'),
+  victory: L('勝利', 'نصر', 'ПОБЕДА', 'ชนะ', 'VITÓRIA'),
+  defeat: L('敗北', 'هزيمة', 'ПОРАЖЕНИЕ', 'แพ้', 'DERROTA'),
+  deploying: L('展開', 'جارٍ الانتشار', 'ВЫСАДКА', 'กำลังส่งกำลัง', 'MOBILIZANDO'),
+  nextMap: L('次の舞台', 'الخريطة التالية', 'СЛЕДУЮЩАЯ КАРТА', 'แผนที่ถัดไป', 'PRÓXIMO MAPA'),
+  mainMenu: L('メニュー', 'القائمة', 'МЕНЮ', 'เมนู', 'MENU'),
+  loadout: L('装備', 'العتاد', 'СНАРЯЖЕНИЕ', 'อาวุธ', 'EQUIPAMENTO'),
+  nextSpawn: L('次の装備', 'العتاد التالي', 'СЛЕД. ВЫСАДКА', 'อาวุธรอบถัดไป', 'PRÓX. EQUIPAMENTO'),
   // Survival death screen
-  flatline: L('雨は止まない', 'الرمال لا تنام', 'ДОК НЕ СПИТ', 'ป่าไม่เคยหลับ'),
+  flatline: L('雨は止まない', 'الرمال لا تنام', 'ДОК НЕ СПИТ', 'ป่าไม่เคยหลับ', 'O MORRO NÃO DORME'),
   // Weapons (the armory's guns, by id)
-  pistol: L('狐', 'ثعلب', 'ЛИСА', 'จิ้งจอก'),
-  smg: L('蜂', 'دبور', 'ШЕРШЕНЬ', 'แตน'),
-  ar: L('豺', 'ابن آوى', 'ШАКАЛ', 'หมาใน'),
-  shotgun: L('猪', 'خنزير بري', 'КАБАН', 'หมูป่า'),
+  pistol: L('狐', 'ثعلب', 'ЛИСА', 'จิ้งจอก', 'RAPOSA'),
+  smg: L('蜂', 'دبور', 'ШЕРШЕНЬ', 'แตน', 'VESPA'),
+  ar: L('豺', 'ابن آوى', 'ШАКАЛ', 'หมาใน', 'CHACAL'),
+  shotgun: L('猪', 'خنزير بري', 'КАБАН', 'หมูป่า', 'JAVALI'),
 } satisfies Record<string, Line>;
 
 export type FlavorKey = keyof typeof FLAVOR;
@@ -96,7 +97,7 @@ export function fl(key: FlavorKey, biome: Biome = current) {
   return FLAVOR[key][biome];
 }
 
-const DIGITS: Record<Biome, string | null> = { tokyo: null, desert: '٠١٢٣٤٥٦٧٨٩', docks: null, jungle: '๐๑๒๓๔๕๖๗๘๙' };
+const DIGITS: Record<Biome, string | null> = { tokyo: null, desert: '٠١٢٣٤٥٦٧٨٩', docks: null, jungle: '๐๑๒๓๔๕๖๗๘๙', favela: null };
 
 /** A number in the biome's numerals (kanji in Tokyo, Arabic-Indic, Western, Thai). */
 export function flNumber(n: number, biome: Biome = current) {

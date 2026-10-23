@@ -8,6 +8,7 @@ import { NEONBLOCK_INFO, NeonBlockLevel } from './neonblock/NeonBlockLevel';
 import { CRASHSITE_INFO, CrashSiteLevel } from './crashsite/CrashSiteLevel';
 import { OLDPORT_INFO, OldPortLevel } from './oldport/OldPortLevel';
 import { MAGLEV_INFO, MaglevLevel } from './maglev/MaglevLevel';
+import { FAVELAS_INFO, FavelaLevel } from './favelas/FavelaLevel';
 
 export interface LevelEntry {
   info: LevelInfo;
@@ -29,9 +30,11 @@ export const LEVELS: Partial<Record<SettingId, LevelEntry>> & { tokyo: LevelEntr
   oldport: { info: OLDPORT_INFO, create: (g) => new OldPortLevel(g) },
   // 18.0: a corporate sci-fi transit hall (the maglev's interior is the centre lane); TDM.
   maglev: { info: MAGLEV_INFO, create: (g) => new MaglevLevel(g) },
+  // 40.0: a Rio hillside in the sun: terraces of pastel houses, alleys, escadarias, a layer of rooftops; TDM.
+  favelas: { info: FAVELAS_INFO, create: (g) => new FavelaLevel(g) },
 };
 
-export const LEVEL_ORDER: SettingId[] = (['tokyo', 'neonblock', 'desert', 'jungle', 'crashsite', 'docks', 'oldport', 'maglev'] as SettingId[]).filter((id) => LEVELS[id]);
+export const LEVEL_ORDER: SettingId[] = (['tokyo', 'neonblock', 'desert', 'jungle', 'crashsite', 'docks', 'oldport', 'maglev', 'favelas'] as SettingId[]).filter((id) => LEVELS[id]);
 
 /** The registry entry of a setting the menu offers. */
 export function levelEntry(id: SettingId): LevelEntry {

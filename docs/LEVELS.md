@@ -14,6 +14,7 @@ A level owns everything about a place: geometry, collision, lights, weather, amb
 | DESERT OUTPOST | Arcade Survival | `src/levels/desert/` (`DesertLevel`, `Outpost`, `Terrain`, `Sandstorm`, `DesertIntro`, `textures`) |
 | DEEP JUNGLE | Arcade Survival | `src/levels/jungle/` (`JungleLevel`, `Base`, `Foliage`, `Terrain`, `JungleIntro`, `textures`) |
 | NEON DOCKS (8.0) | Team Deathmatch | `src/levels/docks/` (`DocksLevel`, `Docks`, `DocksLayout`) |
+| FAVELAS (40.0) | Team Deathmatch | `src/levels/favelas/` (`FavelaLevel`, `Favela`, `FavelaLayout`, `Dust`, `textures`) |
 
 ## How it fits together
 
@@ -429,4 +430,9 @@ The owner found 18.0's hall too easy: a sniper gallery from spawn to spawn, empt
 - **AI** (`MAGLEV_AI`): `ARENA.underFire` (shot at from 16 m or more, not winning that duel: break for cover from that shooter, or slide out of the line; its own 1.5 s cooldown); riflemen keep moving while they focus an aimed shot (35% of their run, was 12%); three flankers from 10 m. The sniper drill (`__dev.sniperDrill()`): bots it hit got out of its sight alive 38–39% → 60–61%, its kills a minute down 32–42%.
 - **Pacing:** 7v7, 50 tickets, forward respawns (five points a side on the approaches): quiet seconds 31–36% (5v5, 18.0's layout) → 14.5–16.6%; first engagement 11–14 s → 8.5–11 s. Lanes: flanks 1.3, train 1, no strict lane (18.0 pulled two of five into the train); the aisle stays a cheap nav route.
 - **Performance:** the billboards' screens are emissive maps (no light, nothing cast); the cover is merged static geometry. `bench(3)` at 7v7: 60 FPS, GPU 5.5–6.2 ms.
+
+## Favelas (40.0): a hill of box floors
+- **Terraces as solid fill.** The ground is flat; each terrace above the street is one solid box, its top the alleys' floor and its west face the retaining wall. Houses are one storey (the terrace rise), so roofs are level with the terrace above: one walking layer.
+- **Everything is a box floor here.** No terrain under the alleys and roofs, so nothing may assume the terrain catches a body. A falling bot now lands on any floor its feet crossed in the step (`Locomotion.stepAir`, 40.0). The world check, stress, levelAI and a reachability check that counts drops one-way (no node a bot can't get back from) all pass.
+- **The plan is data** (`favelaPlan()`: houses, towers, stairs with landings, bridges, tanks, props): the builder draws and collides it, the nav and the lanes read it, the tests check it (mirror symmetry, the 1.3 m gap rule, roofs level with the next terrace, stairs that climb the right way in both halves).
 

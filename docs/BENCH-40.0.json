@@ -1,0 +1,347 @@
+{
+ "version": "40.0",
+ "branch": "feature/favelas-40.0",
+ "machine": "Apple M5, Chrome, Balanced (bench); headless Chrome, tdmSim at a fixed 1/60 s (self-play, level checks)",
+ "selfPlay_sweep": {
+  "6v6": {
+   "matches": 3,
+   "kills": 321,
+   "killsPerMin": 17.6,
+   "quietLivePct": 31.0,
+   "quietPct": 35.0,
+   "matchSeconds": 366.4,
+   "firstEngagement": 17.3,
+   "roofTimePct": 23.6,
+   "roofKillPct": 16.8,
+   "killsByLanePct": {
+    "low (street)": 28.7,
+    "middle": 28.3,
+    "high (crest)": 42.4
+   },
+   "elevatedPct": 87.2,
+   "stuck": 0,
+   "wallPress": 0,
+   "wins": {
+    "alpha": 1,
+    "omega": 2
+   },
+   "liveRange": [
+    28.4,
+    33.2
+   ],
+   "zoneTimePct": {
+    "THE ROOFTOPS": 23.6,
+    "THE ESCADARIA": 12.7,
+    "BECO DO MEIO": 11.6,
+    "BECO DAS PIPAS": 11.3,
+    "A RUA": 10.6,
+    "O MIRANTE": 8.9,
+    "THE LITTLE SQUARES": 7.7,
+    "BECO DAS LAVADEIRAS": 7.2,
+    "ALPHA TERRACES": 3.4,
+    "OMEGA TERRACES": 3.0
+   },
+   "killsByZone": {
+    "THE ESCADARIA": 99,
+    "THE ROOFTOPS": 54,
+    "BECO DAS PIPAS": 33,
+    "BECO DO MEIO": 32,
+    "A RUA": 30,
+    "O MIRANTE": 26,
+    "THE LITTLE SQUARES": 26,
+    "BECO DAS LAVADEIRAS": 19,
+    "ALPHA TERRACES": 1,
+    "OMEGA TERRACES": 1
+   },
+   "ai": {
+    "avg": 0.103,
+    "p95": 0.5,
+    "p99": 0.8,
+    "worst": 6.1,
+    "raysPerStep": 33.3
+   }
+  },
+  "8v8": {
+   "matches": 3,
+   "kills": 330,
+   "killsPerMin": 21.1,
+   "quietLivePct": 22.4,
+   "quietPct": 40.8,
+   "matchSeconds": 314.7,
+   "firstEngagement": 17.0,
+   "roofTimePct": 19.9,
+   "roofKillPct": 13.0,
+   "killsByLanePct": {
+    "low (street)": 28.5,
+    "middle": 31.8,
+    "high (crest)": 39.4
+   },
+   "elevatedPct": 87.7,
+   "stuck": 0,
+   "wallPress": 0,
+   "wins": {
+    "alpha": 1,
+    "omega": 2
+   },
+   "liveRange": [
+    19.3,
+    25.4
+   ],
+   "zoneTimePct": {
+    "THE ROOFTOPS": 19.9,
+    "BECO DO MEIO": 16.6,
+    "THE ESCADARIA": 12.3,
+    "THE LITTLE SQUARES": 11.2,
+    "BECO DAS PIPAS": 10.3,
+    "A RUA": 10.0,
+    "O MIRANTE": 7.7,
+    "BECO DAS LAVADEIRAS": 5.9,
+    "OMEGA TERRACES": 3.2,
+    "ALPHA TERRACES": 2.8
+   },
+   "killsByZone": {
+    "THE ESCADARIA": 114,
+    "THE ROOFTOPS": 43,
+    "BECO DO MEIO": 41,
+    "A RUA": 38,
+    "BECO DAS PIPAS": 31,
+    "THE LITTLE SQUARES": 29,
+    "O MIRANTE": 19,
+    "BECO DAS LAVADEIRAS": 14,
+    "OMEGA TERRACES": 1
+   },
+   "ai": {
+    "avg": 0.11,
+    "p95": 0.5,
+    "p99": 0.8,
+    "worst": 8.7,
+    "raysPerStep": 34.8
+   }
+  },
+  "10v10": {
+   "matches": 6,
+   "kills": 668,
+   "killsPerMin": 27.5,
+   "quietLivePct": 16.0,
+   "quietPct": 33.4,
+   "matchSeconds": 249.3,
+   "firstEngagement": 16.0,
+   "roofTimePct": 21.5,
+   "roofKillPct": 18.1,
+   "killsByLanePct": {
+    "low (street)": 29.5,
+    "middle": 29.2,
+    "high (crest)": 40.7
+   },
+   "elevatedPct": 88.3,
+   "stuck": 0,
+   "wallPress": 0,
+   "wins": {
+    "alpha": 2,
+    "omega": 4
+   },
+   "liveRange": [
+    12,
+    19.5
+   ],
+   "zoneTimePct": {
+    "THE ROOFTOPS": 21.5,
+    "BECO DO MEIO": 16.8,
+    "THE ESCADARIA": 11.2,
+    "BECO DAS PIPAS": 9.8,
+    "A RUA": 9.7,
+    "THE LITTLE SQUARES": 8.9,
+    "O MIRANTE": 8.6,
+    "BECO DAS LAVADEIRAS": 6.9,
+    "ALPHA TERRACES": 3.5,
+    "OMEGA TERRACES": 3.2
+   },
+   "killsByZone": {
+    "THE ESCADARIA": 163,
+    "THE ROOFTOPS": 121,
+    "BECO DAS PIPAS": 85,
+    "A RUA": 74,
+    "BECO DO MEIO": 66,
+    "THE LITTLE SQUARES": 63,
+    "O MIRANTE": 55,
+    "BECO DAS LAVADEIRAS": 37,
+    "OMEGA TERRACES": 2,
+    "ALPHA TERRACES": 2
+   },
+   "ai": {
+    "avg": 0.185,
+    "p95": 0.7,
+    "p99": 1,
+    "worst": 9.4,
+    "raysPerStep": 64.5
+   }
+  },
+  "12v12": {
+   "matches": 3,
+   "kills": 351,
+   "killsPerMin": 33.1,
+   "quietLivePct": 15.3,
+   "quietPct": 29.8,
+   "matchSeconds": 218.7,
+   "firstEngagement": 16.0,
+   "roofTimePct": 20.2,
+   "roofKillPct": 13.4,
+   "killsByLanePct": {
+    "low (street)": 30.8,
+    "middle": 28.8,
+    "high (crest)": 40.5
+   },
+   "elevatedPct": 87.4,
+   "stuck": 0,
+   "wallPress": 0,
+   "wins": {
+    "alpha": 1,
+    "omega": 2
+   },
+   "liveRange": [
+    11.9,
+    18.4
+   ],
+   "zoneTimePct": {
+    "THE ROOFTOPS": 20.2,
+    "THE ESCADARIA": 13.7,
+    "BECO DO MEIO": 13.7,
+    "BECO DAS PIPAS": 11.2,
+    "A RUA": 10.3,
+    "THE LITTLE SQUARES": 9.5,
+    "O MIRANTE": 8.2,
+    "BECO DAS LAVADEIRAS": 6.8,
+    "OMEGA TERRACES": 3.3,
+    "ALPHA TERRACES": 3.1
+   },
+   "killsByZone": {
+    "THE ESCADARIA": 118,
+    "BECO DAS PIPAS": 50,
+    "THE ROOFTOPS": 47,
+    "BECO DO MEIO": 34,
+    "A RUA": 29,
+    "THE LITTLE SQUARES": 29,
+    "O MIRANTE": 28,
+    "BECO DAS LAVADEIRAS": 16
+   },
+   "ai": {
+    "avg": 0.213,
+    "p95": 0.7,
+    "p99": 1.1,
+    "worst": 7.5,
+    "raysPerStep": 75
+   }
+  }
+ },
+ "selfPlay_shipped_10v10": {
+  "matches": 15,
+  "kills": 1691,
+  "killsPerMin": 29.9,
+  "quietLivePct": 16.1,
+  "quietPct": 28.3,
+  "matchSeconds": 231.6,
+  "firstEngagement": 16.0,
+  "roofTimePct": 22.0,
+  "roofKillPct": 15.2,
+  "killsByLanePct": {
+   "low (street)": 30.0,
+   "middle": 29.5,
+   "high (crest)": 40.1
+  },
+  "elevatedPct": 87.5,
+  "stuck": 0,
+  "wallPress": 0,
+  "wins": {
+   "alpha": 9,
+   "omega": 6
+  },
+  "liveRange": [
+   10.1,
+   21.2
+  ],
+  "zoneTimePct": {
+   "THE ROOFTOPS": 22.0,
+   "BECO DO MEIO": 15.3,
+   "THE ESCADARIA": 11.7,
+   "A RUA": 10.4,
+   "BECO DAS PIPAS": 9.7,
+   "O MIRANTE": 8.4,
+   "THE LITTLE SQUARES": 8.3,
+   "BECO DAS LAVADEIRAS": 7.3,
+   "OMEGA TERRACES": 3.4,
+   "ALPHA TERRACES": 3.4
+  },
+  "killsByZone": {
+   "THE ESCADARIA": 484,
+   "THE ROOFTOPS": 257,
+   "BECO DAS PIPAS": 189,
+   "BECO DO MEIO": 185,
+   "A RUA": 183,
+   "THE LITTLE SQUARES": 165,
+   "O MIRANTE": 126,
+   "BECO DAS LAVADEIRAS": 96,
+   "OMEGA TERRACES": 4,
+   "ALPHA TERRACES": 2
+  },
+  "ai": {
+   "avg": 0.185,
+   "p95": 0.7,
+   "p99": 1,
+   "worst": 9.4,
+   "raysPerStep": 64.5
+  }
+ },
+ "levelChecks": {
+  "world": "0 findings (70,500 cells)",
+  "stress": "0/160,000",
+  "levelAI": "runners 86/86 (twice), gunners 2/2, graphOk",
+  "navGraph": "1,011 nodes, 123 drop links, 0 unreachable, 0 traps (every reachable node can get back)",
+  "matchstart": "2/2 (hand-off 0 m, first frame on the eyes, 0 movement or rounds in the countdown)",
+  "leakcheck": "favelas,desert,oldport x2: 0 alive; favelas flat after the first lap (125 geometries, 34 textures)"
+ },
+ "bench3_favelas": {
+  "columns": "fps, cpuMs, gpuMs",
+  "views": {
+   "street": [
+    60.3,
+    2.72,
+    4.22
+   ],
+   "alley": [
+    60,
+    1.77,
+    4.69
+   ],
+   "square": [
+    60,
+    2.6,
+    4.84
+   ],
+   "rooftops": [
+    59.6,
+    1.95,
+    4.99
+   ],
+   "escadaria": [
+    60,
+    2.4,
+    5.23
+   ],
+   "wholeHill": [
+    59.6,
+    2.22,
+    5.2
+   ],
+   "firefight": [
+    60,
+    2.77,
+    4.97
+   ]
+  },
+  "note": "10v10 running, the window visible throughout (visibilitychange logged: none). Triangles 27-37k, draw calls 198-415."
+ },
+ "engineFixes": {
+  "stepAirSweptLanding": "a falling arena bot lands on any box floor crossed in the step (was: within 5 cm above its feet; over 3 m/s it fell through). Regression: Old Port 2 and Desert 2 matches, 0 stuck."
+ },
+ "tests": 453
+}

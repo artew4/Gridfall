@@ -16,7 +16,7 @@ const heapMB = () => {
   return m ? +(m.usedJSHeapSize / 1048576).toFixed(1) : null;
 };
 
-const MODE: Record<SettingId, string> = { tokyo: 'arcade', desert: 'arcade', docks: 'tdm', jungle: 'arcade', neonblock: 'tdm', crashsite: 'tdm', oldport: 'tdm', maglev: 'tdm' };
+const MODE: Record<SettingId, string> = { tokyo: 'arcade', desert: 'arcade', docks: 'tdm', jungle: 'arcade', neonblock: 'tdm', crashsite: 'tdm', oldport: 'tdm', maglev: 'tdm', favelas: 'tdm' };
 
 export async function musicSoak(game: Game, opts: { cycles?: number; dwell?: number; settings?: SettingId[] } = {}) {
   const cycles = opts.cycles ?? 3;

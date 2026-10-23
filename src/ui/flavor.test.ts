@@ -9,6 +9,8 @@ const SCRIPT: Record<Biome, RegExp> = {
   desert: /[؀-ۿ]/,
   docks: /[Ѐ-ӿ]/,
   jungle: /[฀-๿]/,
+  // 40.0: Portuguese, in capitals like the English (Latin letters, with accents).
+  favela: /^[A-ZÀ-Ý0-9 .\-]+$/,
 };
 const JAPANESE = SCRIPT.tokyo;
 
@@ -31,6 +33,8 @@ describe('UI flavor (16.0)', () => {
     expect(flWave(3, 'tokyo')).toBe('第三波');
     expect(flWave(3, 'docks')).toBe('ВОЛНА 03');
     expect(flWave(3, 'desert')).toBe('الموجة ٣');
+    expect(flNumber(12, 'favela')).toBe('12');
+    expect(flWave(3, 'favela')).toBe('ONDA 3');
   });
 
   it('setBiome switches the default and tells the listeners; a fixed span keeps its own biome', () => {

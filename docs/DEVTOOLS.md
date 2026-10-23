@@ -102,6 +102,9 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
   - `await __dev.fog()`: the live HeightFog module (`{ at, on }`): `at(from, to)` is the hidden share between two points as the picture draws it (the bots' sight uses the same function); a page `import()` of the module gets a second instance with the fog off, so tests in the page go through this.
   - `tdmSim(...).fog` now splits ground / roof / across by the fog's dense top (Neon Block 6.2 m: the landings and the footbridge count as ground).
   - `bench(3)` on Neon Block gains four views: the Lantern Bridge, the Transit Rail's deck, the Lantern Market, a roof looking down into the smog.
+- Favelas (40.0):
+  - `?setting=favelas`. `bench(3)` has a Favelas set: the street, an alley, a square, the rooftops, the escadaria from its foot, the whole hill from the crest, and a firefight, with 10v10 running.
+  - `__game.level.debug()` on Favelas: nodes, drops, houses, lane problems.
 - Desert flanks (38.0):
   - `tdmSim(...)`: `quietLivePct` (seconds nobody fired before the first team's last stand: the endgame's standoffs swung single matches' `quietPct` from 6% to 51%); `patrol.toFlank` (patrol picks to a flank area); a stuck bot's record carries its height, goal and the route's next node.
   - `tdmSim({ flankPull: false })` (the flanks' pull off), `{ watches: n }` (the high ground's watches at once; 0: none), `{ tune: { … } }` (any ARENA values over the map's profile, put back after the match, e.g. `tune: { flankPull: { base: 0.1, hot: 1 } }`).

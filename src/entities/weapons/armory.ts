@@ -130,7 +130,7 @@ export const ARMORY: Record<WeaponId, ArmoryEntry> = {
     id: 'smg',
     key: '2',
     kind: 'SMG',
-    blurb: 'Highest fire rate, tight from the hip. Climbs; weak far.',
+    blurb: 'Highest fire rate, tight from the hip. Shakes; weak far.',
     spec: HORNET_SMG,
     bot: {
       id: 'smg',

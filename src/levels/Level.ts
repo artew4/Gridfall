@@ -124,7 +124,7 @@ export interface HighGround {
   count?: number;
 }
 
-export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock' | 'crashsite' | 'oldport' | 'maglev';
+export type SettingId = 'tokyo' | 'desert' | 'jungle' | 'docks' | 'neonblock' | 'crashsite' | 'oldport' | 'maglev' | 'favelas';
 export type Mode = 'story' | 'arcade' | 'tdm';
 
 /** A named area of a level (the zone toast reads these). Rects are x0, z0, x1, z1. */

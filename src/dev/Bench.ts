@@ -58,6 +58,7 @@ export async function bench(game: Game, seconds = 3, opts: { pipelines?: Pipelin
   if (game.setting === 'crashsite') return benchCrashSite(game, dev, m, out);
   if (game.setting === 'oldport') return benchOldPort(game, dev, m, out);
   if (game.setting === 'maglev') return benchMaglev(game, dev, m, out);
+  if (game.setting === 'favelas') return benchFavelas(game, dev, m, out);
   dev.start('story');
   dev.god();
   dev.noGuards();
@@ -191,6 +192,46 @@ async function benchDesert(game: Game, dev: Dev, m: (name: string) => Promise<vo
   }, 600);
   await new Promise((r) => setTimeout(r, 4000));
   await m('tdmFight');
+  clearInterval(shooter);
+  return out;
+}
+
+/**
+ * Favelas (40.0, a daytime TDM hillside, 10v10): the match running; the street up the hill, an alley
+ * between the houses, a square, the rooftops across the hill, the central escadaria from its foot, the
+ * whole favela from the crest (the most houses in view, the dust in the sun), then a firefight.
+ */
+async function benchFavelas(game: Game, dev: Dev, m: (name: string) => Promise<void>, out: Record<string, unknown>) {
+  dev.start('tdm', 'favelas');
+  dev.god();
+  await wait(3000);
+  const views: [string, [number, number, number], [number, number, number]][] = [
+    ['street', [-44, 0, 40], [-38, 4, -20]],
+    ['alley', [-2, 6, 6], [-2, 7.5, 28]],
+    ['square', [12, 9, 32], [26, 11, 8]],
+    ['rooftops', [-28, 6, 44], [30, 12, -20]],
+    ['escadaria', [-44, 0, 0], [40, 14, 0]],
+    ['wholeHill', [46, 15, 44], [-40, 0, -20]],
+  ];
+  for (const [name, p, l] of views) {
+    dev.tp(p[0], p[1], p[2], 0, 0);
+    dev.look(l[0], l[1], l[2]);
+    await m(name);
+  }
+  const tdm = game.tdm;
+  dev.tp(-2, 6, 12, 0, 0);
+  const shooter = window.setInterval(() => {
+    let best: { x: number; y: number; z: number } | null = null, bd = 70;
+    for (const b of tdm.bots) if (b.alive && b.team === 'omega' && b.pos.distanceTo(game.player.pos) < bd) {
+      bd = b.pos.distanceTo(game.player.pos);
+      best = b.pos;
+    }
+    if (!best) return;
+    dev.look(best.x, best.y + 1.2, best.z);
+    dev.shoot();
+  }, 600);
+  await new Promise((r) => setTimeout(r, 4000));
+  await m('firefight');
   clearInterval(shooter);
   return out;
 }
