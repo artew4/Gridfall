@@ -68,8 +68,60 @@ export const STACK_B = { x0: 2, x1: 2 + CONT.L, z0: STACKS.z0, z1: STACKS.z1 };
 export const WALK = { x0: STACKS.x1, x1: STACK_B.x0, z0: 19.6, z1: 21.2 };
 /** The dry dock: inner faces, its walls' colliders (1 m, top at quay level), its floor; the carve line lies inside the walls. */
 export const DOCK = { x0: 24.5, x1: 35.5, z: 38, wall: 1, floor: -4.5 };
-/** The coaster in the dock: hull, deck, the bridge house and its roof, gangways at ±gz. */
-export const SHIP = { x0: 27, x1: 33, z: 15, deck: 1.0, house: { x0: 28.5, x1: 31.5, z: 2.5, roof: 3.6 }, gz: 7, gw: 1.6 };
+/**
+ * The coaster in the dock: hull, deck, the bridge house and its roof, gangways at ±gz. 37.0: her keel
+ * (the hull's underside) at -0.9, raised on shipwright's stands: 3.6 m of headroom over the dock floor.
+ */
+export const SHIP = { x0: 27, x1: 33, z: 15, deck: 1.0, keel: -0.9, house: { x0: 28.5, x1: 31.5, z: 2.5, roof: 3.6 }, gz: 7, gw: 1.6 };
+/*
+  37.0, UNDER THE HULL: the dock floor under the coaster, a close-quarters room roofed by her keel
+  (x 24.5–35.5, |z| < 15; the hull over x 27–33, the channels either side open to the sky). Mirrored
+  like the map. Every gap between two pieces of cover is 0 or ≥ 1.3 m (a body is 0.9 m: a slot between
+  stalls bots), nothing stands within 1.1 m of a dock wall (the carve line: L-144), and nothing in an
+  open channel is taller than waist height (a stack's top under the sky would be a perch reached from
+  the quay). Full-height pieces stand under the hull, floor to keel: nothing to climb.
+
+     z=15 ─┬─ scaffold stair to the deck (x 29.2–30.8, z 15–26)
+           │ [CRATES]                 [CRATES]          2.2 m stacks flanking the stair's top
+     10.5  │      (o)  ═══ cradle ═══  (o)               stands, a beam over them
+      7    │ [c]             [TOWER]                     a waist-high crate (west channel), a scaffold tower
+      4    │      (o)  ═══ cradle ═══  (o)
+      1.6  │                          [c]                a waist-high crate (east channel)
+      0    │           [ KEEL BLOCK ]                    waist-high, the room's centre
+         x=24.5  27   28    30     32  33        35.5
+*/
+/** The stands (steel columns, floor to keel), south half (mirrored); radius. */
+export const STANDS: [number, number][] = [[28, 4], [32, 4], [28, 10.5], [32, 10.5]];
+export const STAND_R = 0.35;
+/** The cradle beams over each pair of stands (under the keel, so the headroom there is keel − depth). */
+export const CRADLE = { x0: 27.2, x1: 32.8, depth: 0.35, w: 0.5 };
+/**
+ * The room's cover, south half (mirrored; `mid` once, on z = 0): waist-high crates and the keel block
+ * (h ≤ 1.05: vaulted), full stacks and a scaffold tower (floor to keel or 2.2 m, under the hull).
+ */
+export const UNDER_COVER: { name: string; x: [number, number]; z: [number, number]; h: number | 'keel'; kind: 'crate' | 'stack' | 'tower' | 'keel'; mid?: boolean }[] = [
+  { name: 'keel block', x: [29.25, 30.75], z: [-1.6, 1.6], h: 1.0, kind: 'keel', mid: true },
+  { name: 'east crate', x: [33.2, 34.4], z: [1.0, 2.2], h: 1.0, kind: 'crate' },
+  { name: 'west crate', x: [25.6, 26.8], z: [6.4, 7.6], h: 1.0, kind: 'crate' },
+  { name: 'tower', x: [30.4, 31.9], z: [6.2, 7.6], h: 'keel', kind: 'tower' },
+  { name: 'west stack', x: [27.3, 28.5], z: [12.2, 13.6], h: 2.2, kind: 'stack' },
+  { name: 'east stack', x: [31.5, 32.7], z: [12.2, 13.6], h: 2.2, kind: 'stack' },
+];
+/** Hanging work lamps under the keel: [x, z] (south half and the middle), and which carry a real light. */
+export const LAMPS: { x: number; z: number; light?: boolean }[] = [
+  { x: 29.6, z: 0, light: true },
+  { x: 29.4, z: 7.3, light: true },
+  { x: 30.2, z: 13.8 },
+  { x: 27.6, z: 2.2 },
+  { x: 32.4, z: 8.8 },
+];
+/**
+ * 37.0: places in the room the patrols search between fights (TdmData.hvas), both halves: its corners
+ * behind the cover, not the lane's line through it (6 matches without them: 3.8% of bot time in it).
+ */
+export const UNDER_HVAS: [number, number, number][] = [[26.2, DOCK.floor, 9.8], [33.8, DOCK.floor, 5.4], [29.6, DOCK.floor, 4.6]].flatMap(([x, y, z]): [number, number, number][] => [[x, y, z], [x, y, -z]]);
+/** Where the lamps hang to (the cable from the keel), and their light. */
+export const LAMP = { drop: 0.9, color: 0xffb066, intensity: 9, range: 13 };
 /*
   23.0, the overhaul (the 17.1 port played like 18.0's Maglev: 5% of spawn-side to spawn-side pairs in
   sight, the longest 129 m down the west quay; bots never on the stacks). Blockers by the width they
@@ -128,6 +180,8 @@ export const BLOCKERS: { name: string; x: [number, number]; z: [number, number];
 export const PASSAGES: [number, number, number][] = [
   [42.6, 0, 13.2], [38.2, 0, 22], [37.2, 0, 17.2], [39, 0, 10.8],
   [25.0, DOCK.floor, 16.7], [26.9, DOCK.floor, 21.9], [34.8, DOCK.floor, 16.7], [33.1, DOCK.floor, 21.9], [26, DOCK.floor, 19.3], [34, DOCK.floor, 19.3],
+  // 37.0: either side of the scaffold stair's foot and top, into UNDER THE HULL.
+  [28.4, DOCK.floor, 16.7], [31.6, DOCK.floor, 16.7], [28.4, DOCK.floor, 21.9], [31.6, DOCK.floor, 21.9],
   [22.3, 0, 12.6], [19, 0, 15.6], [-23.3, 0, 18.2], [-25.9, 0, 21.7],
 ];
 
@@ -144,7 +198,8 @@ export const BARRIERS: [number, number, 'x' | 'z', number?][] = [
 export const BARRELS: [number, number, number?][] = [
   [-6.4, 16.2], [-5.8, 16.9], [-6.6, 17.4], [15.8, 24.5], [16.5, 25], [15.9, 25.6],
   [40.2, 9.4], [40.8, 9.9], [-23.5, 15.4], [-22.9, 16],
-  [32, 27.6, DOCK.floor], [32.5, 28.2, DOCK.floor], [26.2, 8, DOCK.floor], [26.1, 9.4, DOCK.floor], [33.9, 7.5, DOCK.floor],
+  // 37.0: the drums on the dock floor (its channels by the hull, its head) made way for UNDER THE
+  // HULL's cover and the deployment zone at the dock's head.
 ];
 
 /** Walked onto from the floor beside it: at most this (more must be jumped). */
@@ -186,8 +241,10 @@ const LANES_ALPHA: [number, number, number?][][] = [
   // Up the team's own stacks, along the walk to STACK B, off its edge into the yard.
   // 23.0: then over the spine (the maze's top) by its stairs, not round it.
   [[-18, 56.4], [-14, 46], [-18.8, 33.6], [-18.8, 21.5, ST], [-12, 20.4, ST], [-4, 20.4, ST], [4, 20.4, ST], [5, 16], [-1.2, 8.2], [-1.2, 4.2, CONT.H / 2], [-1.2, 0, CONT.H], [-1.2, -4.2, CONT.H / 2], [-1.2, -8.2], [-3, -26], [-4, -38]],
-  // Down into the dock, up the scaffold onto the ship, over the bridge, down the far end.
-  [[18, 56.4], [22, 48], [25.8, 41], [25.8, 38.5, 0], [25.8, 28, DOCK.floor], [30, 28, DOCK.floor], [30, 13, SHIP.deck], [30, 10, SHIP.deck], [30, 0, SHIP.house.roof], [30, -10, SHIP.deck], [30, -13, SHIP.deck], [30, -28, DOCK.floor], [25.8, -28, DOCK.floor], [25.8, -38.5, 0], [25.8, -41]],
+  // Down into the dock, past the scaffold stair's foot, UNDER THE HULL (37.0: was up onto the deck and
+  // over the bridge: the room is the lane now; the deck and the bridge are the climb off it), out past
+  // the far stair and up the far end.
+  [[18, 56.4], [22, 48], [25.8, 41], [25.8, 38.5, 0], [25.8, 28, DOCK.floor], [28.4, 21.9, DOCK.floor], [28.4, 16.7, DOCK.floor], [30, 14.2, DOCK.floor], [30, 9, DOCK.floor], [27.6, 0, DOCK.floor], [30, -9, DOCK.floor], [30, -14.2, DOCK.floor], [31.6, -16.7, DOCK.floor], [31.6, -21.9, DOCK.floor], [34.2, -28, DOCK.floor], [34.2, -38.5, 0], [34.2, -41]],
 ];
 
 /** Lanes per team, as that team faces: OMEGA's left is the east. */
@@ -219,6 +276,8 @@ export const ZONES = {
   bridge: Z('bridge', 'THE BRIDGE', 'РУБКА', [[SHIP.house.x0 - 0.5, -SHIP.house.z - 0.5, SHIP.house.x1 + 0.5, SHIP.house.z + 0.5]]),
   deck: Z('deck', 'THE DECK', 'ПАЛУБА', [[SHIP.x0, -SHIP.z, SHIP.x1, SHIP.z]]),
   dryDock: Z('dryDock', 'DRY DOCK', 'СУХОЙ ДОК', [[DOCK.x0, -DOCK.z, DOCK.x1, DOCK.z]]),
+  // 37.0: the dock floor under the raised coaster (its channels included: one room).
+  underHull: Z('underHull', 'UNDER THE HULL', 'ПОД КОРПУСОМ', [[DOCK.x0, -SHIP.z, DOCK.x1, SHIP.z]]),
   alphaSpawn: Z('alphaSpawn', 'ALPHA YARD', 'ПОЗИЦИЯ «АЛЬФА»', [[BASE.x0, BASE.z0, BASE.x1, Z_END]]),
   omegaSpawn: Z('omegaSpawn', 'OMEGA YARD', 'ПОЗИЦИЯ «ОМЕГА»', [[BASE.x0, -Z_END, BASE.x1, -BASE.z0]]),
   alphaCourt: Z('alphaCourt', 'ALPHA APRON', 'ПЛОЩАДКА «АЛЬФА»', [[X_W, COURT, QUAY_X, Z_END]]),
@@ -238,6 +297,7 @@ export function zoneAt(x: number, y: number, z: number): Zone | null {
   if (y > SHIP.house.roof - 0.8 && ZONES.bridge.rects.some(inR)) return ZONES.bridge;
   if (y > 0.5 && ZONES.deck.rects.some(inR)) return ZONES.deck;
   if (y > 1.5 && ZONES.fireStairs.rects.some(inR)) return ZONES.fireStairs;
+  if (y < -1 && ZONES.underHull.rects.some(inR)) return ZONES.underHull;
   if (y < -1 && ZONES.dryDock.rects.some(inR)) return ZONES.dryDock;
   for (const zone of [ZONES.alphaSpawn, ZONES.omegaSpawn, ZONES.alphaCourt, ZONES.omegaCourt, ZONES.warehouse, ZONES.warehouseEnds, ZONES.dockHead, ZONES.alley, ZONES.yard, ZONES.westQuay, ZONES.dryDock, ZONES.seaQuay]) {
     if (zone.rects.some(inR)) return zone;
@@ -303,7 +363,10 @@ export const SPAWN_PADS = mirrorPads([[0, 0, 57.4, 3.14], [-35, 4.4, 16, 1.96], 
 
 /**
  * 31.0: the deployment zones (TdmData.zones): ALPHA's, A to C from its left; OMEGA's by the map's
- * symmetry (mirror). Old Port: two, left and right flanks behind the container clusters.
+ * symmetry (mirror). Old Port: two, left and right flanks behind the container clusters. 37.0: B moved
+ * from the dock apron (32, 0, 44) down onto the floor of its own dock head, where the dry dock opens
+ * onto UNDER THE HULL: half the team's spawns walk straight into the room. Mirrored, so OMEGA's B is
+ * as far from the room as ALPHA's (16 m to the hull's end, 31 m to its middle): neither owns it.
  */
 export const SPAWN_ZONES = {
   symmetry: 'mirror' as const,
@@ -312,6 +375,6 @@ export const SPAWN_ZONES = {
     // Two, behind the container clusters on the flanks: the warehouse doors (west), the dock apron
     // (east). No zone in the yard: the containers between are the front.
     { id: 'A' as const, x: -32, y: 0, z: 40, r: 6, yaw: Math.PI },
-    { id: 'B' as const, x: 32, y: 0, z: 44, r: 6, yaw: Math.PI },
+    { id: 'B' as const, x: 30, y: DOCK.floor, z: 31, r: 4.5, yaw: Math.PI },
   ],
 };

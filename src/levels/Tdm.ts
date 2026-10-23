@@ -163,6 +163,8 @@ export interface KillRecord {
   flank: boolean;
   /** 8.0: the level zone the victim died in (match-flow reports). */
   zone?: string;
+  /** 37.0: the zone the killer stood in (a fight inside a room: both in it). */
+  killerZone?: string;
 }
 
 export class TdmRules implements ModeRules {
@@ -827,6 +829,7 @@ export class TdmRules implements ModeRules {
       victimPos: [+v.pos.x.toFixed(1), +v.pos.y.toFixed(1), +v.pos.z.toFixed(1)],
       flank,
       zone: g.level.data.zoneAt(v.pos.x, v.pos.y, v.pos.z)?.name,
+      killerZone: by ? g.level.data.zoneAt(by.pos.x, by.pos.y, by.pos.z)?.name : undefined,
     });
     if (this.directors) {
       this.directors[otherTeam(v.team)].hostileDied(v, this.now);

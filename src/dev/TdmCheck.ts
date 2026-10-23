@@ -845,6 +845,8 @@ export async function tdmSim(
     })(),
     zoneEntries: Object.fromEntries(Object.entries(zoneIn).sort((a, b) => b[1] - a[1])),
     killsByZone: k.reduce<Record<string, number>>((a, x) => ((a[x.zone ?? '-'] = (a[x.zone ?? '-'] ?? 0) + 1), a), {}),
+    // 37.0: kills with the killer in the same zone as the victim (a fight inside it, not into it).
+    killsWithinZone: k.reduce<Record<string, number>>((a, x) => (x.zone && x.zone === x.killerZone ? ((a[x.zone] = (a[x.zone] ?? 0) + 1), a) : a), {}),
     arena:
       tdm.ai === 'arena'
         ? {

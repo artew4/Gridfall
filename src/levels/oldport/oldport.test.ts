@@ -13,12 +13,15 @@ describe('Old Port layout', () => {
     expect(mid(a[2]).every((p) => laneOf(p.x, 0, p.z) === 2)).toBe(true);
   });
 
-  it('every lane climbs: the warehouse\'s upper floor, the stacks and the walk, the dock floor and the ship\'s bridge', () => {
+  it('every lane has its own level: the warehouse\'s upper floor, the stacks and the walk, the dock floor under the hull', () => {
     const [w, y, d] = lanesOf('alpha');
     expect(w.filter((p) => p.y === WH.up).length).toBeGreaterThanOrEqual(4);
     expect(y.filter((p) => p.y === STACKS.top).length).toBeGreaterThanOrEqual(3);
-    expect(d.some((p) => p.y === DOCK.floor)).toBe(true);
-    expect(d.some((p) => p.y === SHIP.house.roof)).toBe(true);
+    // 37.0: the dock lane runs the length of UNDER THE HULL (was up over the ship's bridge).
+    const under = d.filter((p) => p.y === DOCK.floor && Math.abs(p.z) < SHIP.z && p.x > SHIP.x0 - 1 && p.x < SHIP.x1 + 1);
+    expect(under.length).toBeGreaterThanOrEqual(4);
+    expect(Math.min(...under.map((p) => p.z))).toBeLessThan(-8);
+    expect(Math.max(...under.map((p) => p.z))).toBeGreaterThan(8);
     // The walk joins the stacks to STACK B at their height.
     expect(WALK.x0).toBe(STACKS.x1);
     expect(WALK.x1).toBe(STACK_B.x0);

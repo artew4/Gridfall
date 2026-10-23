@@ -1914,8 +1914,44 @@ At the start of a TDM match the camera showed one spot for a moment, then snappe
 
 **A leak the countdown uncovered:** `leakcheck` (Maglev, Neon Docks, 2 laps) found 7 tags of the last level alive. `ThinkScheduler.pick` kept its last frame's picks in a scratch list between frames; the first live frame used to replace them at once, but now the next map's intro and countdown pick nobody for seconds, so the old bots (and through their context the old player and collision world) stayed reachable. The list is emptied after every pick: 0 alive.
 
+## 37.0: Old Port shipyard, UNDER THE HULL
+
+Branch `feature/old-port-37.0`, from `main` @ `8199b6f` (36.0, merged). Full numbers: `docs/BENCH-37.0.json`; the layout in `docs/LEVELS.md` (37.0).
+
+### What changed
+- **The room:** the coaster raised on shipwright's stands, keel at -0.9. The dock floor under her (x 24.5–35.5, |z| < 15) is a close-quarters room, 3.6 m high (3.25 m under the cradle beams).
+  - **Cover** (mirrored): steel stands, a keel block, waist-high crates in the open channels, a scaffold tower and 2.2 m stacks under the hull. Gaps 0 or ≥ 1.3 m, nothing within 1.1 m of a dock wall. Instanced stands, crates and lamps.
+  - **Lamps:** nine hanging work lamps, three of them real lights.
+- **Deployment:** zone B moved from each team's dock apron down onto its own dock head floor (30, -4.5, ±31), where the dock opens onto the room; mirrored, 16 m from the hull's end for both.
+- **Bots:**
+  - the dock lane runs under the hull (it went over the bridge);
+  - the patrols search the room's corners (`hvas`);
+  - a 1.6 m nav lattice under the hull, only where a standing body has ≥ 2.2 m of headroom (min 3.25 m);
+  - engine-wide: a bot's jump now stops under a ceiling (`stepAir`, as the player's does; the room's headroom never needs it).
+- **Fixed:** the dock's end stairs pinched bodies against the dock wall's top near their heads (pre-existing: levelAI's one failure since 23.0, all 4 stuck bots of the baseline); a rail on the wall side, one 1.05 m railing over the quay. A bridge-roof nav node on the mast (since 17.1).
+- **DEV:** `killerZone` on kill records, `tdmSim(...).killsWithinZone`; two bench views under the hull.
+
+### Measured (self-play 7v7, `tdmSim`)
+| | before (4 matches) | 37.0 (6 matches) |
+|---|---|---|
+| kills a minute | 21.4 | 26.7 |
+| quiet | 29% | 12% |
+| bot time under the hull | 0 | 4.7% (the room is ~3% of the walkable map) |
+| kills under the hull (both fighters inside) | 0 | 30 (15) |
+| kills in the whole dry dock | 26 | 73 |
+| stuck bots | 4 (all on the dock's end stairs) | 0 |
+| wall-presses | 1 | 0 |
+| AI ms a step (avg) | 0.10–0.12 | 0.13–0.16 (more fighting) |
+
+Without the patrol points (6 matches): 3.8% of bot time in the room, 27 kills (13 within), kills a minute 24.1.
+
+**Level checks:** levelAI runners 399/400 → 480/480, gunners 20/20; `stress` 0 of 160,000 (main: 1), crouched 0 of 16,000; `world` clean.
+
+**Frame cost:** `bench(3)` on Old Port: 60 FPS in all 12 views (2 new under the hull: CPU 2.8 / 2.2 ms, GPU 6.2 / 5.8 ms). `leakcheck` (Old Port, Neon Docks, 2 laps): 0 alive, geometries flat. Tests 408 (+8).
+
 ## Next
 Human playtest:
+- 37.0 items: UNDER THE HULL (does it read as a place: the lamps, the dimness, the stands; too cramped or too open; does the ceiling feel low); spawning at the dock head (fair, or a pit you get shot into from the quays?); do fights happen under the ship for you as they do for the bots.
 - 36.0 items: the first frame of a match (does the flight land cleanly in your eyes on every map; anything jarring in the last second of it); the countdown (3 s: long enough to pick a gun, too long?; readable on every map?); do the bots' poses during it look natural; the start itself (does everyone go at once, any unfair first shot).
 - 35.0 items: flank a bot on Maglev (by their zones, through the glass halls): does it turn on you now when you shoot it in the back or side, or when you fire close; does it feel fair or psychic (a silent player within 8 m behind is noticed); do bots still feel focused in a fight (not turning to every shot); the glances on the way out of their half (natural, or twitchy?).
 - 34.0 items: Neon Block's smog (does looking down from a roof feel blinding, or just murky; is about 11 m in the street too short; do the glows read as smog or as blur); do the bots feel fair in it (seen late when half hidden: does it match what you can see); the Lantern Bridge and the Transit Rail (do you find them, do the rail gaps work as drop-downs, the car as cover); the Lantern Market (does it play as a close-quarters room; the holograms: charming or noise); are the roofs now too strong (most of the long fights went up there).

@@ -8,7 +8,7 @@ import { plankTexture } from '../jungle/textures';
 import { crateTexture } from '../desert/textures';
 import type { Shaft } from '../jungle/GodRays';
 import {
-  ATRIUM, BAFFLES, BARRELS, BARRIERS, BASE, BLOCKERS, CONT, COURT, DOCK, FIRE, GATES, QUAY_X, SHIP, PASSAGES, SPINE, SPINE_SEGMENTS, SPINE_STAIR, STACKS, STACK_B, WALK, WH, WHI, WH_STAIR, X_W, Z_END, lanesOf, spawnsOf, zoneAt,
+  ATRIUM, BAFFLES, BARRELS, BARRIERS, BASE, BLOCKERS, CONT, COURT, CRADLE, DOCK, FIRE, GATES, LAMP, LAMPS, QUAY_X, SHIP, PASSAGES, STANDS, STAND_R, UNDER_COVER, SPINE, SPINE_SEGMENTS, SPINE_STAIR, STACKS, STACK_B, WALK, WH, WHI, WH_STAIR, X_W, Z_END, lanesOf, spawnsOf, zoneAt,
 } from './OldPortLayout';
 import { boardsTexture, brickTexture, containerTexture, dockWallTexture, quayTexture, stencilSign } from './textures';
 import type { Zone } from '../Level';
@@ -21,7 +21,8 @@ import type { Zone } from '../Level';
    - the boundary beats the best jump: 11–14 m brick buildings on three sides, a 2.4 m fence at the
      sea (nothing near it is over 1 m); the highest floors (the stacks, 5.2 m; the warehouse's upper floor, 4.4 m) are far below;
    - gaps are under 0.3 m or over 1 m; low cover that may be vaulted (≤ 1.05 m) is flagged `vault`;
-   - nothing here glows: it is lit by the sun (one static shadow map) and the sky.
+   - nothing here glows but the work lamps under the hull (37.0): it is lit by the sun (one static
+     shadow map) and the sky.
 */
 
 export interface OldPortResult {
@@ -37,6 +38,8 @@ export interface OldPortResult {
   covered: { x0: number; z0: number; x1: number; z1: number; y0: number; h: number }[];
   water: THREE.Mesh;
   laneProblems: string[];
+  /** 37.0: the work lamps' lights under the hull (pooled like every level light). */
+  lamps: THREE.PointLight[];
 }
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -477,6 +480,88 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   solid2(13, 0, 38, 15.4, 1.3, 47, m.steelDark, 'metal', 1);
   solid2(13, 1.3, 44.5, 15.4, 3.2, 47, m.cream, 'metal', 1);
 
+  // ---------------------------------------------------------------- 37.0, UNDER THE HULL
+  /**
+   * The room under the raised coaster (OldPortLayout.UNDER_COVER): stands and their cradle beams, a
+   * keel block, crates and stacks, a scaffold tower; hanging work lamps. Repeated pieces (stands,
+   * crates, lamps) are instanced: one draw call each.
+   */
+  const lamps: THREE.PointLight[] = [];
+  function buildUnderHull() {
+    const S = SHIP;
+    const F = DOCK.floor;
+    const both = (z0: number, z1: number, mid?: boolean): [number, number][] => (mid ? [[z0, z1]] : [[z0, z1], [-z1, -z0]]);
+    const standM: THREE.Matrix4[] = [], crateM: THREE.Matrix4[] = [], lampM: THREE.Matrix4[] = [], cableM: THREE.Matrix4[] = [];
+    const q = new THREE.Quaternion();
+    // Stands: steel columns floor to keel, a cradle beam across the hull over each pair.
+    const standH = S.keel - CRADLE.depth - F;
+    for (const [x, z0] of STANDS)
+      for (const z of [z0, -z0]) {
+        standM.push(new THREE.Matrix4().compose(v(x, F + standH / 2, z), q, v(1, standH, 1)));
+        col.addCylinder(x, z, STAND_R, F, S.keel - CRADLE.depth, 'metal');
+      }
+    for (const z0 of new Set(STANDS.map(([, z]) => z)))
+      for (const z of [z0, -z0]) solid(CRADLE.x0, S.keel - CRADLE.depth, z - CRADLE.w / 2, CRADLE.x1, S.keel, z + CRADLE.w / 2, m.steelDark, 'metal', 1);
+    // Cover: crates (instanced, 1.2 m boxes; a stack is two), the keel block (timber), the scaffold tower.
+    for (const c of UNDER_COVER)
+      for (const [z0, z1] of both(c.z[0], c.z[1], c.mid)) {
+        const [x0, x1] = c.x;
+        if (c.kind === 'keel') {
+          const k = solid(x0, F, z0, x1, F + (c.h as number), z1, m.timber, 'wood', 1);
+          k.vault = true;
+        } else if (c.kind === 'tower') {
+          // A steel frame round staging boards, floor to keel (solid: cover, not a climb).
+          solid(x0, F, z0, x1, S.keel, z1, m.rail, 'metal', 1.5);
+          for (let y = F + 1.2; y < S.keel - 0.3; y += 1.2) deco(x0 - 0.04, y, z0 - 0.04, x1 + 0.04, y + 0.12, z1 + 0.04, m.plank, 1);
+        } else {
+          const h = c.h as number;
+          const tiers = c.kind === 'stack' ? 2 : 1;
+          const th = h / tiers;
+          for (let t = 0; t < tiers; t++)
+            for (let x = x0; x < x1 - 0.01; x += 1.2)
+              for (let z = z0; z < z1 - 0.01; z += 1.2) {
+                const w = Math.min(1.2, x1 - x), d = Math.min(1.2, z1 - z);
+                crateM.push(new THREE.Matrix4().compose(v(x + w / 2, F + th * (t + 0.5), z + d / 2), q.setFromAxisAngle(v(0, 1, 0), t ? 0.06 : 0), v(w, th, d)));
+                q.set(0, 0, 0, 1);
+              }
+          const k = col.add(x0, F, z0, x1, F + h, z1, 'wood');
+          k.vault = h <= 1.05;
+        }
+      }
+    // Work lamps: a cable from the keel, a steel shade, a warm bulb; some carry a real light.
+    for (const L of LAMPS)
+      for (const z of L.z === 0 ? [0] : [L.z, -L.z]) {
+        const y = S.keel - LAMP.drop;
+        cableM.push(new THREE.Matrix4().compose(v(L.x, y + LAMP.drop / 2, z), q, v(1, LAMP.drop, 1)));
+        lampM.push(new THREE.Matrix4().compose(v(L.x, y, z), q, v(1, 1, 1)));
+        if (L.light) {
+          const l = new THREE.PointLight(LAMP.color, LAMP.intensity, LAMP.range, 1.6);
+          l.position.set(L.x, y - 0.25, z);
+          scene.add(l);
+          lamps.push(l);
+        }
+      }
+    const inst = (name: string, geo: THREE.BufferGeometry, mat: THREE.Material, ms: THREE.Matrix4[], shadows = true) => {
+      const im = new THREE.InstancedMesh(geo, mat, ms.length);
+      ms.forEach((mx, i) => im.setMatrixAt(i, mx));
+      im.instanceMatrix.needsUpdate = true;
+      im.computeBoundingSphere();
+      im.castShadow = im.receiveShadow = shadows;
+      im.name = name;
+      scene.add(im);
+    };
+    inst('hullStands', new THREE.CylinderGeometry(STAND_R, STAND_R * 1.15, 1, 12), m.steel, standM);
+    inst('hullCrates', new THREE.BoxGeometry(1, 1, 1), m.crate, crateM);
+    inst('hullLampCables', new THREE.CylinderGeometry(0.015, 0.015, 1, 4), m.steelDark, cableM, false);
+    // The lamp: a cone shade over an emissive bulb, one geometry (merged), one material each.
+    const shade = new THREE.ConeGeometry(0.32, 0.26, 12, 1, true);
+    shade.translate(0, -0.05, 0);
+    const bulb = new THREE.SphereGeometry(0.11, 10, 6);
+    bulb.translate(0, -0.2, 0);
+    inst('hullLampShades', shade, new THREE.MeshStandardMaterial({ color: 0x3d4a3f, roughness: 0.6, metalness: 0.5, side: THREE.DoubleSide }), lampM, false);
+    inst('hullLampBulbs', bulb, new THREE.MeshBasicMaterial({ color: new THREE.Color(LAMP.color).multiplyScalar(2.2) }), lampM, false);
+  }
+
   // ---------------------------------------------------------------- the dry dock (east lane)
   // Walls (their tops are the quay; the carve lies inside them), end walls, the floor.
   for (const [x0, x1] of [[DX0, DOCK.x0], [DOCK.x1, DX1]] as const) solid(x0, DOCK.floor - 0.1, -DOCK.z, x1, 0, DOCK.z, m.dockWall, 'concrete', 4.5);
@@ -484,25 +569,40 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   deco(DOCK.x0, DOCK.floor - 0.3, -DOCK.z, DOCK.x1, DOCK.floor, DOCK.z, m.stone, 4);
   // Coping stones on the dock's edge (seen, flush with the quay).
   for (const x of [DOCK.x0 - 0.3, DOCK.x1]) deco(x, -0.02, -DOCK.z, x + 0.3, 0.01, DOCK.z, m.stone, 2);
-  // Stairs down the dock walls at both ends (each end, both sides).
-  stair2(DOCK.x0 + 0.03, 28.5, DOCK.x0 + 2.5, DOCK.z - 0.03, 'z', 1, DOCK.floor, 0, m.stone, ['hi']);
-  stair2(DOCK.x1 - 2.5, 28.5, DOCK.x1 - 0.03, DOCK.z - 0.03, 'z', 1, DOCK.floor, 0, m.stone, ['lo']);
-  // Scaffold stairs from the dock floor up to the ship's deck at both ends (the dock lane climbs
-  // aboard, crosses over the bridge and goes back down: the ship's heights on the lane's own path, the
-  // 15.0 lesson L-109); a timber keel block beyond each foot (cover on the floor).
+  // Stairs down the dock walls at both ends (each end, both sides). 37.0: a rail on the wall side too:
+  // near the top the wall's top (the quay) is a 0.05–0.33 m ledge beside the steps, and a body going
+  // up along it half-climbed it and was pinched there (levelAI's one failure since 23.0, and every
+  // stuck bot of the 36.0 self-play; the deployment zone at the dock's head now sends half a team
+  // up these stairs).
+  stair2(DOCK.x0 + 0.03, 28.5, DOCK.x0 + 2.5, DOCK.z - 0.03, 'z', 1, DOCK.floor, 0, m.stone, ['lo', 'hi']);
+  stair2(DOCK.x1 - 2.5, 28.5, DOCK.x1 - 0.03, DOCK.z - 0.03, 'z', 1, DOCK.floor, 0, m.stone, ['lo', 'hi']);
+  // Over the quay, the wall-side rail is one railing along the stairwell (the stair's own rail steps
+  // up with the treads: near the top its plates stood 0.3 m over the quay, a lip a jump landed on).
+  rail2(DOCK.x0 + 0.03, 28.5, DOCK.x0 + 0.11, DOCK.z - 0.03, 0);
+  rail2(DOCK.x1 - 0.11, 28.5, DOCK.x1 - 0.03, DOCK.z - 0.03, 0);
+  // Scaffold stairs from the dock floor up to the ship's deck at both ends (the climb off UNDER THE
+  // HULL onto the deck and the bridge). 37.0: the keel block beyond each foot made way for the
+  // deployment zone at the dock's head.
   stair2(29.2, SHIP.z, 30.8, SHIP.z + 11, 'z', -1, DOCK.floor, SHIP.deck, m.steel, ['lo', 'hi']);
-  low2(29.2, 31.4, 30.8, 33, 1.05, m.timber, 'wood', DOCK.floor);
 
-  // The coaster on her blocks: hull (a box, with a narrower bilge and continuous cribbing under it),
-  // the deck at 1.0 with bulwarks, the bridge house amidships and its roof (3.6), stairs up to it
-  // from both sides, gangways from both quays.
+  // The coaster: the deck at 1.0 with bulwarks, the bridge house amidships and its roof (3.6), stairs
+  // up to it from both sides, gangways from both quays. 37.0: raised on shipwright's stands, her keel
+  // at -0.9 (was a solid hull, bilge and cribbing down to the dock floor): the floor under her is
+  // UNDER THE HULL, 3.6 m high. Her sides: grey topsides, a white boot-top, red antifouling below.
   const S = SHIP;
-  solid(S.x0, -2.4, -S.z, S.x1, S.deck, S.z, m.hull, 'metal', 3);
-  // The bilge and the cribbing run flush to the hull's ends (an overhang there left a 0.6 m slot a
-  // body fitted in, against the scaffold stair's foot: the stress test).
-  solid(S.x0 + 0.6, -3.8, -S.z, S.x1 - 0.6, -2.4, S.z, m.antifoul, 'metal', 2);
-  solid(S.x0 + 1.6, DOCK.floor, -S.z, S.x1 - 1.6, -3.8, S.z, m.timber, 'wood', 1);
-  deco(S.x0 - 0.02, -2.5, -S.z - 0.02, S.x1 + 0.02, -2.32, S.z + 0.02, m.paintWhite, 2);
+  solid(S.x0, S.keel, -S.z, S.x1, S.deck, S.z, m.hull, 'metal', 3);
+  for (const x of [S.x0 - 0.02, S.x1]) {
+    deco(x, S.keel, -S.z - 0.02, x + 0.02, S.keel + 0.75, S.z + 0.02, m.antifoul, 2);
+    deco(x, S.keel + 0.75, -S.z - 0.02, x + 0.02, S.keel + 0.9, S.z + 0.02, m.paintWhite, 2);
+  }
+  for (const z of [-S.z - 0.02, S.z]) {
+    deco(S.x0, S.keel, z, S.x1, S.keel + 0.75, z + 0.02, m.antifoul, 2);
+    deco(S.x0, S.keel + 0.75, z, S.x1, S.keel + 0.9, z + 0.02, m.paintWhite, 2);
+  }
+  // Her bottom, as seen from the dock floor: antifouling plate with frames across it every 1.5 m.
+  deco(S.x0, S.keel - 0.03, -S.z, S.x1, S.keel, S.z, m.antifoul, 3);
+  for (let z = -S.z + 0.75; z < S.z; z += 1.5) deco(S.x0 + 0.1, S.keel - 0.15, z - 0.06, S.x1 - 0.1, S.keel - 0.03, z + 0.06, m.steelDark, 1);
+  buildUnderHull();
   // Blunt ends (an old coaster), a rubbing strake along the hull.
   for (const x of [S.x0 - 0.12, S.x1]) deco(x, 0.2, -S.z, x + 0.12, 0.45, S.z, m.timber, 2);
   const BW = 1.0;
@@ -681,6 +781,8 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   const links: [number, number][] = [];
   const drops: [number, number][] = [];
   const open = (x: number, y: number, z: number) => !col.blocked(v(x, y, z), 0.6);
+  /** 37.0: clear height over a floor point (to the lowest ceiling within a body's radius). */
+  const headroom = (x: number, y: number, z: number) => col.ceilingAbove(x, z, 0.45, y + 0.3) - y;
   const N = (x: number, y: number, z: number) => {
     for (let i = 0; i < nodes.length; i++) if (nodes[i].distanceToSquared(v(x, y, z)) < 1.2 * 1.2) return i;
     return nodes.push(v(x, y, z)) - 1;
@@ -758,10 +860,15 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
     }
   }
   for (const x of [DOCK.x0 + 1.3, 30, DOCK.x1 - 1.3]) for (let z = -DOCK.z + 2; z <= DOCK.z - 2; z += 2.5) if (open(x, DOCK.floor, z)) N(x, DOCK.floor, z);
+  // 37.0, UNDER THE HULL: a 1.6 × 1.6 m lattice (the room's cover is 1.2–1.6 m across; the dock's 2.5 m
+  // stepped over it), only where a standing body fits with its head clear of the keel and the cradles.
+  for (let x = DOCK.x0 + 1.3; x <= DOCK.x1 - 1.3 + 1e-6; x += 1.6)
+    for (let z = -S.z - 0.6; z <= S.z + 0.6 + 1e-6; z += 1.6) if (open(x, DOCK.floor, z) && headroom(x, DOCK.floor, z) >= 2.2) N(x, DOCK.floor, z);
   // 23.0: the passages round the new blockers (the lattices step over them).
   for (const [x, y, z] of PASSAGES) for (const sz of [z, -z]) N(x, y, sz);
   for (const x of [S.x0 + 0.9, S.x1 - 0.9]) for (let z = -S.z + 1; z <= S.z - 1; z += 2.5) if (open(x, S.deck, z)) N(x, S.deck, z);
-  for (const x of [H.x0 + 0.5, 30, H.x1 - 0.5]) for (const z of [-1.5, 0, 1.5]) N(x, H.roof, z);
+  // (37.0: only where a body fits: the node at 31, 0 stood on the mast since 17.1.)
+  for (const x of [H.x0 + 0.5, 30, H.x1 - 0.5]) for (const z of [-1.5, 0, 1.5]) if (open(x, H.roof, z)) N(x, H.roof, z);
 
   const laneProblems: string[] = [];
   nodes.forEach((p, i) => {
@@ -772,7 +879,7 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   const testGoals = [
     v(-41.5, UP, 0), v(-36, UP, 18), v(-30, UP, -26), v(-36, 0, 12), v(-36, 0, -16), v(-24.5, 0, 18),
     v(-14, STACKS.top, 20.4), v(-2, STACKS.top, -20.4), v(5, STACKS.top, 20.4), v(7.5, 0, 0), v(-14.2, 0, 0), v(-4, SPINE.top, 0), v(-12, 0, -26),
-    v(25.8, DOCK.floor, 0), v(34.2, DOCK.floor, -20), v(30, S.deck, 12), v(30, H.roof, 0), v(40, 0, 0), v(40, 0, -22), v(21, 0, -40),
+    v(25.8, DOCK.floor, 0), v(34.2, DOCK.floor, -20), v(30, DOCK.floor, 4), v(33.8, DOCK.floor, -11), v(26.4, DOCK.floor, 12.6), v(30, DOCK.floor, 31), v(30, S.deck, 12), v(30, H.roof, 0), v(40, 0, 0), v(40, 0, -22), v(21, 0, -40),
   ];
   const survival: THREE.Vector3[] = [];
   for (const s of [1, -1]) {
@@ -791,7 +898,10 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
     covered: [
       { x0: WHI.x0, z0: -WHI.z, x1: WHI.x1, z1: WHI.z, y0: -1, h: UP - WH.slab },
       { x0: WHI.x0, z0: -WHI.z, x1: WHI.x1, z1: WHI.z, y0: UP - 0.5, h: WH.eave },
+      // 37.0: under the hull.
+      { x0: S.x0, z0: -S.z, x1: S.x1, z1: S.z, y0: DOCK.floor - 1, h: S.keel },
     ],
+    lamps,
     water,
     laneProblems,
   };

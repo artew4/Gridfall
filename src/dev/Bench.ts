@@ -256,7 +256,7 @@ async function benchCrashSite(game: Game, dev: Dev, m: (name: string) => Promise
 /**
  * Old Port (17.0, a daytime TDM arena): the match running; the three lanes at eye level (the
  * warehouse's hall and its upper floor in the skylight shafts, the yard, the dry dock's floor), the
- * stacks and the ship's bridge, the sea quay looking out over the water (the sky, the haze sheets,
+ * stacks and the ship's bridge, UNDER THE HULL (37.0), the sea quay looking out over the water (the sky, the haze sheets,
  * the crane), the worst view (the whole port from the stacks into the sun side), then a firefight.
  */
 async function benchOldPort(game: Game, dev: Dev, m: (name: string) => Promise<void>, out: Record<string, unknown>) {
@@ -269,6 +269,9 @@ async function benchOldPort(game: Game, dev: Dev, m: (name: string) => Promise<v
     ['yard', [0, 0, 28], [0, 1.5, -28]],
     ['stacks', [-14, 5.2, 20.4], [10, 1, -20]],
     ['dryDock', [25.8, -4.5, 30], [25.8, -3, -30]],
+    // 37.0: UNDER THE HULL, down its length (the lamps' lights, the stands, the crates), and in from the dock head.
+    ['underHull', [30, -4.5, 13.8], [29, -3.2, -14]],
+    ['underHullIn', [26, -4.5, 27], [30, -3.5, 4]],
     ['bridge', [30, 3.6, 2], [0, 2, -30]],
     ['seaQuay', [40, 0, 20], [120, 4, -20]],
     ['wholePort', [-18, 5.2, 21], [36, 0, -40]],

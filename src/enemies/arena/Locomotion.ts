@@ -16,11 +16,25 @@ export interface Air {
   t: number;
 }
 
-/** One frame of flight: gravity, then a landing on whatever floor is under the feet. Returns true on landing. */
+/** A bot's height for the ceiling check in flight (its head with the helmet, m). */
+export const AIR_HEAD = 1.9;
+
+/**
+ * One frame of flight: gravity, then a landing on whatever floor is under the feet. Returns true on
+ * landing. 37.0: a rise stops under a ceiling (a ship's hull over a dock floor), as the player's does.
+ */
 export function stepAir(air: Air, pos: THREE.Vector3, col: CollisionWorld, radius: number, dt: number) {
   air.vy -= ARENA.gravity * dt;
+  const head = pos.y + AIR_HEAD;
   pos.y += air.vy * dt;
   air.t += dt;
+  if (air.vy > 0) {
+    const ceil = col.ceilingAbove(pos.x, pos.z, radius, head - 0.05);
+    if (pos.y + AIR_HEAD > ceil) {
+      pos.y = ceil - AIR_HEAD;
+      air.vy = 0;
+    }
+  }
   if (air.vy > 0 && air.t < 1.5) return false;
   const g = col.groundHeightAt(pos.x, pos.z, radius * 0.6, pos.y, 0.05);
   if (pos.y <= g || air.t > 2.5) {

@@ -340,6 +340,32 @@ The owner: "massive open spaces, spawn-to-spawn sightlines, sniper dominance", a
   - **Steering:** `directRise` 1: never straight at a goal over a metre up; bots hunting a contact on a stack top pressed into the stair's side rail.
 - **Result** (8 matches): spawn-side to spawn-side 0%; kills from beyond 25 m 4–9%; lane time 29.5 / 41.5 / 29.1%; kills by lane 22.5 / 53.7 / 23.8%; stack tops 4.4% of bot time; the rifle's kill share 23%.
 
+## Old Port shipyard: UNDER THE HULL (37.0)
+
+The owner: an arena under the ship on the right flank, a deployment zone driving traffic into it (fair to both teams), bots that use it and fight in it without sticking. `OldPortLayout.ts` holds it as data (`SHIP.keel`, `STANDS`, `CRADLE`, `UNDER_COVER`, `LAMPS`, `UNDER_HVAS`); `oldport37.test.ts` checks its rules.
+
+- **The space:** the coaster raised on shipwright's stands, her keel at -0.9 (was a solid hull, bilge and cribbing down to the floor). The dock floor under her is one room, x 24.5–35.5, |z| < 15. The hull roofs its middle 6 m and the channels either side stay open to the sky. Headroom is 3.6 m (3.25 m under the cradle beams); a bot's jump tops out at 2.73 m.
+- **Cover** (mirrored like the map; a CQC room, not a box):
+  - eight steel stands (instanced cylinders), floor to keel, a cradle beam over each pair;
+  - a timber keel block in the middle (1.0 m, vaulted);
+  - waist-high crates in both channels (1.0 m, vaulted);
+  - a scaffold tower floor to keel;
+  - 2.2 m crate stacks either side of the scaffold stair's top.
+
+  Crates are instanced (one draw). The rules: every gap between two pieces is 0 or ≥ 1.3 m (no slot a body sticks in), nothing within 1.1 m of a dock wall (the carve line), and only waist-high cover under the open sky (a taller top would be a perch reached from the quay).
+- **Look:** grey topsides, a white boot-top and red antifouling down her sides. Her bottom is antifouled plate with frames every 1.5 m. Nine hanging work lamps (instanced cables, shades and emissive bulbs), three of them real warm lights (pooled with the map's others). The hull's shadow does the rest: the room is dim against the sunlit quays.
+- **Deployment:** zone B moved from the dock apron (32, 0, 44) down onto the floor of each team's own dock head (30, -4.5, ±31), where the dock opens onto the room. Mirrored, so both teams are 16 m from the hull's end and 31 m from its middle: neither owns it.
+- **The dock lane** now runs under the hull (it went up over the ship's bridge). The deck and the bridge are the climb off it. The patrols search the room's corners (`hvas`).
+- **Fixed on the way:**
+  - the dock's end stairs ran flush against the dock wall, whose top near the stair's head is a 0.05–0.33 m ledge beside the treads. A body going up along it was pinched: levelAI's one failure since 23.0 and every stuck bot of the 36.0 self-play. Both end stairs now have a rail on the wall side, one 1.05 m railing over the quay;
+  - a bridge-roof nav node stood on the mast since 17.1.
+- **Result** (6 matches against 4 before):
+  - kills a minute 21.4 → 26.7, quiet 29% → 12%;
+  - under the hull 4.7% of bot time and 30 kills, 15 of them with both fighters inside;
+  - stuck bots 4 → 0, wall-presses 1 → 0;
+  - levelAI 399/400 → 480/480 runners, gunners 20/20;
+  - stress 0 of 160,000; the world scan clean.
+
 ## Daylight (17.1)
 
 Old Port is the first map built to look *pleasant* rather than dramatic.
