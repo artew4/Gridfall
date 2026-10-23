@@ -26,7 +26,7 @@ import { ARMORY, dealArm, type BotArm, type WeaponId } from '../entities/weapons
 import { dealCallsigns } from '../enemies/Callsigns';
 import { rand } from '../core/math';
 import type { BoardLine, TdmLine } from '../ui/TdmHud';
-import { SpawnManager, ZoneSpawner, deployZones, laneNeed, sideOf, type DeployZone, type SpawnPad, type SpawnUnit } from './SpawnManager';
+import { SPAWN, SpawnManager, ZoneSpawner, deployZones, laneNeed, sideOf, type DeployZone, type SpawnPad, type SpawnUnit } from './SpawnManager';
 import { SpawnZoneVisual } from '../world/SpawnZoneVisual';
 import { MatchRules, type Outcome } from './LastStand';
 import { SpawnPads } from '../world/SpawnPads';
@@ -419,6 +419,8 @@ export class TdmRules implements ModeRules {
       // OMEGA's lanes are listed as it faces (its left is ALPHA's right): the same lanes, reversed.
       omega: new ArenaDirector('omega', base.omega, base.alpha, d.lanes.omega, d.laneWeights?.slice().reverse(), d.laneStrict?.slice().reverse()),
     };
+    // 41.0: the map's local area (the spawns' fireteam radius) sizes its fireteams too.
+    for (const t of TEAMS) this.directors[t].densityR = d.spawnTuning?.densityR ?? SPAWN.densityR;
     const conceal = g.ctx.concealment;
     this.sensing = new Sensing(
       (a, b) => {
@@ -484,7 +486,7 @@ export class TdmRules implements ModeRules {
     e.invulnUntil = this.now + TDM.protect;
     // Facing the other base (enemy yaw: forward = (sin, cos); ALPHA's base is in the south). 27.0: the pad's way.
     e.yaw = pad ? pad.yaw : s.team === 'alpha' ? Math.PI : 0;
-    if (pad?.pick) this.logSpawn(s.team, pad.pick, e.uid);
+    if (pad?.pick) this.logSpawn(s.team, pad.pick, e.uid, at);
     else if (respawn && !this.spawner && !this.zoner) this.logYard(s.team, at, e.uid);
     g.scene.add(e.rig.root);
     this.bots.push(e);
@@ -516,7 +518,7 @@ export class TdmRules implements ModeRules {
   /** 27.0: the match's first spawn: where each slot (and the player) starts. */
   private openAt = new Map<Slot | 'player', SpawnAt>();
   /** 27.0 (DEV): every spawn this match: when, whose, which pad, its nearest hostile, rays, fallback. */
-  spawnLog: { t: number; team: TeamId; pad: number; nearest: number; rays: number; ms: number; fallback: boolean; uid: number }[] = [];
+  spawnLog: { t: number; team: TeamId; pad: number; nearest: number; rays: number; ms: number; fallback: boolean; uid: number; mates?: number }[] = [];
 
   /**
    * 27.0: the map's pads, if it has them and TDM.spawns is 'dynamic': each pad's side of the map (by
@@ -701,7 +703,10 @@ export class TdmRules implements ModeRules {
       (this.game.player.alive && Math.hypot(this.game.player.pos.x - q.x, this.game.player.pos.z - q.z) < 1);
     // The lanes the team is short of (by the map's lane weights): a pad there scores higher.
     // 31.0: by zones: the zone (safe, least used, least recent), then the spot in it.
+    // 41.0: allies near a spot scored as fireteams (join 1-2, keep off 4+), with the arena's sectors.
+    const fireteam = this.ai === 'arena' && ARENA.sectors.on;
     if (this.zoner) {
+      this.zoner.fireteam = fireteam;
       const zp = this.zoner.pick(team, hostiles, allies, this.now, occupied);
       this.zoneVisual?.flash(zp.zone);
       this.directors?.[otherTeam(team)].heardSpawn(zp.zone.centre, this.now, this.friends[otherTeam(team)]);
@@ -713,6 +718,7 @@ export class TdmRules implements ModeRules {
     // 33.0: a lane past the weighted ones (Deep Jungle's tunnels: a report lane) counts as none.
     const lw = (l: number | null) => (l !== null && l < W.length ? l : null);
     const need = lf ? laneNeed(allies.map((u) => lw(lf(u.pos.x, u.pos.y + 1, u.pos.z))), W) : undefined;
+    this.spawner!.fireteam = fireteam;
     const pick = this.spawner!.pick(team, hostiles, allies, this.now, occupied, need);
     this.padMesh?.flash(pick.pad.id, team);
     // The other team hears a pad come alive near them (a lead for its patrols).
@@ -727,8 +733,12 @@ export class TdmRules implements ModeRules {
     this.spawnLog.push({ t: +(this.now - this.startT).toFixed(2), team, pad: -1, nearest: +near.toFixed(1), rays: 0, ms: 0, fallback: false, uid });
   }
 
-  private logSpawn(team: TeamId, p: { pad: SpawnPad; nearest: number; rays: number; ms: number; fallback: boolean }, uid: number) {
-    this.spawnLog.push({ t: +(this.now - this.startT).toFixed(2), team, pad: p.pad.id, nearest: +p.nearest.toFixed(1), rays: p.rays, ms: +p.ms.toFixed(3), fallback: p.fallback, uid });
+  private logSpawn(team: TeamId, p: { pad: SpawnPad; nearest: number; rays: number; ms: number; fallback: boolean }, uid: number, at: THREE.Vector3) {
+    // 41.0: allies already in the spot's local area (the fireteam it joins, or the crowd).
+    const R = this.data.spawnTuning?.densityR ?? SPAWN.densityR;
+    let mates = 0;
+    for (const b of this.bots) if (b.alive && b.team === team && b.uid !== uid && Math.hypot(b.pos.x - at.x, b.pos.z - at.z) < R) mates++;
+    this.spawnLog.push({ t: +(this.now - this.startT).toFixed(2), team, pad: p.pad.id, nearest: +p.nearest.toFixed(1), rays: p.rays, ms: +p.ms.toFixed(3), fallback: p.fallback, uid, mates });
   }
 
   /** 27.0: the map's pads (empty: none, or the yards are in use). */
@@ -1061,7 +1071,7 @@ export class TdmRules implements ModeRules {
   private respawnPlayer() {
     const g = this.game;
     const pad = this.spawner || this.zoner ? this.pickPad('alpha') : null;
-    if (pad?.pick) this.logSpawn('alpha', pad.pick, g.playerUnit.uid);
+    if (pad?.pick) this.logSpawn('alpha', pad.pick, g.playerUnit.uid, pad.at);
     const p = pad?.at ?? this.forwardPoint('alpha') ?? this.spawnPoint('alpha');
     // (The player's yaw looks down -z at 0: the enemy convention's yaw + π.)
     g.revive(p, pad ? pad.yaw + Math.PI : 0);

@@ -468,6 +468,17 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       if (!vis && dir.patrol && d > ARENA.patrol.radar && now - (this.alert.get(h.uid) ?? -Infinity) >= 1.5) continue;
       // 29.0: on the last stand (and not on the clock) the radar shrinks: nobody wanders off alone.
       if (!vis && holding(dir) && d > ARENA.lastStand.radar && now - (this.alert.get(h.uid) ?? -Infinity) >= 1.5) continue;
+      const shotMe = now - (this.alert.get(h.uid) ?? -Infinity) < 1.5;
+      // 41.0: chased by as many of the team as may (ARENA.sectors.commit): out of sight it is left to
+      // them; in sight it is still shot, after a target nobody holds. One shooting at it is fair game.
+      let over = false;
+      if (h !== cT && !shotMe && dir.overCommitted(h.uid, me.uid, now, p)) {
+        if (!vis) {
+          A.stats.capSkips++;
+          continue;
+        }
+        over = true;
+      }
       let s = 12 / d;
       if (vis) {
         s += 1.5;
@@ -476,8 +487,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
         if ((_f.x * (me.pos.x - h.pos.x) + _f.y * (me.pos.z - h.pos.z)) / d > 0.9) s += 2;
         if (h.hpFrac < 0.4) s += 1;
       } else s -= age * 0.3;
-      const shotMe = now - (this.alert.get(h.uid) ?? -Infinity) < 1.5;
       if (shotMe) s += 3;
+      if (over) s -= ARENA.sectors.overPen;
       // 35.0, a pressing threat (squared distances; the facing is the one from before this loop): one
       // hitting it from outside its front cone, or nearer than what it fights; or one close on its
       // flank or behind it and nearer than what it fights (the nearer the bigger).
@@ -525,6 +536,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     }
     if (this.target?.uid !== this.flankedOn && this.state !== 'flank') this.flankedOn = -1;
     const T = this.target;
+    // 41.0: what it chases, for the team's engagement cap.
+    dir.commit(me.uid, T ? T.uid : -1, now, T?.pos);
     const tv = T !== null && this.visible(T);
     const contact = T ? dir.contacts.get(T.uid) ?? null : null;
     const dT = T ? Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) : Infinity;
@@ -760,7 +773,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     this.crowdGoing = false;
     const me = this.self;
     // A hurt bot stays with its friends (ARENA.retreat's company); only a healthy one leaves the group.
-    if (!S.on || !ctx.friends || now < this.crowdCd || me.hpFrac < S.crowdHp) return false;
+    // 41.0: with sectors, also when the target has its share of the team on it already (ARENA.sectors.commit).
+    const over = ARENA.sectors.on && ARENA.sectors.overFlank && A.director.overCommitted(T.uid, me.uid, now, T.pos);
+    if ((!S.on && !over) || !ctx.friends || now < this.crowdCd || me.hpFrac < S.crowdHp) return false;
     let n = 0, cx = me.pos.x, cz = me.pos.z, top = true;
     for (const f of ctx.friends) {
       if (f === me || !f.alive || Math.hypot(f.pos.x - me.pos.x, f.pos.z - me.pos.z) >= S.crowdR) continue;
@@ -992,7 +1007,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   private planPatrol(ctx: EnemyCtx, A: ArenaCtx) {
     const me = this.self;
     const now = ctx.time;
-    const c = A.director.freshest(me.pos, now);
+    const c = A.director.freshest(me.pos, now, me.uid);
     if (c && Math.hypot(c.pos.x - me.pos.x, c.pos.z - me.pos.z) <= ARENA.patrol.radar) {
       this.goal = c.pos.clone();
       return;
@@ -1004,7 +1019,10 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       (this.scan ??= new THREE.Vector3()).set(me.pos.x + Math.sin(this.scanA) * 10, me.pos.y + 1.5, me.pos.z + Math.cos(this.scanA) * 10);
       return;
     }
+    if (this.follow(A, now)) return;
     this.scan = null;
+    // 41.0: the director sent its fireteam to another sector: a new area.
+    if (A.director.takeRepick(me.uid)) this.hva = -1;
     let h = this.hva >= 0 ? A.director.hvas[this.hva] : null;
     // Arrived: as near as the director counts an area looked at (the move stops 2 m short of its goal).
     if (h && Math.hypot(h.x - me.pos.x, h.z - me.pos.z) < ARENA.patrol.near && Math.abs(h.y - me.pos.y) < 1.5) {
@@ -1028,13 +1046,60 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     this.goal = new THREE.Vector3(h.x + Math.cos(this.seed) * off, h.y, h.z + Math.sin(this.seed) * off);
   }
 
+  /**
+   * 41.0, a fireteam's member with nothing on the board goes with its leader (ARENA.sectors): to the
+   * leader when it has fallen behind (or is on another level), else to the leader's patrol area,
+   * beside it; there, it looks round, its sweep the other way to the leader's. False: it leads (or
+   * has no fireteam), and patrols on its own.
+   */
+  private follow(A: ArenaCtx, now: number) {
+    const S = ARENA.sectors;
+    const lead = S.on ? A.director.leaderOf(this.self.uid) : null;
+    if (!lead) {
+      this.following = false;
+      return false;
+    }
+    const me = this.self;
+    if (this.hva >= 0) {
+      A.director.patrolRelease(me.uid);
+      this.hva = -1;
+    }
+    const keep = Math.max(S.followMin, S.follow * A.director.densityR);
+    const dl = Math.hypot(lead.pos.x - me.pos.x, lead.pos.z - me.pos.z);
+    const i = A.director.claimOf(lead.uid);
+    const h = i >= 0 ? A.director.hvas[i] : null;
+    // The leader is fighting what this one can't take on (out of its sight, or the team has enough on
+    // it): it comes up beside the leader and watches round it, not standing back.
+    const close = A.director.fighting(lead.uid, now) ? S.followMin * 0.6 : keep;
+    if (dl > close || Math.abs(lead.pos.y - me.pos.y) > 2.5) {
+      if (!this.following) A.stats.follows++;
+      this.following = true;
+      this.goal = lead.pos.clone();
+      this.scan = null;
+      return true;
+    }
+    this.following = false;
+    if (h && (Math.hypot(h.x - me.pos.x, h.z - me.pos.z) > ARENA.patrol.near || Math.abs(h.y - me.pos.y) > 1.5)) {
+      const off = h.y > 0.5 ? 0.3 : 1.6;
+      this.goal = new THREE.Vector3(h.x + Math.cos(this.seed) * off, h.y, h.z + Math.sin(this.seed) * off);
+      this.scan = null;
+      return true;
+    }
+    this.goal = null;
+    this.scanA += (this.seed > Math.PI ? -1 : 1) * 0.6;
+    (this.scan ??= new THREE.Vector3()).set(me.pos.x + Math.sin(this.scanA) * 10, me.pos.y + 1.5, me.pos.z + Math.cos(this.scanA) * 10);
+    return true;
+  }
+  /** 41.0: on its way back to its leader (counted once a time). */
+  private following = false;
+
   /** No contact: walk the lane towards the director's front, then patrol a step either side of it. */
   private planLane(ctx: EnemyCtx, A: ArenaCtx) {
     const L = ctx.lanes;
     const me = this.self;
     // The freshest contact on the board beats the lane (the team's radar). 18.0: on a strict lane (the
     // map's centre of gravity: the maglev's aisle) it is closed on along the lane, as a far hunt is.
-    const c = A.director.freshest(me.pos, ctx.time);
+    const c = A.director.freshest(me.pos, ctx.time, me.uid);
     if (c) {
       const strict = !!L && L.length > 0 && A.director.isStrict(A.director.laneFor(me.uid, me.pos));
       this.goal = (strict ? this.laneGoal(ctx, A, c.pos) : null) ?? c.pos.clone();
@@ -1389,27 +1454,35 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const [lo, hi] = me.arm.band;
     // 12.0: a bold bot keeps a closer band, a careful one a longer one.
     const ag = this.persona.aggro;
-    const radial = away ? -0.7 : me.kind === 'runner' ? 1 : d < lo / ag ? -0.6 : d > hi / ag ? 0.6 : Math.sin(ctx.time * 0.9 + this.seed) * 0.25;
+    let radial = away ? -0.7 : me.kind === 'runner' ? 1 : d < lo / ag ? -0.6 : d > hi / ag ? 0.6 : Math.sin(ctx.time * 0.9 + this.seed) * 0.25;
+    // 41.0: a target the team has enough on already (ARENA.sectors): it shoots from where it is, it
+    // doesn't close in (the fight doesn't grow into a crowd).
+    if (radial > 0 && !away && ctx.arena && ctx.arena.director.overCommitted(T.uid, me.uid, ctx.time, T.pos)) radial = 0;
     const k = away ? 1 : ARENA.strafe;
     desired.set((-tz * this.strafeDir * k + tx * radial) * speed, 0, (tx * this.strafeDir * k + tz * radial) * speed);
     // 32.0, spread: a teammate fighting beside it: strafe away from it and ease off it (ARENA.space).
+    // 41.0: with the sectors too, its own fireteam allowed nearer (`sectors.mateR`).
     const S = ARENA.space;
-    if (S.on && ctx.friends) {
-      let fx = 0, fz = 0, fd = S.engageR;
+    const SC = ARENA.sectors;
+    if ((S.on || SC.on) && ctx.friends) {
+      const ft = SC.on ? ctx.arena?.director.fireteamOf(me.uid) : null;
+      let fx = 0, fz = 0, fd = S.engageR, fr = S.engageR;
       for (const f of ctx.friends) {
         if (f === me || !f.alive) continue;
         const ex = me.pos.x - f.pos.x, ez = me.pos.z - f.pos.z, e = Math.hypot(ex, ez);
-        if (e < fd && e > 1e-3) {
+        const r = ft?.includes(f.uid) ? SC.mateR : S.engageR;
+        if (e < r && e < fd && e > 1e-3) {
+          fr = r;
           fd = e;
           fx = ex / e;
           fz = ez / e;
         }
       }
-      if (fd < S.engageR) {
+      if (fd < fr) {
         // Which way along the strafe line is away from it; take that way at the next flip if it's open.
         const off = Math.sign(-tz * fx + tx * fz) || 1;
         if (this.strafeDir !== off && me.open(ctx, -tz * off, tx * off, 1.5)) this.strafeDir = off;
-        const push = S.engagePush * (1 - fd / S.engageR) * speed;
+        const push = S.engagePush * (1 - fd / fr) * speed;
         desired.x += fx * push;
         desired.z += fz * push;
       }

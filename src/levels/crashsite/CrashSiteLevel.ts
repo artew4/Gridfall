@@ -133,6 +133,8 @@ export class CrashSiteLevel implements LevelRuntime {
         pads: SPAWN_PADS,
         // 31.0: the deployment zones (the default spawning since 31.0; the pads above are the DEV A/B).
         zones: SPAWN_ZONES,
+        // 41.0: the spawns' and fireteams' local area (terraces, a ravine and tunnels).
+        spawnTuning: { densityR: 12 },
         lanes: { alpha: lanesOf('alpha'), omega: lanesOf('omega') },
         inBase: (team, p) => inBase(p, team),
         start,

@@ -2199,8 +2199,94 @@ A Rio hillside in the afternoon sun, Team Deathmatch only.
 - `leakcheck.mjs 2 favelas,desert,oldport`: 0 alive.
 - Tests 453 (+12).
 
+## 41.0: smart spawns and dynamic frontlines
+
+Branch `feature/smart-spawns-41.0`, from `main` @ `8554f3c`. Full numbers: `docs/BENCH-41.0.json`.
+
+### What was measured first
+Bot-only self-play before any change (the 40.0 bot, `scripts/clumpcheck.mjs`, 4 matches a map):
+- **No 7–10 blob:** the average bot stood in a group of 1.9 (Desert 12v12) and 1.6 (Old Port 7v7), linked within 10 m. Its team's largest group averaged 3 and 2.
+- **Lone runners:** 52% and 60% of the bots were alone.
+- **The herd is on one target.** Every free bot within the radar (40 m) ran at the team's freshest contact, so one enemy had four or more bots after it 12% of the time on the Desert. The human is one of those targets.
+
+So 41.0 turns lone runners into small squads and stops the convergence on one enemy, rather than spreading the bots further.
+
+### Fireteams (`ArenaDirector`, `DeathmatchAI`)
+- **Forming.** A bot with no fireteam joins one with room whose leader (its lowest uid) stands within 1.5 × the map's density radius on its level, or starts one. Lone bots near each other merge.
+- **Size.** The team over the sectors, 1 to 3: 12 on the Desert's five sectors make trios, 7 on Old Port's three make pairs and trios, and 5 on Neon Block stay alone.
+- **On patrol.** The leader picks the patrol area and claims it for the whole fireteam (claims and crowding count bodies). Members go to the leader when further than 0.6 × the density radius (at least 5 m), else to its area beside it, sweeping the other way. When the leader is fighting what a member can't take on, the member comes up beside it.
+- **Sectors.** A fireteam keeps its leader's sector (the director's lanes). Lane balancing places and moves whole fireteams, weighing each lane with the fireteam in it.
+
+### Engagement caps
+- **Per hostile:** at most 3 of the team (fireteam mates included) chase or fight one hostile. A bot commits to its target at each decide; a commitment lapses after 1 s.
+  - A hostile out of sight with its 3 already is passed over (the team's radar too); the bot picks another or patrols.
+  - One in sight is still shot, scored 3 lower than a target nobody holds.
+  - One shooting at the bot is always fair game.
+- **Per fight site:** at most 4 of the team after hostiles within the density radius of each other. Two fireteams on two of one group are one fight.
+- **An extra shooter** on a full target keeps its range (doesn't close in). One of a group on it goes round (32.0's crowd flank, now with sectors).
+- **Spacing in a fight:** a bot eases off teammates within 10 m, its own fireteam within 4 m (32.0's engage spacing, now with sectors).
+
+### Sectors
+- **Counted every 0.25 s:** each sector's members and its bots in a fight.
+- **Crowd line:** 4, or a fair share + 1 when that is more.
+- **Patrol areas:**
+  - −1.5 per bot over the crowd line in their sector;
+  - + the sector's need (fair share less the rest of the team's share);
+  - less for teammates standing or headed near them (the bot's fireteam aside).
+- **New fireteams** are never sent to a sector with 4 fighting.
+- **Peel:** every 4 s a crowded sector sends one fireteam sent there, out of any fight, to the sector fewest are sent to, when that evens them out. The leader picks a new area.
+
+### Density-aware spawns (`SpawnManager`)
+- **The local area (`spawnTuning.densityR`):** Desert 18 m, Favelas 16, Neon Docks 14, Crash Site 12, Neon Block 10, Old Port 7, Maglev 7.
+- **The fireteam curve** (`fireteamScore`) for allies in it:
+  - 1–2: a bonus (a fireteam to join);
+  - 3: nothing;
+  - 4+: a penalty growing with each ally past 3 (a deathball).
+- **Deployment zones:** −(uses past the least used) + the curve (1.25 / −2 per ally past 3). Pads: the curve (10 / −25) in place of the 27.0 squad term.
+- **Old Port:** respawns with an ally near rose from 21% to 40%.
+- **Desert:** with three zones for twelve, respawns beside 4+ allies didn't fall (5.1 → 7.1%). The bonus at 0.5 or 0 measured the same within noise.
+
+### Results (bot-only, the 40.0 bot is `sectors.on: false` in the same build)
+
+| | Desert 12v12, 15 matches each: old → new | Old Port 7v7, 6 each: old → new |
+|---|---|---|
+| Average clump (10 m) | 1.86 → **2.24** | 1.74 → **1.99** |
+| Alone / in a group of 2–3 | 53 / 36% → 36 / 47% | 54 / 39% → 40 / 52% |
+| Groups of 5+ | 3.6 → 6.6% | 2.1 → 1.5% |
+| Herd (5+ together 5 s) | 0.85 → 2.0% (±0.45) | 0.42 → 0.13% |
+| Hostiles with 4+ bots on them | 12.3 → **8.8%** | 8.9 → **3.9%** |
+| Fights at once | 2.44 → 2.28 | 1.91 → 1.76 |
+| 2+ fights at once | 82 → 77% | 70 → 61% |
+| Kills with another 30 m off within 10 s | 95 → 94% | 92 → 87% |
+| Kills a minute | 31.3 → 31.6 | 26.4 → 25.0 |
+| Stuck | 0 → 0 | 0 → 0 |
+
+**Not met:**
+- **Desert's 5+ groups and herds** rose, both small: most of the herds are 25–45 m from the team's own zones (fireteams leaving a zone together and fighting right there).
+- **Fewer simultaneous fights** on both maps (twelve units became about six fireteams).
+- **Desert herd measurements swing:** 1.2–3.0% between batches of one configuration, so it is pooled over 15.
+
+**Other maps (2–3 matches, new):**
+- **Favelas:** 27.3 kills/min, clump 1.96, 4+ on a hostile 5%.
+- **Maglev:** 20.6, clump 2.05, 4.5%.
+- **Neon Docks:** 25.0, clump 1.93, 5.2%.
+- **Crash Site** (old → new):
+  - clump 1.72 → 1.96;
+  - herd 0.5 → 0.1%;
+  - 4+ on a hostile 11.8 → 5.1%;
+  - kills a minute 26.2 → 26.3;
+  - quiet time 11.6 → 16.2%, to watch.
+- **Neon Block:** unchanged (12 kills a minute and 37% quiet before as after; fireteams of 1). 4+ on a hostile 11.7 → 3.7%.
+
+Stuck 0 everywhere. AI cost per step within noise (Desert 0.72 → 0.69 ms).
+
+### Checks
+- Tests 473 (+20: `sectors.test.ts`): density, the fireteam curve, zones and pads, the local area per map, fireteam size and joining by the map's radius, leaders, the per-hostile and per-site caps, the radar passing over a full contact, sector terms, peels (never out of a fight), claims by bodies; 32.0's space tests run as the 32.0 bot.
+- `npm run build` clean. `bench(3)` not run (no visual change; AI cost above).
+
 ## Next
 Human playtest:
+- 41.0 items: does the enemy team come at you in twos and threes now, or still in a crowd; do your bots move as squads (a leader and one or two beside it) or still run off alone; does a fight elsewhere on the map still pull everyone (it shouldn't: three on one enemy at most); on the Desert, do squads leaving a spawn zone together feel like a wave; `ARENA.sectors.on = false` for a side-by-side.
 - 40.0 items: Favelas (does the rooftop layer read: can you tell where you can walk; the escadaria as the midline killing ground (29% of kills): too strong a funnel?; the alleys' track changes: winding or confusing; 10v10 on a dense map: chaos?; the dust motes and the kites; the samba; the Portuguese flavor; starting low on the street vs high on the crest: fair?).
 - 39.0 items: the four guns' recoil (the pistol's snap; the SMG's shake: too much, too little; pulling the rifle down in a burst: does it feel like skill or a chore; the shotgun's kick and punch: too violent?); the FOV punch (felt, or nauseating at 18 a second); does the view coming back after a burst feel natural.
 - 38.0 items: 12v12 on the Desert (busy or chaotic; the team board; spawning with 23 others); the ruins (do they read as ruins; the gallery as a perch: too strong, too exposed; the corner rooms and the court as close-quarters fights); do bots out on the flanks feel like flankers, or like bots wandering away from the fight; the trench now starting at the ruins.

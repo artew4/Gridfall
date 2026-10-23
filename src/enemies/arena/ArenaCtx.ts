@@ -257,6 +257,31 @@ export const ARENA = {
    */
   space: { on: false, engageR: 10, engagePush: 0.8, patrol: 1.2, patrolR: 22, width: 0.9, huntTtl: 3, approach: 12, direct: 16, arrive: 4, crowd: 2, crowdR: 10, crowdCd: 8, crowdHp: 0.6 },
   /**
+   * 41.0, fireteams and sectors (ArenaDirector): a team plays as small squads spread over the map's
+   * sectors (the director's lanes), not as one crowd and not as lone runners.
+   *  - Fireteams: a bot with no fireteam joins one with room (at most `team`) whose leader (its lowest
+   *    uid) is within `join` × the map's density radius (TdmData.spawnTuning.densityR) on its level, or
+   *    starts one; lone bots near each other merge. Members share the leader's sector; with nothing on
+   *    the board the leader picks the patrol area and the others go with it: to the leader when further
+   *    than `follow` × the radius (at least `followMin` m), else beside it, watching another way.
+   *  - Engagement cap: a bot chasing a hostile it can't see commits to it; at most `commit` of the team
+   *    (fireteam mates included) chase one hostile. A bot finds another target, else patrols (the sector
+   *    terms below send it elsewhere). One it can see is still shot, `overPen` less attractive than a
+   *    target nobody holds. One shooting at it is always fair game. `overFlank`: one of a group on such a
+   *    target goes round it (the ARENA.space crowd flank, here without space on). `site`: the same for
+   *    a fight: at most this many of the team after hostiles within the density radius of each other
+   *    (two fireteams on two of a group are one fight); 0: no site cap. A shooter on such a target
+   *    keeps its range (doesn't close in), and in a fight eases off teammates within space.engageR m
+   *    (its own fireteam within `mateR`), as ARENA.space's fighters do.
+   *  - Sectors: a sector holding the crowd line (`crowd`, or a fair share + 1 when that is more) of the
+   *    team is crowded. Patrol areas there score `crowdPen` less per bot over it; an area scores
+   *    `need` × its sector's need (fair share − share). New fireteams aren't sent to a sector with
+   *    `crowd` or more fighting. Every `peelCd` s a crowded sector sends one fireteam out of any fight
+   *    to the neediest sector.
+   * `on: false` is 40.0's bot (the A/B).
+   */
+  sectors: { on: true, team: 3, join: 1.5, follow: 0.6, followMin: 5, commit: 3, commitTtl: 1, overPen: 3, overFlank: true, site: 4, mateR: 4, crowd: 4, crowdPen: 1.5, need: 1, peelCd: 4 },
+  /**
    * 14.0, high ground: a flank's spot may be a floor up to `up` m above the contact (a landing, a
    * roof's edge), each metre of height worth `perM` m of distance, within `reach` m of the flank point.
    * Off (A/B): flank spots on the contact's own level, as 12.0.
@@ -403,6 +428,9 @@ export interface ArenaStats {
   slideWhy: { push: number; dive: number; exposed: number; evade: number };
   /** 20.0: breaks taken because of long-range fire (ARENA.underFire). */
   evades: number;
+  /** 41.0: hostiles passed over as over-committed (left to those on them), followers sent to their leader. */
+  capSkips: number;
+  follows: number;
 }
 
 /**
@@ -435,7 +463,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0 };
+  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0, capSkips: 0, follows: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

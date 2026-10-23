@@ -125,7 +125,8 @@ export class DocksLevel implements LevelRuntime {
         // 31.0: the deployment zones (the default spawning since 31.0; the pads above are the DEV A/B).
         zones: SPAWN_ZONES,
         // 28.0: the quay and the barges are long open lines: pressure from a little further off.
-        spawnTuning: { near: 50, hardMin: 20, sight: 80 },
+        // 41.0: densityR, the spawns' and fireteams' local area (container lanes).
+        spawnTuning: { near: 50, hardMin: 20, sight: 80, densityR: 14 },
         arena: DOCKS_AI,
         inBase: (team, p) => inBase(p, team),
         start,

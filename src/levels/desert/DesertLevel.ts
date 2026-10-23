@@ -181,7 +181,8 @@ export class DesertLevel implements LevelRuntime {
         zones: SPAWN_ZONES,
         // 28.0: open dunes, long sight in calm air: pressure from further off, a larger minimum, sight
         // checked out to 80 m (past the bots' 75 m cap). Self-play: shot within 3 s of a spawn 5.2% → see BENCH-28.0.
-        spawnTuning: { near: 60, hardMin: 24, sight: 80 },
+        // 41.0: densityR, the spawns' and fireteams' local area (open dunes: wide).
+        spawnTuning: { near: 60, hardMin: 24, sight: 80, densityR: 18 },
         // 28.0: the outer flanks' high-value areas for the patrols: the outcrops' tops, the bus (the trench
         // is on the outer lanes already; searching it as well jammed bots in the corner by its notch).
         hvas: [

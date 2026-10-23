@@ -1,0 +1,331 @@
+{
+ "version": "41.0 (smart spawns and dynamic frontlines: fireteams, sectors, engagement caps, density-aware spawns)",
+ "branch": "feature/smart-spawns-41.0 from main @ 8554f3c",
+ "machine": "Apple M5, headless Chrome (SwiftShader), node scripts/clumpcheck.mjs",
+ "method": "Bot-only self-play (__dev.tdmSim, no player), whole matches at each map's size and tickets. 'old' is ARENA.sectors.on = false in the same build (the 40.0 bot). Clumps: a team's bodies grouped by single linkage within 10 m, per bot the size of its group. Herd: in a group of 5+ with 4 of the same mates 5 s later. Fight sites: fighting bots' fights (midpoint to target) grouped within 20 m. Means with standard errors over matches.",
+ "baselineBeforeAnyChange": {
+  "desert": "4 matches: avgClump 1.92, alone 52%, fight sites 2.33, kpm 28.8",
+  "oldport": "4 matches: avgClump 1.58, alone 60%, fight sites 1.90, kpm 26.3"
+ },
+ "desert": {
+  "teamSize": 12,
+  "densityR": 18,
+  "old": {
+   "matches": 15,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 31.27,
+    "se": 1.01
+   },
+   "avgClump": {
+    "mean": 1.86,
+    "se": 0.03
+   },
+   "avgLargestClump": {
+    "mean": 2.88,
+    "se": 0.05
+   },
+   "alonePct": {
+    "mean": 53.33,
+    "se": 1.06
+   },
+   "in2or3Pct": {
+    "mean": 36.05,
+    "se": 0.78
+   },
+   "in4Pct": {
+    "mean": 7.03,
+    "se": 0.44
+   },
+   "in5plusPct": {
+    "mean": 3.6,
+    "se": 0.44
+   },
+   "herdPct": {
+    "mean": 0.85,
+    "se": 0.2
+   },
+   "fightSites": {
+    "mean": 2.44,
+    "se": 0.04
+   },
+   "fightSites2plusPct": {
+    "mean": 81.65,
+    "se": 1.76
+   },
+   "fightSites3plusPct": {
+    "mean": 43.09,
+    "se": 2.04
+   },
+   "killsWithFightElsewherePct": {
+    "mean": 95.43,
+    "se": 0.68
+   },
+   "cellsFor80PctOfKills": {
+    "mean": 20.93,
+    "se": 0.94
+   },
+   "botsPerTargetedHostile": {
+    "mean": 1.97,
+    "se": 0.01
+   },
+   "hostiles4plusPct": {
+    "mean": 12.27,
+    "se": 0.21
+   },
+   "respawns4plusAlliesNearPct": {
+    "mean": 5.14,
+    "se": 0.71
+   },
+   "quietLivePct": {
+    "mean": 11.67,
+    "se": 0.87
+   },
+   "aiMsPerStep": {
+    "mean": 0.72,
+    "se": 0.05
+   }
+  },
+  "new": {
+   "matches": 15,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 31.6,
+    "se": 1.39
+   },
+   "avgClump": {
+    "mean": 2.24,
+    "se": 0.03
+   },
+   "avgLargestClump": {
+    "mean": 3.24,
+    "se": 0.04
+   },
+   "alonePct": {
+    "mean": 36.0,
+    "se": 0.81
+   },
+   "in2or3Pct": {
+    "mean": 46.75,
+    "se": 0.87
+   },
+   "in4Pct": {
+    "mean": 10.64,
+    "se": 0.69
+   },
+   "in5plusPct": {
+    "mean": 6.62,
+    "se": 0.64
+   },
+   "herdPct": {
+    "mean": 1.97,
+    "se": 0.45
+   },
+   "fightSites": {
+    "mean": 2.28,
+    "se": 0.04
+   },
+   "fightSites2plusPct": {
+    "mean": 77.35,
+    "se": 1.65
+   },
+   "fightSites3plusPct": {
+    "mean": 37.02,
+    "se": 1.72
+   },
+   "killsWithFightElsewherePct": {
+    "mean": 94.27,
+    "se": 1.33
+   },
+   "cellsFor80PctOfKills": {
+    "mean": 18.47,
+    "se": 0.57
+   },
+   "botsPerTargetedHostile": {
+    "mean": 1.9,
+    "se": 0.01
+   },
+   "hostiles4plusPct": {
+    "mean": 8.77,
+    "se": 0.32
+   },
+   "respawns4plusAlliesNearPct": {
+    "mean": 7.07,
+    "se": 0.98
+   },
+   "quietLivePct": {
+    "mean": 12.55,
+    "se": 0.9
+   },
+   "aiMsPerStep": {
+    "mean": 0.69,
+    "se": 0.05
+   }
+  }
+ },
+ "oldport": {
+  "teamSize": 7,
+  "densityR": 7,
+  "old": {
+   "matches": 6,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 26.4,
+    "se": 1.57
+   },
+   "avgClump": {
+    "mean": 1.74,
+    "se": 0.06
+   },
+   "avgLargestClump": {
+    "mean": 2.25,
+    "se": 0.08
+   },
+   "alonePct": {
+    "mean": 54.37,
+    "se": 1.13
+   },
+   "in2or3Pct": {
+    "mean": 38.6,
+    "se": 1.36
+   },
+   "in4Pct": {
+    "mean": 4.95,
+    "se": 1.18
+   },
+   "in5plusPct": {
+    "mean": 2.13,
+    "se": 0.85
+   },
+   "herdPct": {
+    "mean": 0.42,
+    "se": 0.25
+   },
+   "fightSites": {
+    "mean": 1.91,
+    "se": 0.04
+   },
+   "fightSites2plusPct": {
+    "mean": 69.9,
+    "se": 3.18
+   },
+   "fightSites3plusPct": {
+    "mean": 19.8,
+    "se": 1.4
+   },
+   "killsWithFightElsewherePct": {
+    "mean": 91.52,
+    "se": 2.29
+   },
+   "cellsFor80PctOfKills": {
+    "mean": 9.33,
+    "se": 0.61
+   },
+   "botsPerTargetedHostile": {
+    "mean": 1.91,
+    "se": 0.02
+   },
+   "hostiles4plusPct": {
+    "mean": 8.9,
+    "se": 0.63
+   },
+   "respawns4plusAlliesNearPct": {
+    "mean": 0.35,
+    "se": 0.35
+   },
+   "quietLivePct": {
+    "mean": 10.35,
+    "se": 0.61
+   },
+   "aiMsPerStep": {
+    "mean": 0.14,
+    "se": 0.01
+   }
+  },
+  "new": {
+   "matches": 6,
+   "stuck": 0,
+   "killsPerMin": {
+    "mean": 24.98,
+    "se": 1.59
+   },
+   "avgClump": {
+    "mean": 1.99,
+    "se": 0.04
+   },
+   "avgLargestClump": {
+    "mean": 2.53,
+    "se": 0.04
+   },
+   "alonePct": {
+    "mean": 39.82,
+    "se": 1.0
+   },
+   "in2or3Pct": {
+    "mean": 51.72,
+    "se": 0.56
+   },
+   "in4Pct": {
+    "mean": 7.0,
+    "se": 0.54
+   },
+   "in5plusPct": {
+    "mean": 1.48,
+    "se": 0.67
+   },
+   "herdPct": {
+    "mean": 0.13,
+    "se": 0.11
+   },
+   "fightSites": {
+    "mean": 1.76,
+    "se": 0.05
+   },
+   "fightSites2plusPct": {
+    "mean": 60.73,
+    "se": 2.79
+   },
+   "fightSites3plusPct": {
+    "mean": 13.88,
+    "se": 2.35
+   },
+   "killsWithFightElsewherePct": {
+    "mean": 86.68,
+    "se": 2.25
+   },
+   "cellsFor80PctOfKills": {
+    "mean": 8.83,
+    "se": 0.31
+   },
+   "botsPerTargetedHostile": {
+    "mean": 1.86,
+    "se": 0.02
+   },
+   "hostiles4plusPct": {
+    "mean": 3.93,
+    "se": 0.51
+   },
+   "respawns4plusAlliesNearPct": {
+    "mean": 0.0,
+    "se": 0.0
+   },
+   "quietLivePct": {
+    "mean": 12.53,
+    "se": 0.73
+   },
+   "aiMsPerStep": {
+    "mean": 0.13,
+    "se": 0.01
+   }
+  }
+ },
+ "steps": [
+  "fireteams + per-hostile cap (fireteam exempt) + sectors + fireteam spawns: Desert 6 matches: alone 51 -> 37%, but 6+ clumps 2.3 -> 4.0%, hostiles with 4+ 12.3 -> 8.5%",
+  "cap counts fireteam mates too; crowd term for patrols; the over-held target's extra shooter flanks: 6+ 4.6 -> 1.5% (4 matches)",
+  "patrol claims weighted by fireteam size: no change (big patrol groups were fireteams crossing paths, not herds) -> the herd metric",
+  "fight-site cap (4 within densityR): Desert fight sites 2.15 -> 2.41, 3+ sites 30 -> 43% (6 vs 6)",
+  "followers close up on a fighting leader; extra shooters hold range; fight spacing with sectors (fireteam 4 m, others 10 m)",
+  "spawn zone fireteam bonus 1.25 / 0.5 / 0: no difference beyond noise (herd 1.2 / 2.1 / 1.4%, 5 matches each): kept 1.25",
+  "the Desert herd measured 1.2-3.0% for one configuration across batches: pooled 15 matches each"
+ ]
+}

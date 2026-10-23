@@ -102,9 +102,17 @@ describe('29.0 the last stand: hold, then press on the clock', () => {
 });
 
 describe('32.0 space: a team spread over the map, not one blob', () => {
-  // Off by default (a map's profile turns it on: the docks).
-  beforeEach(() => void (ARENA.space.on = true));
-  afterEach(() => void (ARENA.space.on = false));
+  // Off by default (a map's profile turns it on: the docks). 41.0: measured as the 32.0 bot (no
+  // fireteams: these bots stand together, which would make them one).
+  const sec0 = ARENA.sectors.on;
+  beforeEach(() => {
+    ARENA.space.on = true;
+    ARENA.sectors.on = false;
+  });
+  afterEach(() => {
+    ARENA.space.on = false;
+    ARENA.sectors.on = sec0;
+  });
   const update = (d: ArenaDirector, members: ArenaMember[]) => d.update(0, members, 5, { own: 50, theirs: 50 });
 
   it('an area with teammates standing near it scores lower, by space.patrol per crowd', () => {

@@ -8,6 +8,8 @@ import { ARMORY, type WeaponId } from '../entities/weapons/armory';
 import type { TacticalEnemy } from '../enemies/Enemy';
 import { probe } from './PerfProbe';
 import { isArenaBot } from '../enemies/arena/ArenaBots';
+import { clumps } from '../enemies/arena/Density';
+import { SPAWN } from '../levels/SpawnManager';
 
 /*
   DEV only. Team Deathmatch checks on the real game loop (Desert Outpost):
@@ -253,7 +255,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean; flankThreat?: boolean; scan?: boolean; flankPull?: boolean; watches?: number; tune?: ArenaProfile } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean; flankThreat?: boolean; scan?: boolean; flankPull?: boolean; watches?: number; tune?: ArenaProfile; spawnTune?: Partial<typeof SPAWN> } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -320,6 +322,9 @@ export async function tdmSim(
   // top of the map's profile (put back at the end).
   if (opts.flankPull !== undefined) ARENA.flankPull.on = opts.flankPull;
   const untune = applyProfile(opts.tune);
+  // 41.0 (A/B): the spawn weights (SPAWN, under the map's own spawnTuning), put back after.
+  const spawn0 = { ...SPAWN };
+  Object.assign(SPAWN, opts.spawnTune ?? {});
   if (opts.space !== undefined) ARENA.space.on = opts.space;
   // 33.0 A/B: `corridor: false` turns the corridor feelers off (after the profile, which may turn them on).
   const corridor0 = ARENA.corridor.on;
@@ -428,6 +433,20 @@ export async function tdmSim(
   // could); its width (x range over the map's).
   const spr = { bots: 0, grouped: 0, paired: 0, convoy: 0, teamN: 0, laneCover: 0, width: 0, mates: [] as number[], groupedBy: {} as Record<string, number>, convoyBy: {} as Record<string, number> };
   const nLanes = game.level.data.tdm?.laneNames?.length ?? 0;
+  // 41.0, clumps (every 15 steps, a team with 2+ alive and tickets left): the team's bodies grouped by
+  // single linkage within CLUMP_R m; per bot, the size of the group it is in (bot-weighted: "how many
+  // stand with me"), the team's largest group, and the bot-weighted histogram 1, 2, 3, 4, 5, 6+.
+  // Fight sites: every fighting bot's fight (the midpoint between it and its target), grouped within
+  // SITE_R m: how many separate fights are going on at once.
+  const CLUMP_R = 10, SITE_R = 20;
+  const clump = { samples: 0, sum: 0, largest: 0, teamN: 0, hist: [0, 0, 0, 0, 0, 0], bigBy: {} as Record<string, number>, herd: 0, herdBy: {} as Record<string, number> };
+  // A herd: a bot in a group of HERD_N or more that still has HERD_N − 1 of the same mates HERD_T s later
+  // (a crowd that moves as one, not two fireteams crossing): each bot's mates at its last sample.
+  const HERD_N = 5, HERD_T = 5;
+  const herdHist = new Map<number, { t: number; mates: Set<number> }[]>();
+  const sites = { samples: 0, sum: 0, two: 0, three: 0 };
+  // 41.0, swarms: for every hostile some bot is after (fighting or chasing), how many are after it.
+  const swarm = { n: 0, sum: 0, four: 0, max: 0 };
   // 33.0, wall-running: a bot whose velocity says it runs (> 1.5 m/s) while it covers less than 40% of
   // that, for 1.5 s or more: pressing into something. Events, seconds, and where (4 m cells, by state).
   const press = new Map<number, { x: number; z: number; t: number; open: boolean }>();
@@ -569,6 +588,79 @@ export async function tdmSim(
           }
         }
       }
+      if (steps % 15 === 0) {
+        for (const team of ['alpha', 'omega'] as const) {
+          const mine = tdm.bots.filter((o) => o.alive && o.team === team);
+          if (mine.length < 2 || tdm.tickets[team] === 0) continue;
+          const c = clumps(mine.map((b) => b.pos.x), mine.map((b) => b.pos.z), CLUMP_R);
+          clump.teamN++;
+          clump.largest += Math.max(...c.sizes);
+          for (const g of c.of) {
+            const n = c.sizes[g];
+            clump.samples++;
+            clump.sum += n;
+            clump.hist[Math.min(6, n) - 1]++;
+          }
+          // Herds (see HERD_N).
+          mine.forEach((b, i) => {
+            const g = c.of[i];
+            const h = herdHist.get(b.uid) ?? [];
+            const then = h.find((x) => Math.abs(game.elapsed - HERD_T - x.t) < 0.13);
+            const mates = new Set<number>();
+            if (c.sizes[g] >= HERD_N) mine.forEach((o, j) => j !== i && c.of[j] === g && mates.add(o.uid));
+            if (then && mates.size >= HERD_N - 1) {
+              let same = 0;
+              for (const u of mates) if (then.mates.has(u)) same++;
+              if (same >= HERD_N - 1) {
+                clump.herd++;
+                const nz = Math.min(Infinity, ...tdm.zoneList().filter((z) => z.team === b.team).map((z) => Math.hypot(z.centre.x - b.pos.x, z.centre.z - b.pos.z)));
+                const k = b.tac.action + '@' + (nz < 25 ? 'own spawn' : nz < 45 ? 'spawn 25-45' : 'field');
+                clump.herdBy[k] = (clump.herdBy[k] ?? 0) + 1;
+              }
+            }
+            h.push({ t: game.elapsed, mates });
+            while (h.length && game.elapsed - h[0].t > HERD_T + 0.5) h.shift();
+            herdHist.set(b.uid, h);
+          });
+          // What the bots in a group of five or more are doing (by state).
+          mine.forEach((b, i) => {
+            if (c.sizes[c.of[i]] >= 5) {
+              clump.bigBy[b.tac.action] = (clump.bigBy[b.tac.action] ?? 0) + 1;
+              if (b.tac.action === 'patrol') {
+                const k = 'patrol@' + zoneOf(b.pos.x, b.pos.y, b.pos.z) + (isArenaBot(b) && b.brain.goal === null ? '/still' : '');
+                clump.bigBy[k] = (clump.bigBy[k] ?? 0) + 1;
+              }
+            }
+          });
+        }
+        const fx: number[] = [], fz: number[] = [];
+        for (const b of tdm.bots) {
+          if (!b.alive || !FIGHT.has(b.tac.action) || !isArenaBot(b)) continue;
+          const T = b.brain.target;
+          if (!T?.alive) continue;
+          fx.push((b.pos.x + T.pos.x) / 2);
+          fz.push((b.pos.z + T.pos.z) / 2);
+        }
+        const on = new Map<number, number>();
+        for (const b of tdm.bots) {
+          if (!b.alive || !isArenaBot(b)) continue;
+          const T = b.brain.target;
+          if (T?.alive) on.set(T.uid, (on.get(T.uid) ?? 0) + 1);
+        }
+        for (const n of on.values()) {
+          swarm.n++;
+          swarm.sum += n;
+          if (n >= 4) swarm.four++;
+          swarm.max = Math.max(swarm.max, n);
+        }
+        if (fx.length) {
+          const n = clumps(fx, fz, SITE_R).sizes.length;
+          sites.samples++;
+          sites.sum += n;
+          if (n >= 2) sites.two++;
+          if (n >= 3) sites.three++;
+        }
+      }
       if (steps % 15 === 0)
         for (const team of ['alpha', 'omega'] as const) {
           const mine = tdm.bots.filter((o) => o.alive && o.team === team);
@@ -627,6 +719,7 @@ export async function tdmSim(
   ARENA.laneLeave = lane0;
   TDM.arms = arms0;
   untune();
+  Object.assign(SPAWN, spawn0);
   ARENA.directRise = rise0;
   ARENA.flankPull.on = pull0;
   ARENA.vantage.on = vantage0;
@@ -756,6 +849,42 @@ export async function tdmSim(
       const m = spr.mates.sort((a, c) => a - c);
       const pc = (v: number, n: number) => +((100 * v) / Math.max(1, n)).toFixed(1);
       return { samples: spr.bots, nearestMateMedian: +(m[Math.floor(m.length / 2)] ?? 0).toFixed(1), nearestMateP25: +(m[Math.floor(m.length / 4)] ?? 0).toFixed(1), groupedPct: pc(spr.grouped, spr.bots), pairedPct: pc(spr.paired, spr.bots), convoyPct: pc(spr.convoy, spr.bots), laneCoverPct: pc(spr.laneCover, spr.teamN), widthPct: pc(spr.width, spr.teamN), groupedBy: spr.groupedBy, convoyBy: spr.convoyBy, approaches: st.approaches };
+    })(),
+    // 41.0: clumps and fight sites (see `clump`), and the kills' spread: kills with another kill 30 m or
+    // more away within 10 s (two fights at once), and how many 16 m cells hold 80% of the kills.
+    clumps: (() => {
+      const pc = (v: number) => +((100 * v) / Math.max(1, clump.samples)).toFixed(1);
+      return { linkM: CLUMP_R, avgClump: +(clump.sum / Math.max(1, clump.samples)).toFixed(2), avgLargest: +(clump.largest / Math.max(1, clump.teamN)).toFixed(2), histPct: { 1: pc(clump.hist[0]), 2: pc(clump.hist[1]), 3: pc(clump.hist[2]), 4: pc(clump.hist[3]), 5: pc(clump.hist[4]), '6+': pc(clump.hist[5]) }, herdPct: pc(clump.herd), herdBy: clump.herdBy, bigBy: clump.bigBy };
+    })(),
+    // 41.0: bots after one hostile at once (mean, share of hostiles with 4+, most); allies already in
+    // the local area at each respawn (0, 1, 2, 3, 4+); the fireteams (size a bot is in, sends to
+    // another sector, followers sent back to their leader, contacts left to those on them).
+    swarm: { avg: +(swarm.sum / Math.max(1, swarm.n)).toFixed(2), fourPlusPct: +((100 * swarm.four) / Math.max(1, swarm.n)).toFixed(1), max: swarm.max },
+    spawnLocal: (() => {
+      const h = [0, 0, 0, 0, 0];
+      for (const x of tdm.spawnLog) if (x.mates !== undefined && x.t > 1) h[Math.min(4, x.mates)]++;
+      const n = h.reduce((a, b) => a + b, 0) || 1;
+      return { n, pct: { 0: +((100 * h[0]) / n).toFixed(1), 1: +((100 * h[1]) / n).toFixed(1), 2: +((100 * h[2]) / n).toFixed(1), 3: +((100 * h[3]) / n).toFixed(1), '4+': +((100 * h[4]) / n).toFixed(1) } };
+    })(),
+    fireteams: tdm.directors
+      ? (() => {
+          const a = tdm.directors.alpha.sectorStats, o = tdm.directors.omega.sectorStats;
+          return { avgSize: +((a.ftSum + o.ftSum) / Math.max(1, a.ftN + o.ftN)).toFixed(2), peels: a.peels + o.peels, follows: st.follows, capSkips: st.capSkips };
+        })()
+      : null,
+    fightSites: { linkM: SITE_R, avg: +(sites.sum / Math.max(1, sites.samples)).toFixed(2), twoPlusPct: +((100 * sites.two) / Math.max(1, sites.samples)).toFixed(1), threePlusPct: +((100 * sites.three) / Math.max(1, sites.samples)).toFixed(1) },
+    killSpread: (() => {
+      const at = k.filter((x) => x.victimPos);
+      const apart = at.filter((x) => at.some((y) => y !== x && Math.abs(y.t - x.t) <= 10 && Math.hypot(y.victimPos![0] - x.victimPos![0], y.victimPos![2] - x.victimPos![2]) >= 30)).length;
+      const cells = new Map<string, number>();
+      for (const x of at) {
+        const key = `${Math.floor(x.victimPos![0] / 16)},${Math.floor(x.victimPos![2] / 16)}`;
+        cells.set(key, (cells.get(key) ?? 0) + 1);
+      }
+      const sorted = [...cells.values()].sort((a, b) => b - a);
+      let acc = 0, n80 = 0;
+      while (acc < 0.8 * at.length && n80 < sorted.length) acc += sorted[n80++];
+      return { kills: at.length, withFightElsewherePct: +((100 * apart) / Math.max(1, at.length)).toFixed(1), cells: sorted.length, cellsFor80Pct: n80 };
     })(),
     // 31.0: the deployment zones: picks per team and zone, picks with no safe zone, rays on zone safety.
     zones: tdm.zoner ? { stats: { ...tdm.zoner.stats }, uses: Object.fromEntries(tdm.zoner.zones.map((z) => [`${z.team}-${z.id}`, z.uses])) } : null,

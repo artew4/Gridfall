@@ -102,6 +102,17 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
   - `await __dev.fog()`: the live HeightFog module (`{ at, on }`): `at(from, to)` is the hidden share between two points as the picture draws it (the bots' sight uses the same function); a page `import()` of the module gets a second instance with the fog off, so tests in the page go through this.
   - `tdmSim(...).fog` now splits ground / roof / across by the fog's dense top (Neon Block 6.2 m: the landings and the footbridge count as ground).
   - `bench(3)` on Neon Block gains four views: the Lantern Bridge, the Transit Rail's deck, the Lantern Market, a roof looking down into the smog.
+- Smart spawns (41.0):
+  - `node scripts/clumpcheck.mjs [maps=desert,oldport] [matches=4] [out.jsonl] [tune JSON]` (Node 22+, Google Chrome; `URL=`, `PORT=`): bot-only whole matches per map; per match and averaged: kills a minute, the clumps, herds, fight sites, kill spread, swarms, allies near each respawn, fireteams, quiet time, stuck. `tune`: an ARENA profile (`'{"sectors":{"on":false}}'` is the 40.0 bot), or tdmSim's options whole (`'{"spawnTune":{"zoneTeam":0.5}}'`). Several at once on different `PORT`s.
+  - `tdmSim(...)` reports:
+    - `clumps`: a team's bodies grouped within 10 m; per bot the size of its group (`avgClump`), the team's largest, the histogram 1…6+; `herdPct` (in a group of 5+ with 4 of the same mates 5 s later: a crowd moving as one) and `herdBy` (the herders' states, and how far from their own spawn zones); `bigBy` (states in groups of 5+).
+    - `fightSites`: fights going on at once (every fighting bot's midpoint to its target, grouped within 20 m).
+    - `killSpread`: kills with another kill 30 m off within 10 s; the 16 m cells holding 80% of the kills.
+    - `swarm`: bots after one hostile (mean, share with 4+, most).
+    - `spawnLocal`: allies within the map's density radius at each respawn (0…4+).
+    - `fireteams`: the size a bot's fireteam is, sectors' sends, followers sent to their leader, contacts left to the bots on them.
+  - `tdmSim({ spawnTune: { … } })`: SPAWN's weights for the match (put back after).
+  - `ArenaDirector`: `fireteams`, `fireteamOf(uid)`, `leaderOf(uid)`, `secLoad` / `secFight` (members and fighting bots per sector), `committedOn(victim, uid, now)`, `committedNear(at, uid, now)`, `sectorStats`; the log notes `peel`.
 - Favelas (40.0):
   - `?setting=favelas`. `bench(3)` has a Favelas set: the street, an alley, a square, the rooftops, the escadaria from its foot, the whole hill from the crest, and a firefight, with 10v10 running.
   - `__game.level.debug()` on Favelas: nodes, drops, houses, lane problems.

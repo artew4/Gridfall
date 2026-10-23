@@ -225,6 +225,14 @@ export class ArenaDirector {
     this.laneMoves = 0;
     this.mates = [];
     this.hunters.clear();
+    this.fireteams.clear();
+    this.ftOf.clear();
+    this.commits.clear();
+    this.repick.clear();
+    this.secLoad = [];
+    this.secFight = [];
+    this.peelT = -Infinity;
+    this.sectorStats = { peels: 0, ftSum: 0, ftN: 0 };
   }
 
   private note(now: number, what: string, detail = '') {
@@ -307,12 +315,16 @@ export class ArenaDirector {
     if (c && now - c.seenT > 0.5) this.contacts.delete(uid);
   }
 
-  /** The freshest worthwhile contact for a bot at `p` (nearer and newer is better), or null. */
-  freshest(p: THREE.Vector3, now: number): ArenaContact | null {
+  /**
+   * The freshest worthwhile contact for a bot at `p` (nearer and newer is better), or null. 41.0: for
+   * bot `uid`, none the team already chases with as many as may (ARENA.sectors.commit).
+   */
+  freshest(p: THREE.Vector3, now: number, uid?: number): ArenaContact | null {
     let best: ArenaContact | null = null, bs = Infinity;
     for (const c of this.contacts.values()) {
       const age = now - c.t;
       if (age > ARENA.contactTtl || !c.who.alive) continue;
+      if (uid !== undefined && this.overCommitted(c.who.uid, uid, now, c.pos)) continue;
       const s = Math.hypot(c.pos.x - p.x, c.pos.z - p.z) + age * 8;
       if (s < bs) {
         bs = s;
@@ -481,8 +493,10 @@ export class ArenaDirector {
     const prev = this.hvaClaim.get(uid);
     this.hvaClaim.delete(uid);
     const claims = this.hvas.map(() => 0);
-    for (const i of this.hvaClaim.values()) claims[i]++;
+    // 41.0: a fireteam's leader claims for all of it (its members go with it).
+    for (const [b, i] of this.hvaClaim) claims[i] += this.bodies(b);
     const need = this.laneNeed(uid);
+    const sec = this.sectorTerms(uid);
     let best = -1, bs = -Infinity;
     for (let i = 0; i < this.hvas.length; i++) {
       const h = this.hvas[i];
@@ -490,7 +504,9 @@ export class ArenaDirector {
       if (i === prev || d < P.minGap) continue;
       const own = this.lanes.length ? this.hvaLane[i] === this.laneFor(uid, p) : false;
       const wide = ARENA.space.on && need.length ? ARENA.space.width * need[this.hvaLane[i]] : 0;
-      const s = this.patrolScore(i, d, claims[i], now, own, this.crowd(i, uid)) + wide + rand() * P.jitter;
+      // 41.0: with sectors, an area's crowd counts as with ARENA.space on (the bot's own fireteam aside).
+      const crowdNear = sec && !ARENA.space.on ? ARENA.space.patrol * this.crowd(i, uid) : 0;
+      const s = this.patrolScore(i, d, claims[i], now, own, this.crowd(i, uid)) + wide + (sec ? sec[this.hvaLane[i]] : 0) - crowdNear + rand() * P.jitter;
       if (s > bs) {
         bs = s;
         best = i;
@@ -502,6 +518,28 @@ export class ArenaDirector {
     if (this.hvaHeat[best] > 0.1) this.patrolStats.active++;
     if (this.hvaFlank[best] > 0) this.patrolStats.flank++;
     return best;
+  }
+
+  /**
+   * 41.0: each sector's patrol term for `uid`'s fireteam (ARENA.sectors): `need` × the sector's need
+   * (fair share − the share of the rest of the team there) − `crowdPen` per bot over the crowd line,
+   * the fireteam's members counted where they would go. Null: off, or one sector.
+   */
+  sectorTerms(uid: number): number[] | null {
+    const S = ARENA.sectors;
+    const n = this.lanes.length;
+    if (!S.on || n < 2 || this.secLoad.length !== n) return null;
+    const ft = this.fireteamOf(uid) ?? [uid];
+    const others = [...this.secLoad];
+    let all = 0;
+    for (const m of this.mates) {
+      if (!m.alive) continue;
+      all++;
+      if (ft.includes(m.uid)) others[this.nearestLane(m.pos)]--;
+    }
+    const rest = Math.max(1, all - ft.length);
+    const line = this.crowdLine(all);
+    return others.map((o) => S.need * (1 / n - Math.max(0, o) / rest) * n - S.crowdPen * Math.max(0, Math.max(0, o) + ft.length - (line - 1)));
   }
 
   /** An area's patrol score for a bot `d` m away (see the header), without the jitter. 32.0: less its crowd. */
@@ -520,16 +558,18 @@ export class ArenaDirector {
   crowd(i: number, uid: number) {
     const R = ARENA.space.patrolR;
     const h = this.hvas[i];
+    // 41.0: its fireteam goes with it: not a crowd.
+    const ft = ARENA.sectors.on ? this.fireteamOf(uid) : null;
     let c = 0;
     for (const m of this.mates) {
-      if (!m.alive || m.uid === uid) continue;
+      if (!m.alive || m.uid === uid || ft?.includes(m.uid)) continue;
       const d = Math.hypot(m.pos.x - h.x, m.pos.z - h.z);
       if (d < R) c += 1 - d / R;
     }
     for (const [b, j] of this.hvaClaim) {
       if (b === uid || j === i) continue;
       const d = Math.hypot(this.hvas[j].x - h.x, this.hvas[j].z - h.z);
-      if (d < R) c += 1 - d / R;
+      if (d < R) c += (1 - d / R) * this.bodies(b);
     }
     return c;
   }
@@ -615,6 +655,7 @@ export class ArenaDirector {
     this.contacts.delete(v.uid);
     this.pushes.delete(v.uid);
     this.flanks.delete(v.uid);
+    for (const [b, c] of this.commits) if (c.v === v.uid) this.commits.delete(b);
     this.trades.push([now, +1]);
   }
 
@@ -622,6 +663,7 @@ export class ArenaDirector {
     this.addHeat(v.pos, ARENA.lanePressure.death, now);
     this.laneOf.delete(v.uid);
     this.hvaClaim.delete(v.uid);
+    this.commits.delete(v.uid);
     this.releasePush(v.uid);
     this.releaseFlank(v.uid);
     this.trades.push([now, -1]);
@@ -693,6 +735,210 @@ export class ArenaDirector {
     return this.flanks.get(victim)?.bots.length ?? 0;
   }
 
+  // ------------------------------------------------------------------ fireteams and sectors (41.0)
+  /**
+   * 41.0: the map's density radius (m; TdmData.spawnTuning.densityR): fireteams form within
+   * `sectors.join` of it and keep within `sectors.follow` of it (wide maps loose, narrow ones tight).
+   */
+  densityR = 12;
+  /** Fireteam id → its members' uids (living bots), and each bot's fireteam. */
+  fireteams = new Map<number, number[]>();
+  private ftOf = new Map<number, number>();
+  private nextFt = 1;
+  /** Bot uid → the hostile it chases or fights, and when it said so (ARENA.sectors.commitTtl). */
+  private commits = new Map<number, { v: number; t: number; at?: { x: number; z: number } }>();
+  /** Per sector (lane): the team's members in it, and its bots in a fight. */
+  secLoad: number[] = [];
+  secFight: number[] = [];
+  private peelT = -Infinity;
+  /** Patrol claims the director dropped (a fireteam sent elsewhere): those bots pick again. */
+  private repick = new Set<number>();
+  /** (DEV) fireteams sent out of a crowded sector; members' fireteam size, summed and counted at each update. */
+  sectorStats = { peels: 0, ftSum: 0, ftN: 0 };
+
+  /** Bot `uid` chases or fights `victim` (-1: nothing), which is at `at` (a live position, for the site cap). */
+  commit(uid: number, victim: number, now: number, at?: { x: number; z: number }) {
+    if (victim < 0) this.commits.delete(uid);
+    else this.commits.set(uid, { v: victim, t: now, at });
+  }
+
+  /**
+   * How many of the team (`uid` aside) chase or fight anyone within the map's local area (densityR) of
+   * `at`: the fight there, whoever each is after.
+   */
+  committedNear(at: { x: number; z: number }, uid: number, now: number) {
+    const ttl = ARENA.sectors.commitTtl;
+    const r2 = this.densityR * this.densityR;
+    let n = 0;
+    for (const [b, c] of this.commits) if (b !== uid && c.at && now - c.t <= ttl && (c.at.x - at.x) ** 2 + (c.at.z - at.z) ** 2 <= r2) n++;
+    return n;
+  }
+
+  /** How many of the team (`uid` aside) chase or fight `victim`. */
+  committedOn(victim: number, uid: number, now: number) {
+    const ttl = ARENA.sectors.commitTtl;
+    let n = 0;
+    for (const [b, c] of this.commits) if (c.v === victim && b !== uid && now - c.t <= ttl) n++;
+    return n;
+  }
+
+  /** Is `uid` chasing or fighting someone (a fresh commitment)? */
+  fighting(uid: number, now: number) {
+    const c = this.commits.get(uid);
+    return !!c && now - c.t <= ARENA.sectors.commitTtl;
+  }
+
+  /**
+   * Is `victim` chased by as many as may chase it (`sectors.commit`), or (`sectors.site` > 0) is the
+   * fight round it (`at`) as big as a fight may be?
+   */
+  overCommitted(victim: number, uid: number, now: number, at?: { x: number; z: number }) {
+    const S = ARENA.sectors;
+    if (!S.on) return false;
+    if (this.committedOn(victim, uid, now) >= S.commit) return true;
+    return S.site > 0 && !!at && this.committedNear(at, uid, now) >= S.site;
+  }
+
+  fireteamOf(uid: number) {
+    const ft = this.ftOf.get(uid);
+    return ft === undefined ? null : this.fireteams.get(ft) ?? null;
+  }
+
+  /** The leader of `uid`'s fireteam (its lowest uid), or null when `uid` leads it or has none. */
+  leaderOf(uid: number): ArenaMember | null {
+    const ft = this.fireteamOf(uid);
+    if (!ft || ft[0] === uid) return null;
+    return this.mates.find((m) => m.uid === ft[0] && m.alive) ?? null;
+  }
+
+  /** 41.0: the bodies behind `uid`'s patrol claim: its fireteam (sectors on), else 1. */
+  private bodies(uid: number) {
+    return ARENA.sectors.on ? this.fireteamOf(uid)?.length ?? 1 : 1;
+  }
+
+  /** The patrol area `uid` has claimed, or -1. */
+  claimOf(uid: number) {
+    return this.hvaClaim.get(uid) ?? -1;
+  }
+
+  /** The director dropped `uid`'s patrol claim (its fireteam was sent to another sector): once, true. */
+  takeRepick(uid: number) {
+    return this.repick.delete(uid);
+  }
+
+  /** The crowd line: `sectors.crowd`, or a fair share of `alive` + 1 when that is more. */
+  crowdLine(alive: number) {
+    return Math.max(ARENA.sectors.crowd, Math.ceil(alive / Math.max(1, this.lanes.length)) + 1);
+  }
+
+  /**
+   * A fireteam's size: the team over the sectors, so every sector can have one (5 bots, 3 sectors: 2;
+   * 12 and 5: 3), between 1 and `sectors.team`.
+   */
+  fireteamSize(alive: number) {
+    return Math.max(1, Math.min(ARENA.sectors.team, Math.ceil(alive / Math.max(1, this.lanes.length))));
+  }
+
+  /**
+   * Fireteams: the dead leave; a bot with none joins one with room whose leader stands within the join
+   * radius (on its level), else starts its own; two fireteams that both fit in one and whose leaders
+   * stand that close merge. A fireteam's members take its leader's sector.
+   */
+  private formFireteams(bots: readonly ArenaMember[]) {
+    const S = ARENA.sectors;
+    const size = this.fireteamSize(bots.length);
+    const up = new Map(bots.map((b) => [b.uid, b]));
+    for (const [id, ms] of this.fireteams) {
+      const keep = ms.filter((u) => up.has(u));
+      if (keep.length) this.fireteams.set(id, keep);
+      else this.fireteams.delete(id);
+    }
+    for (const u of [...this.ftOf.keys()]) if (!up.has(u)) this.ftOf.delete(u);
+    const R = S.join * this.densityR;
+    const near = (a: ArenaMember, b: ArenaMember) => Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z) <= R && Math.abs(a.pos.y - b.pos.y) < 4;
+    for (const b of bots) {
+      if (this.ftOf.has(b.uid)) continue;
+      let join = -1;
+      for (const [id, ms] of this.fireteams) if (ms.length < size && near(b, up.get(ms[0])!)) join = id;
+      if (join < 0) this.fireteams.set((join = this.nextFt++), []);
+      const ms = this.fireteams.get(join)!;
+      ms.push(b.uid);
+      ms.sort((x, y) => x - y);
+      this.ftOf.set(b.uid, join);
+    }
+    const ids = [...this.fireteams.keys()];
+    for (let i = 0; i < ids.length; i++)
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = this.fireteams.get(ids[i]), c = this.fireteams.get(ids[j]);
+        if (!a || !c || a.length + c.length > size || !near(up.get(a[0])!, up.get(c[0])!)) continue;
+        // Not mid-fight (each chases its own).
+        if (this.commits.has(a[0]) || this.commits.has(c[0])) continue;
+        a.push(...c);
+        a.sort((x, y) => x - y);
+        for (const u of c) this.ftOf.set(u, ids[i]);
+        this.fireteams.delete(ids[j]);
+      }
+    for (const ms of this.fireteams.values()) {
+      const l = this.laneOf.get(ms[0]);
+      if (l !== undefined) for (const u of ms) this.laneOf.set(u, l);
+      this.sectorStats.ftSum += ms.length * ms.length;
+      this.sectorStats.ftN += ms.length;
+    }
+  }
+
+  /** Each sector's members and fighting bots (by where they stand). */
+  private countSectors(alive: readonly ArenaMember[], now: number) {
+    const n = this.lanes.length;
+    this.secLoad = new Array(n).fill(0);
+    this.secFight = new Array(n).fill(0);
+    if (!n) return;
+    const ttl = ARENA.sectors.commitTtl;
+    for (const m of alive) {
+      const l = this.nearestLane(m.pos);
+      this.secLoad[l]++;
+      const c = this.commits.get(m.uid);
+      if (c && now - c.t <= ttl) this.secFight[l]++;
+    }
+  }
+
+  /**
+   * A crowded sector (the crowd line of the team standing in it) sends one of the fireteams sent there
+   * (the newest, none of it in a fight) to the sector fewest are sent to, when that evens them out: its
+   * members' lane changes and the leader's patrol claim is dropped (it picks again).
+   */
+  private peel(alive: readonly ArenaMember[], now: number) {
+    const S = ARENA.sectors;
+    const n = this.lanes.length;
+    if (n < 2 || now - this.peelT < S.peelCd) return;
+    const line = this.crowdLine(alive.length);
+    let crowded = -1;
+    for (let l = 0; l < n; l++) if (this.secLoad[l] >= line && (crowded < 0 || this.secLoad[l] > this.secLoad[crowded])) crowded = l;
+    if (crowded < 0) return;
+    const sent = new Array(n).fill(0);
+    for (const m of alive) sent[m.isPlayer ? this.nearestLane(m.pos) : this.laneOf.get(m.uid) ?? this.nearestLane(m.pos)]++;
+    let to = -1;
+    for (let l = 0; l < n; l++) if (l !== crowded && (to < 0 || sent[l] / this.w(l) < sent[to] / this.w(to))) to = l;
+    if (to < 0) return;
+    const ttl = S.commitTtl;
+    let pick: number[] | null = null;
+    for (const ms of this.fireteams.values()) {
+      const lead = alive.find((m) => m.uid === ms[0]);
+      if (!lead || this.nearestLane(lead.pos) !== crowded || this.laneOf.get(ms[0]) !== crowded) continue;
+      if (ms.some((u) => (this.commits.get(u)?.t ?? -Infinity) >= now - ttl)) continue;
+      // Only when it evens them out (the sector it goes to stays below the one it leaves).
+      if ((sent[to] + ms.length) / this.w(to) > (sent[crowded] - ms.length) / this.w(crowded)) continue;
+      if (!pick || ms[0] > pick[0]) pick = ms;
+    }
+    if (!pick) return;
+    for (const u of pick) {
+      this.laneOf.set(u, to);
+      if (this.hvaClaim.delete(u)) this.repick.add(u);
+    }
+    this.peelT = now;
+    this.sectorStats.peels++;
+    this.note(now, 'peel', `${pick.join('+')} ${crowded}>${to}`);
+  }
+
   // ------------------------------------------------------------------ the front
   /**
    * Every 0.25 s. `members`: the team's living bots and the human; `enemyAlive`: how many of theirs
@@ -713,6 +959,11 @@ export class ArenaDirector {
     this.anchorN = alive.length;
     if (alive.length) this.anchor.divideScalar(alive.length);
     for (const [uid] of this.holds) if (!bots.some((b) => b.uid === uid)) this.holds.delete(uid);
+    // 41.0: the fireteams, and who is where.
+    if (ARENA.sectors.on) {
+      this.formFireteams(bots);
+      this.countSectors(alive, now);
+    }
     this.updateWatch(now, bots);
     // 27.0: an area anyone of the team stands near has been looked at.
     if (this.patrol)
@@ -740,6 +991,14 @@ export class ArenaDirector {
     }
     this.coolTo(now);
     this.assignLanes(alive, now);
+    if (ARENA.sectors.on) {
+      this.peel(alive, now);
+      // A fireteam keeps to its leader's sector (assignLanes balances bodies, one at a time).
+      for (const ms of this.fireteams.values()) {
+        const l = this.laneOf.get(ms[0]);
+        if (l !== undefined) for (const u of ms) this.laneOf.set(u, l);
+      }
+    }
     return true;
   }
 
@@ -776,13 +1035,26 @@ export class ArenaDirector {
       const l = this.laneOf.get(b.uid);
       if (l !== undefined) count[l]++;
     }
+    // 41.0: a fireteam's member takes its leader's sector (the leader, its lowest uid, comes first).
+    const SC = ARENA.sectors;
+    const leadOf = (uid: number) => (SC.on ? this.fireteamOf(uid)?.[0] ?? uid : uid);
     for (const b of bots) {
       if (this.laneOf.has(b.uid)) continue;
+      const lead = leadOf(b.uid);
+      if (lead !== b.uid && this.laneOf.has(lead)) {
+        const l = this.laneOf.get(lead)!;
+        this.laneOf.set(b.uid, l);
+        count[l]++;
+        continue;
+      }
       // The emptiest lane; among equals the centre, else (12.0: five lanes on the desert, more than a
       // team has bots) any of them at random, so over a match every lane is walked. 15.0: a hot lane
       // counts as fuller than it is (weight × heat).
       const P = ARENA.lanePressure;
-      const cost = count.map((c, l) => (c + (P.on ? P.weight * (this.heat[l] ?? 0) : 0)) / this.w(l));
+      // 41.0: never into a sector where `sectors.crowd` of the team are fighting already.
+      // A fireteam's leader weighs each lane with its whole fireteam in it (a pair doesn't overfill a flank).
+      const add = SC.on ? this.fireteamOf(b.uid)?.length ?? 1 : 0;
+      const cost = count.map((c, l) => (c + add + (P.on ? P.weight * (this.heat[l] ?? 0) : 0)) / this.w(l) + (SC.on && (this.secFight[l] ?? 0) >= SC.crowd ? 100 : 0));
       const least = Math.min(...cost);
       const open = cost.map((c, l) => (c - least < 0.25 ? l : -1)).filter((l) => l >= 0);
       const best = !P.on && open.includes(1) ? 1 : open[Math.floor(Math.random() * open.length)];
@@ -798,11 +1070,11 @@ export class ArenaDirector {
         if (cool < 0 || (this.heat[l] + 0.3 * count[l]) / this.w(l) < (this.heat[cool] + 0.3 * count[cool]) / this.w(cool)) cool = l;
       }
       if (hot >= 0 && cool >= 0 && hot !== cool && this.heat[hot] / this.w(hot) - this.heat[cool] / this.w(cool) >= P.hot) {
-        const mover = [...bots].reverse().find((b) => this.laneOf.get(b.uid) === hot);
+        const mover = [...bots].reverse().find((b) => this.laneOf.get(b.uid) === hot && leadOf(b.uid) === b.uid);
         if (mover) {
-          this.laneOf.set(mover.uid, cool);
-          count[hot]--;
-          count[cool]++;
+          const n = this.moveFireteam(mover.uid, cool);
+          count[hot] -= n;
+          count[cool] += n;
           this.moveT = now;
           this.laneMoves++;
           this.note(now, 'lane', `${hot}>${cool} heat ${this.heat[hot].toFixed(1)}/${this.heat[cool].toFixed(1)}`);
@@ -815,10 +1087,18 @@ export class ArenaDirector {
       let full = 0;
       for (let l = 1; l < n; l++) if (count[l] / this.w(l) > count[full] / this.w(full)) full = l;
       if (count[full] >= 2) {
-        const mover = [...bots].reverse().find((b) => this.laneOf.get(b.uid) === full);
-        if (mover) this.laneOf.set(mover.uid, empty);
+        // 41.0: a fireteam (the newest) that leaves the full lane at least one.
+        const mover = [...bots].reverse().find((b) => this.laneOf.get(b.uid) === full && leadOf(b.uid) === b.uid && (this.fireteamOf(b.uid)?.length ?? 1) < count[full]);
+        if (mover) this.moveFireteam(mover.uid, empty);
       }
     }
+  }
+
+  /** 41.0: `lead` and its fireteam (sectors on) to lane `l`; how many moved. */
+  private moveFireteam(lead: number, l: number) {
+    const ms = ARENA.sectors.on ? this.fireteamOf(lead) ?? [lead] : [lead];
+    for (const u of ms) this.laneOf.set(u, l);
+    return ms.length;
   }
 
   nearestLane(p: { x: number; z: number }) {

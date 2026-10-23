@@ -11,6 +11,9 @@ import type { TeamId } from '../combat/Team';
       facing          − W_face · #{h : d_h < R_face, h faces p within θ_face}   (it would turn and see)
       allies          + W_ally · exp(−((d_a − D_ally) / S_ally)²)    d_a: the nearest living ally
                       + W_mates · min(3, #{allies within R_mates})  (spawn as a squad)
+                      41.0, fireteams (instead of W_mates): n = #{allies within R_density}, the map's
+                      local area: + W_team for n = 1 or 2 (a fireteam to join), 0 for 3,
+                      − W_crowd · (n − 3) for 4 and more (a deathball)
       recent use      − W_used · (1 − age / T_used)                  someone spawned here < T_used s ago
       rotation        + W_fresh · min(1, age / T_fresh)              pads unused for a while come round
       lane balance    + W_lane · (target_l − share_l) · L            l: the pad's lane; share: of the team's
@@ -73,6 +76,17 @@ export const SPAWN = {
   wDeath: 15,
   jitter: 6,
   maxRays: 64,
+  /**
+   * 41.0, fireteams (Tdm turns it on with ARENA.sectors): the local area's radius (m; the map's
+   * spawnTuning: wide maps 15-20, narrow ones 5-8), and what 1-2 allies in it (a fireteam to join) and
+   * each ally past 3 (a deathball) are worth: on a pad (`wTeam`, `wCrowd`) and on a deployment zone
+   * (`zoneTeam`, `zoneCrowd`, in zone uses: a zone used once more than another is 1).
+   */
+  densityR: 12,
+  wTeam: 10,
+  wCrowd: 25,
+  zoneTeam: 1.25,
+  zoneCrowd: 2,
   /** The opening: squads of `squad`, at most `openPads` pads a team, OMEGA's at least `openGap` m from ALPHA's. */
   squad: 2,
   openPads: 4,
@@ -93,9 +107,16 @@ export interface SpawnPick {
   fallback: boolean;
 }
 
+/** 41.0: what `n` allies in a spot's local area are worth: `team` for 1-2, 0 for none or 3, −`crowd` per ally past 3. */
+export function fireteamScore(n: number, team: number, crowd: number) {
+  return n === 0 || n === 3 ? 0 : n <= 2 ? team : -crowd * (n - 3);
+}
+
 export class SpawnManager {
   /** 28.0: the weights in use (SPAWN with the map's TdmData.spawnTuning over it). */
   readonly S: typeof SPAWN;
+  /** 41.0: score the local area's allies as a fireteam (SPAWN.wTeam / wCrowd) instead of W_mates. */
+  fireteam = false;
   /** When each pad was last spawned on, and by which team. */
   private used = new Map<number, { t: number; team: TeamId }>();
   private deaths: { pos: THREE.Vector3; t: number }[] = [];
@@ -138,13 +159,14 @@ export class SpawnManager {
         if (dx * h.face.x + dz * h.face.y > S.faceCos) s -= S.wFace;
       }
     }
-    let da = Infinity, mates = 0;
+    let da = Infinity, mates = 0, local = 0;
     for (const a of allies) {
       const d = a.pos.distanceTo(p);
       da = Math.min(da, d);
       if (d < S.mates) mates++;
+      if (d < S.densityR) local++;
     }
-    if (da < Infinity) s += S.wAlly * Math.exp(-(((da - S.allyAt) / S.allySpread) ** 2)) + S.wMates * Math.min(3, mates);
+    if (da < Infinity) s += S.wAlly * Math.exp(-(((da - S.allyAt) / S.allySpread) ** 2)) + (this.fireteam ? fireteamScore(local, S.wTeam, S.wCrowd) : S.wMates * Math.min(3, mates));
     const u = this.used.get(pad.id);
     if (u && now - u.t < S.usedFor) s -= S.wUsed * (1 - (now - u.t) / S.usedFor);
     s += S.wFresh * Math.min(1, u ? (now - u.t) / S.freshFor : 1);
@@ -314,7 +336,9 @@ export function rotatePads(half: readonly (readonly [number, number, number, num
     1. Zone safety: a zone is unsafe if a hostile stands within (radius + hardMin) of its centre, or a
        hostile within sight range sees its centre (eye 1.6 m → chest 1.2 m; one ray each).
     2. Distribution: of the safe zones, the least used this match, then the least recently used
-       (round-robin over the match: the flanks and the centre get the team evenly).
+       (round-robin over the match: the flanks and the centre get the team evenly). 41.0, fireteams:
+       the uses less than the least used's, plus fireteamScore(allies within densityR of the centre,
+       zoneTeam, zoneCrowd): a zone with a mate or two near it comes first, one with 4+ last.
     3. Nothing safe: the zone whose nearest hostile is furthest.
     4. The spot: the zone's own SpawnManager (the 27.0 scorer: pressure, sight, allies, recency) over
        the zone's points only.
@@ -344,6 +368,8 @@ export interface ZonePick extends SpawnPick {
 
 export class ZoneSpawner {
   private mgrs = new Map<DeployZone, SpawnManager>();
+  /** 41.0: zones and spots scored by the allies near them as fireteams (see the header). */
+  fireteam = false;
   /** DEV: picks, rays spent on zone safety, picks with no safe zone. */
   stats = { picks: 0, zoneRays: 0, noSafeZone: 0 };
 
@@ -401,10 +427,19 @@ export class ZoneSpawner {
   }
 
   /** The zone a respawn of `team` goes to now (see the header). */
-  pickZone(team: TeamId, hostiles: readonly SpawnUnit[]): { zone: DeployZone; safe: boolean } {
+  pickZone(team: TeamId, hostiles: readonly SpawnUnit[], allies: readonly SpawnUnit[] = []): { zone: DeployZone; safe: boolean } {
     const own = this.zonesOf(team);
-    const rated = own.map((z) => ({ z, ...this.zoneSafety(z, hostiles) }));
-    const safe = rated.filter((r) => r.safe).sort((a, b) => a.z.uses - b.z.uses || a.z.lastUse - b.z.lastUse || this.rand() - 0.5);
+    const rated = own.map((z) => ({ z, ...this.zoneSafety(z, hostiles), f: 0 }));
+    if (this.fireteam) {
+      const S = this.S;
+      const least = Math.min(...own.map((z) => z.uses));
+      for (const r of rated) {
+        let n = 0;
+        for (const a of allies) if (Math.hypot(a.pos.x - r.z.centre.x, a.pos.z - r.z.centre.z) < S.densityR) n++;
+        r.f = least - r.z.uses + fireteamScore(n, S.zoneTeam, S.zoneCrowd);
+      }
+    }
+    const safe = rated.filter((r) => r.safe).sort((a, b) => (this.fireteam ? b.f - a.f : a.z.uses - b.z.uses) || a.z.lastUse - b.z.lastUse || this.rand() - 0.5);
     if (safe.length) return { zone: safe[0].z, safe: true };
     this.stats.noSafeZone++;
     return { zone: rated.reduce((a, b) => (b.near > a.near ? b : a)).z, safe: false };
@@ -412,11 +447,13 @@ export class ZoneSpawner {
 
   /** A respawn: the zone, then the spot in it (the zone's own scorer). */
   pick(team: TeamId, hostiles: readonly SpawnUnit[], allies: readonly SpawnUnit[], now: number, occupied: (p: THREE.Vector3) => boolean = () => false): ZonePick {
-    const { zone, safe } = this.pickZone(team, hostiles);
+    const { zone, safe } = this.pickZone(team, hostiles, allies);
     zone.uses++;
     zone.lastUse = now;
     this.stats.picks++;
-    const p = this.mgrs.get(zone)!.pick(team, hostiles, allies, now, occupied);
+    const m = this.mgrs.get(zone)!;
+    m.fireteam = this.fireteam;
+    const p = m.pick(team, hostiles, allies, now, occupied);
     return { ...p, zone, unsafeZone: !safe };
   }
 

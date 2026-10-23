@@ -156,6 +156,8 @@ export class FavelaLevel implements LevelRuntime {
       tdm: {
         spawns: d.spawns,
         zones: SPAWN_ZONES,
+        // 41.0: the spawns' and fireteams' local area (a wide hillside: alleys and roofs side by side).
+        spawnTuning: { densityR: 16 },
         lanes: { alpha: lanesOf('alpha'), omega: lanesOf('omega') },
         inBase: (team, p) => inBase(p, team),
         start,
