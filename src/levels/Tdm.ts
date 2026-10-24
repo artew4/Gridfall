@@ -32,6 +32,8 @@ import { SPAWN, SpawnManager, ZoneSpawner, deployZones, laneNeed, sideOf, type D
 import { SpawnZoneVisual } from '../world/SpawnZoneVisual';
 import { MatchRules, type Outcome } from './LastStand';
 import { Pressure } from '../enemies/arena/Pressure';
+import { Objectives, type ObjectiveBody } from '../enemies/arena/Objectives';
+import { ObjectiveVisual } from '../world/ObjectiveVisual';
 import { SpawnPads } from '../world/SpawnPads';
 
 /*
@@ -542,6 +544,13 @@ export class TdmRules implements ModeRules {
     if (dir && isArenaBot(e)) e.brain.role = s.role = dir.setRole(e.uid, s.role);
     // 44.0: the fronts' sector its respawn was sent to (its lane there).
     if (dir && pad?.sector !== undefined && s.role !== 'wolf') dir.dealSector(e.uid, pad.sector);
+    // 51.0: the opening too, by the fronts' need (it opened with the whole team in the centre lanes:
+    // the flanks' points went untouched for a minute).
+    else if (dir && !respawn && this.fronts && this.objectives && s.role !== 'wolf') {
+      const k = this.fronts.neediest(s.team, this.sectorWeights(s.team));
+      this.fronts.sent(s.team, k);
+      dir.dealSector(e.uid, k);
+    }
     e.invulnUntil = this.now + TDM.protect;
     // Facing the other base (enemy yaw: forward = (sin, cos); ALPHA's base is in the south). 27.0: the pad's way.
     e.yaw = pad ? pad.yaw : s.team === 'alpha' ? Math.PI : 0;
@@ -638,6 +647,13 @@ export class TdmRules implements ModeRules {
   zoner: ZoneSpawner | null = null;
   /** 31.0: the zone of the last respawn picked (his toast). */
   private lastZone: DeployZone | null = null;
+  /** 51.0: the flank objectives (ARENA.objectives; with the fronts), their beacons; null: off. */
+  objectives: Objectives | null = null;
+  private objVisual: ObjectiveVisual | null = null;
+  /** 51.0: each zone's flank (0 or 2: open while its team holds that point), or null (a home zone: always open). */
+  private zoneFlank = new Map<DeployZone, number | null>();
+  private objSeen = 0;
+  private objStates: { owner: TeamId | null; capturing: TeamId | null; meter: number; contested: boolean }[] = [];
   /** 44.0: the three lines of battle (ARENA.fronts; a map with zones), shared by both teams; null: off. */
   fronts: Fronts | null = null;
   /** 44.0 (DEV): respawns at a lane's rally point behind its line, and in a zone, this match. */
@@ -663,6 +679,7 @@ export class TdmRules implements ModeRules {
     this.zoneVisual?.dispose();
     this.zoneVisual = null;
     this.zoner = null;
+    this.dropObjectives();
     this.openAt.clear();
     this.spawnLog = [];
     if (this.setupZones()) return;
@@ -733,6 +750,30 @@ export class TdmRules implements ModeRules {
       return out.slice(0, 12);
     };
     const zones = deployZones(Z.half, Z.symmetry, pointsFor);
+    // 51.0: with the objectives a team's zones on the flanks open only while it holds that flank; the
+    // rest are home (always open). A team with none at home gets one of its base's own spawns ('H').
+    this.zoneFlank.clear();
+    if (this.objectivesWanted()) {
+      // (A zone behind the contested middle has no lane: its flank is read nearer the midline.)
+      const flankAt = (c: THREE.Vector3) => {
+        for (const f of [1, 0.6, 0.3]) {
+          const k = this.data.laneOf?.(c.x, c.y + 1, c.z * f);
+          if (k !== null && k !== undefined) return k === 0 || k === 2 ? k : null;
+        }
+        return null;
+      };
+      for (const z of zones) this.zoneFlank.set(z, flankAt(z.centre));
+      for (const team of TEAMS) {
+        if (zones.some((z) => z.team === team && this.zoneFlank.get(z) === null)) continue;
+        const sp = this.data.spawns[team];
+        const centre = sp.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(sp.length);
+        const yaw = team === 'alpha' ? Math.PI : 0;
+        const r = Math.max(...sp.map((p) => Math.hypot(p.x - centre.x, p.z - centre.z)));
+        const home: DeployZone = { id: 'H', team, centre, r, points: sp.map((p, i) => ({ id: 9000 + i + (team === 'alpha' ? 0 : 100), pos: p.clone(), yaw, side: team })), uses: 0, lastUse: -Infinity };
+        zones.push(home);
+        this.zoneFlank.set(home, null);
+      }
+    }
     this.zoner = new ZoneSpawner(
       zones,
       (p, q) => {
@@ -761,7 +802,107 @@ export class TdmRules implements ModeRules {
       }
     }
     this.setupFronts(zones);
+    this.setupObjectives(zones);
     return true;
+  }
+
+  /** 51.0: and on the flank objectives (ARENA.objectives on, the map's lanes split into sectors)? */
+  private objectivesWanted() {
+    return this.frontsWanted() && ARENA.objectives.on && !!this.data.laneOf;
+  }
+
+  /**
+   * 51.0: the points (the map's TdmData.objectives, else each front's first lane where it crosses the
+   * midline, its floor's height), their beacons; zones gated on them; the fronts' breaks bleed nothing.
+   */
+  private setupObjectives(zones: readonly DeployZone[]) {
+    this.dropObjectives();
+    const F = this.fronts;
+    if (!F || !this.directors || !this.objectivesWanted()) return;
+    const A = this.directors.alpha;
+    const pts: { pos: THREE.Vector3; name: string; r?: number }[] = [];
+    for (let k = 0; k < F.n; k++) {
+      const given = this.data.objectives?.[k];
+      let pos: THREE.Vector3 | null = given ? new THREE.Vector3(given[0], given[1], given[2]) : null;
+      if (!pos) {
+        const l = A.laneSector.indexOf(k);
+        const W = l >= 0 ? A.lanes[l] : null;
+        if (!W?.length) continue;
+        let best = W[0], bp = Infinity;
+        for (let i = 0; i < W.length; i++) {
+          const p = A.progress(W[i]);
+          if (Math.abs(p) < bp) {
+            bp = Math.abs(p);
+            best = W[i];
+          }
+          const q = i + 1 < W.length ? A.progress(W[i + 1]) : NaN;
+          if (p * q <= 0 && p !== q) {
+            const t = p / (p - q);
+            pos = W[i].clone().lerp(W[i + 1], t);
+            break;
+          }
+        }
+        pos ??= best.clone();
+      }
+      pts.push({ pos, name: F.names[k] ?? `front ${k}`, r: given?.[3] });
+    }
+    if (pts.length !== F.n) return;
+    const O = (this.objectives = new Objectives(pts));
+    F.bleeds = false;
+    F.extra = { alpha: new Array(F.n).fill(0), omega: new Array(F.n).fill(0) };
+    if (this.zoner) this.zoner.active = (z) => this.zoneOpen(z);
+    for (const t of TEAMS) this.directors[t].objectives = O;
+    // Each beam from over whatever roofs stand over its point (up through the floors to open sky).
+    const up = new THREE.Vector3(0, 1, 0);
+    const from = O.list.map((o) => {
+      const p = new THREE.Vector3(o.pos.x, o.pos.y + 0.5, o.pos.z);
+      let top = o.pos.y;
+      for (let i = 0; i < 6; i++) {
+        const hit = this.game.col.raycast(p, up, 40);
+        if (!hit) break;
+        top = hit.point.y + 0.6;
+        p.set(o.pos.x, top + 0.05, o.pos.z);
+      }
+      return top;
+    });
+    this.objVisual = new ObjectiveVisual(O.list, from);
+    this.game.scene.add(this.objVisual.group);
+    this.objSeen = 0;
+    this.objStates = O.list.map(() => ({ owner: null, capturing: null, meter: 0, contested: false }));
+    this.syncZones();
+    this.game.tdmHud.setObjectives(this.objStates);
+    void zones;
+  }
+
+  private dropObjectives() {
+    this.objVisual?.dispose();
+    this.objVisual = null;
+    this.objectives = null;
+    if (this.directors) for (const t of TEAMS) this.directors[t].objectives = null;
+    if (this.fronts) {
+      this.fronts.bleeds = true;
+      this.fronts.extra = null;
+    }
+    this.game.tdmHud.setObjectives(null);
+    this.game.tdmHud.setAlarm(null);
+  }
+
+  /**
+   * 51.0: is this zone open (home, or on a flank its team holds)? On its last line (the other team
+   * holds two of the three) every zone of a team is open: it comes back at once, and from all of
+   * them (from home alone it walked into the other team's forward spawns: a match held 3-0 for 5 min).
+   */
+  private zoneOpen(z: DeployZone) {
+    const k = this.zoneFlank.get(z);
+    if (k === null || k === undefined || !this.objectives) return true;
+    return this.objectives.of(k)?.owner === z.team || this.objectives.lastLine(z.team);
+  }
+
+  /** 51.0: the zones' look (on the ground and the minimap) as they open and close. */
+  private syncZones() {
+    const zs = this.zoner?.zones ?? [];
+    for (const z of zs) this.zoneVisual?.setOpen(z, this.zoneOpen(z));
+    this.minimap?.setZonesOpen(zs.map((z) => this.zoneOpen(z)));
   }
 
   /** 44.0: does this match play on fronts (the arena, ARENA.fronts on, the map's zones in use)? */
@@ -905,7 +1046,8 @@ export class TdmRules implements ModeRules {
       if (this.fronts) {
         sector = player ? this.playerSector() : this.fronts.neediest(team, this.sectorWeights(team));
         this.fronts.sent(team, sector);
-        const r = ARENA.fronts.rally ? this.rallyAt(team, sector, hostiles, occupied) : null;
+        // (51.0: with the objectives only the zones a team has opened: no rally points.)
+        const r = ARENA.fronts.rally && !this.objectives ? this.rallyAt(team, sector, hostiles, occupied) : null;
         if (r) {
           this.rallyStats.rally++;
           this.directors?.[otherTeam(team)].heardSpawn(r.at, this.now, this.friends[otherTeam(team)]);
@@ -1154,7 +1296,9 @@ export class TdmRules implements ModeRules {
     if (vs) {
       vs.deaths++;
       vs.bot = null;
-      vs.respawnAt = granted ? this.waveAt(v.team, this.now + rand(TDM.respawn[0], TDM.respawn[1])) : Infinity;
+      // 51.0: a team on its last line (two flanks lost) is back at once.
+      const last = this.objectives?.lastLine(v.team);
+      vs.respawnAt = !granted ? Infinity : last ? this.now + ARENA.objectives.lastLine.bot : this.waveAt(v.team, this.now + rand(TDM.respawn[0], TDM.respawn[1]));
     }
     // 50.0: his form (ARENA.pressure); in form, a kill of his tells the victim's team where it came from.
     if (by?.isPlayer && by.team !== v.team) {
@@ -1223,7 +1367,7 @@ export class TdmRules implements ModeRules {
     this.player.deaths++;
     this.killerName = g.playerAttacker?.name ?? null;
     const granted = this.onDeath(g.playerUnit, g.playerAttacker);
-    this.playerRespawnAt = granted ? this.now + TDM.playerRespawn : Infinity;
+    this.playerRespawnAt = granted ? this.now + (this.objectives?.lastLine(this.side) ? ARENA.objectives.lastLine.player : TDM.playerRespawn) : Infinity;
     // 29.0: out of the match: no countdown, he watches the teammates still standing.
     if (!granted && !this.winner) this.startSpectate();
     return true;
@@ -1313,6 +1457,7 @@ export class TdmRules implements ModeRules {
     } else if (g.state !== 'ending' && now - this.endT > 1.2) this.finish();
     this.padMesh?.update(dt);
     this.zoneVisual?.update(dt, this.now);
+    this.objVisual?.update(this.objStates, this.now);
     // 48.0: the HUD's sides are his team's and the other's.
     const me = this.side, them = this.foe;
     g.tdmHud.setTickets(this.tickets[me], this.tickets[them]);
@@ -1325,7 +1470,7 @@ export class TdmRules implements ModeRules {
     // 46.0: the compass (his heading, the fronts' marks).
     if (!this.spectate && g.player.alive) {
       const here = this.fronts ? this.fronts.sectorOf(g.player.pos.x, g.player.pos.y, g.player.pos.z) : -1;
-      g.tdmHud.updateCompass(-g.player.yaw, g.player.pos.x, g.player.pos.z, this.frontMarks, here);
+      g.tdmHud.updateCompass(-g.player.yaw, g.player.pos.x, g.player.pos.z, this.compassMarks(), here);
     }
     if (this.directors && this.minimap && TDM.spotting) {
       const t0 = performance.now();
@@ -1384,6 +1529,55 @@ export class TdmRules implements ModeRules {
     for (const br of this.sched.pick(brains, now)) br.decide(this.ctxs[br.self.team]);
   }
 
+  /**
+   * 51.0: the points' events, announced from his side: a point his team takes (a banner; a flank's
+   * spawn zone opens), one it loses, one it knocks out of the other team's hands, one the other takes,
+   * the double breakthrough either way (the alarm stays up while it lasts: TdmHud.setAlarm).
+   */
+  private objectiveEvents() {
+    const O = this.objectives!;
+    const g = this.game;
+    const FOE = this.foe.toUpperCase();
+    const name = (k: number) => (this.fronts?.names[k] ?? '').split(/[\s(]/)[0].toUpperCase();
+    while (this.objSeen < O.events.length) {
+      const e = O.events[this.objSeen++];
+      const ours = e.team === this.side;
+      const flank = e.k >= 0 && [...this.zoneFlank.values()].includes(e.k);
+      if (e.what === 'captured') {
+        if (ours) {
+          g.hud.bannerShow(`${name(e.k)} CAPTURED`, flank ? 'SPAWN ZONE ONLINE' : 'HOLD IT', 2.2);
+          g.audio.flankCue('won');
+        } else {
+          g.tdmHud.notice(`${name(e.k)}: ${FOE} TOOK IT${flank ? ' · THEIR SPAWN IS UP' : ''}`);
+          g.audio.flankCue('lost');
+        }
+      } else if (e.what === 'neutral') {
+        if (e.from === this.side) {
+          g.hud.bannerShow(`${name(e.k)} LOST`, flank ? 'SPAWN ZONE DOWN · TAKE IT BACK' : 'TAKE IT BACK', 2.2);
+          g.audio.flankCue('lost');
+        } else g.tdmHud.notice(`${name(e.k)}: ${FOE} KNOCKED OUT`);
+      } else if (e.what === 'double') {
+        if (ours) {
+          g.hud.bannerShow('DOUBLE BREAKTHROUGH', `${FOE} BLEEDS TICKETS ×3`, 2.6);
+          g.audio.flankCue('won');
+        } else {
+          g.hud.bannerShow('TWO FLANKS LOST', 'LAST LINE · INSTANT RESPAWN · ALL ZONES OPEN', 2.6);
+          g.audio.flankCue('alarm');
+        }
+      } else if (e.what === 'doubleEnd') g.tdmHud.notice(ours ? 'BREAKTHROUGH LOST' : 'LINE RESTORED');
+      this.syncZones();
+    }
+    if (O.events.length > 48) {
+      O.events.splice(0, O.events.length - 16);
+      this.objSeen = O.events.length;
+    }
+  }
+
+  /** 51.0: the compass's marks: the fronts' (or the points', "DEFEND …" while his is being taken). */
+  private compassMarks() {
+    return this.frontMarks.map((f) => ({ x: f.x, z: f.z, push: f.push, label: f.compass, alert: f.alert }));
+  }
+
   /** 44.0: the lines on the minimap (one a sector, on its first ALPHA lane), set at each fronts step. */
   private frontMarks: FrontMark[] = [];
   private markFronts() {
@@ -1391,6 +1585,16 @@ export class TdmRules implements ModeRules {
     const D = this.directors!.alpha;
     const ax = D.axisXZ;
     this.frontMarks.length = 0;
+    // 51.0: with the objectives the marks are the points (the compass's, the minimap's): "DEFEND …"
+    // while his team's is being taken.
+    if (this.objectives) {
+      for (const o of this.objectives.list) {
+        const lbl = (F.names[o.k] ?? '?').split(/[\s(]/)[0].toUpperCase();
+        const losing = this.objectives.losing(o, this.side);
+        this.frontMarks.push({ x: o.pos.x, z: o.pos.z, ax: ax.x, az: ax.z, push: o.owner, label: lbl[0], obj: { owner: o.owner, meter: o.meter, r: o.r, capturing: !!o.capturing }, compass: losing ? `DEFEND ${lbl}` : undefined, alert: losing });
+      }
+      return;
+    }
     for (let k = 0; k < F.n; k++) {
       const l = D.laneSector.indexOf(k);
       if (l < 0) continue;
@@ -1418,9 +1622,11 @@ export class TdmRules implements ModeRules {
 
   /** 44.0: the fronts' step (every director step): the lines, the stances, a break's bleeding, the HUD. */
   private frontT = -Infinity;
+  private bodies: ObjectiveBody[] = [];
   private updateFronts(now: number) {
     const F = this.fronts!;
     if (now - this.frontT < ARENA.director.every) return;
+    const step = this.frontT === -Infinity ? 0 : Math.min(1, now - this.frontT);
     this.frontT = now;
     const ms = this.frontMembers;
     ms.length = 0;
@@ -1433,6 +1639,20 @@ export class TdmRules implements ModeRules {
     }
     if (!this.spectate && g.player.alive) ms.push({ team: this.side, x: g.player.pos.x, y: g.player.pos.y, z: g.player.pos.z, sector: null });
     const bleed = F.update(now, ms);
+    // 51.0: the points (who stands on them, the meters, the bleed) and the need they put on each front.
+    const O = this.objectives;
+    if (O) {
+      const bodies = this.bodies;
+      bodies.length = 0;
+      for (const m of ms) bodies.push(m);
+      const ob = O.update(now, step, bodies);
+      for (const t of TEAMS) bleed[t] += ob[t];
+      for (const t of TEAMS) for (let k = 0; k < F.n; k++) F.extra![t][k] = O.need(t, k);
+      this.objStates = O.list.map((o) => ({ owner: o.owner, capturing: o.capturing, meter: o.meter, contested: o.contested }));
+      g.tdmHud.setObjectives(this.objStates);
+      g.tdmHud.setAlarm(O.double(this.side) ? 'ours' : O.double(this.foe) ? 'theirs' : null);
+      this.objectiveEvents();
+    }
     this.markFronts();
     for (const t of TEAMS) for (let i = 0; i < bleed[t]; i++) this.rules.bleed(t, now);
     // The HUD: the lines, and a break (or one held) announced.
@@ -1440,7 +1660,8 @@ export class TdmRules implements ModeRules {
     g.tdmHud.setFronts(F.line, F.stance[this.side], F.broken, here);
     while (this.frontSeen < F.events.length) {
       const e = F.events[this.frontSeen++];
-      if (e.what === 'push') continue;
+      // (51.0: with the objectives a front's break is no event: the points are.)
+      if (e.what === 'push' || this.objectives) continue;
       const lane = (F.names[e.sector] ?? '').toUpperCase();
       const ours = e.team === this.side;
       if (e.what === 'break') g.hud.bannerShow(ours ? 'BREAKTHROUGH' : 'LINE BROKEN', `${lane} · ${ours ? `${this.foe.toUpperCase()} BLEEDS TICKETS` : 'DEFEND'}`, 2.2);
@@ -1654,6 +1875,7 @@ export class TdmRules implements ModeRules {
     this.zoneVisual?.dispose();
     this.zoneVisual = null;
     this.zoner = null;
+    this.dropObjectives();
     this.openAt.clear();
     this.unprofile?.();
     this.unprofile = null;
@@ -1724,6 +1946,7 @@ export class TdmRules implements ModeRules {
       momentum: this.directors ? { alpha: +this.directors.alpha.momentum.toFixed(2), omega: +this.directors.omega.momentum.toFixed(2) } : null,
       sensing: this.sensing ? { ...this.sensing.stats } : null,
       side: this.side,
+      objectives: this.objectives?.report() ?? null,
       form: +this.pressure.update(this.now).toFixed(2),
       human: this.squads[this.side].humanStyle,
       humanRates: this.squads[this.side].humanObs.rates,

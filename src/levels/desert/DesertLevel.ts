@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
-import { buildTerrainMesh, CULVERT, DESERT_EXTENT, DESERT_TERRAIN, desertHeight } from './Terrain';
+import { buildTerrainMesh, CULVERT, DESERT_EXTENT, DESERT_TERRAIN, desertHeight, housePadY } from './Terrain';
 import { rotatePads } from '../SpawnManager';
 import { buildOutpost, type OutpostResult } from './Outpost';
 import { Sandstorm } from './Sandstorm';
@@ -10,7 +10,7 @@ import { DesertIntro } from './DesertIntro';
 import { detailTexture, sandTexture } from './textures';
 import { damp, smoothstep } from '../../core/math';
 import { DESERT_MERCS } from '../../entities/enemies/mercs';
-import { DESERT_AI, DESERT_TEAM_SIZE, flankOf, inBase } from './ArenaLayout';
+import { DESERT_AI, DESERT_TEAM_SIZE, HOUSES, flankOf, inBase } from './ArenaLayout';
 
 export const DESERT_INFO: LevelInfo = {
   id: 'desert',
@@ -207,6 +207,8 @@ export class DesertLevel implements LevelRuntime {
         // west flank (the hamlet and the dunes beyond), the compound, the east flank; the yards none.
         laneOf: (x, _y, z) => (Math.abs(z) > 56 && Math.abs(x) < 23 ? null : x < -40 ? 0 : x > 40 ? 2 : 1),
         laneNames: ['west flank', 'compound', 'east flank'],
+        // 51.0: the flank objectives: each Block (its two lower floors count) and the compound's yard.
+        objectives: [[HOUSES.block.cx, housePadY(HOUSES.block.cx, 0), 0, 11], [0, 0, 0, 10], [-HOUSES.block.cx, housePadY(-HOUSES.block.cx, 0), 0, 11]],
         // 28.0: the outer edges: everything past the compound's approaches (hamlet, wadi, pump houses,
         // the outer dunes).
         edgeOf: (x) => Math.abs(x) >= 44,

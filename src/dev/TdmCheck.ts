@@ -970,6 +970,8 @@ export async function tdmSim(
     brawls: { fightersPerSite: +(brawl.fighters / Math.max(1, brawl.sites)).toFixed(2), sites4PlusPct: +((100 * brawl.four) / Math.max(1, brawl.sites)).toFixed(1), sites6PlusPct: +((100 * brawl.six) / Math.max(1, brawl.sites)).toFixed(1), timeWithBrawlPct: +((100 * brawl.anyFour) / Math.max(1, lit.samples)).toFixed(1) },
     lanesLit: { avg: +(lit.sum / Math.max(1, lit.samples)).toFixed(2), all3Pct: +((100 * lit.all3) / Math.max(1, lit.samples)).toFixed(1), nonePct: +((100 * lit.none) / Math.max(1, lit.samples)).toFixed(1) },
     fronts: tdm.fronts ? { ...tdm.fronts.report(), rally: { ...tdm.rallyStats }, rotations: (tdm.directors?.alpha.rotations ?? 0) + (tdm.directors?.omega.rotations ?? 0) } : null,
+    // 51.0: the flank objectives: captures, seconds each held, tickets bled, double breakthroughs.
+    objectives: tdm.objectives?.report() ?? null,
     fightSites: { linkM: SITE_R, avg: +(sites.sum / Math.max(1, sites.samples)).toFixed(2), twoPlusPct: +((100 * sites.two) / Math.max(1, sites.samples)).toFixed(1), threePlusPct: +((100 * sites.three) / Math.max(1, sites.samples)).toFixed(1) },
     killSpread: (() => {
       const at = k.filter((x) => x.victimPos);

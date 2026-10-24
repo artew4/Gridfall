@@ -59,6 +59,12 @@ export class Fronts {
   /** DEV: per sector, the line sampled each update (for the reports), and how often it crossed the middle. */
   stats = { samples: 0, crossings: 0, breaks: 0, bleeds: { alpha: 0, omega: 0 } as Record<TeamId, number>, lineSum: [] as number[], lineAbs: [] as number[] };
   private side: number[];
+  /**
+   * 51.0: with the flank objectives (Objectives.ts) a break bleeds nothing (the points do), and each
+   * team's need gets `extra` per sector (a point being lost, the enemy's, neutral).
+   */
+  bleeds = true;
+  extra: Record<TeamId, number[]> | null = null;
 
   /**
    * `n` sectors; `progress`: ALPHA's progress of a point; `sectorOf`: a point's sector (where it
@@ -179,7 +185,7 @@ export class Fronts {
             this.note({ t: now, sector: k, what: 'break', team: t });
             this.capT[t][k] = now;
           }
-          if (this.broken[k] === t && F.bleed > 0 && now - this.capT[t][k] >= F.bleed) {
+          if (this.broken[k] === t && this.bleeds && F.bleed > 0 && now - this.capT[t][k] >= F.bleed) {
             this.capT[t][k] = now;
             bleed[o2]++;
             this.stats.bleeds[o2]++;
@@ -220,7 +226,7 @@ export class Fronts {
     return this.line.map((_, k) => {
       const fair = ((all + 1) * (weights?.[k] ?? 1)) / wsum;
       const back = Math.max(0, -this.own(team, k));
-      return (theirs[k] - mine[k]) * F.outnumbered + (fair - mine[k]) + F.danger * back;
+      return (theirs[k] - mine[k]) * F.outnumbered + (fair - mine[k]) + F.danger * back + (this.extra?.[team][k] ?? 0);
     });
   }
 

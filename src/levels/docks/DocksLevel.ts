@@ -3,7 +3,7 @@ import type { Game } from '../../core/Game';
 import type { Weapon } from '../../player/Weapon';
 import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntime } from '../Level';
 import { buildDocks, type DocksResult } from './Docks';
-import { BARGES, BASE, DEPOT, DOCKS_AI, DOCKS_TEAM_SIZE, QUAY_X, SPAWN_PADS, SPAWN_ZONES, WEST_X, inBase, lanesOf } from './DocksLayout';
+import { BARGES, BASE, DEPOT, DOCKS_AI, QG, DOCKS_TEAM_SIZE, QUAY_X, SPAWN_PADS, SPAWN_ZONES, WEST_X, inBase, lanesOf } from './DocksLayout';
 import { DesertIntro } from '../desert/DesertIntro';
 import { Rain } from '../../world/Rain';
 import { ReflectionCatchers } from '../../world/ReflectionCatchers';
@@ -134,6 +134,9 @@ export class DocksLevel implements LevelRuntime {
         // yards and the walls in front of them are no lane.
         laneOf: (x, _y, z) => (Math.abs(z) > 52 ? null : x < -16 ? 0 : x > 16 ? 2 : 1),
         laneNames: ['containers', 'warehouse', 'waterfront'],
+        // 51.0: the flank objectives: the maze's middle, the warehouse floor round the foreman's office
+        // (the bridge over it counts), the crane cab on the gantry (its stairs' landings count).
+        objectives: [[-36.1, 0, 0, 9], [0, 0, 0, 9], [20.8, QG.y, 0, 8]],
         // 28.0: the outer edges: the outer container rows (west of the maze's last column) and the
         // waterfront's outer strip (the quay edge and, past it, the barges).
         edgeOf: (x, _y, z) => Math.abs(z) <= 58 && (x < -46 || x > 38),

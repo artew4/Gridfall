@@ -449,6 +449,34 @@ export const ARENA = {
    * Below 0 the same, eased (he is struggling).
    */
   pressure: { on: true, window: 90, scale: 6, ease: 0.6, react: 0.3, spread: 0.35, focus: 2, reveal: 0.2 },
+  /**
+   * 51.0, the flank objectives (Objectives.ts; a map with the fronts): a point on each front's midline,
+   * radius `r` m (within `dy` m up or down). A team with more bodies in it moves its meter towards
+   * itself at `rate` a second (+`perExtra` of that for each body more, at most `maxMult` ×); level
+   * numbers freeze it (contested); nobody in it, the meter drifts back to its owner's (or to neutral)
+   * at `decay`. From the other team's to its own takes it through neutral: 2 / `rate` s alone.
+   *  - spawns: a team's home zone is always open; its zone on a flank only while it holds that flank;
+   *  - the tickets: a team holding more points than the other bleeds it one every `bleed.lead` s, two
+   *    or more of the three (a double breakthrough) every `bleed.double` s, all three every `bleed.all`;
+   *  - the last line: a team bleeding at the double rate respawns at once (`lastLine` s: bots, him),
+   *    from every one of its zones;
+   *  - need: a sector whose point the team doesn't hold pulls its respawns (`need`: the enemy's,
+   *    being taken from it, neutral), so the bots reinforce the flank they are losing.
+   */
+  objectives: {
+    on: true,
+    r: 9,
+    dy: 6,
+    rate: 0.1,
+    perExtra: 0.5,
+    maxMult: 2.5,
+    decay: 0.04,
+    bleed: { lead: 10, double: 3.3, all: 2.5 },
+    lastLine: { bot: 0.6, player: 1.5 },
+    need: { enemy: 2.5, losing: 3.5, neutral: 1.5 },
+    /** A frontliner hunting a contact goes to its front's point first when that is within `pull` m. */
+    pull: 45,
+  },
 };
 
 /**

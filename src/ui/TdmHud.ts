@@ -82,7 +82,12 @@ export class TdmHud {
    * break flashes; the lane he stands in is lit. Off (no fronts): the 26.0 dash.
    */
   private vs = el('div', 'vs', '<i>—</i>');
-  private frontRows: { row: HTMLElement; a: HTMLElement; o: HTMLElement; name: Text; key: string }[] = [];
+  private frontRows: { row: HTMLElement; a: HTMLElement; o: HTMLElement; name: Text; key: string; flag: HTMLElement; fill: HTMLElement; okey: string }[] = [];
+  /** 51.0: the alarm under the score (a double breakthrough, either way). */
+  private alarm = el('div', 'tdm-alarm hidden');
+  private alarmBig = document.createTextNode('');
+  private alarmSmall = document.createTextNode('');
+  private alarmKey = '';
   private notices = el('div', 'tdm-notices');
   /**
    * 46.0, the compass under the score: the heading's ticks and N/E/S/W, and a marker for each lane's
@@ -92,7 +97,7 @@ export class TdmHud {
   private compass = el('div', 'tdm-compass hidden');
   private compassBand = el('i', 'band');
   private compassMarks: { el: HTMLElement; x: number; o: number }[] = [];
-  private frontMarks: { el: HTMLElement; name: Text; dist: Text; x: number; o: number; key: string; y?: number; want?: number }[] = [];
+  private frontMarks: { el: HTMLElement; name: Text; base: string; dist: Text; x: number; o: number; key: string; y?: number; want?: number }[] = [];
   private compassBandX = NaN;
   private max = 25;
   /**
@@ -147,6 +152,12 @@ export class TdmHud {
     const bn = document.createTextNode('ALPHA');
     this.board.querySelector('.head .nm')!.prepend(bn);
     this.sideNames.push(bn);
+    const ab = el('b');
+    ab.appendChild(this.alarmBig);
+    const as = el('small');
+    as.appendChild(this.alarmSmall);
+    this.alarm.append(ab, as);
+    this.root.append(this.alarm);
     this.root.append(this.tags, this.board, this.score, this.compass, this.sudden, this.feed, this.respawn, this.spec, this.notices);
     parent.appendChild(this.root);
   }
@@ -322,6 +333,46 @@ export class TdmHud {
     }
   }
 
+  /**
+   * 51.0: each lane's objective: who holds it, ALPHA's meter (-1 … 1), who is taking it. Shown from his
+   * side: his team's colour or the other's, the fill his team's share; a point of his being taken
+   * pulses red, one his team is taking glows. Null: no objectives (the flags hidden).
+   */
+  setObjectives(list: readonly { owner: TeamId | null; meter: number; capturing: TeamId | null; contested: boolean }[] | null) {
+    this.vs.classList.toggle('objectives', !!list);
+    if (!list) return;
+    const mine = (t: TeamId | null) => (t === null ? '' : t === this.mine ? 'a' : 'o');
+    for (let k = 0; k < this.frontRows.length; k++) {
+      const r = this.frontRows[k], o = list[k];
+      if (!o) continue;
+      const m = this.mine === 'alpha' ? o.meter : -o.meter;
+      const key = `${mine(o.owner)}|${Math.round(m * 20)}|${mine(o.capturing)}|${o.contested ? 1 : 0}`;
+      if (key === r.okey) continue;
+      r.okey = key;
+      r.flag.classList.toggle('a', o.owner === this.mine);
+      r.flag.classList.toggle('o', !!o.owner && o.owner !== this.mine);
+      r.fill.className = m >= 0 ? 'a' : 'o';
+      r.fill.style.transform = `scaleY(${Math.abs(m).toFixed(2)})`;
+      r.row.classList.toggle('losing', o.owner === this.mine && !!o.capturing && o.capturing !== this.mine);
+      r.row.classList.toggle('taking', o.capturing === this.mine && o.owner !== this.mine);
+      r.row.classList.toggle('contested', o.contested);
+    }
+  }
+
+  /**
+   * 51.0: the alarm: `ours` his team has two of the three (the other bleeds three times as fast),
+   * `theirs` the other has (his tickets drain; his team's last line: instant respawn), null none.
+   */
+  setAlarm(kind: 'ours' | 'theirs' | null) {
+    if (kind === this.alarmKey) return;
+    this.alarmKey = kind ?? '';
+    this.alarm.classList.toggle('hidden', !kind);
+    this.alarm.classList.toggle('theirs', kind === 'theirs');
+    if (!kind) return;
+    this.alarmBig.data = kind === 'ours' ? 'DOUBLE BREAKTHROUGH' : 'TWO FLANKS LOST';
+    this.alarmSmall.data = kind === 'ours' ? 'THEIR TICKETS DRAIN ×3' : 'TICKETS DRAINING ×3 · LAST LINE: INSTANT RESPAWN, ALL ZONES';
+  }
+
   /** 44.0: the fronts' lanes by name (null: no fronts this match, the dash). */
   setFrontNames(names: readonly string[] | null) {
     this.frontRows = [];
@@ -339,10 +390,13 @@ export class TdmHud {
       const track = el('div', 'track');
       const a = el('i', 'a'), o = el('i', 'o');
       track.append(a, o);
-      row.append(lbl, track);
+      // 51.0: the lane's objective: a flag in its holder's colour, filling with the meter.
+      const flag = el('b', 'flag'), fill = el('i');
+      flag.appendChild(fill);
+      row.append(flag, lbl, track);
       this.vs.appendChild(row);
       a.style.transform = o.style.transform = 'scaleX(0.5)';
-      this.frontRows.push({ row, a, o, name, key: '50|hold||0' });
+      this.frontRows.push({ row, a, o, name, key: '50|hold||0', flag, fill, okey: '' });
     }
   }
 
@@ -353,7 +407,8 @@ export class TdmHud {
     this.compass.classList.remove('hidden');
     for (const n of names ?? []) {
       const m = el('div', 'front-mark');
-      const nm = document.createTextNode(n.split(/[\s(]/)[0].toUpperCase());
+      const base = n.split(/[\s(]/)[0].toUpperCase();
+      const nm = document.createTextNode(base);
       const d = document.createTextNode('');
       const b = el('span');
       b.appendChild(nm);
@@ -361,7 +416,7 @@ export class TdmHud {
       i.appendChild(d);
       m.append(b, i);
       this.compass.appendChild(m);
-      this.frontMarks.push({ el: m, name: nm, dist: d, x: NaN, o: NaN, key: '' });
+      this.frontMarks.push({ el: m, name: nm, base, dist: d, x: NaN, o: NaN, key: '' });
     }
   }
 
@@ -369,7 +424,7 @@ export class TdmHud {
    * 46.0: the compass for a player at (px, pz) facing `heading` (radians clockwise from north, -z),
    * and the fronts' marks (world x, z; who pushes there), `here` his own lane (-1: none).
    */
-  updateCompass(heading: number, px: number, pz: number, marks: readonly { x: number; z: number; push: 'alpha' | 'omega' | null }[], here: number) {
+  updateCompass(heading: number, px: number, pz: number, marks: readonly { x: number; z: number; push: 'alpha' | 'omega' | null; label?: string; alert?: boolean }[], here: number) {
     const DEG = 180 / Math.PI, SPAN = 75, K = 0.2;
     const hd = ((heading * DEG) % 360 + 360) % 360;
     // The ticks: a band of 15° ticks under the letters, moved by the heading modulo a tick.
@@ -416,11 +471,14 @@ export class TdmHud {
       const dx = mk.x - px, dz = mk.z - pz;
       place(f, Math.atan2(dx, -dz) * DEG, true, true);
       const d = Math.round(Math.hypot(dx, dz) / 5) * 5;
-      const key = `${d}|${mk.push ?? ''}|${k === here ? 1 : 0}`;
+      const key = `${d}|${mk.push ?? ''}|${k === here ? 1 : 0}|${mk.label ?? ''}|${mk.alert ? 1 : 0}`;
       if (key === f.key) return;
-      const [d0, p0, h0] = f.key.split('|');
+      const [d0, p0, h0, l0, a0] = f.key.split('|');
       f.key = key;
       if (String(d) !== d0) f.dist.data = `${d}M`;
+      // 51.0: "DEFEND WEST" while his team's point there is being taken (and back to the lane's name).
+      if ((mk.label ?? '') !== (l0 ?? '')) f.name.data = mk.label ?? f.base;
+      if (String(mk.alert ? 1 : 0) !== a0) f.el.classList.toggle('alert', !!mk.alert);
       if ((mk.push ?? '') !== p0) {
         f.el.classList.toggle('a', !!mk.push && mk.push === this.mine);
         f.el.classList.toggle('o', !!mk.push && mk.push !== this.mine);
@@ -466,6 +524,7 @@ export class TdmHud {
     this.score.classList.remove('last-a', 'last-o');
     this.setSudden(null, null);
     this.setSpectate(null);
+    this.setAlarm(null);
     for (const r of this.rows) r.el.remove();
     this.rows = [];
     for (const r of this.feedRows) r.el.remove();

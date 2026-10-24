@@ -734,6 +734,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     } else if (next === 'hunt' && contact && ARENA.roles.on && this.role === 'wolf' && Math.hypot(contact.pos.x - me.pos.x, contact.pos.z - me.pos.z) > ARENA.roles.behind * 1.5) {
       // 42.0: a wolf comes at a contact from behind it.
       this.goal = this.behindOf(ctx, T!, contact.pos) ?? contact.pos.clone();
+    } else if (next === 'hunt' && contact && this.pointGoal(ctx, A, ARENA.objectives.pull)) {
+      // 51.0: a point of its front it doesn't hold, near: the point first (the contact is fought on it).
     } else if (next === 'hunt' && contact) {
       this.goal = this.laneGoal(ctx, A, contact.pos) ?? this.approach(ctx, A, T!, contact.pos) ?? _v.copy(contact.pos).addScaledVector(contact.vel, ARENA.huntLead).clone();
       if (!this.laneTo && !this.approaching) this.goal.y = contact.pos.y;
@@ -1242,6 +1244,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     }
     if (!L || !L.length) return;
     const lane = A.director.laneFor(me.uid, me.pos);
+    // 51.0: a frontliner goes for its front's point while its team doesn't hold it (or is losing it).
+    if (this.pointGoal(ctx, A, Infinity)) return;
     const W = L[lane];
     const want = A.director.laneTarget[lane] ?? 0;
     if (this.laneIdx < 0 || this.laneIdx >= W.length) {
@@ -1269,8 +1273,40 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     }
     const w = W[this.laneIdx];
     // Spread a lane so it isn't walked single file (less on a raised deck: it's 3 m wide).
-    const off = w.y > 0.5 ? 0.4 : 1.6;
-    this.goal = new THREE.Vector3(w.x + Math.cos(this.seed) * off, w.y, w.z + Math.sin(this.seed) * off);
+    this.goal = this.spotNear(ctx, w, w.y > 0.5 ? 0.4 : 1.6);
+  }
+
+  /**
+   * 51.0: a frontliner (not a wolf or an anchor) whose front's point its team doesn't hold, or is
+   * losing, within `reach` m: the goal is a spot of its own on the point (its seed: not all to its
+   * middle). True if it set one.
+   */
+  private pointGoal(ctx: EnemyCtx, A: ArenaCtx, reach: number) {
+    const D = A.director;
+    if (!D.objectives || this.role === 'wolf' || this.role === 'anchor' || !ctx.lanes?.length) return false;
+    const me = this.self;
+    const o = D.objectiveFor(D.sectorOfLane(D.laneFor(me.uid, me.pos)));
+    if (!o || Math.hypot(o.pos.x - me.pos.x, o.pos.z - me.pos.z) > reach) return false;
+    let spot = this.spotNear(ctx, o.pos, Math.min(o.r * 0.55, 5));
+    // On its spot already: another one on the point (it holds the point on the move, not standing).
+    if (Math.hypot(spot.x - me.pos.x, spot.z - me.pos.z) < 1.5 && Math.abs(spot.y - me.pos.y) < 1.5) {
+      this.seed += 2.1;
+      spot = this.spotNear(ctx, o.pos, Math.min(o.r * 0.55, 5));
+    }
+    this.goal = spot;
+    return true;
+  }
+
+  /**
+   * Its own spot `off` m from `p` (its seed's bearing), on `p`'s level; `p` itself where that spot has
+   * no floor at that level or no room for a body (51.0: a lane's waypoint in a 2.8 m alley put the spot in its wall, and the bot
+   * walked at the wall for good).
+   */
+  private spotNear(ctx: EnemyCtx, p: THREE.Vector3, off: number) {
+    const x = p.x + Math.cos(this.seed) * off, z = p.z + Math.sin(this.seed) * off;
+    // (And a floor there on `p`'s level: round a point on a gantry, its spot was in the air beside it.)
+    if (off > 0 && (ctx.col.blocked(_v.set(x, p.y + 1, z), 0.5) || Math.abs(ctx.col.groundHeightAt(x, z, 0.3, p.y + 0.6) - p.y) > 0.6)) return new THREE.Vector3(p.x, p.y, p.z);
+    return new THREE.Vector3(x, p.y, z);
   }
 
   /**

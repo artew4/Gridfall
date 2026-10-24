@@ -2615,8 +2615,38 @@ Kills a minute 28.8 → 30.1; quiet 6.6% → 5.8%; first engagement 12.3 → 9.8
 - The graph: 1135 of 1136 (the compound's old one). levelAI: runners 484/488 (49.0: 437/488, the roofs), gunners 8/8. `world` 0 issues (49.0: drops off the Block's roof, a stair flush with a wall). `stress` 32,000 runs: 0 (49.0: 2). `stairGaps` clean.
 - Tests 524 (+3: `pressure.test.ts`; the houses' tests for four runs and the huts' pads).
 
+## 51.0: the flank objectives
+
+Branch `feature/flank-objectives-51.0`, from `main` @ `839f729` (50.0).
+
+The playtest: a breakthrough on a flank won nothing a player felt; spawns everywhere from the start. Asked for: one spawn to start from, three fronts each worth taking, the team holding more of them ahead (not Battlefield's conquest: an edge), the Block as the Desert's point, a forward spawn for whoever holds a flank (near it, not on it), a double breakthrough with an alarm and a last line, and the events felt (banners, sound, "DEFEND WEST", bots reinforcing a flank being lost).
+
+### The points (`Objectives.ts`, `ARENA.objectives`)
+- One per front (the fronts' sectors: flank, centre, flank) on its midline: the map's (`TdmData.objectives`: the Desert's two Blocks, their two lower floors, and the compound's yard; the Docks' maze middle, the warehouse floor round the office, the crane cab), else where the front's first lane crosses the midline. Radius 9 m (the Blocks 11, the yard 10), 6 m up or down.
+- The meter: more bodies on it move it their way, 10 s alone from neutral (+50% a body more, at most 2.5×); level numbers freeze it; nobody on it, it drifts back to its holder's (or neutral). From the other team's: through neutral, twice as long.
+- **Spawns**: a team starts from its home zone only (the centre's; Maglev and Old Port, whose zones are both on the flanks, get one of the base's own spawns, 'H'); its zone on a flank opens while it holds that flank's point (dimmed on the ground and the minimap while closed). No rally points.
+- **Tickets**: holding more points than the other team bleeds it one every 10 s; two or more of the three (a **double breakthrough**) every 3.3 s; all three every 2.5 s. The fronts' own breaks bleed nothing now.
+- **The last line**: a team the other has its double on respawns at once (bots 0.6 s, him 1.5 s) from every one of its zones (from home alone it walked into the other's forward spawns: a match held 3-0 for five minutes).
+- **The bots**: a frontliner goes for its front's point while its team doesn't hold it or is losing it (a spot of its own on it, moving between spots while it holds it), and a hunting one takes a point within 45 m first; the fronts' need pulls respawns to a point being lost (+3.5), the enemy's (+2.5), a neutral one (+1.5); the opening spreads each team over the three fronts by that need (it opened with all of them in the centre lanes).
+- A spot by a lane waypoint or a point is checked for room and a floor on its level (a 1.6 m spread put spots in an alley's wall and in the air beside the crane cab: stuck bots).
+
+### Felt
+- **HUD**: a flag before each lane's bar (its holder's colour, filling with the meter; his point being taken pulses red); the alarm under the score while a double breakthrough lasts ("DOUBLE BREAKTHROUGH · THEIR TICKETS DRAIN ×3" / "TWO FLANKS LOST · LAST LINE"); the compass's front marks are the points ("DEFEND WEST" pulsing red while his is being taken); the minimap draws each point (a disc in its holder's colour, the meter round it, the lane's letter) and the zones open or closed.
+- **Banners and sound**: a point taken ("WEST CAPTURED · SPAWN ZONE ONLINE", a rising arpeggio), lost ("WEST LOST · TAKE IT BACK", a falling third), the double breakthrough either way (a horn for the losing side); notices for the other team's.
+- **Beacons** (`ObjectiveVisual`): a beam of light in the holder's colour (white: nobody's) from over the point's roofs, a ring on the ground its radius round, both pulsing in the colour of whoever is taking it.
+
+### Self-play (bots alone; objectives on)
+- The Desert (4): winners 3 ALPHA, 1 OMEGA; captures 5–6 a match; the double breakthrough held by both sides in 3 of 4; tickets bled 14–61 a match; kills a minute 18.8–30.4; 186–317 s.
+- The Docks (4): winners 1 ALPHA, 3 OMEGA; captures 5–9; both sides' doubles in 3 of 4; kills a minute 15.6–23.6 (quiet 14–24%: the walk from home to the flanks); 188–359 s.
+- One match each: Neon Block (10 captures), Favelas (6), Deep Jungle (3), Maglev (6), Old Port (10): every map's points change hands, both sides bleed.
+- The first runs: ALPHA reached the Desert's yard 10–15 s first (the compound isn't symmetric) and won 5 of 6 with the whole team opening in the centre; spreading the opening fixed it. Stuck: 0–1 a match (the last, on Neon Block, one bot by its home zone on the way to the centre's point on the middle level, at 16 s).
+
+### Checks
+- Tests 529 (+5: `objectives.test.ts`: the meter, through neutral, the drift, the bleed rates and the last line, the need).
+
 ## Next
 Human playtest:
+- 51.0 items: the points (does taking a flank feel worth it; the spawn zone opening near it; 10 s to take one: too slow, too fast; the double breakthrough and the last line: a comeback or a stalemate; the beacons, the flags by the bars, "DEFEND WEST": readable; starting from one zone: too long a walk on the Docks?).
 - 50.0 items: the bots (do they feel like a match now: too hard, too easy; do you notice them shooting back from far off, and focusing you when you're on a streak); the Block and the houses (still worth going into without the roofs; the barred slits); the huts in the field; the floors (any flicker left).
 - 49.0 items: Neon Docks (the warehouse: too cramped now, or a good close fight; the stair towers: do you use the door into the catwalks; the crane cab and the crane stair's perch; the quay's zig-zag and the barges' cargo: interesting or just slower; the maze without the gantry; the sniper stack: still too strong over its own half?).
 - 48.0 items: playing OMEGA (does the other end of each map feel new; the HUD in red with OMEGA on the left: readable; teammates in orange accents: any shots at your own side?).

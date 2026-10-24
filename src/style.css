@@ -913,3 +913,24 @@ html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
 /* 48.0: he plays OMEGA: the HUD is his side's (his team on the left, the board, the tags), each team in its own colour. */
 .tdm-hud.side-o { --alpha: #ff6a4d; --alpha-dim: rgba(255, 106, 77, 0.35); --omega: #7cc8ff; --omega-dim: rgba(124, 200, 255, 0.35); }
 .callsign span.omega { color: var(--omega); }
+
+/* 51.0, the flank objectives: a flag before each lane's bar (its holder's colour, filling with his team's meter); a point of his being taken pulses red, one being taken by his team glows. */
+.tdm-score .vs.objectives .front { grid-template-columns: 0.9rem 5.6rem 6rem; }
+.tdm-score .front .flag { display: none; position: relative; width: 0.75rem; min-width: 0; height: 0.95rem; font-size: 0; line-height: 0; overflow: hidden; background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 1px rgba(242, 251, 255, 0.5); }
+.tdm-score .vs.objectives .front .flag { display: block; }
+.tdm-score .front .flag.a { box-shadow: inset 0 0 0 2px var(--alpha); }
+.tdm-score .front .flag.o { box-shadow: inset 0 0 0 2px var(--omega); }
+.tdm-score .front .flag i { position: absolute; left: 0; right: 0; bottom: 0; height: 100%; transform-origin: bottom; transition: transform 0.25s linear; }
+.tdm-score .front .flag i.a { background: var(--alpha); }
+.tdm-score .front .flag i.o { background: var(--omega); }
+.tdm-score .front.losing span { color: var(--red); animation: tdmPulse 0.8s ease-in-out infinite; }
+.tdm-score .front.losing .flag { animation: tdmPulse 0.8s ease-in-out infinite; }
+.tdm-score .front.taking span { color: #f2fbff; }
+.tdm-alarm { position: absolute; left: 50%; top: 13.2rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0.35rem 1.6rem 0.45rem; font-family: var(--ui); color: #dff6ff; background: linear-gradient(90deg, rgba(4, 8, 16, 0), rgba(10, 40, 70, 0.8) 20%, rgba(10, 40, 70, 0.8) 80%, rgba(4, 8, 16, 0)); pointer-events: none; }
+.tdm-alarm.hidden { display: none; }
+.tdm-alarm b { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.35em; padding-left: 0.35em; }
+.tdm-alarm small { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.22em; opacity: 0.85; }
+.tdm-alarm.theirs { color: #ffd6cf; background: linear-gradient(90deg, rgba(60, 0, 0, 0), rgba(90, 8, 8, 0.85) 20%, rgba(90, 8, 8, 0.85) 80%, rgba(60, 0, 0, 0)); }
+.tdm-alarm.theirs b { color: var(--red); animation: tdmPulse 0.9s ease-in-out infinite; }
+.tdm-compass .front-mark.alert { background: rgba(255, 60, 60, 0.28); color: #ffd0c8; box-shadow: inset 0 0 0 1px var(--red); animation: tdmPulse 0.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .tdm-alarm.theirs b, .tdm-compass .front-mark.alert, .tdm-score .front.losing span, .tdm-score .front.losing .flag { animation: none; } }

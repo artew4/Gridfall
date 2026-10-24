@@ -1609,6 +1609,25 @@ export class AudioEngine {
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone(o, 'triangle', f, f, 0.08, 0.005, 0.6, t + i * 0.09));
   }
 
+  /**
+   * 51.0, the flank objectives' cues (UI bus): `won` a point taken (a rising major arpeggio), `lost` one
+   * lost (a falling minor third over a low pulse), `alarm` two flanks lost (two low horn blasts).
+   */
+  flankCue(kind: 'won' | 'lost' | 'alarm') {
+    if (!this.started) return;
+    const t = this.now();
+    const o = this.out(null, 0.4, this.ui);
+    if (kind === 'won') [392, 493.88, 587.33, 783.99].forEach((f, i) => this.tone(o, 'triangle', f, f, 0.09, 0.005, 0.5, t + i * 0.07));
+    else if (kind === 'lost') {
+      this.tone(o, 'sawtooth', 311.13, 293.66, 0.05, 0.01, 0.5, t);
+      this.tone(o, 'sawtooth', 261.63, 246.94, 0.05, 0.01, 0.6, t + 0.18);
+      this.tone(o, 'sine', 98, 92, 0.12, 0.01, 0.7, t);
+    } else for (const at of [0, 0.55]) {
+      this.tone(o, 'sawtooth', 146.83, 138.59, 0.07, 0.03, 0.42, t + at);
+      this.tone(o, 'sawtooth', 220, 207.65, 0.05, 0.03, 0.42, t + at);
+    }
+  }
+
   uiBlip() {
     if (!this.started) return;
     const o = this.out(null, 0, this.ui);

@@ -4,6 +4,7 @@ import { ARENA } from './ArenaCtx';
 import type { HighGround } from '../../levels/Level';
 import { pickRole, type ArenaRole } from './Roles';
 import type { Fronts } from './Fronts';
+import type { Objective, Objectives } from './Objectives';
 
 /**
  * 37.1: seconds a posted bot has to reach its post, plus a second for every 2 m it starts from it
@@ -157,6 +158,20 @@ export class ArenaDirector {
   private rotateT = -Infinity;
   /** 44.0 (DEV): rotations (a bot sent from a pushing sector to one falling back). */
   rotations = 0;
+
+  /** 51.0: the flank objectives (Tdm sets them with the fronts; null: none). */
+  objectives: Objectives | null = null;
+
+  /**
+   * 51.0: the point a frontliner of sector `k` should go to now: one its team doesn't hold (to take),
+   * or its own being taken (to hold); null: its own and quiet (the lane and its line as before).
+   */
+  objectiveFor(k: number): Objective | null {
+    const o = this.objectives?.of(k);
+    if (!o) return null;
+    if (o.owner !== this.team) return o;
+    return o.capturing && o.capturing !== this.team ? o : null;
+  }
 
   /** 44.0: the fronts on, with each lane's sector. */
   setFronts(fronts: Fronts | null, laneSector: number[] = []) {

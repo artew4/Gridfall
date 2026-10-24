@@ -346,7 +346,8 @@ export function rotatePads(half: readonly (readonly [number, number, number, num
   The opening deals squads of two round-robin over the zones.
 */
 
-export type ZoneId = 'A' | 'B' | 'C';
+/** 51.0: 'H', a home zone made of the base's own spawns (a map whose zones are all on its flanks). */
+export type ZoneId = 'A' | 'B' | 'C' | 'H';
 
 export interface DeployZone {
   id: ZoneId;
@@ -372,6 +373,11 @@ export class ZoneSpawner {
   fireteam = false;
   /** DEV: picks, rays spent on zone safety, picks with no safe zone. */
   stats = { picks: 0, zoneRays: 0, noSafeZone: 0 };
+  /**
+   * 51.0: which zones are open now (the flank objectives: home always, a flank's while the team holds
+   * it); absent: all.
+   */
+  active: ((z: DeployZone) => boolean) | null = null;
 
   constructor(
     readonly zones: readonly DeployZone[],
@@ -388,6 +394,13 @@ export class ZoneSpawner {
 
   zonesOf(team: TeamId) {
     return this.zones.filter((z) => z.team === team);
+  }
+
+  /** 51.0: the team's open zones (every one of them if none is). */
+  openOf(team: TeamId) {
+    const own = this.zonesOf(team);
+    const on = this.active ? own.filter(this.active) : own;
+    return on.length ? on : own;
   }
 
   reset() {
@@ -428,7 +441,7 @@ export class ZoneSpawner {
 
   /** The zone a respawn of `team` goes to now (see the header). */
   pickZone(team: TeamId, hostiles: readonly SpawnUnit[], allies: readonly SpawnUnit[] = []): { zone: DeployZone; safe: boolean } {
-    const own = this.zonesOf(team);
+    const own = this.openOf(team);
     const rated = own.map((z) => ({ z, ...this.zoneSafety(z, hostiles), f: 0 }));
     if (this.fireteam) {
       const S = this.S;
@@ -448,7 +461,7 @@ export class ZoneSpawner {
   /** A respawn: the zone, then the spot in it (the zone's own scorer). */
   pick(team: TeamId, hostiles: readonly SpawnUnit[], allies: readonly SpawnUnit[], now: number, occupied: (p: THREE.Vector3) => boolean = () => false, prefer?: DeployZone): ZonePick {
     // 44.0: the fronts' zone (the lane the respawn is sent to) when it is safe; else the scored pick.
-    const pz = prefer && this.zoneSafety(prefer, hostiles).safe ? { zone: prefer, safe: true } : null;
+    const pz = prefer && (!this.active || this.active(prefer)) && this.zoneSafety(prefer, hostiles).safe ? { zone: prefer, safe: true } : null;
     const { zone, safe } = pz ?? this.pickZone(team, hostiles, allies);
     zone.uses++;
     zone.lastUse = now;
@@ -477,7 +490,7 @@ export class ZoneSpawner {
   opening(members: Record<TeamId, number>): Record<TeamId, DeployZone[]> {
     const out: Record<TeamId, DeployZone[]> = { alpha: [], omega: [] };
     for (const t of ['alpha', 'omega'] as const) {
-      const own = this.zonesOf(t);
+      const own = this.openOf(t);
       for (let i = 0; i < members[t]; i++) {
         const z = own[Math.floor(i / 2) % own.length];
         z.uses++;

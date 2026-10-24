@@ -114,8 +114,11 @@ export class TdmMinimap {
     }
   }
 
-  /** 31.0: the deployment zones on the plan: a hexagon in the team's colour and its letter (drawn once). */
-  private zonesDrawn = false;
+  /**
+   * 31.0: the deployment zones: a hexagon in the team's colour and its letter. 51.0: drawn each frame
+   * (a closed zone, its team not holding the flank, faint), no longer into the plan.
+   */
+  private zones: { x: number; z: number; id: string; team: 'alpha' | 'omega'; open: boolean }[] = [];
   /** 48.0: his team this match. */
   setSide(team: TeamId) {
     this.allyColor = team === 'alpha' ? '#7cc8ff' : '#ff6a4d';
@@ -124,36 +127,48 @@ export class TdmMinimap {
   }
 
   drawZones(zones: readonly { x: number; z: number; id: string; team: 'alpha' | 'omega' }[]) {
-    if (this.zonesDrawn) return;
-    this.zonesDrawn = true;
-    const g = this.plan.getContext('2d')!;
-    const k = this.px;
-    for (const zn of zones) {
-      const x = (zn.x - this.x0) * k, z = (zn.z - this.z0) * k, r = 3.2 * k;
-      g.strokeStyle = zn.team === 'alpha' ? 'rgba(95,227,255,0.95)' : 'rgba(255,138,42,0.95)';
-      g.lineWidth = Math.max(1.5, 0.5 * k);
-      g.beginPath();
-      for (let i = 0; i <= 6; i++) g[i ? 'lineTo' : 'moveTo'](x + Math.sin((i * Math.PI) / 3) * r, z + Math.cos((i * Math.PI) / 3) * r);
-      g.stroke();
-      // The letter, stroked small (no fonts): A, B, C.
-      const s = r * 0.5;
-      g.beginPath();
-      if (zn.id === 'A') {
-        g.moveTo(x - s * 0.7, z + s);
-        g.lineTo(x, z - s);
-        g.lineTo(x + s * 0.7, z + s);
-        g.moveTo(x - s * 0.4, z + s * 0.25);
-        g.lineTo(x + s * 0.4, z + s * 0.25);
-      } else if (zn.id === 'B') {
-        g.moveTo(x - s * 0.5, z - s);
-        g.lineTo(x - s * 0.5, z + s);
-        g.lineTo(x + s * 0.5, z + s * 0.5);
-        g.lineTo(x - s * 0.5, z);
-        g.lineTo(x + s * 0.5, z - s * 0.5);
-        g.lineTo(x - s * 0.5, z - s);
-      } else g.arc(x, z, s, Math.PI * 0.25, Math.PI * 1.75, true);
-      g.stroke();
-    }
+    this.zones = zones.map((z) => ({ ...z, open: true }));
+  }
+
+  /** 51.0: which zones are open (by index, as given to drawZones). */
+  setZonesOpen(open: readonly boolean[]) {
+    this.zones.forEach((z, i) => (z.open = open[i] ?? true));
+  }
+
+  /** A zone's hexagon and letter at screen (x, y), `r` px. */
+  private zoneMark(g: CanvasRenderingContext2D, zn: { id: string; team: 'alpha' | 'omega'; open: boolean }, x: number, z: number, r: number) {
+    g.globalAlpha = zn.open ? 1 : 0.25;
+    g.strokeStyle = zn.team === 'alpha' ? 'rgba(95,227,255,0.95)' : 'rgba(255,138,42,0.95)';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    for (let i = 0; i <= 6; i++) g[i ? 'lineTo' : 'moveTo'](x + Math.sin((i * Math.PI) / 3) * r, z + Math.cos((i * Math.PI) / 3) * r);
+    g.stroke();
+    // The letter, stroked small (no fonts): A, B, C, H.
+    const s = r * 0.5;
+    g.beginPath();
+    if (zn.id === 'A') {
+      g.moveTo(x - s * 0.7, z + s);
+      g.lineTo(x, z - s);
+      g.lineTo(x + s * 0.7, z + s);
+      g.moveTo(x - s * 0.4, z + s * 0.25);
+      g.lineTo(x + s * 0.4, z + s * 0.25);
+    } else if (zn.id === 'B') {
+      g.moveTo(x - s * 0.5, z - s);
+      g.lineTo(x - s * 0.5, z + s);
+      g.lineTo(x + s * 0.5, z + s * 0.5);
+      g.lineTo(x - s * 0.5, z);
+      g.lineTo(x + s * 0.5, z - s * 0.5);
+      g.lineTo(x - s * 0.5, z - s);
+    } else if (zn.id === 'H') {
+      g.moveTo(x - s * 0.5, z - s);
+      g.lineTo(x - s * 0.5, z + s);
+      g.moveTo(x + s * 0.5, z - s);
+      g.lineTo(x + s * 0.5, z + s);
+      g.moveTo(x - s * 0.5, z);
+      g.lineTo(x + s * 0.5, z);
+    } else g.arc(x, z, s, Math.PI * 0.25, Math.PI * 1.75, true);
+    g.stroke();
+    g.globalAlpha = 1;
   }
 
   /**
@@ -183,9 +198,52 @@ export class TdmMinimap {
 
     const c = Math.cos(yaw), s = Math.sin(yaw);
     const R = SIZE / 2 - 8;
+    const at = (wx: number, wz: number) => {
+      const dx = (wx - p.x) * SCALE, dz = (wz - p.z) * SCALE;
+      return [SIZE / 2 + dx * c - dz * s, SIZE / 2 + dx * s + dz * c] as const;
+    };
+    for (const zn of this.zones) {
+      const [x, y] = at(zn.x, zn.z);
+      if (Math.hypot(x - SIZE / 2, y - SIZE / 2) > R) continue;
+      this.zoneMark(g, zn, x, y, Math.max(5, 3.2 * SCALE));
+    }
+    // 51.0: the flank objectives: a disc the point's size in its owner's colour (white: nobody's), the
+    // meter as an arc round it, its lane's letter; pulsing while it is being taken.
+    for (const f of fronts) {
+      if (!f.obj) continue;
+      const [x, y] = at(f.x, f.z);
+      const r = Math.max(6, f.obj.r * SCALE);
+      if (Math.hypot(x - SIZE / 2, y - SIZE / 2) > R + r) continue;
+      const col = (t: 'alpha' | 'omega' | null) => (t === 'alpha' ? '#7cc8ff' : t === 'omega' ? '#ff6a4d' : 'rgba(242,251,255,0.85)');
+      const pulse = f.obj.capturing ? 0.5 + 0.5 * Math.sin(now / 120) : 1;
+      g.globalAlpha = 0.22 * pulse + 0.08;
+      g.fillStyle = col(f.obj.owner);
+      g.beginPath();
+      g.arc(x, y, r, 0, Math.PI * 2);
+      g.fill();
+      g.globalAlpha = 1;
+      g.lineWidth = 2;
+      g.strokeStyle = 'rgba(0,0,0,0.6)';
+      g.stroke();
+      if (Math.abs(f.obj.meter) > 0.01) {
+        g.strokeStyle = col(f.obj.meter > 0 ? 'alpha' : 'omega');
+        g.lineWidth = 2.5;
+        g.beginPath();
+        g.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.abs(f.obj.meter) * Math.PI * 2);
+        g.stroke();
+      }
+      if (f.label) {
+        g.font = '700 10px ui-monospace, monospace';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillStyle = col(f.obj.owner);
+        g.fillText(f.label, x, y + 0.5);
+      }
+    }
     // 44.0: each lane's line of battle: a dash across the lane where the teams meet, in the colour of
     // whoever pushes there (white: held), under the dots.
     for (const f of fronts) {
+      if (f.obj) continue;
       const dx = (f.x - p.x) * SCALE, dz = (f.z - p.z) * SCALE;
       const x = SIZE / 2 + dx * c - dz * s, y = SIZE / 2 + dx * s + dz * c;
       if (Math.hypot(x - SIZE / 2, y - SIZE / 2) > R) continue;
@@ -270,6 +328,11 @@ export interface FrontMark {
   push: 'alpha' | 'omega' | null;
   /** 46.0: the lane's letter on the map. */
   label?: string;
+  /** 51.0: a flank objective (drawn as a disc, not a line): its owner, ALPHA's meter, radius, being taken. */
+  obj?: { owner: 'alpha' | 'omega' | null; meter: number; r: number; capturing: boolean };
+  /** 51.0: the compass's text for it instead of the lane's name ("DEFEND WEST"), and its alarm. */
+  compass?: string;
+  alert?: boolean;
 }
 
 /** A spotted hostile's dot strength: full while in someone's sight, then fading out over `fade` s. */

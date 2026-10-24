@@ -31,6 +31,11 @@ export interface TdmData {
   /** 15.0: the lanes' names for the reports, [flank, centre, flank] (33.0: then any report-only lanes). */
   laneNames?: [string, string, string, ...string[]];
   /**
+   * 51.0, the flank objectives (ARENA.objectives): a point per front [x, floor y, z, radius?], flank,
+   * centre, flank. Absent: each front's first lane where it crosses the midline.
+   */
+  objectives?: [number, number, number, number?][];
+  /**
    * 18.0: how many bots each lane is worth to the director's balance (default 1 each): a lane worth
    * 1.6 holds two of a team's five while the others hold one or two (a map's centre of gravity).
    */

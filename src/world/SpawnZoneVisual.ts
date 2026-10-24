@@ -24,7 +24,7 @@ import type { TeamId } from '../combat/Team';
 export type ZoneTheme = 'neon' | 'jungle' | 'desert' | 'industrial' | 'glass';
 
 interface ZoneLike {
-  id: 'A' | 'B' | 'C';
+  id: 'A' | 'B' | 'C' | 'H';
   team: TeamId;
   centre: THREE.Vector3;
 }
@@ -35,7 +35,7 @@ const TEAM_RGB: Record<TeamId, [number, number, number]> = { alpha: [0.25, 0.85,
 const TEAM_CSS: Record<TeamId, string> = { alpha: '#5fe3ff', omega: '#ff8a2a' };
 
 /** The letter, stroked (no fonts), in a hex frame, glowing in the team's colour: 128 x 128. */
-function letterCanvas(letter: 'A' | 'B' | 'C', team: TeamId) {
+function letterCanvas(letter: 'A' | 'B' | 'C' | 'H', team: TeamId) {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d')!;
@@ -75,6 +75,14 @@ function letterCanvas(letter: 'A' | 'B' | 'C', team: TeamId) {
     g.lineTo(72, 64);
     g.arc(72, 82, 18, -Math.PI / 2, Math.PI / 2);
     g.lineTo(44, 100);
+  } else if (letter === 'H') {
+    // 51.0: a home zone made of the base's spawns.
+    g.moveTo(42, 28);
+    g.lineTo(42, 100);
+    g.moveTo(86, 28);
+    g.lineTo(86, 100);
+    g.moveTo(42, 64);
+    g.lineTo(86, 64);
   } else {
     g.arc(66, 64, 34, (40 * Math.PI) / 180, (320 * Math.PI) / 180, true);
   }
@@ -132,6 +140,9 @@ export class SpawnZoneVisual {
   private ringMats = new Map<TeamId, THREE.MeshBasicMaterial>();
   private index = new Map<ZoneLike, { team: TeamId; i: number }>();
   private flashT = new Map<ZoneLike, number>();
+  /** 51.0: zones closed now (the flank objectives): ring dimmed, letter hidden. */
+  private closed = new Set<ZoneLike>();
+  private spriteOf = new Map<ZoneLike, THREE.Sprite>();
   private sprites: { s: THREE.Sprite; y: number; phase: number }[] = [];
   private dust: THREE.ShaderMaterial | null = null;
   private base: Record<TeamId, THREE.Color>;
@@ -202,6 +213,7 @@ export class SpawnZoneVisual {
         s.position.set(z.centre.x, y, z.centre.z);
         this.group.add(s);
         this.sprites.push({ s, y, phase: z.centre.x * 0.37 + z.centre.z * 0.11 });
+        this.spriteOf.set(z, s);
       }
     }
     if (jungle) this.vines(zones, own);
@@ -282,6 +294,24 @@ export class SpawnZoneVisual {
     this.group.add(new THREE.Points(g, this.dust));
   }
 
+  /** 51.0: a zone opened (the team took its flank) or closed: its ring dims, its letter goes. */
+  setOpen(z: ZoneLike, open: boolean) {
+    if (!this.index.has(z) || open === !this.closed.has(z)) return;
+    if (open) this.closed.delete(z);
+    else this.closed.add(z);
+    const sp = this.spriteOf.get(z);
+    if (sp) sp.visible = open;
+    if (!this.flashT.has(z)) this.paint(z, 0);
+  }
+
+  private paint(z: ZoneLike, k: number) {
+    const { team, i } = this.index.get(z)!;
+    _c.copy(this.base[team]).multiplyScalar((1 + 1.8 * k * k) * (this.closed.has(z) ? 0.12 : 1));
+    const ring = this.rings.get(team)!;
+    ring.setColorAt(i, _c);
+    ring.instanceColor!.needsUpdate = true;
+  }
+
   /** Someone spawned in this zone: its ring flares white-hot in the team's colour for a moment. */
   flash(z: ZoneLike) {
     if (this.index.has(z)) this.flashT.set(z, 1.2);
@@ -293,12 +323,7 @@ export class SpawnZoneVisual {
     for (const sp of this.sprites) sp.s.position.y = sp.y + Math.sin(time * 1.4 + sp.phase) * 0.14;
     for (const [z, t] of this.flashT) {
       const left = Math.max(0, t - dt);
-      const { team, i } = this.index.get(z)!;
-      const k = left / 1.2;
-      _c.copy(this.base[team]).multiplyScalar(1 + 1.8 * k * k);
-      const ring = this.rings.get(team)!;
-      ring.setColorAt(i, _c);
-      ring.instanceColor!.needsUpdate = true;
+      this.paint(z, left / 1.2);
       if (left <= 0) this.flashT.delete(z);
       else this.flashT.set(z, left);
     }
