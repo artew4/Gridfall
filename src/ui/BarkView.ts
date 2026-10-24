@@ -1,3 +1,4 @@
+import type { TeamId } from '../combat/Team';
 import * as THREE from 'three';
 import type { BarkEvent } from '../enemies/tactics/Barks';
 import type { TacAgent } from '../enemies/tactics/Squad';
@@ -37,13 +38,16 @@ export class BarkView {
     }
   }
 
+  /** 48.0: the player's team (TDM deals it each match; survival's player is ALPHA). */
+  allyTeam: TeamId = 'alpha';
+
   add(e: BarkEvent<TacAgent>) {
     // Reuse the speaker's own label, else the oldest one.
     let l = this.labels.find((x) => x.speaker === e.speaker) ?? this.labels.reduce((a, b) => (a.t > b.t ? a : b));
     l.speaker = e.speaker;
     l.t = 0;
     // TDM: a squadmate's line carries his name (and the team colour).
-    const ally = e.speaker.team === 'alpha';
+    const ally = e.speaker.team === this.allyTeam;
     l.el.textContent = ally && e.speaker.name ? `${e.speaker.name}: ${e.text}` : e.text;
     l.el.dataset.kind = e.kind;
     l.el.classList.toggle('synth', e.speaker.look.voice === 'synth');

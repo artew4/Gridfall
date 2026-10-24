@@ -881,7 +881,6 @@ export class Game {
     if (!fromCheckpoint) this.stats = { shots: 0, hits: 0, start: this.elapsed };
     // 13.0: his name and his gun for this run (the story hands him its own).
     this.playerUnit.name = this.playerName;
-    this.hud.setCallsign(this.playerName, this.mode === 'tdm' ? 'ALPHA' : null);
     if (!fromCheckpoint) {
       this.armPlayer();
       this.weapon.reset();
@@ -889,6 +888,8 @@ export class Game {
     this.zone = null;
     this.interaction.reset();
     this.rules.begin(fromCheckpoint);
+    // 48.0: his team is dealt with the match (random): known once it is set up.
+    this.hud.setCallsign(this.playerName, this.mode === 'tdm' ? this.playerUnit.team.toUpperCase() : null);
     // 36.0: the camera on his eyes now, before anything is drawn (whatever the last frame showed).
     this.player.applyCamera(this.camera, this.elapsed, 0, this.weapon.spec.ads.zoom);
     // 23.0: the first spawn opens the spawn area (the weapon swap); the story has no loadout.

@@ -2549,8 +2549,18 @@ Two fronts' markers closer than 6.2 rem now sit in two rows (were on top of each
 - The graph: 630 of 630 nodes reachable. levelAI: runners 312/312, gunners 8/8. `world` 0 issues; `stairGaps` clean; `stress` 32,000 runs: 1 (a jump into the skybridge's canopy, 2.4 m over the deck: as before).
 - Tests 516 (+3: `neonblock47.test.ts`: the rooms' zones on both halves, the low lanes clear of the rooms, the spawn zones clear of them).
 
+## 48.0: a random team
+
+Branch `feature/random-team-48.0`, from `main` @ `8c1f4e9` (47.0).
+
+The playtest: he was always ALPHA (the same half of every map, the same spawns, the same way in). Now every match (a rematch too) deals him a team at random (`TDM.side`: 'random', or a team fixed; self-play stays ALPHA).
+- **The match:** `TdmRules.side` (and `foe`) wherever ALPHA meant his team: the roster leaves the place in his team, the opening and every respawn in his team's zones (OMEGA's yard facing +z), his allies and hostiles, the fronts' member, his sector, spotting, the shot the other team hears, the board, who is standing, spectating his teammates, VICTORY / DEFEAT and the banners (`OMEGA ELIMINATED` or `ALPHA ELIMINATED`, `… BLEEDS TICKETS`, `… PUSHED BACK`). `PlayerUnit.team` and `Projectiles.playerTeam` follow it (his rounds pass his teammates, theirs pass him); survival puts him back on ALPHA.
+- **The HUD is his side's:** his team on the score's left (its name, 味方), the other on the right, the board's head, the sudden-death line, the fronts' bars from his side, the compass's push marks, the kill feed. Each team keeps its colour (ALPHA blue, OMEGA red): `.tdm-hud.side-o` swaps the HUD's colour tokens. The minimap: his teammates in his team's colour, the spotted in the other's. The callsign shows his team. The result screen stays ALPHA | OMEGA, his row marked.
+- **Checks:** OMEGA on Neon Block and Favelas, ALPHA on the Desert (60-75 s each, god mode): he starts in his own zone (0-1.7 m from its centre, 88-107 m from the other team's), his board only his team, no friendly damage, the match runs (7-11 kills). 12 starts on Old Port: 8 ALPHA, 4 OMEGA, each in his team's zone. The dev checks that place him (friendly fire and the rest) pin ALPHA. Tests 516.
+
 ## Next
 Human playtest:
+- 48.0 items: playing OMEGA (does the other end of each map feel new; the HUD in red with OMEGA on the left: readable; teammates in orange accents: any shots at your own side?).
 - 47.0 items: Neon Block's alleys (do the parlour, the konbini and the ramen-ya feel like places to fight through, or doors in the way; still a spawn-to-spawn line anywhere?); the roofs (enough cover now; too cluttered; does the machine room become a camp?); the compass's two rows.
 - 46.0 items: the guns as firearms on the neon maps (do the pistol and the SMG feel right without the zap?); the Block (tense indoors: the atrium, the stairwells, the doors at the ends; too dark?; the roof too strong?); the houses (worth going into?); no storm indoors; the compass (does it tell you which flank is which and where the fronts are?); a different flank at the start of each match.
 - 45.0 items: the menu (does it read as designed; PLAY → the map screen → PLAY: too many steps?; the map tiles without a blurb: enough to choose; the gun on its plinth).

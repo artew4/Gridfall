@@ -115,9 +115,14 @@ export const TDM = {
    * pads and the yards stay as DEV comparisons.
    */
   spawns: 'zones' as 'zones' | 'dynamic' | 'bases',
+  /**
+   * 48.0: the player's team: dealt at random every match (he plays both ends of every map), or one
+   * fixed (DEV). Self-play (`spectate`) keeps ALPHA.
+   */
+  side: 'random' as 'random' | TeamId,
 };
 
-/** 19.0: the team size of the loaded map (the player counts on ALPHA). */
+/** 19.0: the team size of the loaded map (the player counts on his team). */
 export function teamSizeOf(info: { teamSize?: number }) {
   return TDM.force.size ?? info.teamSize ?? 5;
 }
@@ -193,6 +198,11 @@ export class TdmRules implements ModeRules {
     return this.rules.tickets;
   }
   player = { kills: 0, deaths: 0 };
+  /** 48.0: the player's team this match (TDM.side), and the other. */
+  side: TeamId = 'alpha';
+  get foe(): TeamId {
+    return otherTeam(this.side);
+  }
   winner: TeamId | 'draw' | null = null;
   /** 29.0: how the match was decided. */
   outcome: Outcome | null = null;
@@ -333,6 +343,13 @@ export class TdmRules implements ModeRules {
     this.forwardStats = { forward: 0, yard: 0 };
     this.rules = new MatchRules(this.ticketMax);
     this.player = { kills: 0, deaths: 0 };
+    // 48.0: his team for this match; his rounds, the bots' and his HUD follow it.
+    this.side = this.spectate ? 'alpha' : TDM.side === 'random' ? (Math.random() < 0.5 ? 'alpha' : 'omega') : TDM.side;
+    g.playerUnit.team = this.side;
+    g.projectiles.playerTeam = this.side;
+    g.barkView.allyTeam = this.side;
+    g.tdmHud.setSide(this.side);
+    this.minimap?.setSide(this.side);
     this.winner = null;
     this.outcome = null;
     this.stopSpectate();
@@ -344,7 +361,8 @@ export class TdmRules implements ModeRules {
       this.squads[t].reset();
       this.squads[t].barks.enabled = TDM.barks;
     }
-    this.squads.alpha.human = this.spectate || TDM.ai === 'arena' ? null : g.playerUnit;
+    this.squads[this.foe].human = null;
+    this.squads[this.side].human = this.spectate || TDM.ai === 'arena' ? null : g.playerUnit;
     this.ai = TDM.ai;
     Object.assign(this.sched, this.ai === 'arena' ? ARENA.sched : TACTICAL_SCHED);
     this.sched.resetStats();
@@ -400,6 +418,11 @@ export class TdmRules implements ModeRules {
     this.setupSpawns();
     const st = this.data.start;
     g.player.reset(st.x, st.z, st.yaw, st.y);
+    // 48.0: on OMEGA, its base (the opening's zones and pads put him on his spot after).
+    if (this.side !== 'alpha') {
+      const p = this.spawnPoint(this.side);
+      g.player.reset(p.x, p.z, Math.PI, p.y);
+    }
     g.safety.reset(g.player.pos);
     g.playerInvulnUntil = this.now + TDM.protect;
     g.playerAttacker = null;
@@ -412,7 +435,7 @@ export class TdmRules implements ModeRules {
     g.hud.root.classList.add('tdm');
     this.slots = [];
     const size = teamSizeOf(g.level.info);
-    const rosters: Record<TeamId, RosterSlot[]> = { alpha: roster(this.spectate ? size : size - 1), omega: roster(size) };
+    const rosters = { [this.side]: roster(this.spectate ? size : size - 1), [this.foe]: roster(size) } as Record<TeamId, RosterSlot[]>;
     const n = TEAMS.reduce((k, t) => k + rosters[t].length, 0);
     const names = dealCallsigns(n, [g.playerUnit.name]);
     for (const team of TEAMS) for (const [, kind] of filterRoster(rosters[team], TDM.roster)) this.slots.push({ team, name: names.shift()!, kind, bot: null, respawnAt: 0, kills: 0, deaths: 0, arm: null });
@@ -460,6 +483,7 @@ export class TdmRules implements ModeRules {
       this.minimap = new TdmMinimap(g.tdmHud.root, g.col.colliders, g.level.data.bounds);
       this.mapLevel = g.level;
     }
+    this.minimap?.setSide(this.side);
   }
 
   /** A team context: the game's (read live through the prototype: time, sight, cover…) plus the team's own. */
@@ -791,7 +815,8 @@ export class TdmRules implements ModeRules {
     const sp = this.spawner;
     if (!sp) return;
     const g = this.game;
-    const members: Record<TeamId, (Slot | 'player')[]> = { alpha: this.spectate ? [] : ['player'], omega: [] };
+    const members: Record<TeamId, (Slot | 'player')[]> = { alpha: [], omega: [] };
+    if (!this.spectate) members[this.side].push('player');
     for (const s of this.slots) members[s.team].push(s);
     // 46.0: shuffled (he was always first: the same pad every match).
     for (const t of TEAMS) shuffle(members[t]);
@@ -822,7 +847,8 @@ export class TdmRules implements ModeRules {
   private openingZones() {
     const zs = this.zoner!;
     const g = this.game;
-    const members: Record<TeamId, (Slot | 'player')[]> = { alpha: this.spectate ? [] : ['player'], omega: [] };
+    const members: Record<TeamId, (Slot | 'player')[]> = { alpha: [], omega: [] };
+    if (!this.spectate) members[this.side].push('player');
     for (const s of this.slots) members[s.team].push(s);
     for (const t of TEAMS) shuffle(members[t]);
     const deal = zs.opening({ alpha: members.alpha.length, omega: members.omega.length });
@@ -852,7 +878,7 @@ export class TdmRules implements ModeRules {
     };
     const hostiles = this.hostilesNow(team).map(unit);
     const allies: SpawnUnit[] = this.bots.filter((b) => b.alive && b.team === team).map(unit);
-    if (team === 'alpha' && !this.spectate && this.game.player.alive) allies.push(unit(this.game.playerUnit));
+    if (team === this.side && !this.spectate && this.game.player.alive) allies.push(unit(this.game.playerUnit));
     const occupied = (q: THREE.Vector3) =>
       this.bots.some((b) => b.alive && Math.hypot(b.pos.x - q.x, b.pos.z - q.z) < 1 && Math.abs(b.pos.y - q.y) < 1.5) ||
       (this.game.player.alive && Math.hypot(this.game.player.pos.x - q.x, this.game.player.pos.z - q.z) < 1);
@@ -932,10 +958,10 @@ export class TdmRules implements ModeRules {
    */
   private playerSector() {
     const F = this.fronts!;
-    const need = F.need('alpha', this.sectorWeights('alpha'));
+    const need = F.need(this.side, this.sectorWeights(this.side));
     let best = 0, bs = -Infinity;
     for (let k = 0; k < F.n; k++) {
-      const s = need[k] + 0.5 * F.strength.omega[k] + Math.random() * 0.3;
+      const s = need[k] + 0.5 * F.strength[this.foe][k] + Math.random() * 0.3;
       if (s > bs) {
         bs = s;
         best = k;
@@ -1070,7 +1096,7 @@ export class TdmRules implements ModeRules {
     let best = pts[0], bs = -Infinity;
     for (const p of pts) {
       if (this.bots.some((b) => b.alive && Math.hypot(b.pos.x - p.x, b.pos.z - p.z) < 1.4)) continue;
-      if (team === 'alpha' && Math.hypot(this.game.player.pos.x - p.x, this.game.player.pos.z - p.z) < 1.4) continue;
+      if (team === this.side && Math.hypot(this.game.player.pos.x - p.x, this.game.player.pos.z - p.z) < 1.4) continue;
       let near = Infinity;
       for (const h of this.hostilesNow(team)) near = Math.min(near, h.pos.distanceTo(p));
       const s = Math.min(near, 80) + Math.random() * 3;
@@ -1084,7 +1110,7 @@ export class TdmRules implements ModeRules {
 
   private hostilesNow(team: TeamId): Combatant[] {
     const out: Combatant[] = this.bots.filter((b) => b.alive && b.team !== team);
-    if (team === 'omega' && this.game.player.alive) out.push(this.game.playerUnit);
+    if (team === this.foe && !this.spectate && this.game.player.alive) out.push(this.game.playerUnit);
     return out;
   }
 
@@ -1137,7 +1163,7 @@ export class TdmRules implements ModeRules {
       killer: by?.name ?? 'world',
       killerTeam: by?.team ?? null,
       killerKind: by ? (by.isPlayer ? 'player' : (kb?.kind ?? '?')) : '-',
-      killerRole: kb?.tac?.role ?? (by?.isPlayer ? this.squads.alpha.humanStyle : '-'),
+      killerRole: kb?.tac?.role ?? (by?.isPlayer ? this.squads[this.side].humanStyle : '-'),
       victim: v.name,
       victimTeam: v.team,
       victimKind: v.isPlayer ? 'player' : (vb.kind ?? '?'),
@@ -1166,11 +1192,11 @@ export class TdmRules implements ModeRules {
     return granted;
   }
 
-  /** 26.0: his team's live board on the HUD (him and every alpha slot: name, kills, deaths). */
+  /** 26.0: his team's live board on the HUD (him and every slot of his team: name, kills, deaths). */
   private showStanding() {
     // (Spectating, he is not on the team: its bots fill it.)
     const lines: BoardLine[] = this.spectate ? [] : [{ name: this.game.playerUnit.name, kills: this.player.kills, deaths: this.player.deaths, you: true }];
-    for (const s of this.slots) if (s.team === 'alpha') lines.push({ name: s.name, kills: s.kills, deaths: s.deaths, you: false });
+    for (const s of this.slots) if (s.team === this.side) lines.push({ name: s.name, kills: s.kills, deaths: s.deaths, you: false });
     this.game.tdmHud.setBoard(lines);
   }
 
@@ -1191,7 +1217,7 @@ export class TdmRules implements ModeRules {
     const out: Record<TeamId, number> = { alpha: 0, omega: 0 };
     for (const b of this.bots) if (b.alive) out[b.team]++;
     for (const sl of this.slots) if (!sl.bot && sl.respawnAt < Infinity) out[sl.team]++;
-    if (!this.spectate && (this.game.player.alive || this.playerRespawnAt < Infinity)) out.alpha++;
+    if (!this.spectate && (this.game.player.alive || this.playerRespawnAt < Infinity)) out[this.side]++;
     return out;
   }
 
@@ -1200,8 +1226,10 @@ export class TdmRules implements ModeRules {
     this.winner = o.winner;
     this.endT = this.now;
     this.game.timeScale = 0.4;
-    const t = o.winner === 'draw' ? 'DRAW' : o.winner === 'alpha' ? 'VICTORY' : 'DEFEAT';
-    const why = o.why === 'sudden death' ? (o.winner === 'alpha' ? 'OMEGA RAN OUT OF TIME' : 'OUT OF TIME') : o.why === 'sudden death draw' ? 'NOBODY BROKE THE TIE' : o.why === 'trade' ? 'THE LAST TWO TRADED' : o.winner === 'alpha' ? 'OMEGA ELIMINATED' : 'ALPHA ELIMINATED';
+    const won = o.winner === this.side;
+    const t = o.winner === 'draw' ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
+    const FOE = this.foe.toUpperCase(), MINE = this.side.toUpperCase();
+    const why = o.why === 'sudden death' ? (won ? `${FOE} RAN OUT OF TIME` : 'OUT OF TIME') : o.why === 'sudden death draw' ? 'NOBODY BROKE THE TIE' : o.why === 'trade' ? 'THE LAST TWO TRADED' : won ? `${FOE} ELIMINATED` : `${MINE} ELIMINATED`;
     this.game.hud.bannerShow(t, why, 3);
   }
 
@@ -1215,7 +1243,7 @@ export class TdmRules implements ModeRules {
       const h = this.hostiles[t], f = this.friends[t];
       h.length = f.length = 0;
       for (const b of this.bots) if (b.alive) (b.team === t ? f : h).push(b);
-      if (!this.spectate) (t === 'alpha' ? f : h).push(g.playerUnit);
+      if (!this.spectate) (t === this.side ? f : h).push(g.playerUnit);
     }
     // 36.0: the countdown: the bodies stand (posed, held), no brain, director or sensing pass runs.
     if (this.phase === 'PRE_MATCH') {
@@ -1225,7 +1253,7 @@ export class TdmRules implements ModeRules {
         for (const b of this.bots) b.update(dt, this.ctxs[b.team]);
         this.zoneVisual?.update(dt, now);
         this.padMesh?.update(dt);
-        g.tdmHud.update(dt, g.camera, this.friends.alpha);
+        g.tdmHud.update(dt, g.camera, this.friends[this.side]);
         return;
       }
     }
@@ -1267,13 +1295,15 @@ export class TdmRules implements ModeRules {
     } else if (g.state !== 'ending' && now - this.endT > 1.2) this.finish();
     this.padMesh?.update(dt);
     this.zoneVisual?.update(dt, this.now);
-    g.tdmHud.setTickets(this.tickets.alpha, this.tickets.omega);
+    // 48.0: the HUD's sides are his team's and the other's.
+    const me = this.side, them = this.foe;
+    g.tdmHud.setTickets(this.tickets[me], this.tickets[them]);
     const st = this.standing();
-    g.tdmHud.setStanding(st.alpha, st.omega);
-    g.tdmHud.setSudden(this.winner ? null : this.rules.sudden.alpha, this.winner ? null : this.rules.sudden.omega);
+    g.tdmHud.setStanding(st[me], st[them]);
+    g.tdmHud.setSudden(this.winner ? null : this.rules.sudden[me], this.winner ? null : this.rules.sudden[them]);
     g.tdmHud.setRespawn(g.state === 'dead' && !this.winner && this.playerRespawnAt < Infinity ? this.playerRespawnAt - now : null, this.killerName);
     this.updateSpectate(dt);
-    g.tdmHud.update(dt, g.camera, this.friends.alpha);
+    g.tdmHud.update(dt, g.camera, this.friends[this.side]);
     // 46.0: the compass (his heading, the fronts' marks).
     if (!this.spectate && g.player.alive) {
       const here = this.fronts ? this.fronts.sectorOf(g.player.pos.x, g.player.pos.y, g.player.pos.z) : -1;
@@ -1287,13 +1317,13 @@ export class TdmRules implements ModeRules {
     }
   }
 
-  /** 12.0: the minimap: ALPHA's bots, and every hostile ALPHA has spotted (fading once lost). */
+  /** 12.0: the minimap: his team's bots, and every hostile it has spotted (fading once lost). */
   private drawMap(now: number) {
     const g = this.game;
     const allies = this.allyDots, hostiles = this.hostileDots;
     allies.length = hostiles.length = 0;
-    for (const b of this.bots) if (b.alive && b.team === 'alpha') allies.push({ x: b.pos.x, y: b.pos.y, z: b.pos.z, a: 1 });
-    for (const s of this.directors!.alpha.spotted(now, this.spots)) hostiles.push({ x: s.pos.x, y: s.pos.y, z: s.pos.z, a: spotAlpha(s.age, ARENA.spot.fade) });
+    for (const b of this.bots) if (b.alive && b.team === this.side) allies.push({ x: b.pos.x, y: b.pos.y, z: b.pos.z, a: 1 });
+    for (const s of this.directors![this.side].spotted(now, this.spots)) hostiles.push({ x: s.pos.x, y: s.pos.y, z: s.pos.z, a: spotAlpha(s.age, ARENA.spot.fade) });
     this.minimap!.draw(g.player.pos, g.player.yaw, allies, hostiles, g.playerUnit.name, this.frontMarks);
   }
 
@@ -1383,19 +1413,20 @@ export class TdmRules implements ModeRules {
       const l = isArenaBot(b) && d.roleOf(b.uid) !== 'wolf' ? d.laneOf.get(b.uid) : undefined;
       ms.push({ team: b.team, x: b.pos.x, y: b.pos.y, z: b.pos.z, sector: l === undefined ? null : d.sectorOfLane(l) });
     }
-    if (!this.spectate && g.player.alive) ms.push({ team: 'alpha', x: g.player.pos.x, y: g.player.pos.y, z: g.player.pos.z, sector: null });
+    if (!this.spectate && g.player.alive) ms.push({ team: this.side, x: g.player.pos.x, y: g.player.pos.y, z: g.player.pos.z, sector: null });
     const bleed = F.update(now, ms);
     this.markFronts();
     for (const t of TEAMS) for (let i = 0; i < bleed[t]; i++) this.rules.bleed(t, now);
     // The HUD: the lines, and a break (or one held) announced.
     const here = !this.spectate && g.player.alive ? F.sectorOf(g.player.pos.x, g.player.pos.y, g.player.pos.z) : -1;
-    g.tdmHud.setFronts(F.line, F.stance.alpha, F.broken, here);
+    g.tdmHud.setFronts(F.line, F.stance[this.side], F.broken, here);
     while (this.frontSeen < F.events.length) {
       const e = F.events[this.frontSeen++];
       if (e.what === 'push') continue;
       const lane = (F.names[e.sector] ?? '').toUpperCase();
-      if (e.what === 'break') g.hud.bannerShow(e.team === 'alpha' ? 'BREAKTHROUGH' : 'LINE BROKEN', `${lane} · ${e.team === 'alpha' ? 'OMEGA BLEEDS TICKETS' : 'DEFEND'}`, 2.2);
-      else g.tdmHud.notice(`${lane}: ${e.team === 'alpha' ? 'LINE HELD' : 'OMEGA PUSHED BACK'}`);
+      const ours = e.team === this.side;
+      if (e.what === 'break') g.hud.bannerShow(ours ? 'BREAKTHROUGH' : 'LINE BROKEN', `${lane} · ${ours ? `${this.foe.toUpperCase()} BLEEDS TICKETS` : 'DEFEND'}`, 2.2);
+      else g.tdmHud.notice(`${lane}: ${ours ? 'LINE HELD' : `${this.foe.toUpperCase()} PUSHED BACK`}`);
     }
     if (F.events.length > 48) {
       F.events.splice(0, F.events.length - 16);
@@ -1418,25 +1449,26 @@ export class TdmRules implements ModeRules {
     const range = Math.min(g.ctx.sightRange ?? 70, 70);
     let rays = 0;
     const head = new THREE.Vector3();
-    for (const b of this.hostiles.alpha) {
+    for (const b of this.hostiles[this.side]) {
       if (rays >= 3 || !b.alive) continue;
       head.set(b.pos.x, b.pos.y + b.headY, b.pos.z);
       const d = head.distanceTo(eye);
       if (d > range || fwd.dot(head.clone().sub(eye).divideScalar(d)) < 0.57) continue;
       rays++;
       if (!g.col.lineOfSight(eye, head)) continue;
-      if (this.directors) this.directors.alpha.sighting(b, this.now, 'callout');
-      else this.squads.alpha.sighting(null, b.pos, b.vel, b);
+      if (this.directors) this.directors[this.side].sighting(b, this.now, 'callout');
+      else this.squads[this.side].sighting(null, b.pos, b.vel, b);
     }
   }
 
   private respawnPlayer() {
     const g = this.game;
-    const pad = this.spawner || this.zoner ? this.pickPad('alpha', true) : null;
-    if (pad?.pick) this.logSpawn('alpha', pad.pick, g.playerUnit.uid, pad.at);
-    const p = pad?.at ?? this.forwardPoint('alpha') ?? this.spawnPoint('alpha');
-    // (The player's yaw looks down -z at 0: the enemy convention's yaw + π.)
-    g.revive(p, pad ? pad.yaw + Math.PI : 0);
+    const me = this.side;
+    const pad = this.spawner || this.zoner ? this.pickPad(me, true) : null;
+    if (pad?.pick) this.logSpawn(me, pad.pick, g.playerUnit.uid, pad.at);
+    const p = pad?.at ?? this.forwardPoint(me) ?? this.spawnPoint(me);
+    // (The player's yaw looks down -z at 0: the enemy convention's yaw + π. OMEGA's yard faces +z.)
+    g.revive(p, pad ? pad.yaw + Math.PI : me === 'alpha' ? 0 : Math.PI);
     // 31.0: where he came in.
     if (this.zoner && this.lastZone) g.hud.zoneShow(`DEPLOYED · ZONE ${this.lastZone.id}`, fl('deploying'));
     // 44.0: or at his lane's rally point, behind its line.
@@ -1473,7 +1505,7 @@ export class TdmRules implements ModeRules {
 
   /** The next (dir 1) or previous (-1) living teammate; 0: the nearest to `near`. */
   private spectateNext(dir: 1 | -1 | 0, near?: THREE.Vector3) {
-    const mates = this.bots.filter((b) => b.alive && b.team === 'alpha');
+    const mates = this.bots.filter((b) => b.alive && b.team === this.side);
     if (this.spectating) this.spectating.rig.root.visible = true;
     if (!mates.length) {
       this.spectating = null;
@@ -1544,17 +1576,17 @@ export class TdmRules implements ModeRules {
     cam.rotation.set(L.pitch, L.yaw, 0, 'YXZ');
     cam.updateMatrixWorld();
     g.renderer.grade.uniforms.uFade.value = 0;
-    g.tdmHud.setSpectate({ name: b.name, hp: b.alive ? b.hpFrac : 0, mates: this.bots.filter((m) => m.alive && m.team === 'alpha').length });
+    g.tdmHud.setSpectate({ name: b.name, hp: b.alive ? b.hpFrac : 0, mates: this.bots.filter((m) => m.alive && m.team === this.side).length });
   }
 
   private finish() {
     const g = this.game;
     const lines: TdmLine[] = [
-      { name: g.playerUnit.name, team: 'alpha', you: true, kills: this.player.kills, deaths: this.player.deaths, weapon: this.playerArm().tag },
+      { name: g.playerUnit.name, team: this.side, you: true, kills: this.player.kills, deaths: this.player.deaths, weapon: this.playerArm().tag },
       ...this.slots.map((s) => ({ name: s.name, team: s.team, you: false, kills: s.kills, deaths: s.deaths, weapon: s.arm?.tag ?? '' })),
     ];
     this.stopSpectate();
-    g.finishTdm(this.winner === 'alpha' ? 'win' : this.winner === 'draw' ? 'draw' : 'loss', { ...this.tickets }, lines, this.endT - this.startT, this.outcome?.why);
+    g.finishTdm(this.winner === this.side ? 'win' : this.winner === 'draw' ? 'draw' : 'loss', { ...this.tickets }, lines, this.endT - this.startT, this.outcome?.why);
   }
 
   updateEnding(dt: number) {
@@ -1566,11 +1598,11 @@ export class TdmRules implements ModeRules {
     const g = this.game;
     if (this.spectate) return;
     if (this.directors) {
-      this.directors.omega.heard(g.player.pos, g.playerUnit, this.now, this.friends.omega);
+      this.directors[this.foe].heard(g.player.pos, g.playerUnit, this.now, this.friends[this.foe]);
       return;
     }
-    this.squads.omega.hearShot(g.player.pos, g.playerUnit);
-    this.squads.alpha.humanObs.shot(this.now);
+    this.squads[this.foe].hearShot(g.player.pos, g.playerUnit);
+    this.squads[this.side].humanObs.shot(this.now);
   }
 
   musicIntensity(): number {
@@ -1639,7 +1671,11 @@ export class TdmRules implements ModeRules {
     const g = this.game;
     this.reset();
     this.minimap?.show(false);
-    this.squads.alpha.human = null;
+    for (const t of TEAMS) this.squads[t].human = null;
+    // 48.0: survival's player is ALPHA again (its enemies are OMEGA).
+    g.playerUnit.team = 'alpha';
+    g.projectiles.playerTeam = 'alpha';
+    g.barkView.allyTeam = 'alpha';
     g.tdmHud.show(false);
     g.hud.root.classList.remove('tdm');
     if (g.projectiles) {
@@ -1667,8 +1703,9 @@ export class TdmRules implements ModeRules {
       modes: this.directors ? { alpha: this.directors.alpha.stance, omega: this.directors.omega.stance } : { alpha: this.squads.alpha.mode, omega: this.squads.omega.mode },
       momentum: this.directors ? { alpha: +this.directors.alpha.momentum.toFixed(2), omega: +this.directors.omega.momentum.toFixed(2) } : null,
       sensing: this.sensing ? { ...this.sensing.stats } : null,
-      human: this.squads.alpha.humanStyle,
-      humanRates: this.squads.alpha.humanObs.rates,
+      side: this.side,
+      human: this.squads[this.side].humanStyle,
+      humanRates: this.squads[this.side].humanObs.rates,
       sched: { ...this.sched.stats },
       friendlyDamage: this.friendlyDamage,
       kills: this.kills.length,

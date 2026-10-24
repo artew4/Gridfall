@@ -252,7 +252,7 @@ export class Hud {
 
   /** 13.0: the player's name on the HUD (with his team in Team Deathmatch). */
   setCallsign(name: string, team: string | null) {
-    this.callsign.innerHTML = `${name}${team ? `<span>${team}</span>` : ''}`;
+    this.callsign.innerHTML = `${name}${team ? `<span class="${team.toLowerCase()}">${team}</span>` : ''}`;
   }
 
   show(e: HTMLElement, on: boolean) {

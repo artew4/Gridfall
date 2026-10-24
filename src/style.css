@@ -909,3 +909,7 @@ html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
 .tdm-compass .front-mark.here { background: rgba(242, 251, 255, 0.16); }
 .tdm-notices { top: 10.4rem; }
 .tdm-sudden { top: 10.4rem; }
+
+/* 48.0: he plays OMEGA: the HUD is his side's (his team on the left, the board, the tags), each team in its own colour. */
+.tdm-hud.side-o { --alpha: #ff6a4d; --alpha-dim: rgba(255, 106, 77, 0.35); --omega: #7cc8ff; --omega-dim: rgba(124, 200, 255, 0.35); }
+.callsign span.omega { color: var(--omega); }

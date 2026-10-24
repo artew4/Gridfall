@@ -9,7 +9,8 @@ import type { Player } from '../player/Player';
 export class PlayerUnit implements Combatant {
   readonly uid = newUid();
   readonly isPlayer = true;
-  readonly team: TeamId;
+  /** 48.0: ALPHA in survival; in Team Deathmatch the team dealt to him for the match. */
+  team: TeamId;
   /** 13.0: the name he typed on the menu (set at the start of each run). */
   name: string;
   /**

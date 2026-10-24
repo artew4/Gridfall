@@ -81,7 +81,9 @@ function meter(game: Game) {
 type Ai = 'arena' | 'tactical';
 
 function startMatch(game: Game, spectate: boolean, tickets?: number, ai: Ai = 'arena', size?: number, profile = true) {
-  const before = { ...TDM.force }, beforeAi = TDM.ai;
+  const before = { ...TDM.force }, beforeAi = TDM.ai, beforeSide = TDM.side;
+  // 48.0: the checks were written with him on ALPHA (his side is random in play).
+  TDM.side = 'alpha';
   if (tickets) TDM.force.tickets = tickets;
   // 19.0: a team size for this match (self-play density tests), the map's AI profile on or off.
   if (size) TDM.force.size = size;
@@ -93,6 +95,7 @@ function startMatch(game: Game, spectate: boolean, tickets?: number, ai: Ai = 'a
   dev().god(true);
   Object.assign(TDM.force, before);
   TDM.ai = beforeAi;
+  TDM.side = beforeSide;
   const st = game.level.data.tdm!.start;
   dev().tp(st.x, st.y, st.z + 4, 0, 0);
 }

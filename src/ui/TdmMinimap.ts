@@ -1,3 +1,4 @@
+import type { TeamId } from '../combat/Team';
 import { CanvasFit } from './canvasFit';
 import type * as THREE from 'three';
 import type { Collider } from '../world/Collision';
@@ -28,6 +29,9 @@ const LEVEL_GAP = 2.5;
  */
 export class TdmMinimap {
   root = document.createElement('div');
+  /** 48.0: his team's colour (his teammates' dots) and the other's (the spotted): ALPHA blue, OMEGA red. */
+  private allyColor = '#7cc8ff';
+  private hostileColor = '#ff3344';
   private canvas = document.createElement('canvas');
   private g: CanvasRenderingContext2D;
   private plan: HTMLCanvasElement;
@@ -112,6 +116,13 @@ export class TdmMinimap {
 
   /** 31.0: the deployment zones on the plan: a hexagon in the team's colour and its letter (drawn once). */
   private zonesDrawn = false;
+  /** 48.0: his team this match. */
+  setSide(team: TeamId) {
+    this.allyColor = team === 'alpha' ? '#7cc8ff' : '#ff6a4d';
+    // (Spotted hostiles in the other team's colour: red for OMEGA, blue for ALPHA.)
+    this.hostileColor = team === 'alpha' ? '#ff3344' : '#5fb8ff';
+  }
+
   drawZones(zones: readonly { x: number; z: number; id: string; team: 'alpha' | 'omega' }[]) {
     if (this.zonesDrawn) return;
     this.zonesDrawn = true;
@@ -225,8 +236,8 @@ export class TdmMinimap {
         g.fillText(dy > 0 ? '▲' : '▼', x + 8, y);
       }
     };
-    for (const m of allies) dot(m, '#7cc8ff', 3.2);
-    for (const m of hostiles) dot(m, '#ff3344', 3.8);
+    for (const m of allies) dot(m, this.allyColor, 3.2);
+    for (const m of hostiles) dot(m, this.hostileColor, 3.8);
     g.globalAlpha = 1;
     // The player.
     g.fillStyle = '#e8fbff';

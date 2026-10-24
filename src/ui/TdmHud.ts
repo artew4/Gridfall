@@ -95,12 +95,22 @@ export class TdmHud {
   private frontMarks: { el: HTMLElement; name: Text; dist: Text; x: number; o: number; key: string; y?: number; want?: number }[] = [];
   private compassBandX = NaN;
   private max = 25;
+  /**
+   * 48.0: his team this match (random). The HUD is his side's: its `a` slots (the score's left, the
+   * board, the tags, the fronts' ground from the left) are his team's, `o` the other's; the colours
+   * stay each team's own (ALPHA blue, OMEGA red: `side-o` swaps the HUD's colour tokens).
+   */
+  mine: TeamId = 'alpha';
+  private sideNames: Text[] = [];
 
   constructor(parent: HTMLElement) {
     // Top centre: ALPHA 24 - 18 OMEGA. 29.0: the tickets (respawns) each team has left, a bar of them
     // under its name, and under that who is still standing (LAST STAND once its tickets are gone).
     const side = (t: 'a' | 'o', name: string, num: Text, bar: HTMLElement, stand: Text) => {
-      const s = el('div', `side ${t}`, `<span>${name}${flSpan(t === 'a' ? 'ally' : 'enemy', 'em', '')}</span>`);
+      const s = el('div', `side ${t}`, `<span>${flSpan(t === 'a' ? 'ally' : 'enemy', 'em', '')}</span>`);
+      const nm = document.createTextNode(name);
+      s.firstElementChild!.prepend(nm);
+      this.sideNames.push(nm);
       const b = el('b');
       b.appendChild(num);
       const track = el('div', `bar ${t}`);
@@ -127,13 +137,16 @@ export class TdmHud {
     const sm = el('div', 'hint');
     sm.appendChild(this.specMates);
     this.spec.append(sn, hp, sm);
-    this.board.append(el('div', 'head', `<span class="nm">ALPHA${flSpan('ally', 'em', '')}</span><span>K</span><span>D</span><span class="sc">SCORE</span>`), this.boardRows);
+    this.board.append(el('div', 'head', `<span class="nm">${flSpan('ally', 'em', '')}</span><span>K</span><span>D</span><span class="sc">SCORE</span>`), this.boardRows);
     this.compass.appendChild(this.compassBand);
     for (const c of ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']) {
       const m = el('b', c.length === 1 ? 'card' : 'card minor', c);
       this.compass.appendChild(m);
       this.compassMarks.push({ el: m, x: NaN, o: NaN });
     }
+    const bn = document.createTextNode('ALPHA');
+    this.board.querySelector('.head .nm')!.prepend(bn);
+    this.sideNames.push(bn);
     this.root.append(this.tags, this.board, this.score, this.compass, this.sudden, this.feed, this.respawn, this.spec, this.notices);
     parent.appendChild(this.root);
   }
@@ -191,6 +204,14 @@ export class TdmHud {
     this.root.classList.toggle('hidden', !on);
   }
 
+  /** 48.0: his team this match: the names on his side and the other, the colours swapped for OMEGA. */
+  setSide(team: TeamId) {
+    this.mine = team;
+    const me = team.toUpperCase(), them = team === 'alpha' ? 'OMEGA' : 'ALPHA';
+    [this.sideNames[0].data, this.sideNames[1].data, this.sideNames[2].data] = [me, them, me];
+    this.root.classList.toggle('side-o', team === 'omega');
+  }
+
   setMax(n: number) {
     this.max = n;
   }
@@ -241,7 +262,7 @@ export class TdmHud {
     this.suddenT.data = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
     const kind = key[0];
     if (kind !== was) {
-      this.suddenWho.data = kind === 'b' ? 'BOTH TEAMS · A KILL OR A DRAW' : kind === 'a' ? 'ALPHA · KILL OR LOSE' : 'OMEGA MUST KILL';
+      this.suddenWho.data = kind === 'b' ? 'BOTH TEAMS · A KILL OR A DRAW' : kind === 'a' ? `${this.mine.toUpperCase()} · KILL OR LOSE` : `${this.mine === 'alpha' ? 'OMEGA' : 'ALPHA'} MUST KILL`;
       this.sudden.classList.toggle('ours', kind === 'a');
       this.sudden.classList.toggle('both', kind === 'b');
     }
@@ -263,7 +284,7 @@ export class TdmHud {
   kill(killer: Combatant | null, victim: Combatant, weapon?: string, out = false) {
     // 24.0: his kills pop out (gold), his deaths are tinted.
     const row = el('div', `row${killer?.isPlayer ? ' mine' : victim.isPlayer ? ' died' : ''}`);
-    const name = (c: Combatant) => `<span class="${c.team === 'alpha' ? 'a' : 'o'}${c.isPlayer ? ' you' : ''}">${c.name}</span>`;
+    const name = (c: Combatant) => `<span class="${c.team === this.mine ? 'a' : 'o'}${c.isPlayer ? ' you' : ''}">${c.name}</span>`;
     const how = weapon ? `<i class="gun">${weapon}</i>` : '<i>▸</i>';
     row.innerHTML = (killer ? `${name(killer)}${how}${name(victim)}` : `${name(victim)}<i>✕</i>`) + (out ? '<i class="out">OUT</i>' : '');
     this.feed.prepend(row);
@@ -272,14 +293,15 @@ export class TdmHud {
   }
 
   /**
-   * 44.0: the fronts: each lane's line (ALPHA's progress, -1 … +1), ALPHA's stance there, who has broken
+   * 44.0: the fronts: each lane's line (ALPHA's progress, -1 … +1), his team's stance there (48.0), who has broken
    * through, the lane he is in (-1: none). `names` once a match (setFrontNames). Writes only what changed.
    */
   setFronts(line: readonly number[], stance: readonly string[], broken: readonly (TeamId | null)[], here: number) {
     if (!this.frontRows.length) return;
     for (let k = 0; k < this.frontRows.length; k++) {
       const r = this.frontRows[k];
-      const f = Math.max(0, Math.min(1, (line[k] + 1) / 2));
+      // (ALPHA's progress: his side's ground from the left.)
+      const f = Math.max(0, Math.min(1, ((this.mine === 'alpha' ? line[k] : -line[k]) + 1) / 2));
       const key = `${Math.round(f * 100)}|${stance[k]}|${broken[k] ?? ''}|${k === here ? 1 : 0}`;
       if (key === r.key) continue;
       const [was, st0, br0, h0] = r.key.split('|');
@@ -293,8 +315,8 @@ export class TdmHud {
         r.row.classList.toggle('back', stance[k] === 'fallback');
       }
       if ((broken[k] ?? '') !== br0) {
-        r.row.classList.toggle('broke-a', broken[k] === 'alpha');
-        r.row.classList.toggle('broke-o', broken[k] === 'omega');
+        r.row.classList.toggle('broke-a', !!broken[k] && broken[k] === this.mine);
+        r.row.classList.toggle('broke-o', !!broken[k] && broken[k] !== this.mine);
       }
       if (String(k === here ? 1 : 0) !== h0) r.row.classList.toggle('here', k === here);
     }
@@ -400,8 +422,8 @@ export class TdmHud {
       f.key = key;
       if (String(d) !== d0) f.dist.data = `${d}M`;
       if ((mk.push ?? '') !== p0) {
-        f.el.classList.toggle('a', mk.push === 'alpha');
-        f.el.classList.toggle('o', mk.push === 'omega');
+        f.el.classList.toggle('a', !!mk.push && mk.push === this.mine);
+        f.el.classList.toggle('o', !!mk.push && mk.push !== this.mine);
       }
       if (String(k === here ? 1 : 0) !== h0) f.el.classList.toggle('here', k === here);
     });
