@@ -897,7 +897,7 @@ html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
 #death .next-maps { margin-top: 2.4rem; }
 
 /* ---------- 46.0: the compass under the score (the heading, N/E/S/W, the three fronts) ---------- */
-.tdm-compass { position: absolute; left: 50%; top: 6rem; width: 30rem; height: 2.6rem; margin-left: -15rem; overflow: hidden; pointer-events: none; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12%, #000 88%, transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 12%, #000 88%, transparent 100%); }
+.tdm-compass { position: absolute; left: 50%; top: 6rem; width: 30rem; height: 3.9rem; margin-left: -15rem; overflow: hidden; pointer-events: none; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12%, #000 88%, transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 12%, #000 88%, transparent 100%); }
 .tdm-compass .band { position: absolute; left: -3rem; right: -3rem; top: 0.95rem; height: 0.45rem; background: repeating-linear-gradient(90deg, rgba(242, 251, 255, 0.55) 0 1px, transparent 1px 3rem) 3rem 0 / auto 100%, linear-gradient(rgba(242, 251, 255, 0.18), rgba(242, 251, 255, 0.18)) 0 100% / 100% 1px no-repeat; }
 .tdm-compass .card { position: absolute; left: 50%; top: 0; font-family: var(--display); font-weight: 700; font-size: 0.85rem; color: #f2fbff; text-shadow: 0 0 0.4rem rgba(0, 0, 0, 0.9); }
 .tdm-compass .card.minor { top: 0.1rem; font-size: 0.75rem; color: rgba(242, 251, 255, 0.5); }
@@ -907,5 +907,5 @@ html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
 .tdm-compass .front-mark.a { box-shadow: inset 0 0 0 1px var(--alpha); color: var(--alpha); }
 .tdm-compass .front-mark.o { box-shadow: inset 0 0 0 1px var(--omega); color: var(--omega); }
 .tdm-compass .front-mark.here { background: rgba(242, 251, 255, 0.16); }
-.tdm-notices { top: 9rem; }
-.tdm-sudden { top: 9rem; }
+.tdm-notices { top: 10.4rem; }
+.tdm-sudden { top: 10.4rem; }

@@ -92,7 +92,7 @@ export class TdmHud {
   private compass = el('div', 'tdm-compass hidden');
   private compassBand = el('i', 'band');
   private compassMarks: { el: HTMLElement; x: number; o: number }[] = [];
-  private frontMarks: { el: HTMLElement; name: Text; dist: Text; x: number; o: number; key: string }[] = [];
+  private frontMarks: { el: HTMLElement; name: Text; dist: Text; x: number; o: number; key: string; y?: number; want?: number }[] = [];
   private compassBandX = NaN;
   private max = 25;
 
@@ -357,7 +357,7 @@ export class TdmHud {
       this.compassBandX = bx;
       this.compassBand.style.transform = `translateX(${bx.toFixed(2)}rem)`;
     }
-    const place = (m: { el: HTMLElement; x: number; o: number }, bearing: number, pin: boolean) => {
+    const place = (m: { el: HTMLElement; x: number; o: number; y?: number; want?: number }, bearing: number, pin: boolean, row = false) => {
       let rel = bearing - hd;
       rel = ((rel + 540) % 360) - 180;
       const off = Math.abs(rel) > SPAN;
@@ -369,6 +369,15 @@ export class TdmHud {
       // (Pinned a little inside the edge, clear of the compass's fade.)
       const x = (off ? Math.sign(rel) * (SPAN - 8) : rel) * K;
       const o = off ? 0.55 : 1;
+      if (row) {
+        // The fronts: placed after (laid out in rows below).
+        m.want = x;
+        if (o !== m.o) {
+          m.o = o;
+          m.el.style.opacity = String(o);
+        }
+        return;
+      }
       if (!(Math.abs(x - m.x) <= 0.02)) {
         m.x = x;
         m.el.style.transform = `translateX(calc(${x.toFixed(2)}rem - 50%))`;
@@ -383,7 +392,7 @@ export class TdmHud {
       const mk = marks[k];
       if (!mk) return;
       const dx = mk.x - px, dz = mk.z - pz;
-      place(f, Math.atan2(dx, -dz) * DEG, true);
+      place(f, Math.atan2(dx, -dz) * DEG, true, true);
       const d = Math.round(Math.hypot(dx, dz) / 5) * 5;
       const key = `${d}|${mk.push ?? ''}|${k === here ? 1 : 0}`;
       if (key === f.key) return;
@@ -396,6 +405,19 @@ export class TdmHud {
       }
       if (String(k === here ? 1 : 0) !== h0) f.el.classList.toggle('here', k === here);
     });
+    // Two markers closer than a label's width go on two rows (left to right), not on top of each other.
+    const order = this.frontMarks.filter((f) => f.want !== undefined && f.o > 0).sort((a, b) => a.want! - b.want!);
+    const rowEnd = [-Infinity, -Infinity];
+    for (const f of order) {
+      const row = f.want! - rowEnd[0] >= 6.2 ? 0 : f.want! - rowEnd[1] >= 6.2 ? 1 : 0;
+      rowEnd[row] = f.want!;
+      const y = row * 1.25;
+      if (!(Math.abs(f.want! - f.x) <= 0.02) || f.y !== y) {
+        f.x = f.want!;
+        f.y = y;
+        f.el.style.transform = `translate(calc(${f.x.toFixed(2)}rem - 50%), ${y}rem)`;
+      }
+    }
   }
 
   /** 44.0: a short line under the score (a lane held, pushed back), fading out by itself. */

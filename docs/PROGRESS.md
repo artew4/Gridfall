@@ -2519,8 +2519,39 @@ The opening dealt the team's members in order, him first: zone A, the same flank
 ### Checks
 - Tests 513 (+7: `houses.test.ts`).
 
+## 47.0: Neon Block's flanks bent, its roofs filled
+
+Branch `feature/neonblock-flanks-47.0`, from `main` @ `644aa3f` (46.0).
+
+The playtest: the flank alleys ran straight from spawn to spawn, and the roofs were open decks shot through end to end.
+
+### The alleys (street level)
+- **Lantern Alley (west): the pachinko parlour** (パチンコ, z 26–32 each half): a lit hall across the alley, doors at both ends, a row of machines along the wall and an island in the middle; the lane goes in one door, round the island, out the other.
+- **Service Alley (east): the konbini** (コンビニ, z 12.8–20) across the alley's mouth (doors at both ends and one into the yard; a shelf and an island), and **the ramen-ya** (ラーメン屋, z 32.5–39) jutting from the east wall (a counter to vault, doors north, south, west). The lane bends past one into the other.
+- A crate, the crate stack, a dumpster and an AC stack moved or gone to keep the alleys 1.3 m clear round the rooms. The Transit Rail's drop and Block E's parapet gap land south of the konbini; the fire escape's landing drops onto the parlour's roof and off its north edge.
+- Each room is a zone of its own (PACHINKO, KONBINI, RAMEN-YA) and a rain shelter.
+
+### The roofs
+- **Block W:** a machine room on the roof (機械室: two doors, a motor block inside), two ducts to vault, billboards across the roof and over the street parapet, stair heads at both ends of the crossing.
+- **Block E:** billboards across both roofs, stair heads at the ends.
+- Billboards are solid panels with a lit face each side: cover to stand behind, not walls to see through.
+
+### Sightlines (pairs 30 m+ apart in sight of each other, 46.0 → 47.0)
+West alley 23.9% → 7.5% (end to end 14.2% → 0.3%); east alley 54.4% → 8% (28% → 1.4%); Block W's roof 91% → 15.8% (end to end 87.4% → 9%); Block E's roofs 96.2% → 24.4%; roof W to roof E 45.7% → 24.9%.
+
+### Self-play (Neon Block, 4 matches each, before the stair heads)
+Kills a minute 19.2 → 18.4; quiet 11.2% → 12.9%; first engagement 13.3 → 12.1 s; the east lane's share of kills 16% → 19%; stuck 0.
+
+### The compass
+Two fronts' markers closer than 6.2 rem now sit in two rows (were on top of each other); a marker pinned to the edge stays inside the strip; a heading of NaN no longer draws every marker.
+
+### Checks
+- The graph: 630 of 630 nodes reachable. levelAI: runners 312/312, gunners 8/8. `world` 0 issues; `stairGaps` clean; `stress` 32,000 runs: 1 (a jump into the skybridge's canopy, 2.4 m over the deck: as before).
+- Tests 516 (+3: `neonblock47.test.ts`: the rooms' zones on both halves, the low lanes clear of the rooms, the spawn zones clear of them).
+
 ## Next
 Human playtest:
+- 47.0 items: Neon Block's alleys (do the parlour, the konbini and the ramen-ya feel like places to fight through, or doors in the way; still a spawn-to-spawn line anywhere?); the roofs (enough cover now; too cluttered; does the machine room become a camp?); the compass's two rows.
 - 46.0 items: the guns as firearms on the neon maps (do the pistol and the SMG feel right without the zap?); the Block (tense indoors: the atrium, the stairwells, the doors at the ends; too dark?; the roof too strong?); the houses (worth going into?); no storm indoors; the compass (does it tell you which flank is which and where the fronts are?); a different flank at the start of each match.
 - 45.0 items: the menu (does it read as designed; PLAY → the map screen → PLAY: too many steps?; the map tiles without a blurb: enough to choose; the gun on its plinth).
 - 44.0 items: the loading screen (does the first minute still stutter anywhere; is the wait on DEPLOY and on a map change acceptable); the three fronts (does it feel like two sides pushing along three lanes; do you notice the lines in the score and on the minimap; is a fight always near when you respawn; are breakthroughs and their ticket bleed noticeable, too punishing, too rare; do matches end too quickly now: raise `tickets` per map); Neon Block at 7v7 (crowded in the fog?). `__dev.tdmSim({ fronts: false })`, or `ARENA.fronts.on = false` before a match, for the 43.0 bots side by side.

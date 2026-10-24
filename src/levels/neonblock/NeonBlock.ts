@@ -8,7 +8,7 @@ import { applyWet } from '../../world/Ground';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import type { RainAreas } from '../../world/Rain';
 import { asphaltTexture, concreteTexture, facadeTexture, grilleTexture, lanternTexture, pavingTexture, perforatedTexture, shutterTexture, storefrontTexture, vendingTexture } from '../../world/Textures';
-import { BASE, BE, BW, COURT, CROSS, FLANKS, FOOT, MID, PLANK, SKY, TOP, X_OUT, Z_END, lanesOf, mz, spawnsOf, zoneAt } from './NeonBlockLayout';
+import { BASE, BE, BW, COURT, CROSS, FLANKS, FOOT, KONBINI, MACHINE_ROOM, MID, PACHINKO, PLANK, RAMEN, SKY, TOP, X_OUT, Z_END, lanesOf, mz, spawnsOf, zoneAt } from './NeonBlockLayout';
 import type { Zone } from '../Level';
 
 /*
@@ -273,7 +273,8 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   edge2(false, CROSS + PT, COURT - PT, BW.x1 - PT, BW.x1, TOP, 1.1, [[22.6, 25.4]], m.concrete);
   // Roof cover: AC units, a water tank, skylights (vault them).
   for (const [x, z] of [[-17.5, 12.5], [-25, 17], [-17, 34], [-27, 26.5], [-20.5, 41]]) acBlock2(x, z, TOP);
-  cyl2(-27.5, 40.5, 1.3, TOP, 2.6, m.tank);
+  // (47.0: 2.1 m north, clear of the machine room.)
+  cyl2(-27.5, 42.6, 1.3, TOP, 2.6, m.tank);
   vault2(-23, 31, -21, 33, 0.6, m.deck, 'metal', TOP);
   vault2(-21, 20, -19, 22, 0.6, m.deck, 'metal', TOP);
 
@@ -333,7 +334,8 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   edge2(true, BE.x0 + PT, BE.x1, CROSS, CROSS + PT, MID, EH, [[PLANK.x0, PLANK.x1]], m.concrete);
   edge2(true, BE.x0 + PT, BE.x1, BE.gap[0] - PT, BE.gap[0], MID, EH, [[18, 22], [26, 28.4]], m.concrete);
   // 34.0: and the Transit Rail's bridge (FLANKS.transitRail.bridge).
-  edge2(false, CROSS + PT, BE.gap[0] - PT, BE.x1 - PT, BE.x1, MID, EH, [[FLANKS.transitRail.bridge[0], FLANKS.transitRail.bridge[1]], [14, 16.4]], m.concrete);
+  // 47.0: the drop into the service alley moved south of the konbini (was z 14-16.4, over its roof).
+  edge2(false, CROSS + PT, BE.gap[0] - PT, BE.x1 - PT, BE.x1, MID, EH, [[FLANKS.transitRail.bridge[0], FLANKS.transitRail.bridge[1]], [20.2, 21.4]], m.concrete);
   // E2: the gap bridge (north), the service-alley stair's top and a drop (east), a drop to the street (west).
   edge2(true, BE.x0, BE.x1, BE.gap[1], BE.gap[1] + PT, MID, EH, [[18, 22]], m.concrete);
   edge2(false, BE.gap[1] + PT, COURT, BE.x1 - PT, BE.x1, MID, EH, [[BE.gap[1] + PT, 32.4], [43, 45.4]], m.concrete);
@@ -390,7 +392,8 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   // Lantern Alley: vending machines on the boundary wall, a crate stack, a noodle cart.
   for (const [z, theme] of [[14, 'red'], [15.1, 'white'], [40, 'red']] as const) vending2(-X_OUT, z, 'e', theme);
   // Against the wall, and not vaultable: a vault over it would push a body into the wall (stress test).
-  solid2(-X_OUT, 0, 25, -36.6, 1.0, 26.2, m.wood, 'wood', 1);
+  // (47.0: moved south of the pachinko parlour.)
+  solid2(-X_OUT, 0, 22.4, -36.6, 1.0, 23.6, m.wood, 'wood', 1);
   solid2(-37.8, 0, 44, -36.2, 1.8, 45.6, m.wood, 'wood', 1);
   // The arcade: a vending machine, the shop fronts (decals on the walls).
   vending2(-28, BW.arcade[0], 's', 'white');
@@ -426,8 +429,8 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   solid2(14.5, 0, BE.gap[0], 17.5, 1.0, 23.2, m.wood, 'wood', 1);
   // Service Alley: dumpsters (vault), a crate stack, a planter.
   solid2(36.4, 0, 12, X_OUT, 1.0, 14.2, m.dumpster, 'metal', 1);
-  solid2(36.4, 0, 36, X_OUT, 1.0, 38.2, m.dumpster, 'metal', 1);
-  solid2(36, 0, 18, 37.8, 1.6, 19.8, m.wood, 'wood', 1);
+  // (47.0: the second dumpster is the ramen shop's now; the crate stack 0.4 m east, clear of the konbini.)
+  solid2(36.4, 0, 18, 38, 1.6, 19.8, m.wood, 'wood', 1);
   // ---------------------------------------------------------------- 34.0: the flanks
   // 14.0–33.0 the alleys were straight 38 m runs with a few props: 12% of the kills between them. Now
   // each has a raised route over the crossing and a close-quarters pocket that breaks its sightline.
@@ -473,12 +476,124 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   solid(TR.carX0, MID, -TR.car, X_OUT, MID + 2.4, TR.car, m.van, 'metal', 1);
   b.add(new THREE.PlaneGeometry(3.4, 0.7), m.strip, TR.carX0 - 0.02, MID + 1.6, 0, 0, -Math.PI / 2, 0);
   for (const x of [36.6, 37.5]) b.add(new THREE.PlaneGeometry(0.08, 2 * TR.end), m.steel, x, MID + 0.01, 0, -Math.PI / 2, 0, 0);
-  acStack2(35.8, 33.6);
   vending2(X_OUT, 44, 'w', 'red');
   // Holograms: a text in a scanlined frame, additive, flickering (the glows drive their colour).
   holo2('ナイトマーケット', 'NIGHT MARKET', '#ff7ad9', -34.6, 3.6, 13, 2.6, Math.PI / 2);
   holo2('乗換', 'TRANSIT', '#6fe3ff', 35.0, 3.7, 40, 2.2, Math.PI / 2);
   holo('環状線', 'LOOP LINE', '#ffd36a', 36.9, MID + 3.1, 0, 3.2, Math.PI / 2);
+
+
+  // ---------------------------------------------------------------- 47.0: the flanks bent, the roofs filled
+  // The playtest: Lantern Alley and the Service Alley ran straight from forecourt to forecourt (92 m
+  // with nothing at eye height), and the roofs were open decks seen end to end. Now each alley bends
+  // round a building you can go through, and the roofs have rooms, billboards and ducts to fight round.
+  // Every gap between pieces is 0 or at least 1.3 m (a slot narrower traps a body, 34.0's lessons).
+  //
+  // A room: walls 0.25 m (the sides in `skip` are an existing wall), doors cut 2.3 m high, a roof slab.
+  // Sides as authored in the south half: 'n' its z0 face (towards the crossing), 's' its z1 face.
+  const room2 = (x0: number, z0: number, x1: number, z1: number, h: number, wall: THREE.Material, doors: { side: 'n' | 's' | 'e' | 'w'; at: number; w: number }[], skip: ('n' | 's' | 'e' | 'w')[] = [], y0 = 0, roofMat: THREE.Material = roofDeck) => {
+    const T = 0.25;
+    const run = (side: 'n' | 's' | 'e' | 'w') => {
+      if (skip.includes(side)) return;
+      const alongX = side === 'n' || side === 's';
+      const [a0, a1] = alongX ? [x0, x1] : [z0 + T, z1 - T];
+      const ds = doors.filter((d) => d.side === side).sort((p, q) => p.at - q.at);
+      let cur = a0;
+      const piece = (p0: number, p1: number, yb: number, yt: number) => {
+        if (p1 - p0 < 0.01) return;
+        if (side === 's') solid2(p0, yb, z1 - T, p1, yt, z1, wall, 'concrete', 2);
+        else if (side === 'n') solid2(p0, yb, z0, p1, yt, z0 + T, wall, 'concrete', 2);
+        else if (side === 'w') solid2(x0, yb, p0, x0 + T, yt, p1, wall, 'concrete', 2);
+        else solid2(x1 - T, yb, p0, x1, yt, p1, wall, 'concrete', 2);
+      };
+      for (const d of ds) {
+        piece(cur, d.at - d.w / 2, y0, y0 + h);
+        piece(d.at - d.w / 2, d.at + d.w / 2, y0 + 2.3, y0 + h);
+        cur = d.at + d.w / 2;
+      }
+      piece(cur, a1, y0, y0 + h);
+    };
+    for (const side of ['n', 's', 'e', 'w'] as const) run(side);
+    // (Its top at y0 + h: a roof you can land on is at the room's height.)
+    solid2(x0, y0 + h - 0.25, z0, x1, y0 + h, z1, roofMat, 'concrete', 4);
+  };
+  /** A neon billboard: a solid panel `h` tall from `y`, a lit face (both sides) on it. */
+  const billboard2 = (x0: number, z0: number, x1: number, z1: number, y: number, h: number, face: THREE.Material) => {
+    solid2(x0, y, z0, x1, y + h, z1, m.steel, 'metal', 1);
+    const alongX = x1 - x0 >= z1 - z0;
+    const w = (alongX ? x1 - x0 : z1 - z0) - 0.3, ph = h - 0.4;
+    for (const s of [1, -1])
+      for (const side of [-1, 1]) {
+        const cx = (x0 + x1) / 2 + (alongX ? 0 : side * ((x1 - x0) / 2 + 0.02));
+        const cz = ((z0 + z1) / 2 + (alongX ? side * ((z1 - z0) / 2 + 0.02) : 0)) * s;
+        const ry = alongX ? (side * s > 0 ? 0 : Math.PI) : side > 0 ? Math.PI / 2 : -Math.PI / 2;
+        b.add(new THREE.PlaneGeometry(w, ph), face, cx, y + h / 2, cz, 0, ry, 0);
+      }
+  };
+
+  // WEST, the pachinko parlour: built out from the boundary wall (z 26-32), the alley bent round it
+  // (under the fire escape's landing, or through the parlour between its rows of machines); north of
+  // it the fire escape's stair takes the alley's east side, so no line runs down the alley any more.
+  const PA = PACHINKO;
+  room2(-X_OUT, PA.z0, PA.x1, PA.z1, PA.h, m.concrete, [{ side: 's', at: -35.8, w: 1.4 }, { side: 'n', at: -35.8, w: 1.4 }], ['w']);
+  // The machines: a row on the wall, a row in the middle (the aisles 1.3 and 1.55 m), lit fronts.
+  solid2(-X_OUT, 0, PA.z0 + 0.25, -37.4, 1.8, PA.z1 - 0.25, m.steel, 'metal', 1);
+  solid2(-36.1, 0, 27.4, -35.5, 1.8, 30.6, m.steel, 'metal', 1);
+  for (const s of [1, -1]) {
+    // (The fronts no longer than the rows they're on: a face past a row's end is a wall without collision.)
+    b.add(new THREE.PlaneGeometry(PA.z1 - PA.z0 - 1.2, 1.2), store[1], -37.38, 1.1, s * (PA.z0 + PA.z1) / 2, 0, Math.PI / 2, 0);
+    for (const [x, ry] of [[-35.48, Math.PI / 2], [-36.12, -Math.PI / 2]] as const) b.add(new THREE.PlaneGeometry(3.0, 1.2), store[1], x, 1.1, s * 29, 0, ry, 0);
+    b.add(new THREE.PlaneGeometry(PA.z1 - PA.z0 - 0.6, 0.6), m.strip, PA.x1 + 0.02, 3.3, s * (PA.z0 + PA.z1) / 2, 0, Math.PI / 2, 0);
+    lamp(-35.8, PA.h - 0.35, s * 29, m.warm, 0xff9ad8, 90, 9);
+  }
+  holo2('パチンコ', 'PACHINKO', '#ff5ad0', PA.x1 + 0.4, PA.h + 1.4, 29, 2.6, Math.PI / 2);
+
+  // EAST, the konbini against Block E (z 12.8-20): the alley passes it under the Transit Rail's deck,
+  // or through its aisles. The ramen shop
+  // against the boundary wall (z 32.5-39): the alley squeezes past it by E2's stair (1.75 m) or goes
+  // through, round its counter.
+  const KB = KONBINI;
+  room2(BE.x1, KB.z0, KB.x1, KB.z1, KB.h, m.concrete, [{ side: 's', at: 31.5, w: 1.3 }, { side: 'n', at: 31.5, w: 1.3 }, { side: 'e', at: 16.4, w: 1.4 }], ['w']);
+  solid2(BE.x1, 0, KB.z0 + 0.25, 30.85, 1.8, KB.z1 - 0.25, m.steel, 'metal', 1);
+  solid2(32.2, 0, 14.8, 32.8, 1.6, 18, m.steel, 'metal', 1);
+  for (const s of [1, -1]) {
+    b.add(new THREE.PlaneGeometry(KB.z1 - KB.z0 - 0.8, 1.2), store[0], 30.87, 1.1, s * (KB.z0 + KB.z1) / 2, 0, Math.PI / 2, 0);
+    b.add(new THREE.PlaneGeometry(3.4, 0.5), m.strip, KB.x1 + 0.02, 2.9, s * 14.2, 0, Math.PI / 2, 0);
+    lamp(32.5, KB.h - 0.3, s * 16.4, m.cold, 0xe8f4ff, 90, 9);
+  }
+  holo2('コンビニ', 'KONBINI', '#7dffb0', KB.x1 + 0.3, KB.h + 1.2, 16.4, 2.2, -Math.PI / 2);
+  const RM = RAMEN;
+  room2(RM.x0, RM.z0, X_OUT, RM.z1, RM.h, m.concrete, [{ side: 'n', at: 36.4, w: 1.4 }, { side: 's', at: 36.2, w: 1.4 }, { side: 'w', at: 35.8, w: 1.4 }], ['e']);
+  for (const c of solid2(36.0, 0, 34.3, 36.6, 1.0, 37.3, m.wood, 'wood', 1)) c.vault = true;
+  for (const s of [1, -1]) {
+    b.add(new THREE.PlaneGeometry(RM.z1 - RM.z0 - 1, 1.6), store[1], X_OUT - 0.02, 1.6, s * (RM.z0 + RM.z1) / 2, 0, -Math.PI / 2, 0);
+    lamp(36.3, RM.h - 0.3, s * 35.8, m.warm, 0xffb070, 90, 9);
+  }
+
+  // ROOFS. Block W: a machine room against the west parapet (doors east and towards the crossing, the lift's motor
+  // inside), a billboard across the roof by the skybridge (no line from roof to roof over it), two
+  // billboards over the street parapet (no duel across Main Street from the whole deck), ducts.
+  const MR = MACHINE_ROOM;
+  // (Its west wall full height over the 1.1 m parapet.)
+  room2(MR.x0, MR.z0, MR.x1, MR.z1, MR.h, m.concrete, [{ side: 'e', at: 36, w: 1.6 }, { side: 'n', at: -28.3, w: 1.6 }], [], TOP);
+  solid2(MR.x0 + 0.25, TOP, 34.8, -29.2, TOP + 1.6, 37.2, m.steel, 'metal', 1);
+  for (const s of [1, -1]) lamp(-27.8, TOP + MR.h - 0.3, s * 36, m.cold, 0xe0ecff, 70, 8);
+  billboard2(-23.4, 15.0, -17.4, 15.4, TOP, 3.4, store[1]);
+  billboard2(BW.x1 - 0.3, 28, BW.x1, 33, TOP + 1.1, 2.6, store[0]);
+  billboard2(BW.x1 - 0.3, 38, BW.x1, 43, TOP + 1.1, 2.6, store[1]);
+  // Stair heads at the roof's crossing end, against each side parapet: the lines along its edges from
+  // one half's roof to the other's over the crossing are broken (the skybridge's way between them).
+  solid2(BW.x0 + 0.3, TOP, 9.5, -27, TOP + 2.6, 11.5, m.concrete, 'concrete', 2);
+  solid2(-15.6, TOP, 8.3, BW.x1 - 0.3, TOP + 2.6, 11.2, m.concrete, 'concrete', 2);
+  // (z 25.6, 4.8 m short of the skylight: vaulted at a sprint from 27.6 a body landed in it, stress.)
+  vault2(-24.5, 25.6, -19.5, 26.2, 0.9, m.steel, 'metal', TOP);
+  vault2(-24, 37.4, -19, 38.0, 0.9, m.steel, 'metal', TOP);
+  // Block E: stair heads at E1's crossing end, against its side parapets (as Block W's), and a
+  // billboard across E1 and across E2.
+  solid2(BE.x0 + 0.3, MID, CROSS + 0.3, 15.8, MID + 2.4, 10.5, m.concrete, 'concrete', 2);
+  solid2(28.2, MID, CROSS + 0.3, BE.x1 - 0.3, MID + 2.4, 9.8, m.concrete, 'concrete', 2);
+  billboard2(19.5, 15.6, 25.5, 16.0, MID, 3.2, store[0]);
+  billboard2(18.5, 34.6, 24.0, 35.0, MID, 3.2, store[1]);
 
   // Forecourts: planters (vault), a taxi, crates.
   vault2(-10, 48.6, -6, 49.2, 0.9, m.planter);
@@ -721,8 +836,11 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
     }
     // Drop-downs (one-way): roof → fire-escape landing → alley; Block E → service alley, gap alley, street.
     drops.push([N(-30.2, TOP, Z(31)), N(-32.3, MID, Z(30.6))]);
-    drops.push([N(-32.6, MID, Z(30.1)), N(-35.8, 0, Z(30.1))]);
-    drops.push([N(29.1, MID, Z(15.2)), N(32.4, 0, Z(15.2))]);
+    // 47.0: onto the pachinko parlour's roof (0.5 m down), and off its north edge into the alley.
+    drops.push([N(-32.6, MID, Z(30.1)), N(-35.2, PACHINKO.h, Z(30.1))]);
+    drops.push([N(-36, PACHINKO.h, Z(31.3)), N(-36, 0, Z(33.6))]);
+    // (47.0: the gap moved south of the konbini, onto the alley between it and the rail's stair.)
+    drops.push([N(29.1, MID, Z(20.8)), N(32, 0, Z(21))]);
     drops.push([N(29.1, MID, Z(44.2)), N(32.6, 0, Z(44.2))]);
     drops.push([N(13.9, MID, Z(37.2)), N(11.2, 0, Z(37.2))]);
     drops.push([N(27.2, MID, Z(21.1)), N(27.2, 0, Z(24.3))]);
@@ -738,6 +856,24 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
     chain(N(BE.x1 - 1.2, MID, Z(bz)), N((BE.x1 + TR.x0) / 2, MID, Z(bz)), N(TR.x0 + 0.7, MID, Z(bz)));
     drops.push([N(TR.x0 + 0.6, MID, Z((TR.drop[0] + TR.drop[1]) / 2)), N(TR.x0 - 1.6, 0, Z((TR.drop[0] + TR.drop[1]) / 2))]);
     for (const z of [4, 8, 16, 20]) N(TR.x0 + 0.7, MID, Z(z));
+    // 47.0, the rooms: both sides of every door, their aisles; the konbini's roof.
+    const door = (ox: number, oz: number, ix: number, iz: number, y = 0) => chain(N(ox, y, Z(oz)), N(ix, y, Z(iz)));
+    door(-35.8, 24.6, -35.8, 26.7);
+    door(-35.8, 33.4, -35.8, 31.3);
+    for (const [x, z] of [[-34.6, 27], [-34.6, 29], [-34.6, 31]]) N(x, 0, Z(z));
+    // The west aisle, by hand from door to door (its middle can't see round the middle row's ends).
+    chain(N(-35.8, 0, Z(26.7)), N(-36.75, 0, Z(27.6)), N(-36.75, 0, Z(29)), N(-36.75, 0, Z(30.4)), N(-35.8, 0, Z(31.3)));
+    door(31.5, 21.3, 31.5, 19.2);
+    door(31.5, 11.5, 31.5, 13.6);
+    door(35.8, 16.4, 33.6, 16.4);
+    for (const [x, z] of [[31.5, 16.4], [33.5, 14], [33.5, 19]]) N(x, 0, Z(z));
+    door(36.4, 31.3, 36.4, 33.6);
+    door(36.2, 40.2, 36.2, 37.9);
+    door(33.3, 35.8, 35.3, 35.8);
+    for (const [x, z] of [[35.3, 33.6], [35.3, 37.9], [37.4, 35.8]]) N(x, 0, Z(z));
+    door(-24.6, 36, -27, 36, TOP);
+    door(-28.3, 32.4, -28.3, 34.6, TOP);
+    N(-27.4, TOP, Z(37.4));
   }
   // The Lantern Bridge's deck and the Transit Rail's line past the car.
   for (const z of [-4, 0, 4]) N((FLANKS.lanternBridge.x0 + FLANKS.lanternBridge.x1) / 2, MID, z);
@@ -782,14 +918,23 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   for (const t of ['alpha', 'omega'] as const) for (const L of lanesOf(t)) for (const p of L) if (!open(p.x, p.y, p.z)) laneProblems.push(`${t} ${p.x},${p.y},${p.z}`);
 
   const testGoals = [
+    // 47.0: the rooms, round the billboards (first: the check's gunners aim at the 4th from the end).
+    v(-34.6, 0, 29), v(-36.75, 0, -29), v(33.5, 0, 14), v(31.5, 0, -16.4), v(35.3, 0, 35.8), v(37.4, 0, -35.8), v(-27.4, TOP, 36), v(-28, TOP, -36.5), v(-20.4, TOP, 16.6), v(22.5, MID, 17.2), v(21.2, MID, -36.2),
     v(-22, TOP, 0), v(-22, TOP, 30), v(-22, TOP, -30), v(-32.3, MID, 30.6), v(-32.4, TOP, -21),
     v(-11.7, MID, 14.3), v(-11.7, TOP, -24), v(0, MID, 0), v(8, MID, -14.3), v(24, MID, 0),
     v(20, MID, 26), v(22, MID, -18), v(22, MID, 40), v(31.4, MID, -31.4),
     v(-35, 0, 0), v(-22, 0, 26), v(20, 0, -26), v(34, 0, 30), v(0, 0, 40), v(-30, 0, -50),
     // 34.0: the flanks' new places.
-    v(-32.2, MID, 0), v(-32.2, MID, -6), v(35.5, MID, 6), v(35.5, MID, -16), v(-36.5, 0, 13), v(-33.2, 0, -16), v(34, 0, 38), v(33.6, 0, -44),
+    v(-32.2, MID, 0), v(-32.2, MID, -6), v(35.5, MID, 6), v(35.5, MID, -16), v(-36.5, 0, 13), v(-33.2, 0, -16), v(33.4, 0, 38), v(33.6, 0, -44),
   ];
 
+  // 47.0: the rooms (both halves): out of the rain, "covered" (the muffled sound indoors).
+  const ROOMS = [
+    { x0: -X_OUT, z0: PACHINKO.z0, x1: PACHINKO.x1, z1: PACHINKO.z1, h: PACHINKO.h },
+    { x0: BE.x1, z0: KONBINI.z0, x1: KONBINI.x1, z1: KONBINI.z1, h: KONBINI.h },
+    { x0: RAMEN.x0, z0: RAMEN.z0, x1: X_OUT, z1: RAMEN.z1, h: RAMEN.h },
+    { x0: MACHINE_ROOM.x0, z0: MACHINE_ROOM.z0, x1: MACHINE_ROOM.x1, z1: MACHINE_ROOM.z1, h: TOP + MACHINE_ROOM.h },
+  ].flatMap((r) => [r, { ...r, z0: -r.z1, z1: -r.z0 }]);
   const rain: RainAreas = {
     open: [
       [-X_OUT, -CROSS, X_OUT, CROSS],
@@ -822,6 +967,8 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
       { x0: SKY.x0, z0: -CROSS, x1: SKY.x1, z1: CROSS, y: TOP + 2.4 },
       { x0: FOOT.x0, z0: -FOOT.end, x1: FOOT.x1, z1: FOOT.end, y: MID - 0.25 },
       { x0: PLANK.x0, z0: -CROSS, x1: PLANK.x1, z1: CROSS, y: MID - 0.25 },
+      // 47.0: the rooms.
+      ...ROOMS.map((r) => ({ x0: r.x0, z0: r.z0, x1: r.x1, z1: r.z1, y: r.h })),
     ],
   };
 
@@ -836,6 +983,7 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
     covered: [
       { x0: BW.x0, z0: BW.arcade[0], x1: BW.x1, z1: BW.arcade[1], h: 3.6 },
       { x0: BW.x0, z0: -BW.arcade[1], x1: BW.x1, z1: -BW.arcade[0], h: 3.6 },
+      ...ROOMS,
     ],
     laneProblems,
     instanced,

@@ -69,8 +69,20 @@ export const PLANK = { x0: 22, x1: 26 };
  */
 export const FLANKS = {
   lanternBridge: { x0: -33.2, x1: -31.2, foot: 18.2, drop: [3, 5] as [number, number] },
-  transitRail: { x0: 34.8, stairX0: 35.6, end: 22, foot: 31, bridge: [10, 12.4] as [number, number], drop: [18.4, 20] as [number, number], carX0: 36.2, car: 2 },
+  // (47.0: the drop gap at z 20.3-21.8, south of the konbini; was 18.4-20, over its roof.)
+  transitRail: { x0: 34.8, stairX0: 35.6, end: 22, foot: 31, bridge: [10, 12.4] as [number, number], drop: [20.3, 21.8] as [number, number], carX0: 36.2, car: 2 },
 };
+
+/**
+ * 47.0, the flanks bent and the roofs filled (ALPHA's half; mirrored). West, the pachinko parlour
+ * against the boundary wall (x -38 … x1, z0 … z1, h tall): Lantern Alley bends round it. East, the
+ * konbini against Block E (BE.x1 … x1) and the ramen shop against the boundary wall (x0 … X_OUT): the
+ * Service Alley bends round both. On Block W's roof, the machine room against its west parapet.
+ */
+export const PACHINKO = { x1: -33.7, z0: 26, z1: 32, h: 4.0 };
+export const KONBINI = { x1: 34.5, z0: 12.8, z1: 20, h: 3.2 };
+export const RAMEN = { x0: 34.4, z0: 32.5, z1: 39, h: 3.4 };
+export const MACHINE_ROOM = { x0: -30.7, x1: -26, z0: 33.6, z1: 38.4, h: 2.8 };
 
 /** z → -z for the north half. */
 export const mz = (z: number, flip: boolean) => (flip ? -z : z);
@@ -94,10 +106,12 @@ export function spawnsOf(team: 'alpha' | 'omega') {
  */
 const LANES_ALPHA: [number, number, number?][][] = [
   [[-22, 47.6], [-34.5, 44], [-22, 30, TOP], [-22, 14, TOP], [-22, 0, TOP], [-22, -14, TOP], [-22, -30, TOP], [-34.5, -44], [-22, -47.6]],
-  [[-14, 47.5], [-35, 30], [-35.5, 12], [-35.5, 2.5], [-35.5, -12], [-35, -30], [-14, -47.5]],
+  // 47.0: through the pachinko parlour, door to door (the east aisle).
+  [[-14, 47.5], [-35.8, 40], [-35.8, 33.4], [-34.7, 29], [-35.8, 24.6], [-35.5, 12], [-35.5, 2.5], [-35.5, -12], [-35.8, -24.6], [-34.7, -29], [-35.8, -33.4], [-35.8, -40], [-14, -47.5]],
   [[0, 52], [0, 30], [0, 10, MID], [0, 0, MID], [0, -10, MID], [0, -30], [0, -52]],
   // East low: the service alley (14.0: was a second street lane; the street drew every fight).
-  [[24, 50], [34.5, 40], [34.5, 26], [34.5, 12], [35.5, 2], [34.5, -12], [34.5, -26], [34.5, -40], [24, -50]],
+  // 47.0: past the ramen shop (its door) and the konbini (under the rail deck).
+  [[24, 50], [33.5, 40.5], [33.5, 31], [34.5, 26], [35.4, 21], [35.4, 16.4], [35.5, 11], [35.5, 2], [35.5, -11], [35.4, -16.4], [35.4, -21], [34.5, -26], [33.5, -31], [33.5, -40.5], [24, -50]],
   [[20, 47.6], [34, 42], [24, 36, MID], [20, 26, MID], [24, 14, MID], [24, 0, MID], [24, -14, MID], [20, -26, MID], [24, -36, MID], [34, -42], [20, -47.6]],
 ];
 
@@ -113,6 +127,11 @@ export function lanesOf(team: 'alpha' | 'omega'): THREE.Vector3[][] {
 const Z = (id: string, name: string, jp: string, rects: [number, number, number, number][]): Zone => ({ id, name, jp, rects });
 /** Rects x0, z0, x1, z1. Raised zones are tested first (by height), then the street-level ones. */
 export const ZONES = {
+  // 47.0, the rooms.
+  pachinko: Z('pachinko', 'PACHINKO', 'パチンコ', [[-X_OUT, PACHINKO.z0, PACHINKO.x1, PACHINKO.z1], [-X_OUT, -PACHINKO.z1, PACHINKO.x1, -PACHINKO.z0]]),
+  konbini: Z('konbini', 'KONBINI', 'コンビニ', [[BE.x1, KONBINI.z0, KONBINI.x1, KONBINI.z1], [BE.x1, -KONBINI.z1, KONBINI.x1, -KONBINI.z0]]),
+  ramen: Z('ramen', 'RAMEN-YA', 'ラーメン屋', [[RAMEN.x0, RAMEN.z0, X_OUT, RAMEN.z1], [RAMEN.x0, -RAMEN.z1, X_OUT, -RAMEN.z0]]),
+  machineRoom: Z('machineRoom', 'MACHINE ROOM', '機械室', [[MACHINE_ROOM.x0, MACHINE_ROOM.z0, MACHINE_ROOM.x1, MACHINE_ROOM.z1], [MACHINE_ROOM.x0, -MACHINE_ROOM.z1, MACHINE_ROOM.x1, -MACHINE_ROOM.z0]]),
   // 34.0, the flanks.
   lanternBridge: Z('lanternBridge', 'LANTERN BRIDGE', '提灯橋', [[-X_OUT, -CROSS - 1.5, BW.x0, CROSS + 1.5]]),
   transitRail: Z('transitRail', 'TRANSIT RAIL', '環状線', [[BE.x1, -23, X_OUT, 23]]),
@@ -136,6 +155,11 @@ export const ZONES = {
 
 export function zoneAt(x: number, y: number, z: number): Zone | null {
   const inR = (r: [number, number, number, number]) => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
+  // 47.0: inside the rooms.
+  if (y > TOP - 0.5 && y < TOP + MACHINE_ROOM.h && ZONES.machineRoom.rects.some(inR)) return ZONES.machineRoom;
+  if (y < PACHINKO.h && ZONES.pachinko.rects.some(inR)) return ZONES.pachinko;
+  if (y < KONBINI.h && ZONES.konbini.rects.some(inR)) return ZONES.konbini;
+  if (y < RAMEN.h && ZONES.ramen.rects.some(inR)) return ZONES.ramen;
   if (y > TOP - 1 && ZONES.skybridge.rects.some(inR)) return ZONES.skybridge;
   // 34.0: the flanks' raised routes, then their pockets (below).
   if (y > 2.5 && ZONES.lanternBridge.rects.some(inR) && x > -33.5) return ZONES.lanternBridge;
