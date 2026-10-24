@@ -10,7 +10,7 @@ import type { RainAreas } from '../../world/Rain';
 import { chainLinkTexture, concreteTexture as pavedTexture, perforatedTexture } from '../../world/Textures';
 import { concreteTexture, steelTexture } from '../jungle/textures';
 import { corrugatedTexture, crateTexture } from '../desert/textures';
-import { BARGES, BASE, CG, CONT, DECK, DEPOT, END_Z, EXITS, MAZE, QG, QUAY_X, WEST_X, WH, lanesOf, mz, spawnsOf, stackColor, zoneAt } from './DocksLayout';
+import { BARGES, BASE, CAB, CONT, CRANE_STAIR, DECK, DEPOT, END_Z, EXITS, HALL, MAZE, QG, QUAY_WALLS, QUAY_X, TOWER, WEST_X, WH, lanesOf, mz, spawnsOf, stackColor, zoneAt } from './DocksLayout';
 import type { Zone } from '../Level';
 
 /*
@@ -179,6 +179,48 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   };
   /** A handrail plate on a deck (1.05 m, not vaultable: it's a fall). */
   const rail2 = (x0: number, z0: number, x1: number, z1: number, y: number) => solid2(x0, y, z0, x1, y + 1.05, z1, m.paint, 'metal', 1);
+  /**
+   * 49.0, a pallet rack (south and mirrored): one solid box (rounds and bodies), drawn as its painted
+   * uprights and three shelves with crated goods between them, inset 4 cm inside the box.
+   */
+  function rack2(x0: number, z0: number, x1: number, z1: number, h: number) {
+    for (const flip of [false, true]) {
+      const za = flip ? -z1 : z0, zb = flip ? -z0 : z1;
+      col.add(x0, 0, za, x1, h, zb, 'metal');
+      const zc = (za + zb) / 2, d = zb - za;
+      const bays = Math.max(1, Math.round((x1 - x0) / 2.7));
+      for (let i = 0; i <= bays; i++) {
+        const x = Math.min(x1 - 0.06, Math.max(x0 + 0.06, x0 + ((x1 - x0) * i) / bays));
+        b.add(new THREE.BoxGeometry(0.1, h, d), m.paint, x, h / 2, zc);
+      }
+      for (const y of [0.12, 1.5, h - 0.06]) b.add(new THREE.BoxGeometry(x1 - x0, 0.1, d - 0.02), m.paint, (x0 + x1) / 2, y, zc);
+      for (let i = 0; i < bays; i++) {
+        const a = x0 + ((x1 - x0) * i) / bays + 0.14, c = x0 + ((x1 - x0) * (i + 1)) / bays - 0.14;
+        b.add(worldBox(c - a, 1.2, d - 0.08, 1.2), i % 2 ? m.crate : m.pallet, (a + c) / 2, 0.17 + 0.6, zc);
+        b.add(worldBox((c - a) * (i % 3 ? 0.9 : 0.6), 1.1, d - 0.08, 1.1), i % 2 ? m.pallet : m.crate, (a + c) / 2, 1.55 + 0.55, zc);
+      }
+    }
+  }
+  /**
+   * 49.0, the foreman's office under the bridge (HALL.office): walls up to the bridge's underside
+   * (between its columns), two doors on each long side at x ±3 (a line through two of them meets a
+   * rack), cabinets at the ends.
+   */
+  function office() {
+    const O = HALL.office, t = 0.2, top = DECK - 0.25, dw = 1.4;
+    for (const [a, c] of [[O.z0, O.z0 + t], [O.z1 - t, O.z1]]) {
+      solid(O.x0, 0, a, -3 - dw / 2, top, c, m.wall, 'metal', 3);
+      solid(-3 + dw / 2, 0, a, 3 - dw / 2, top, c, m.wall, 'metal', 3);
+      solid(3 + dw / 2, 0, a, O.x1, top, c, m.wall, 'metal', 3);
+      for (const x of [-3, 3]) solid(x - dw / 2, 2.3, a, x + dw / 2, top, c, m.wall, 'metal', 3);
+    }
+    for (const [a, c] of [[O.x0, O.x0 + t], [O.x1 - t, O.x1]]) solid(a, 0, O.z0 + t, c, top, O.z1 - t, m.wall, 'metal', 3);
+    // Filing cabinets along both short walls.
+    for (const [a, c] of [[O.x0 + t, O.x0 + 0.7], [O.x1 - 0.7, O.x1 - t]]) solid(a, 0, O.z0 + t, c, 1.8, O.z1 - t, m.darkMetal, 'metal', 1);
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.08, 0.3), m.warm);
+    lamp.position.set(0, top - 0.1, 0);
+    scene.add(lamp);
+  }
 
   interface Opening { at: number; w: number; y0?: number; y1: number }
   /**
@@ -206,14 +248,16 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // ---------------------------------------------------------------- ground, water, boundaries
   // The quay apron (outdoors, puddles) in four slabs round the warehouse; the warehouse floor apart.
   const slab = (x0: number, z0: number, x1: number, z1: number, mat: THREE.Material) => b.add(worldBox(x1 - x0, 0.2, z1 - z0, 4), mat, (x0 + x1) / 2, -0.1, (z0 + z1) / 2);
-  const GX0 = WEST_X - 1, GX1 = QUAY_X + 0.6, GZ = BASE.z1 + 1;
+  // 49.0: the quay ends at its fence (GX1 was QUAY_X + 0.6, and the water 1.1 m out: a metre of kerb
+  // outside the fence, reached from the gangways, ran the whole waterfront).
+  const GX0 = WEST_X - 1, GX1 = QUAY_X + 0.15, GZ = BASE.z1 + 1;
   slab(GX0, -GZ, GX1, WH.z0, ground);
   slab(GX0, WH.z1, GX1, GZ, ground);
   slab(GX0, WH.z0, WH.x0, WH.z1, ground);
   slab(WH.x1, WH.z0, GX1, WH.z1, ground);
   slab(WH.x0, WH.z0, WH.x1, WH.z1, whFloor);
   // Quay edge face down to the water, and the harbour itself (black, glossy, never reached).
-  solid(GX1, -1.8, -END_Z - 0.6, GX1 + 0.5, 0, END_Z + 0.6, m.concrete, 'concrete', 2);
+  solid(GX1 - 0.05, -1.8, -END_Z - 0.6, GX1, 0, END_Z + 0.6, m.concrete, 'concrete', 2);
   const water = new THREE.Mesh(new THREE.PlaneGeometry(400, 600), m.water);
   water.rotation.x = -Math.PI / 2;
   water.position.set(GX1 + 200, -1.3, 0);
@@ -249,6 +293,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     for (const [x0, z0, x1, z1] of rails) solid2(x0, BG.deck, z0, x1, BG.deck + 1.05, z1, m.darkMetal, 'metal', 1);
   }
   for (const w of BG.gangways) solid2(QUAY_X - 0.1, -0.35, w.z0, BG.hulls[0].x0 + 0.2, -0.05, w.z1, m.deck, 'metal', 1);
+  // 49.0: handrails along the gangways (stepping off one sideways was a fall into the harbour).
+  for (const w of BG.gangways) for (const [z0, z1] of [[w.z0, w.z0 + 0.08], [w.z1 - 0.08, w.z1]]) solid2(QUAY_X + 0.1, -0.05, z0, BG.hulls[0].x0, 1.0, z1, m.darkMetal, 'metal', 1);
   const pontoon = (p: { x0: number; x1: number; z0: number; z1: number }, both: boolean) => {
     const build = both ? solid2 : (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material, s: Collider['surface'], t: number) => [solid(x0, y0, z0, x1, y1, z1, mat, s, t)];
     build(p.x0, -1.0, p.z0, p.x1, BG.pontoon, p.z1, m.deck, 'metal', 1);
@@ -257,16 +303,15 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   };
   for (const p of BG.pontoons) pontoon(p, true);
   pontoon(BG.middle, false);
-  // Cargo on the decks: a container and a crate on the first, a two-high stack and a crate on the second.
+  // Cargo on the decks: a two-high stack on the second barge. 49.0: and cargo across each deck from
+  // alternate rails (BARGES.cargo): the way along the water weaves from side to side.
   const onDeck = (x0: number, z0: number, x1: number, z1: number, h: number, mat: THREE.Material, vault = false) => {
     for (const c of solid2(x0, BG.deck, z0, x1, BG.deck + h, z1, mat, 'metal', 1)) c.vault = vault && h <= 1.05;
   };
-  onDeck(52.78, 18.97, 55.22, 25.03, CONT.H, stacks.yellow);
-  onDeck(50.6, 11.2, 52.0, 12.6, 1.0, m.darkMetal, true);
   onDeck(53.0, 42.97, 55.4, 49.03, CONT.H * 2, stacks.blue);
-  onDeck(50.4, 37.4, 51.8, 38.8, 1.0, m.darkMetal, true);
+  BG.cargo.forEach(([x0, z0, x1, z1, h], i) => onDeck(x0, z0, x1, z1, h, [stacks.yellow, m.rust, m.green][i % 3]));
   // The harbour is water: no ground under it (fall in and drown, DocksLevel.drown).
-  col.holes.push({ x0: QUAY_X + 1.1, z0: -400, x1: 400, z1: 400 });
+  col.holes.push({ x0: GX1, z0: -400, x1: 400, z1: 400 });
 
   // West: the back of the next warehouse row (7 m); the forecourts' closures (4 m) either side of the yards.
   solid(WEST_X - 1, 0, -END_Z - 0.6, WEST_X, 7, END_Z + 0.6, m.wall, 'metal', 3);
@@ -320,24 +365,27 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // ---------------------------------------------------------------- lane 1: the container maze
   // An 8 m grid; each cell holds one container, along x (H) or z (V), one or two high. Corridors run
   // on every cell boundary: 1.9 m where two long sides face each other, 3.7 m elsewhere.
+  // 49.0: brick-bond: rows 1 and 3 half a cell west (MAZE.shift), so each corridor along z ends at a
+  // container a row on; the cells by the depot stand along z (an x one left a 0.75 m slot to its boxes).
   const PATTERN: [('x' | 'z'), 1 | 2][][] = [
+    [['x', 1], ['x', 2], ['z', 1], ['x', 1]],
     [['z', 1], ['x', 2], ['z', 1], ['x', 1]],
-    [['x', 1], ['z', 2], ['x', 1], ['z', 1]],
     [['z', 2], ['x', 1], ['z', 1], ['x', 2]],
-    [['x', 1], ['z', 1], ['x', 2], ['z', 1]],
+    [['z', 1], ['z', 1], ['x', 2], ['z', 1]],
   ];
-  MAZE.zs.forEach((cz, j) => MAZE.xs.forEach((cx, i) => container2(cx, cz, PATTERN[j][i][0], PATTERN[j][i][1])));
+  MAZE.zs.forEach((cz, j) => MAZE.xs.forEach((cx, i) => container2(cx + (j % 2 ? MAZE.shift : 0), cz, PATTERN[j][i][0], PATTERN[j][i][1])));
   // Steel stairs onto two containers (a look over the maze). R1 runs along the east side of cell
   // (2,2), foot open to the z = 24 corridor, top beside the container (step across onto its roof);
-  // the corridor keeps 1.3 m beside it. R2 climbs the south side of cell (0,3).
+  // the corridor keeps 1.3 m beside it. R2 climbs the south end of cell (1,3) (49.0: was (0,3)).
   stair2(-31.78, 17.2, -29.38, 20.7, 'z', -1, 0, CONT.H, m.darkMetal, ['hi']);
-  stair2(-50.25, 29.22, -47.75, 32.72, 'z', -1, 0, CONT.H, m.darkMetal, ['lo', 'hi']);
-  // Jersey barriers across two corridors (vault them, or go round).
-  vault2(-45.95, 11.7, -42.22, 12.3, 0.95, m.jersey);
-  vault2(-47.3, 23.06, -46.7, 26.78, 0.95, m.jersey);
+  stair2(-46.25, 31.03, -43.75, 34.53, 'z', -1, 0, CONT.H, m.darkMetal, ['lo', 'hi']);
   // The divider between the maze and the warehouse alley: double stacks with two gaps per half
   // (z 6–16 at the warehouse's west door, and beyond z 28 into the forecourt).
   for (const cz of [3.03, 18.97, 25.03]) container2(-18.22, cz, 'z', 2);
+  // 49.0: the maze's east alley closed at z ±24 (it ran beside the divider end to end), and the
+  // warehouse alley (between the divider and the wall) at the middle.
+  container2(-20.7, 24, 'z', 2);
+  solid(-17, 0, -1, -14, CONT.H, 1, m.crate, 'wood', 1.3);
   // Forecourt side: a double stack and a single, a barrier.
   container2(-44, 46, 'x', 2);
   container2(-24, 44, 'z', 1);
@@ -352,8 +400,14 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     stair2(S.x0, S.z0, S.x1, S.z1, 'z', -1, 0, DEPOT.stack.top, m.darkMetal, ['lo', 'hi']);
     // A crate on the perch's far end: a little cover up there.
     solid2(-65, DEPOT.stack.top, 15.4, -63, DEPOT.stack.top + 0.7, 16.4, m.darkMetal, 'metal', 1);
+    // 49.0: the stack in front of it a third container high: the perch keeps its own half.
+    const W = DEPOT.wall;
+    solid2(W.cx - CONT.W / 2, 2 * CONT.H, W.cz - CONT.L / 2, W.cx + CONT.W / 2, W.top, W.cz + CONT.L / 2, stacks[stackColor(W.cz)], 'metal', CONT.H);
   }
   vault2(-62.78, 35.7, -59.22, 36.3, 0.95, m.jersey);
+  // 49.0: the depot's east corridor (beside the maze) closed at z ±20, a two-high pair from the depot's
+  // cross piece to the maze.
+  container2(-53.5, 20, 'x', 2);
 
   // ---------------------------------------------------------------- lane 2: the warehouse
   const T = 0.4;
@@ -365,7 +419,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   }
   const sideOpen = (zs: number[], w: number, y0: number, y1: number): Opening[] => zs.flatMap((z) => [{ at: z, w, y0, y1 }, { at: -z, w, y0, y1 }]);
   wall(false, WH.z0 + T, WH.z1 - T, WH.x0, WH.x0 + T, WH.h, m.wall, sideOpen([12], 3, 0, 2.6));
-  wall(false, WH.z0 + T, WH.z1 - T, WH.x1 - T, WH.x1, WH.h, m.wall, [...sideOpen([6.5], 3, 0, 2.6), ...sideOpen([20.3], 2.4, DECK, 6.8)]);
+  // 49.0: the catwalk door at z ±24, onto the stair tower's landing (was ±20.3, its own stair's).
+  wall(false, WH.z0 + T, WH.z1 - T, WH.x1 - T, WH.x1, WH.h, m.wall, [...sideOpen([6.5], 3, 0, 2.6), ...sideOpen([TOWER.door], 2, DECK, 6.6)]);
   // 15.0: no roof. Open trusses across it (out of reach: 6.8 m and up over a 4.5 m catwalk), so the
   // floor and the catwalks are seen from the quay gantry and the crane nest (until 32.0: the roof).
   for (let z = -20; z <= 20.01; z += 8) solid(WH.x0 + 0.4, WH.h - 0.2, z - 0.15, WH.x1 - 0.4, WH.h, z + 0.15, m.darkMetal, 'metal', 1);
@@ -411,13 +466,29 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // the stack under the bridge were the fortress that held the match (8.0–14.0: 60–75% of bot time
   // in the centre lane). Crossing the floor is now a risk, not a place to stay.
   vault2(-8, 5, -4, 5.6, 0.95, m.jersey);
-  vault2(-2, 20, 2, 21.2, 1.0, m.pallet, 'wood');
-  vault2(3, 9, 6, 9.6, 0.95, m.jersey);
-  // Exterior stair on the quay side up to the catwalk door (lanes 2–3, and a way up from the water).
-  stair2(14.2, 10.9, 16.6, 19.0, 'z', 1, 0, DECK, m.darkMetal, ['hi']);
-  solid2(14.0, 0, 19.0, 16.6, DECK, 21.6, m.concrete, 'concrete', 1.5);
-  rail2(16.52, 19.0, 16.6, 21.6, DECK);
-  rail2(14.0, 21.52, 16.52, 21.6, DECK);
+  // 49.0: the floor was a 52 m hall with three low barriers (89% of pairs 20 m apart in sight). Now: a
+  // two-high container 5 m inside each main door, two pallet racks (3 m, from opposite walls, under the
+  // catwalks too), the foreman's office under the bridge, crates to vault.
+  container2(HALL.block.cx, HALL.block.cz, 'x', 2, m.rust);
+  for (const r of HALL.racks) rack2(r.x0, r.z0, r.x1, r.z1, HALL.rackH);
+  vault2(4.5, 15, 5.9, 16.4, 1.0, m.crate, 'wood');
+  vault2(-5.4, 14.5, -4, 15.9, 1.0, m.crate, 'wood');
+  office();
+  // 49.0: the stair towers (TOWER) at the quay corners, in place of the catwalk door's exterior stair
+  // and the gantry's long end stairs: up from the quay to a landing at catwalk height (a door into the
+  // warehouse, a drop south), on up to the gantry.
+  {
+    const T = TOWER, F = T.flight;
+    solid2(T.x0, 0, T.z0, T.x1, DECK, T.z1, m.concrete, 'concrete', 1.5);
+    stair2(F.x0, T.z1, F.x1, F.z1, 'z', -1, 0, DECK, m.darkMetal, ['lo', 'hi']);
+    stair2(QG.x0, T.z0, QG.x1, T.z0 + 4, 'z', -1, DECK, QG.y, m.darkMetal, ['lo', 'hi']);
+    // Rails: the north edge to the flight up, the east edge past it, the south edge east of the drop,
+    // the west edge past the warehouse's corner.
+    rail2(T.x0, T.z0, QG.x0, T.z0 + 0.08, DECK);
+    rail2(T.x1 - 0.08, T.z0 + 4, T.x1, T.z1, DECK);
+    rail2(18.5, T.z1 - 0.08, T.x1, T.z1, DECK);
+    rail2(T.x0, WH.z1, T.x0 + 0.08, T.z1, DECK);
+  }
   // Forecourt (centre): a truck with a container on its trailer, a forklift, pallets, a barrier.
   solid2(-9.22, 0, 36, -6.78, 1.3, 48.2, m.darkMetal, 'metal', 1);
   solid2(-9.22, 1.3, 36, -6.78, 3.9, 48.2, m.rust, 'metal', CONT.H);
@@ -430,9 +501,13 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // A raised loading platform with steps (a low perch over the long lane).
   solid2(28, 0, 40, 40, 1.2, 48, m.concrete, 'concrete', 2);
   stair2(32, 48, 35, 51.6, 'z', -1, 0, 1.2, m.concrete, ['lo', 'hi']);
-  vault2(24, 32, 29, 32.6, 0.95, m.jersey);
-  vault2(26, 14, 31, 14.6, 0.95, m.jersey);
   container2(35, 24, 'z', 1, m.green);
+  // 49.0: the quay's walls (QUAY_WALLS): two-high rows across it, the first from the stair tower east
+  // (open by the water), the second from the water west (open past the crane stair); a two-high stack
+  // under the crane; a block under the gantry's middle (its underside ran 44 m along the wall).
+  for (const w of QUAY_WALLS) for (let i = 0; i < w.n; i++) container2(w.x0 + CONT.L * (i + 0.5), w.z, 'x', 2, [m.rust, m.green, stacks.yellow, m.rust][i % 4]);
+  container(29 + CONT.L / 2, 0, 'x', 2, m.green);
+  solid(TOWER.x0, 0, -2, QG.x1, 3, 2, m.darkMetal, 'metal', 1.5);
   for (const s of [1, -1]) cyl(28, 26 * s, 0.9, 0, 1.6, m.rust, 'wood');
   vault2(38, 8, 40, 10, 1.0, m.crate, 'wood');
   // The gantry crane straddling the quay at mid-field: four legs, sill beams, girders over the water,
@@ -452,13 +527,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   }
   b.add(worldBox(10, 16, 10, 4), m.hull, 92, 17, 74);
 
-  // ---------------------------------------------------------------- 15.0: the container gantry
-  // A steel walk at container-top height (2.6 m) over the maze's x = -45 corridor, flush with the
-  // single containers either side (step across onto them), the corridor still open beneath. Stairs at
-  // both ends from the forecourts; drop-downs into the cross corridors (z = ±16).
-  solid(CG.x0, CG.y - 0.2, -CG.z, CG.x1, CG.y, CG.z, m.deck, 'metal', 1);
-  stair2(CG.x0, CG.z, CG.x1, CG.z + 8.2, 'z', -1, 0, CG.y, m.darkMetal, ['lo', 'hi']);
-  for (const z of [-30, -16, -2, 2, 16, 30]) solid(CG.x0 + 0.02, 0, z - 0.1, CG.x0 + 0.2, CG.y - 0.2, z + 0.1, m.darkMetal, 'metal', 1);
+  // (15.0-48.0: the container gantry, a 70 m walk at container-top height down the maze's x = -45
+  // corridor, seen end to end. 49.0: gone; the maze is fought through.)
 
   // ---------------------------------------------------------------- 15.0: the quay gantry and the crane nest
   // A 6.5 m walk along the warehouse's east side (4 m out from its 7 m wall): from it you see the
@@ -469,10 +539,17 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // climb: 0.2% of their time up there).
   solid(QG.x0, QG.y - 0.25, -QG.z, QG.x1, QG.y, QG.z, m.deck, 'metal', 1);
   solid(QG.x1, QG.y - 0.25, -QG.nest.z, QG.nest.x1, QG.y, QG.nest.z, m.deck, 'metal', 1);
-  stair2(QG.x0, QG.z, QG.x1, QG.z + 13, 'z', -1, 0, QG.y, m.darkMetal, ['lo', 'hi']);
-  // Clear of the crane's west legs (x 22.4).
+  // (49.0: the gantry's end stairs are the stair towers' second flights.)
+  // Clear of the crane's west legs (x 22.4). 49.0: in two flights: down to a mid landing over the
+  // quay (a perch), then east down to it (was one 13 m run).
   const NEST_X1 = 22.3;
-  stair2(QG.x1 + 0.05, 9, NEST_X1, 22, 'z', -1, 0, QG.y, m.darkMetal, ['hi']);
+  const CS = CRANE_STAIR;
+  stair2(QG.x1 + 0.05, 9, NEST_X1, CS.z0, 'z', -1, CS.mid, QG.y, m.darkMetal, ['hi']);
+  solid2(QG.x1 + 0.05, 0, CS.z0, CS.x1, CS.mid, CS.z1, m.concrete, 'concrete', 1.5);
+  stair2(CS.x1, CS.z0, CS.foot, CS.z1, 'x', -1, 0, CS.mid, m.darkMetal, ['lo', 'hi']);
+  rail2(NEST_X1, CS.z0, CS.x1, CS.z0 + 0.08, CS.mid);
+  rail2(QG.x1 + 0.05, CS.z0, QG.x1 + 0.13, CS.z1, CS.mid);
+  rail2(QG.x1 + 0.05, CS.z1 - 0.08, CS.x1, CS.z1, CS.mid);
   // Rails: the west rail is a 1.1 m armoured half-wall (cover facing the warehouse); the east rail
   // is broken by the nest and the drop gaps.
   solid(QG.x0, QG.y, -QG.z, QG.x0 + 0.25, QG.y + 1.1, QG.z, m.paint, 'metal', 1);
@@ -485,9 +562,30 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     solid(QG.x1, QG.y - 0.25, a, NEST_X1, QG.y, c, m.deck, 'metal', 1);
     solid(NEST_X1 - 0.08, QG.y, a, NEST_X1, QG.y + 1.05, c, m.paint, 'metal', 1);
     // Posts under the walk.
-    for (const z of [6, 14, 22]) solid(QG.x0 + 0.9, 0, s * z - 0.15, QG.x0 + 1.2, QG.y - 0.25, s * z + 0.15, m.darkMetal, 'metal', 1);
+    for (const z of [6, 14]) solid(QG.x0 + 0.9, 0, s * z - 0.15, QG.x0 + 1.2, QG.y - 0.25, s * z + 0.15, m.darkMetal, 'metal', 1);
   }
-  solid(QG.nest.x1 - 0.08, QG.y, -QG.nest.z, QG.nest.x1, QG.y + 1.05, QG.nest.z, m.paint, 'metal', 1);
+  // 49.0: the crane cab (CAB) over the nest: a door at each end, both by the west wall, a column
+  // between them (no line down the gantry through it).
+  {
+    const C = CAB, y0 = QG.y, t = 0.2, dx0 = C.x0 + 0.25, dx1 = C.x0 + 1.65;
+    for (const s of [1, -1]) {
+      const zr = (a: number, c: number): [number, number] => (s > 0 ? [a, c] : [-c, -a]);
+      const [w0, w1] = zr(C.z - t, C.z);
+      solid(C.x0, y0, w0, dx0, C.top, w1, m.wall, 'metal', 3);
+      solid(dx1, y0, w0, C.x1, C.top, w1, m.wall, 'metal', 3);
+      solid(dx0, y0 + 2.3, w0, dx1, C.top, w1, m.wall, 'metal', 3);
+    }
+    solid(C.x0, y0, -C.z + t, C.x0 + t, C.top, C.z - t, m.wall, 'metal', 3);
+    // The east wall, closed (a window on the quay was one more perch over it, and a way out).
+    solid(C.x1 - t, y0, -C.z + t, C.x1, C.top, C.z - t, m.wall, 'metal', 3);
+    solid(C.x0 + t, y0, -0.6, 19.9, C.top, 0.6, m.darkMetal, 'metal', 1);
+    solid(C.x0, C.top, -C.z, C.x1, C.top + 0.2, C.z, m.roof, 'metal', 2);
+    // The crane's controls against the east wall (vault), a lamp over them.
+    solid(C.x1 - 0.6, y0, -1, C.x1 - t, y0 + 0.75, 1, m.darkMetal, 'metal', 1).vault = true;
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 1.4), m.warm);
+    lamp.position.set(C.x1 - 1.2, C.top - 0.1, 0);
+    scene.add(lamp);
+  }
 
   // ---------------------------------------------------------------- light: masts, lamps, neon
   /** A floodlight mast: pole, head (HDR emissive), a real light and a glow (halo, rain, wet reflection). */
@@ -517,7 +615,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // West wall floods: warm white now (8.0: cold LED), stronger.
   for (const z of [24, 48]) for (const s of [1, -1]) lamps.push(mast(WEST_X + 0.2, z * s, 11, m.warm, 0xe6d6c0, 520, 44));
   // Quay, warehouse side: two more sodium masts (the quay's middle was lit only from the water's edge).
-  for (const s of [1, -1]) mast(22.8, 34 * s, 12, m.amber, SODIUM, 560, 44);
+  // (49.0: off the quay's first wall, z 34 → 38.5.)
+  for (const s of [1, -1]) mast(21.5, 38.5 * s, 12, m.amber, SODIUM, 560, 44);
   // Forecourts: one mast each (8.0: unlit, the darkest 10% at zero).
   for (const s of [1, -1]) mast(-3, 46 * s, 12, m.warm, 0xe8cba8, 600, 44);
   // Work lights strung over the maze's crossings, warm (the stacks' colours are the callouts).
@@ -597,7 +696,7 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     { text: 'ДОК-7', color: '#5a8de0', brightness: 1.8, style: 'neon', vertical: false, mount: 'wall', face: 'n', wall: WH.z0, x: 7.5, y: 5.6, z: WH.z0 - 0.12, size: 6, floorY: 0, light: 40, lightDist: 18 },
     { text: 'ПОРТ', color: '#c9a06a', brightness: 1.7, style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: 19, size: 3.4, floorY: 0, mode: 'flicker' },
     { text: 'СКЛАД', color: '#c9a06a', brightness: 1.7, style: 'neon', vertical: true, mount: 'wall', face: 'w', wall: WH.x0, x: WH.x0 - 0.12, y: 4.4, z: -19, size: 3.4, floorY: 0, mode: 'flicker' },
-    { text: 'CARGO', color: '#6fb59a', style: 'box', vertical: false, mount: 'wall', face: 'e', wall: WH.x1, x: WH.x1 + 0.12, y: 2.8, z: 0, size: 4, floorY: 0 },
+    { text: 'CARGO', color: '#6fb59a', style: 'box', vertical: false, mount: 'wall', face: 'e', wall: WH.x1, x: WH.x1 + 0.12, y: 4.6, z: 0, size: 4, floorY: 0 },
     { text: 'ALPHA', color: '#3aa0ff', style: 'box', vertical: false, mount: 'wall', face: 'n', wall: BASE.z0, x: 0, y: 2.6, z: BASE.z0 - 0.12, size: 3.2, floorY: 0 },
     { text: 'OMEGA', color: '#ff3040', style: 'box', vertical: false, mount: 'wall', face: 's', wall: -BASE.z0, x: 0, y: 2.6, z: -BASE.z0 + 0.12, size: 3.2, floorY: 0 },
   ];
@@ -626,33 +725,43 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     N2(x + Math.sign(x) * 4.4, 0, 57.4);
     N2(x + Math.sign(x) * 4.4, 0, 53.6);
   }
-  // 15.0: the container gantry (its stairs, its deck) and the drops off it into the cross corridors.
-  for (const s of [1, -1]) chain(N(-45, 0, (CG.z + 8.8) * s), N(-45, CG.y / 2, (CG.z + 4.1) * s), N(-45, CG.y, (CG.z - 0.8) * s));
-  for (let z = -32; z <= 32; z += 4) N(-45, CG.y, z);
   const drops: [number, number][] = [];
-  for (const s of [1, -1]) drops.push([N(-45, CG.y, 15 * s), N(-47.6, 0, 15 * s)]);
-  // 15.0: the quay gantry (stairs, deck, nest), the drops to the quay.
-  for (const s of [1, -1]) chain(N(19.2, 0, (QG.z + 13.6) * s), N(19.2, QG.y / 2, (QG.z + 6.5) * s), N(19.2, QG.y, (QG.z - 0.8) * s));
-  for (let z = -26; z <= 26; z += 4) N(19.2, QG.y, z);
-  for (const z of [-2.5, 0, 2.5]) N(21.3, QG.y, z);
-  for (const s of [1, -1]) chain(N(21.4, 0, 22.6 * s), N(21.4, QG.y / 2, 15.5 * s), N(21.4, QG.y, 8.4 * s));
-  for (const s of [1, -1]) N(21.4, QG.y, 6 * s);
-  for (const x of [-53, -45, -37, -29, -20.7]) for (const z of [0, 8, 16, 24, 32]) if (open(x, 0, z)) N2(x, 0, z);
+  // 15.0: the quay gantry (its deck, the crane cab). 49.0: the stair towers (the flight from the quay,
+  // the landing, the warehouse door, the flight on up, the drop) and the crane stair's two flights.
+  for (let z = -18; z <= 18.01; z += 4) if (Math.abs(z) > 4) N(19.2, QG.y, z);
+  for (const s of [1, -1]) {
+    const T = TOWER;
+    const top = N(19.2, QG.y, (QG.z - 0.8) * s);
+    chain(N(15.5, 0, (T.flight.z1 + 0.7) * s), N(15.5, DECK / 2, (T.z1 + 4) * s), N(15.5, DECK, (T.z1 - 0.7) * s), N(16, DECK, T.door * s), N(19.2, DECK, (T.z0 + 5.4) * s), N(19.2, (DECK + QG.y) / 2, (T.z0 + 2) * s), top);
+    chain(N(16, DECK, T.door * s), N(12.6, DECK, T.door * s));
+    chain(N(19.2, QG.y, 18 * s), top);
+    drops.push([N(17.7, DECK, (T.z1 - 0.8) * s), N(17.7, 0, (T.z1 + 1) * s)]);
+    // (The drop lands between the landing and the quay's first wall, open east.)
+    chain(N(17.7, 0, (T.z1 + 1) * s), N(21.5, 0, (T.z1 + 1) * s), N(26, 0, (T.z1 + 1) * s));
+    chain(N(16, DECK, T.door * s), N(17.7, DECK, (T.z1 - 0.8) * s));
+    // The cab: in by the door by its west wall, round the column, out the other end.
+    chain(N(19.2, QG.y, 6 * s), N(18.95, QG.y, 5 * s), N(18.95, QG.y, 3 * s), N(20.75, QG.y, 2.5 * s), N(20.75, QG.y, 0));
+    const CS = CRANE_STAIR;
+    chain(N(21.4, QG.y, 8.4 * s), N(21.4, (QG.y + CS.mid) / 2, 12.2 * s), N(21.4, CS.mid, 16.75 * s), N(23, CS.mid, 16.75 * s), N(28.75, CS.mid / 2, 16.75 * s), N(32.7, 0, 16.75 * s));
+    N(21.4, QG.y, 6 * s);
+  }
+  for (const z of [-2.5, 2.5]) N(20.75, QG.y, z);
+  // The maze's corridor crossings (49.0: both bonds' corridors).
+  for (const x of [-55.5, -53, -50, -45.9, -45, -41, -40.1, -37, -36.1, -33.9, -33, -29.9, -29, -25, -20.7]) for (const z of [0, 8, 16, 24, 32]) if (open(x, 0, z)) N2(x, 0, z);
   // Catwalks, bridge, landings (deck level).
   for (const x of [-12.1, 12.1]) for (const z of [0, 5, 10, 16, 22]) N2(x, DECK, z);
   for (const x of [-6, 0, 6]) N(x, DECK, 0);
   for (const x of [-11, 11]) N2(x, DECK, 24.8);
   // Interior stairs: foot by the end wall, middle, top on the mid landing, onto the catwalk.
   for (const x of [-9.4, 9.4]) for (const s of [1, -1]) chain(N(x, 0, 24.7 * s), N(x, DECK / 2, 18.8 * s), N(x, DECK, 12.4 * s), N(Math.sign(x) * 12.1, DECK, 12.4 * s));
-  // Exterior stair to the catwalk door: foot, middle, landing; the door's inside on the catwalk.
-  for (const s of [1, -1]) {
-    chain(N(15.4, 0, 9.9 * s), N(15.4, DECK / 2, 14.95 * s), N(15.3, DECK, 20.3 * s));
-    N(12.1, DECK, 20.3 * s);
-  }
+  // 49.0: the warehouse floor round the block, the racks and the office (and into it).
+  for (const s of [1, -1]) for (const [x, z] of [[-6, 21], [6, 21], [-6, 12], [6, 12], [-12, 12], [12, 12], [0, 6.5], [-8, 6.5], [8, 7], [-12, 2.5], [-8, 2.5], [8, 2.5], [12, 6]]) if (open(x, 0, z * s)) N(x, 0, z * s);
+  for (const x of [-3, 3]) chain(N(x, 0, 2.5), N(x, 0, 0), N(x, 0, -2.5));
+  chain(N(-3, 0, 0), N(0, 0, 0), N(3, 0, 0));
   // Container stairs and tops; the loading platform.
   for (const s of [1, -1]) {
     chain(N(-30.6, 0, 21.6 * s), N(-30.6, CONT.H / 2, 19 * s), N(-30.6, CONT.H, 17.7 * s), N(-33, CONT.H, 20 * s));
-    chain(N(-49, 0, 33.4 * s), N(-49, CONT.H / 2, 31 * s), N(-49, CONT.H, 28 * s));
+    chain(N(-45, 0, 35.2 * s), N(-45, CONT.H / 2, 32.8 * s), N(-45, CONT.H, 29.5 * s), N(-45, CONT.H, 26.5 * s));
     chain(N(33.5, 0, 52.3 * s), N(33.5, 0.6, 49.8 * s), N(33.5, 1.2, 46.8 * s));
     for (const [x, z] of [[30, 42], [38, 42], [34, 44]]) N(x, 1.2, z * s);
   }
@@ -663,7 +772,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     N(-64, DEPOT.stack.top, 17.8 * s);
     drops.push([N(-64, DEPOT.stack.top, 17.8 * s), N(-66.6, 0, 17.8 * s)]);
   }
-  for (const h of BARGES.hulls) for (let z = h.z0 + 2; z <= h.z1 - 2 + 0.01; z += 4) for (const x of [50.4, 51.9]) N2(x, BARGES.deck, z);
+  // (49.0: round the cargo: only where a body stands.)
+  for (const h of BARGES.hulls) for (let z = h.z0 + 2; z <= h.z1 - 2 + 0.01; z += 2) for (const x of [50.3, 51.9, 54.7]) if (open(x, BARGES.deck + 1, z)) N2(x, BARGES.deck, z);
   for (const g of BARGES.gangways) for (const x of [45.2, 47.6, 50.4]) N2(x, x < 46 ? 0 : x < 49 ? -0.05 : BARGES.deck, (g.z0 + g.z1) / 2);
   for (const p of BARGES.pontoons) for (let z = p.z0; z <= p.z1 + 0.01; z += 3) N2(51.5, BARGES.pontoon, z);
   for (let z = BARGES.middle.z0; z <= BARGES.middle.z1 + 0.01; z += 4) N(51.5, BARGES.pontoon, z);
@@ -688,24 +798,27 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   // Authored cover spots: the engine adds spots round every waist-high solid at load.
   const coverPoints: THREE.Vector3[] = [];
   const testGoals = [
-    v(-45, CG.y, 20),
-    v(-45, CG.y, -8),
-    v(19.2, QG.y, 18),
-    v(21.3, QG.y, 0),
+    // 49.0: the stair tower's landing, the crane stair's mid landing, the cab, the office, the barges' far side.
+    v(17, DECK, -25),
+    v(23, CRANE_STAIR.mid, 16.75),
+    v(21, QG.y, -1.5),
+    v(0, 0, 0),
+    v(54.7, BARGES.deck, -23),
+    v(-45, CONT.H, -28),
+    v(19.2, QG.y, 14),
+    v(20.75, QG.y, 0),
     v(-12.1, DECK, -10),
     v(0, DECK, 0),
     v(12.1, DECK, 16),
-    v(15.3, DECK, -20.3),
     v(-33, CONT.H, 20),
-    v(-49, CONT.H, -28),
     v(34, 1.2, -44),
     v(-45, 0, -8),
     v(-37, 0, 24),
-    v(32, 0, 0),
+    v(32, 0, 4),
     v(0, 0, -12),
     v(-12, 0, 24.8),
     v(0, 0, 40),
-    v(31, 0, -30),
+    v(31, 0, -28),
     v(-37, 0, -24),
     v(0, 0, -40),
   ];
@@ -722,11 +835,15 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     surfaces: [
       { x0: 28, z0: 40, x1: 40, z1: 48, y: 1.2 },
       { x0: 28, z0: -48, x1: 40, z1: -40, y: 1.2 },
-      { x0: 14, z0: 19, x1: 16.6, z1: 21.6, y: DECK },
-      { x0: 14, z0: -21.6, x1: 16.6, z1: -19, y: DECK },
+      // 49.0: the stair towers' landings, the crane stair's, the cab's roof.
+      { x0: TOWER.x0, z0: TOWER.z0, x1: TOWER.x1, z1: TOWER.z1, y: DECK },
+      { x0: TOWER.x0, z0: -TOWER.z1, x1: TOWER.x1, z1: -TOWER.z0, y: DECK },
+      { x0: QG.x1, z0: CRANE_STAIR.z0, x1: CRANE_STAIR.x1, z1: CRANE_STAIR.z1, y: CRANE_STAIR.mid },
+      { x0: QG.x1, z0: -CRANE_STAIR.z1, x1: CRANE_STAIR.x1, z1: -CRANE_STAIR.z0, y: CRANE_STAIR.mid },
       { x0: QG.x0, z0: -QG.z, x1: QG.x1, z1: QG.z, y: QG.y },
-      { x0: QG.x1, z0: -9, x1: QG.nest.x1, z1: 9, y: QG.y },
-      { x0: CG.x0, z0: -CG.z, x1: CG.x1, z1: CG.z, y: CG.y },
+      { x0: QG.x1, z0: 4, x1: QG.nest.x1, z1: 9, y: QG.y },
+      { x0: QG.x1, z0: -9, x1: QG.nest.x1, z1: -4, y: QG.y },
+      { x0: CAB.x0, z0: -CAB.z, x1: CAB.x1, z1: CAB.z, y: CAB.top + 0.2 },
       // 28.0: the barges, the pontoons, the sniper stack.
       ...BARGES.hulls.flatMap((h) => [{ x0: h.x0, z0: h.z0, x1: h.x1, z1: h.z1, y: BARGES.deck }, { x0: h.x0, z0: -h.z1, x1: h.x1, z1: -h.z0, y: BARGES.deck }]),
       ...BARGES.pontoons.flatMap((p) => [{ x0: p.x0, z0: p.z0, x1: p.x1, z1: p.z1, y: BARGES.pontoon }, { x0: p.x0, z0: -p.z1, x1: p.x1, z1: -p.z0, y: BARGES.pontoon }]),
@@ -740,7 +857,7 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
       // 32.0: no rain (drops, rings, crowns) under the warehouse roof.
       { x0: WH.x0, z0: WH.z0, x1: WH.x1, z1: WH.z1, y: WH.roof },
       { x0: QG.x0, z0: -QG.z, x1: QG.x1, z1: QG.z, y: QG.y - 0.25 },
-      { x0: CG.x0, z0: -CG.z, x1: CG.x1, z1: CG.z, y: CG.y - 0.2 },
+      { x0: CAB.x0, z0: -CAB.z, x1: CAB.x1, z1: CAB.z, y: CAB.top },
     ],
   };
 

@@ -2558,8 +2558,39 @@ The playtest: he was always ALPHA (the same half of every map, the same spawns, 
 - **The HUD is his side's:** his team on the score's left (its name, 味方), the other on the right, the board's head, the sudden-death line, the fronts' bars from his side, the compass's push marks, the kill feed. Each team keeps its colour (ALPHA blue, OMEGA red): `.tdm-hud.side-o` swaps the HUD's colour tokens. The minimap: his teammates in his team's colour, the spotted in the other's. The callsign shows his team. The result screen stays ALPHA | OMEGA, his row marked.
 - **Checks:** OMEGA on Neon Block and Favelas, ALPHA on the Desert (60-75 s each, god mode): he starts in his own zone (0-1.7 m from its centre, 88-107 m from the other team's), his board only his team, no friendly damage, the match runs (7-11 kills). 12 starts on Old Port: 8 ALPHA, 4 OMEGA, each in his team's zone. The dev checks that place him (friendly fire and the rest) pin ALPHA. Tests 516.
 
+## 49.0: Neon Docks reworked
+
+Branch `feature/docks-rework-49.0`, from `main` @ `700b659` (48.0).
+
+The playtest: the warehouse floor empty and dull; the long stairs beside it dull, and none of them led in; on the flanks a straight corridor from spawn to spawn, shot through at once, and raised walks that saw everything.
+
+### The warehouse (centre)
+- A two-high container 5 m inside each main door (the door-to-door axis closed); two pallet racks (3 m, uprights, shelves and goods) across the floor from opposite walls, under the catwalks too (z ±9 from the west wall, z ±3.6 from the east); the foreman's office under the bridge (between its columns, up to its underside; two doors on each long side at x ±3, cabinets); crates to vault. The floor is now a zig-zag between the doors.
+- **Stair towers** at the quay corners (`TOWER`), in place of the catwalk door's exterior stair and the gantry's 13 m end stairs: a flight from the quay up to a landing at catwalk height with a **door into the warehouse** (the catwalk, z ±24), a drop off its south edge, and a flight on up to the gantry.
+
+### The east flank
+- The quay gantry cut to z ±22; at its middle the **crane cab** (`CAB`, the nest roofed): a door at each end by the west wall, a column between, closed on the quay. Under the gantry's middle a block (its underside ran 44 m along the wall).
+- The crane stair in two flights (`CRANE_STAIR`): down to a mid landing over the quay (3.25 m), then east down to it (was one 13 m run).
+- The quay's walls (`QUAY_WALLS`): two-high container rows across it, the first from the tower east (open by the water), the second from the water west (open past the crane stair), a two-high stack under the crane: the waterfront zig-zags. A lamp mast moved off the first wall.
+- The barges: cargo across each deck from alternate rails (`BARGES.cargo`); handrails on the gangways. The quay ends at its fence (a metre of kerb outside it, reached from the gangways, ran the whole waterfront; bots walked it into stalls).
+
+### The west flank
+- The container gantry (a 70 m walk at 2.6 m down the maze) is gone. The maze is **brick-bond**: rows 1 and 3 half a cell west (`MAZE.shift`), so every corridor along z ends at a container a row on (x -45, -37 and -29 ran from forecourt to forecourt). Its stair onto a container moved with its row.
+- The maze's east alley closed at z ±24, the warehouse alley at the middle; the depot's east corridor closed at z ±20 (a two-high pair from its cross piece to the maze); the stack in front of the sniper stack a third container high: the perch keeps its own half.
+
+### Sightlines (pairs in sight of each other, 48.0 → 49.0)
+Maze 30 m+ apart 3.3% → 0.4% (60 m+ 2.2% → 0); depot 8.4% → 1% (5.9% → 0); the quay 61.7% → 0.5% (53.6% → 0); the barges 79.3% → 0.8% (71.3% → 0); the warehouse floor 20 m+ 89.9% → 2.8% (40 m+ 79.6% → 0); the gantry down its length 100% → 2.3%, onto the quay 24.9% → 3.1%; the sniper stack onto the west 36.7% → 21.3%.
+
+### Self-play (Neon Docks, 4 matches each, 48.0 → 49.0)
+Kills a minute 25.2 → 23.4; quiet 6.5% → 7.7%; first engagement 9.7 → 9.2 s; kill range median 11.2 → 9.1 m, p90 28.9 → 23 m; kills by lane containers / warehouse / waterfront 22/54/24% → 32/45/23%; the old depot 9 → 44 kills, the catwalks 36 → 77, the alpha forecourt (outside its spawn) 49 → 27; the barges 0.8% → 3.1% of bot time, the gantry 17.6% → 10.1%; the sniper stack 0 → 6.6% of bot time (anchors hold it; 14 kills from it); stuck 0.
+
+### Checks
+- The graph: 811 of 811 nodes reachable, no lane waypoint blocked. levelAI: runners 176/176 (48.0: 144/160, the gantry's), gunners 8/8. `stairGaps` clean. `world`: the same report as 48.0. `stress` 32,000 runs: 51, all from the top of a barge's rail (48.0: 7,774, almost all the checker's "left the playable extent").
+- Tests 521 (+5: the maze's brick bond, the quay's walls, the floor, the barges, the cab and the depot wall).
+
 ## Next
 Human playtest:
+- 49.0 items: Neon Docks (the warehouse: too cramped now, or a good close fight; the stair towers: do you use the door into the catwalks; the crane cab and the crane stair's perch; the quay's zig-zag and the barges' cargo: interesting or just slower; the maze without the gantry; the sniper stack: still too strong over its own half?).
 - 48.0 items: playing OMEGA (does the other end of each map feel new; the HUD in red with OMEGA on the left: readable; teammates in orange accents: any shots at your own side?).
 - 47.0 items: Neon Block's alleys (do the parlour, the konbini and the ramen-ya feel like places to fight through, or doors in the way; still a spawn-to-spawn line anywhere?); the roofs (enough cover now; too cluttered; does the machine room become a camp?); the compass's two rows.
 - 46.0 items: the guns as firearms on the neon maps (do the pistol and the SMG feel right without the zap?); the Block (tense indoors: the atrium, the stairwells, the doors at the ends; too dark?; the roof too strong?); the houses (worth going into?); no storm indoors; the compass (does it tell you which flank is which and where the fronts are?); a different flank at the start of each match.

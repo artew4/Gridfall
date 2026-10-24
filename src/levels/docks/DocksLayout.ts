@@ -54,12 +54,14 @@ export const MAZE_WEST = -54;
  */
 export const DEPOT = {
   boxes: [
-    [-64, 6, 'z', 1], [-64, 18, 'z', 2], [-64, 36, 'z', 2], [-64, 48, 'z', 1],
+    // 49.0: the stack at z 6 three high (DEPOT.wall): the sniper stack no longer sees into the other half.
+    [-64, 6, 'z', 2], [-64, 18, 'z', 2], [-64, 36, 'z', 2], [-64, 48, 'z', 1],
     [-58, 12, 'z', 1], [-58, 27, 'z', 2], [-58, 42, 'z', 1],
     [-64.95, 30.5, 'x', 1], [-59.7, 18, 'x', 1],
   ] as [number, number, 'x' | 'z', 1 | 2][],
   stack: { x0: -65.22, x1: -62.78, z0: 14.97, z1: 21.03, top: 5.2 },
   stair: { x0: -65.22, z0: 21.03, x1: -62.78, z1: 27.5 },
+  wall: { cx: -64, cz: 6, top: 3 * 2.6 },
 };
 /**
  * 28.0, the barges (south half; mirrored): decks (top `deck`), the gangways from the quay through the
@@ -69,6 +71,11 @@ export const BARGES = {
   deck: -0.2,
   pontoon: -0.35,
   hulls: [{ x0: 49, x1: 56, z0: 8, z1: 28 }, { x0: 49, x1: 56, z0: 34, z1: 52 }],
+  /**
+   * 49.0: cargo across the decks from alternate rails (x0, z0, x1, z1, height), so no line runs the
+   * barges end to end (one ran 104 m down the decks and pontoons).
+   */
+  cargo: [[49.3, 22, 53.7, 24.44, 2.6], [51.3, 11, 55.7, 13.44, 2.6], [49.3, 37, 53.7, 39.44, 2.6]] as [number, number, number, number, number][],
   gangways: [{ z0: 17, z1: 19 }, { z0: 42, z1: 44 }],
   pontoons: [{ x0: 50, x1: 53, z0: 28, z1: 34 }],
   middle: { x0: 50, x1: 53, z0: -8, z1: 8 },
@@ -85,18 +92,56 @@ export const BASE = { x0: -22, x1: 22, z0: 60, z1: 78 };
  * reaches 8.6.
  */
 export const WH = { x0: -14, x1: 14, z0: -26, z1: 26, h: 7, roof: 7.3, parapet: 9 };
-/** 15.0: the container gantry (a steel walk at container-top height over the maze's x = -45 corridor). */
-export const CG = { x0: -45.9, x1: -44.1, z: 35, y: 2.6 };
-/** 15.0: the quay gantry beside the warehouse (deck 6.5), the crane nest off it, and its reach. */
-export const QG = { x0: 18, x1: 20.4, z: 30, y: 6.5, nest: { x1: 22.2, z: 4 } };
+/**
+ * 15.0: the quay gantry beside the warehouse (deck 6.5), the crane nest off it, and its reach. 49.0: cut
+ * to z ±22 (was ±30), reached from the stair towers (TOWER), the nest roofed as the crane cab (CAB).
+ */
+export const QG = { x0: 18, x1: 20.4, z: 22, y: 6.5, nest: { x1: 22.2, z: 4 } };
+/**
+ * 49.0, the stair towers at the warehouse's quay corners (south; mirrored): a flight from the quay up to
+ * a landing at catwalk height (`deck`) with a door into the warehouse (the catwalk), a drop off its
+ * south edge, and a second flight on up to the gantry. Was a 13 m straight stair to the gantry and,
+ * apart, an 8 m one to the catwalk door.
+ */
+export const TOWER = { x0: 14, x1: 20.4, z0: 22, z1: 28.5, door: 24, flight: { x0: 14.2, x1: 16.8, z1: 36.5 } };
+/** 49.0: the crane cab on the gantry (the nest roofed): one door each end, a column between them. */
+export const CAB = { x0: 18, x1: 22.2, z: 4, top: 9.5 };
+/** 49.0: the nest's stair in two flights: down to a mid landing over the quay, then east down to it. */
+export const CRANE_STAIR = { mid: 3.25, z0: 15.5, z1: 18, x1: 25.5, foot: 32 };
+/**
+ * 49.0, the warehouse floor (south; mirrored): a two-high container inside the main door, two pallet
+ * racks across the floor from opposite walls, the foreman's office under the bridge (between its
+ * columns), so no line runs the floor from door to door.
+ */
+export const HALL = {
+  block: { cx: 0, cz: 20.7 },
+  racks: [
+    { x0: -13.6, x1: -2.6, z0: 8.4, z1: 9.6 },
+    { x0: 2.6, x1: 13.6, z0: 3.0, z1: 4.2 },
+  ],
+  rackH: 3,
+  office: { x0: -4.7, x1: 4.7, z0: -1.5, z1: 1.5 },
+};
+/**
+ * 49.0, the quay's walls (south; mirrored): two-high container rows across it from opposite sides, the
+ * crane stair between, a stack under the crane: the waterfront zig-zags (it was one 110 m sightline).
+ */
+export const QUAY_WALLS = [
+  { x0: 17.0, z: 31.8, n: 4 },
+  { x0: 33.78, z: 13.22, n: 2 },
+];
 /** 15.0: the yards' two exits (the centre one is walled up), angled out to the flanks. */
 export const EXITS = [-17, 17];
 /** Catwalk and bridge deck top. */
 export const DECK = 4.5;
 /** A shipping container (20 ft): long side, short side, height. */
 export const CONT = { L: 6.06, W: 2.44, H: 2.6 };
-/** The maze grid (cell centres), south half; corridors run along every cell boundary. */
-export const MAZE = { xs: [-49, -41, -33, -25], zs: [4, 12, 20, 28], cell: 8 };
+/**
+ * The maze grid (cell centres), south half; corridors run along every cell boundary. 49.0: the second
+ * and fourth rows laid half a cell west (`shift`), brick-bond, so no corridor runs the maze end to end
+ * (8.0-48.0: x -45, -37 and -29 ran from forecourt to forecourt).
+ */
+export const MAZE = { xs: [-49, -41, -33, -25], zs: [4, 12, 20, 28], cell: 8, shift: -4 };
 
 /** z → -z for the north half. */
 export const mz = (z: number, flip: boolean) => (flip ? -z : z);
@@ -118,18 +163,19 @@ export function spawnsOf(team: 'alpha' | 'omega') {
  * ending short of OMEGA's yard. Every point is on open floor (checked when the level builds).
  */
 const LANES_ALPHA: [number, number, number?][][] = [
-  // 15.0: the containers, over the gantry (the maze below is the hunts' and flanks').
-  [[-21, 54], [-38, 46], [-41.5, 40], [-45, 28, CG.y], [-45, 14, CG.y], [-45, 0, CG.y], [-45, -14, CG.y], [-45, -28, CG.y], [-41.5, -40], [-29, -48]],
+  // 15.0: the containers. 49.0: through the maze (the gantry over it is gone), zig-zag down its brick-bond corridors.
+  [[-21, 54], [-38, 46], [-41, 36], [-41, 32], [-41, 24], [-36.1, 24], [-36.1, 16], [-40.1, 16], [-40.1, 8], [-36.1, 8], [-36.1, 0], [-36.1, -8], [-40.1, -8], [-40.1, -16], [-36.1, -16], [-36.1, -24], [-41, -24], [-41, -32], [-41, -36], [-41.5, -40], [-29, -48]],
   // The centre is the high route: in at the main door, up the west stair, along the catwalk and over
   // the bridge's end, down the far stair, out of the far door (the floor fight happens round it).
   [[0, 57.8], [0, 40], [0, 28], [-12.1, 16, 4.5], [-12.1, 6, 4.5], [-12.1, -6, 4.5], [-12.1, -16, 4.5], [0, -28], [0, -40], [0, -52]],
-  // 15.0: the waterfront: out along the quay (x 31–33, far enough from the warehouse that a contact
-  // inside it doesn't pull the lane in), up through the crane nest at mid-field.
-  [[21, 54], [24, 46], [31, 30], [33, 14], [21, 0, QG.y], [33, -14], [31, -30], [24, -46], [15, -52]],
+  // 15.0: the waterfront: out along the quay, up through the crane nest at mid-field. 49.0: round the
+  // quay's walls (by the water past the first, back west past the second), up the crane stair.
+  [[21, 54], [26, 44], [43.5, 36], [43.5, 27], [36.5, 19], [33.2, 16.7], [23, 16.7, CRANE_STAIR.mid], [21.4, 8.4, QG.y], [20.75, 0, QG.y], [21.4, -8.4, QG.y], [23, -16.7, CRANE_STAIR.mid], [33.2, -16.7], [36.5, -19], [43.5, -27], [43.5, -36], [26, -44], [15, -52]],
   // 28.0, the edges: the old depot (east corridor, the middle one, round the cross pieces) and the
   // barges (over the gangways, along the decks and pontoons, end to end on the water).
-  [[-21, 54], [-40, 54], [-55.4, 50], [-55.4, 40], [-60.5, 34], [-60.5, 24], [-55.4, 20], [-55.4, 8], [-61, 0], [-55.4, -8], [-55.4, -20], [-60.5, -24], [-60.5, -34], [-55.4, -40], [-55.4, -50], [-40, -54], [-29, -50]],
-  [[21, 54], [40, 53], [45.2, 43], [50.4, 43], [51.9, 36], [51.5, 31, BARGES.pontoon], [51.9, 26, BARGES.deck], [51.9, 20, BARGES.deck], [51.9, 10, BARGES.deck], [51.5, 0, BARGES.pontoon], [51.9, -10, BARGES.deck], [51.9, -20, BARGES.deck], [51.9, -26, BARGES.deck], [51.5, -31, BARGES.pontoon], [51.9, -36, BARGES.deck], [50.4, -43, BARGES.deck], [45.2, -43], [40, -53], [24, -50]],
+  // 49.0: the depot round its new walls (the west alley past the sniper stack); the barges round their cargo.
+  [[-21, 54], [-40, 54], [-55.4, 50], [-55.4, 40], [-60.5, 34], [-60.5, 26], [-66.6, 24], [-66.6, 12], [-66.6, 4], [-61, 0], [-66.6, -4], [-66.6, -12], [-66.6, -24], [-60.5, -26], [-60.5, -34], [-55.4, -40], [-55.4, -50], [-40, -54], [-29, -50]],
+  [[21, 54], [40, 53], [45.2, 43], [50.4, 43], [52.5, 35.6, BARGES.deck], [51.5, 31, BARGES.pontoon], [51.9, 26, BARGES.deck], [54.7, 23, BARGES.deck], [52, 18, BARGES.deck], [50.3, 12, BARGES.deck], [51.5, 0, BARGES.pontoon], [50.3, -12, BARGES.deck], [52, -18, BARGES.deck], [54.7, -23, BARGES.deck], [51.9, -26, BARGES.deck], [51.5, -31, BARGES.pontoon], [52.5, -35.6, BARGES.deck], [50.4, -43, BARGES.deck], [45.2, -43], [40, -53], [24, -50]],
 ];
 
 /**
@@ -158,7 +204,10 @@ export const ZONES = {
   // 15.0: the raised walks outside the warehouse.
   nest: Z('nest', 'CRANE NEST', 'КАБИНА КРАНА', [[QG.x0 - 0.5, -QG.nest.z, QG.nest.x1 + 0.5, QG.nest.z]]),
   quayGantry: Z('quayGantry', 'QUAY GANTRY', 'ПРИЧАЛЬНАЯ ЭСТАКАДА', [[QG.x0 - 0.5, -QG.z - 14, QG.x1 + 0.5, QG.z + 14]]),
-  containerGantry: Z('containerGantry', 'CONTAINER GANTRY', 'КОНТЕЙНЕРНАЯ ЭСТАКАДА', [[CG.x0 - 0.5, -CG.z - 9, CG.x1 + 0.5, CG.z + 9]]),
+  // 49.0: the stair towers' landings, the crane stair's mid landing, the foreman's office.
+  tower: Z('tower', 'STAIR TOWER', 'ЛЕСТНИЧНАЯ БАШНЯ', [[TOWER.x0, TOWER.z0, TOWER.x1, TOWER.z1], [TOWER.x0, -TOWER.z1, TOWER.x1, -TOWER.z0]]),
+  craneStair: Z('craneStair', 'CRANE STAIR', 'ТРАП КРАНА', [[QG.x1, CRANE_STAIR.z0, CRANE_STAIR.foot, CRANE_STAIR.z1], [QG.x1, -CRANE_STAIR.z1, CRANE_STAIR.foot, -CRANE_STAIR.z0]]),
+  office: Z('office', "FOREMAN'S OFFICE", 'КОНТОРА', [[HALL.office.x0, HALL.office.z0, HALL.office.x1, HALL.office.z1]]),
   alphaSpawn: Z('alphaSpawn', 'ALPHA SPAWN', 'ПОЗИЦИЯ «АЛЬФА»', [[BASE.x0, BASE.z0, BASE.x1, BASE.z1]]),
   omegaSpawn: Z('omegaSpawn', 'OMEGA SPAWN', 'ПОЗИЦИЯ «ОМЕГА»', [[BASE.x0, -BASE.z1, BASE.x1, -BASE.z0]]),
   warehouse: Z('warehouse', 'WAREHOUSE 7', 'СКЛАД №7', [[WH.x0, WH.z0, WH.x1, WH.z1]]),
@@ -178,9 +227,11 @@ export function zoneAt(x: number, y: number, z: number): Zone | null {
   if (y > 3 && ZONES.catwalks.rects.some(inR)) return ZONES.catwalks;
   if (y > 5 && ZONES.nest.rects.some(inR)) return ZONES.nest;
   if (y > 1 && ZONES.quayGantry.rects.some(inR)) return ZONES.quayGantry;
-  if (y > 1.5 && ZONES.containerGantry.rects.some(inR) && x > CG.x0 - 0.3 && x < CG.x1 + 0.3) return ZONES.containerGantry;
+  if (y > 3 && ZONES.tower.rects.some(inR)) return ZONES.tower;
+  if (y > 1.5 && ZONES.craneStair.rects.some(inR)) return ZONES.craneStair;
+  if (y < 3 && ZONES.office.rects.some(inR)) return ZONES.office;
   for (const zone of Object.values(ZONES)) {
-    if (zone === ZONES.catwalks || zone === ZONES.nest || zone === ZONES.quayGantry || zone === ZONES.containerGantry || zone === ZONES.sniperStack) continue;
+    if (zone === ZONES.catwalks || zone === ZONES.nest || zone === ZONES.quayGantry || zone === ZONES.sniperStack || zone === ZONES.tower || zone === ZONES.craneStair || zone === ZONES.office) continue;
     if (zone.rects.some(inR)) return zone;
   }
   return null;
@@ -194,7 +245,8 @@ export function zoneAt(x: number, y: number, z: number): Zone | null {
  * (the tool's picks, sheltered first, left the depot and the barges without).
  */
 export const SPAWN_PADS = mirrorPads([
-  [0, 0, 70, 3.14], [-61, 0, 24, 1.57], [51.2, BARGES.deck, 16, 4.71], [-66.6, 0, 40, 1.57], [-17, 0, 40, 3.14], [31, 0, 32, 3.14], [1, 0, 14, 3.14],
+  // (49.0: the quay's pad off its new wall, z 32 → 37.)
+  [0, 0, 70, 3.14], [-61, 0, 24, 1.57], [51.2, BARGES.deck, 16, 4.71], [-66.6, 0, 40, 1.57], [-17, 0, 40, 3.14], [31, 0, 37, 3.14], [1, 0, 14, 3.14],
 ]);
 
 /**

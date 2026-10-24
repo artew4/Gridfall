@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { BARGES, BASE, CG, CONT, DEPOT, EXITS, MAZE_WEST, QG, QUAY_X, WEST_X, WH, inBase, lanesOf, spawnsOf, stackColor, zoneAt } from './DocksLayout';
+import { BARGES, BASE, CAB, CONT, CRANE_STAIR, DEPOT, EXITS, HALL, MAZE, MAZE_WEST, QG, QUAY_WALLS, QUAY_X, TOWER, WEST_X, WH, inBase, lanesOf, spawnsOf, stackColor, zoneAt } from './DocksLayout';
 
 describe('Neon Docks layout', () => {
-  it('three lanes per team: containers (over the gantry), warehouse, waterfront (the quay, through the crane nest); OMEGA\'s mirrored and reversed', () => {
+  it('three lanes per team: containers (through the maze), warehouse, waterfront (the quay, through the crane nest); OMEGA\'s mirrored and reversed', () => {
     const a = lanesOf('alpha'), o = lanesOf('omega');
     // 28.0: and the two edges after them (the old depot, the barges).
     expect(a.length).toBe(5);
@@ -10,8 +10,9 @@ describe('Neon Docks layout', () => {
     expect(Math.max(...mid(a[0]).map((p) => p.x))).toBeLessThan(-30);
     expect(mid(a[1]).every((p) => Math.abs(p.x) < 14)).toBe(true);
     expect(Math.min(...mid(a[2]).map((p) => p.x))).toBeGreaterThan(17);
-    // 15.0: the flank lanes run raised (the gantries).
-    expect(mid(a[0]).filter((p) => p.y > 2).length).toBeGreaterThanOrEqual(4);
+    // 49.0: the containers' lane on the ground (the gantry over the maze is gone), the waterfront's up
+    // the crane stair and through the cab.
+    expect(mid(a[0]).every((p) => p.y === 0)).toBe(true);
     expect(mid(a[2]).filter((p) => p.y > 6).length).toBeGreaterThanOrEqual(1);
     for (let i = 0; i < 3; i++) expect(o[i].map((p) => [p.x, p.z, p.y])).toEqual(a[2 - i].map((p) => [p.x, -p.z, p.y]));
     for (let i = 3; i < 5; i++) expect(o[i].map((p) => [p.x, p.z, p.y])).toEqual(a[7 - i].map((p) => [p.x, -p.z, p.y]));
@@ -28,8 +29,10 @@ describe('Neon Docks layout', () => {
     expect(WH.parapet).toBeGreaterThan(QG.y + 1.1 + 1 + 0.3);
     expect(zoneAt(19.2, QG.y, 10)?.name).toBe('QUAY GANTRY');
     expect(zoneAt(21.3, QG.y, 0)?.name).toBe('CRANE NEST');
-    expect(zoneAt(-45, CG.y, 10)?.name).toBe('CONTAINER GANTRY');
-    expect(zoneAt(-45, 0, 10)?.name).not.toBe('CONTAINER GANTRY');
+    expect(zoneAt(17, TOWER.z0 > 0 ? 4.5 : 0, 25)?.name).toBe('STAIR TOWER');
+    expect(zoneAt(17, 0, 25)?.name).not.toBe('STAIR TOWER');
+    expect(zoneAt(23, CRANE_STAIR.mid, -16.75)?.name).toBe('CRANE STAIR');
+    expect(zoneAt(0, 0, 0)?.name).toBe("FOREMAN'S OFFICE");
   });
 
   it('lanes start at the team\'s own exits, end short of the other yard, and stay inside the map', () => {
@@ -120,5 +123,67 @@ describe('32.0: the docks overhaul', () => {
     expect(Math.abs(b.x)).toBeGreaterThan(2);
     expect(a.x).toBeLessThan(MAZE_WEST);
     expect(c.x).toBeGreaterThan(WH.x1);
+  });
+});
+
+describe('49.0: the docks reworked', () => {
+  const cover = (spans: [number, number][], a: number, b: number) => {
+    // Is [a, b] covered by the union of spans (a seam under 0.3 m passes no body, nor most of a sightline)?
+    let at = a;
+    for (const [s0, s1] of spans.slice().sort((p, q) => p[0] - q[0])) if (s0 <= at + 0.25 && s1 > at) at = s1;
+    return at >= b - 1e-6;
+  };
+  it('the maze is brick-bond: every line along z through it meets a container', () => {
+    const PATTERN: ('x' | 'z')[][] = [['x', 'x', 'z', 'x'], ['z', 'x', 'z', 'x'], ['z', 'x', 'z', 'x'], ['z', 'z', 'x', 'z']];
+    const spans: [number, number][] = [];
+    MAZE.zs.forEach((_, j) => MAZE.xs.forEach((cx, i) => {
+      const x = cx + (j % 2 ? MAZE.shift : 0), h = (PATTERN[j][i] === 'x' ? CONT.L : CONT.W) / 2;
+      spans.push([x - h, x + h]);
+    }));
+    // From the depot's corridor (its east boxes end at -56.78; the new wall closes -56.5 … -50.5 at z ±20) to the alley stack at x -20.7.
+    spans.push([-56.53, -50.47], [-21.92, -19.48]);
+    expect(cover(spans, -56.5, -19.5)).toBe(true);
+  });
+
+  it('the quay: its two walls close every line along it, each open at the other end (a zig-zag)', () => {
+    const [w1, w2] = QUAY_WALLS;
+    const end1 = w1.x0 + w1.n * CONT.L, end2 = w2.x0 + w2.n * CONT.L;
+    // The first open by the water, the second at its west end (past the crane stair).
+    expect(QUAY_X - end1).toBeGreaterThan(3);
+    expect(w2.x0 - CRANE_STAIR.foot).toBeGreaterThan(1.3);
+    expect(cover([[TOWER.flight.x0, TOWER.flight.x1], [w1.x0, end1], [w2.x0, end2]], TOWER.flight.x0, QUAY_X - 0.1)).toBe(true);
+    // Across the middle: the second wall, the crane stair, the block under the gantry, the stack under the crane.
+    expect(cover([[w2.x0, end2], [QG.x1, CRANE_STAIR.foot], [TOWER.x0, QG.x1], [29, 29 + CONT.L]], TOWER.x0, QUAY_X - 0.1)).toBe(true);
+    // The second wall meets the fence, and leaves the barges' gangways clear.
+    expect(w2.x0 + w2.n * CONT.L).toBeCloseTo(QUAY_X - 0.1, 2);
+    for (const g of BARGES.gangways) expect(g.z0).toBeGreaterThan(w2.z + CONT.W / 2);
+  });
+
+  it('the warehouse floor: no line along it from door to door; the stair towers open on the catwalks', () => {
+    const spans: [number, number][] = [[HALL.block.cx - CONT.L / 2, HALL.block.cx + CONT.L / 2], ...HALL.racks.map((r) => [r.x0, r.x1] as [number, number]), [HALL.office.x0, HALL.office.x1]];
+    expect(cover(spans, WH.x0 + 0.4, WH.x1 - 0.4)).toBe(true);
+    // The towers' doors are at catwalk height, inside the warehouse's length.
+    expect(TOWER.door).toBeLessThan(WH.z1);
+    expect(TOWER.z0).toBe(QG.z);
+  });
+
+  it('the barges: cargo from alternate rails, a way past each (≥ 1.3 m), no line down the decks', () => {
+    const [h] = BARGES.hulls;
+    const inner: [number, number] = [h.x0 + 0.3, h.x1 - 0.3];
+    for (const [x0, , x1] of BARGES.cargo) {
+      expect(Math.max(x0 - inner[0], inner[1] - x1)).toBeGreaterThanOrEqual(1.3);
+      expect(Math.min(Math.abs(x0 - inner[0]), Math.abs(inner[1] - x1))).toBeLessThan(0.01);
+    }
+    const [a, b] = BARGES.cargo;
+    expect(cover([[a[0], a[2]], [b[0], b[2]]], inner[0], inner[1])).toBe(true);
+  });
+
+  it('the cab closes the gantry: its doors both by the west wall, behind the column', () => {
+    expect(CAB.x0).toBe(QG.x0);
+    expect(CAB.x1).toBe(QG.nest.x1);
+    expect(DEPOT.wall.top).toBeCloseTo(3 * CONT.H);
+    expect(DEPOT.wall.top).toBeGreaterThan(DEPOT.stack.top + 1.6);
+    expect(zoneAt(-64, DEPOT.stack.top, 18)?.name).toBe('SNIPER STACK');
+    expect(MAZE_WEST).toBeGreaterThan(WEST_X);
   });
 });
