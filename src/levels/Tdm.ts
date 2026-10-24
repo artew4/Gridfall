@@ -31,6 +31,7 @@ import type { BoardLine, TdmLine } from '../ui/TdmHud';
 import { SPAWN, SpawnManager, ZoneSpawner, deployZones, laneNeed, sideOf, type DeployZone, type SpawnPad, type SpawnUnit } from './SpawnManager';
 import { SpawnZoneVisual } from '../world/SpawnZoneVisual';
 import { MatchRules, type Outcome } from './LastStand';
+import { Pressure } from '../enemies/arena/Pressure';
 import { SpawnPads } from '../world/SpawnPads';
 
 /*
@@ -120,6 +121,12 @@ export const TDM = {
    * fixed (DEV). Self-play (`spectate`) keeps ALPHA.
    */
   side: 'random' as 'random' | TeamId,
+  /**
+   * 50.0: a bot's rifle round to the player (the others a share of it, armory). 6.0–49.0: 10, half a
+   * bot's 20: ten rifle hits to drop him against his eight on a bot's body (four to the head). 12.5:
+   * eight, as his. Survival keeps 10.
+   */
+  playerHit: 12.5,
 };
 
 /** 19.0: the team size of the loaded map (the player counts on his team). */
@@ -198,6 +205,8 @@ export class TdmRules implements ModeRules {
     return this.rules.tickets;
   }
   player = { kills: 0, deaths: 0 };
+  /** 50.0: his form this match (ARENA.pressure: how hard the other team plays him). */
+  pressure = new Pressure();
   /** 48.0: the player's team this match (TDM.side), and the other. */
   side: TeamId = 'alpha';
   get foe(): TeamId {
@@ -347,7 +356,9 @@ export class TdmRules implements ModeRules {
     this.side = this.spectate ? 'alpha' : TDM.side === 'random' ? (Math.random() < 0.5 ? 'alpha' : 'omega') : TDM.side;
     g.playerUnit.team = this.side;
     g.projectiles.playerTeam = this.side;
+    g.projectiles.playerHit = TDM.playerHit;
     g.barkView.allyTeam = this.side;
+    this.pressure.reset();
     g.tdmHud.setSide(this.side);
     this.minimap?.setSide(this.side);
     this.winner = null;
@@ -1145,6 +1156,12 @@ export class TdmRules implements ModeRules {
       vs.bot = null;
       vs.respawnAt = granted ? this.waveAt(v.team, this.now + rand(TDM.respawn[0], TDM.respawn[1])) : Infinity;
     }
+    // 50.0: his form (ARENA.pressure); in form, a kill of his tells the victim's team where it came from.
+    if (by?.isPlayer && by.team !== v.team) {
+      this.pressure.kill(this.now);
+      if (this.pressure.update(this.now) >= ARENA.pressure.reveal) this.directors?.[v.team].sighting(by, this.now, 'callout');
+    }
+    if (v.isPlayer) this.pressure.death(this.now);
     if (by) {
       if (by.isPlayer) this.player.kills++;
       else {
@@ -1272,6 +1289,7 @@ export class TdmRules implements ModeRules {
         this.bots.splice(i, 1);
       }
     }
+    if (!this.spectate) this.pressure.update(now);
     if (!this.winner) {
       // 29.0: the frame's deaths are in: who stands, the sudden-death clocks, maybe the end.
       const o = this.rules.update(now, dt, this.standing());
@@ -1675,7 +1693,9 @@ export class TdmRules implements ModeRules {
     // 48.0: survival's player is ALPHA again (its enemies are OMEGA).
     g.playerUnit.team = 'alpha';
     g.projectiles.playerTeam = 'alpha';
+    g.projectiles.playerHit = 10;
     g.barkView.allyTeam = 'alpha';
+    this.pressure.reset();
     g.tdmHud.show(false);
     g.hud.root.classList.remove('tdm');
     if (g.projectiles) {
@@ -1704,6 +1724,7 @@ export class TdmRules implements ModeRules {
       momentum: this.directors ? { alpha: +this.directors.alpha.momentum.toFixed(2), omega: +this.directors.omega.momentum.toFixed(2) } : null,
       sensing: this.sensing ? { ...this.sensing.stats } : null,
       side: this.side,
+      form: +this.pressure.update(this.now).toFixed(2),
       human: this.squads[this.side].humanStyle,
       humanRates: this.squads[this.side].humanObs.rates,
       sched: { ...this.sched.stats },

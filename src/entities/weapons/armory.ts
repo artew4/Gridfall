@@ -28,7 +28,7 @@ export interface BotArm {
   ballistic: Ballistic;
   /** Energy bolts: core (HDR), trail and size; kinetic rounds use it for the tracer colour only. */
   bolt: { core: [number, number, number]; trail: [number, number, number]; size: number };
-  /** Damage of one round (or pellet) as a share of the TDM rifle round (20 to a bot, 10 to the player). */
+  /** Damage of one round (or pellet) as a share of the TDM rifle round (20 to a bot, 12.5 to the player: TDM.playerHit). */
   damage: number;
   /** Rounds per trigger pull (a shell's pellets), and their cone (rad, on top of the aim spread). */
   pellets: number;

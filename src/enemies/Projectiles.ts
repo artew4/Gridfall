@@ -117,6 +117,8 @@ export class Projectiles {
   onPlayerHit: (dmg: number, from: THREE.Vector3, by: Combatant | null) => void = () => {};
   /** The player's team: those rounds never hit him (survival: every round is OMEGA's). */
   playerTeam: TeamId = 'alpha';
+  /** 50.0: a rifle round's damage to the player (a gun's round is its share of it): 10, TDM's TDM.playerHit. */
+  playerHit = 10;
   /** Bots in the line of fire (TDM); null in survival, where rounds only ever meet the player. */
   targets: BoltTargets | null = null;
   /** Rounds that met a teammate of the shooter and flew on (DEV counter: friendly fire is off). */
@@ -228,7 +230,7 @@ export class Projectiles {
       const dy = Math.abs(closest.y - chest.y);
       const forPlayer = b.team !== this.playerTeam;
       if (player.alive && forPlayer && dxz < 0.45 && dy < 0.75 * k) {
-        this.onPlayerHit(10 * b.dmg * falloffAt(b.round?.falloff, b.travel), this.prev.clone(), b.by);
+        this.onPlayerHit(this.playerHit * b.dmg * falloffAt(b.round?.falloff, b.travel), this.prev.clone(), b.by);
         if (!Number.isNaN(b.range)) this.onTaggedHit?.(b.by, b.aimed, b.range);
         this.fx.sparks(closest.clone(), seg.clone().normalize().negate(), 10, new THREE.Color(1, 0.6, 0.2), 4);
         this.deactivate(b);

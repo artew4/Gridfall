@@ -135,6 +135,11 @@ const T = 0.3;
 const SLAB = 0.3;
 const DOOR = 2.3;
 const RAIL = 1.05;
+/**
+ * 50.0: the ground floor (and its door sills) this far over the pad: level with the sand, the two
+ * faces fought for the same pixels (the playtest: "the floor flickers in the houses in the field").
+ */
+const LIFT = 0.06;
 
 /** `outer` minus `holes` (all [u0, v0, u1, v1]), as non-overlapping rects (cells merged along u). */
 export function rectMinus(outer: [number, number, number, number], holes: [number, number, number, number][]): [number, number, number, number][] {
@@ -218,12 +223,13 @@ export function buildHouse(k: HouseKit, s: HouseSpec, at: HousePlacement): House
   for (let l = 0; l <= s.floors; l++) {
     const holes: [number, number, number, number][] = [];
     for (const r of runs)
-      if (r.level + 1 === l) for (const mv of mirrors()) holes.push([r.bay[0], mv > 0 ? s.stair[0] : -s.stair[1], r.bay[1], mv > 0 ? s.stair[1] : -s.stair[0]]);
+      // 50.0: and the ground floor under its first run (the floor sits LIFT over the run's foot).
+      if (r.level + 1 === l || (l === 0 && r.level === 0)) for (const mv of mirrors()) holes.push([r.bay[0], mv > 0 ? s.stair[0] : -s.stair[1], r.bay[1], mv > 0 ? s.stair[1] : -s.stair[0]]);
     if (s.atrium && l > 0 && l < s.floors) holes.push([-s.atrium[0], -s.atrium[1], s.atrium[0], s.atrium[1]]);
     const y = lv(l);
     const bottom = l === 0 ? at.y0 - 1.2 : y - SLAB;
     for (const [u0, v0, u1, v1] of rectMinus([-hw + T, -hd + T, hw - T, hd - T], holes)) {
-      const c = box(u0, v0, u1, v1, bottom, y, l === 0 || l === s.floors ? m.floor : m.floor);
+      const c = box(u0, v0, u1, v1, bottom, l === 0 ? y + LIFT : y, m.floor);
       if (c && l === s.floors) c.surface = 'concrete';
     }
     // The atrium's railing (every upper floor), round its four sides.
@@ -268,7 +274,7 @@ export function buildHouse(k: HouseKit, s: HouseSpec, at: HousePlacement): House
     for (const o of list) {
       const o0 = o.at - o.w / 2, o1 = o.at + o.w / 2;
       piece(cur, o0, y0, y1);
-      piece(o0, o1, y0, fl + o.y0);
+      piece(o0, o1, y0, fl + (level === 0 && o.y0 === 0 ? LIFT : o.y0));
       piece(o0, o1, fl + o.y1, y1);
       // A sill under a window, a frame's head over every opening (seen only, a hand's depth proud).
       const proud = side === 'n' || side === 'w' ? -0.06 : 0.06;
@@ -276,6 +282,16 @@ export function buildHouse(k: HouseKit, s: HouseSpec, at: HousePlacement): House
       if (o.y0 > 0.3) {
         if (along) look(o0 - 0.08, Math.min(e0, e1), o1 + 0.08, Math.max(e0, e1), fl + o.y0 - 0.08, fl + o.y0, m.trim);
         else look(Math.min(e0, e1), o0 - 0.08, Math.max(e0, e1), o1 + 0.08, fl + o.y0 - 0.08, fl + o.y0, m.trim);
+        // 50.0: bars across every window: rounds and sight through, nobody (a jump squeezed a body out
+        // through a slit); a window is a firing point, not a door.
+        const [gx0, gz0, gx1, gz1] = along ? W(o0, c0, o1, c1) : W(c0, o0, c1, o1);
+        col.add(gx0, fl + o.y0, gz0, gx1, fl + o.y1, gz1, 'metal').ray = false;
+        const cm = (c0 + c1) / 2;
+        for (const t of [1 / 3, 2 / 3]) {
+          const p = o0 + (o1 - o0) * t;
+          if (along) look(p - 0.02, cm - 0.02, p + 0.02, cm + 0.02, fl + o.y0, fl + o.y1, m.rail);
+          else look(cm - 0.02, p - 0.02, cm + 0.02, p + 0.02, fl + o.y0, fl + o.y1, m.rail);
+        }
       }
       cur = o1;
     }
@@ -304,7 +320,8 @@ export function buildHouse(k: HouseKit, s: HouseSpec, at: HousePlacement): House
 
   // ---- The stairwell: the walls round its bays (full height on the floors), each run, its well's railings.
   const a1 = s.bayA[1], [b0, b1] = s.bayB;
-  for (const mv of mirrors()) {
+  // (50.0: a one-storey house without a roof to climb has no stairwell.)
+  for (const mv of runs.length ? mirrors() : []) {
     const V = (v: number) => v * mv;
     const lo = Math.min(V(s.stair[0]), V(s.stair[1])), hi = Math.max(V(s.stair[0]), V(s.stair[1]));
     for (let l = 0; l < s.floors; l++) {
@@ -459,7 +476,8 @@ export const BLOCK_SPEC: HouseSpec = {
   hd: 12,
   floors: 3,
   storey: 3.4,
-  roofAccess: true,
+  // 50.0: no way onto the roof (10.2 m up over the whole flank and the compound).
+  roofAccess: false,
   parapet: 1.15,
   bayA: [-9.7, -7.6],
   bayB: [-7.4, -5.3],
@@ -477,17 +495,13 @@ export const BLOCK_SPEC: HouseSpec = {
     { side: 'e', at: 4.5, w: 1.2, y0: 1.0, y1: 2.1, level: 0 },
     { side: 'e', at: 9.3, w: 1.2, y0: 1.0, y1: 2.1, level: 0 },
     { side: 'w', at: 2.6, w: 1.2, y0: 1.0, y1: 2.1, level: 0 },
-    // Upper floors: windows all round (the stair wells' too).
-    ...[1, 2].flatMap((level) => [
-      { side: 's' as Side, at: -2.5, w: 1.3, y0: 1.0, y1: 2.1, level },
-      { side: 's' as Side, at: 2.75, w: 1.3, y0: 1.0, y1: 2.1, level },
-      { side: 's' as Side, at: 7, w: 1.3, y0: 1.0, y1: 2.1, level },
-      { side: 'e' as Side, at: 2.4, w: 1.2, y0: 1.0, y1: 2.1, level },
-      { side: 'e' as Side, at: 5.6, w: 1.2, y0: 1.0, y1: 2.1, level },
-      { side: 'e' as Side, at: 9.3, w: 1.2, y0: 1.0, y1: 2.1, level },
-      { side: 'w' as Side, at: 2.6, w: 1.2, y0: 1.0, y1: 2.1, level },
-      { side: 'w' as Side, at: 7.6, w: 1.0, y0: 1.2, y1: 2.1, level },
-    ]),
+    // Upper floors. 50.0: fewer windows, the top floor's slits (46.0: eight a floor at each end, the
+    // stair wells' too, and a roof over them all: from up there he shot the whole map).
+    { side: 's', at: 2.75, w: 1.2, y0: 1.0, y1: 2.1, level: 1 },
+    { side: 'e', at: 5.6, w: 1.1, y0: 1.0, y1: 2.1, level: 1 },
+    { side: 'w', at: 2.6, w: 1.0, y0: 1.0, y1: 2.1, level: 1 },
+    { side: 's', at: -2.5, w: 0.7, y0: 1.3, y1: 1.9, level: 2 },
+    { side: 'e', at: 9.3, w: 0.7, y0: 1.3, y1: 1.9, level: 2 },
   ],
   walls: [
     // The end rooms' wall, from the stairwell to the east wall: a door into the hall and one into the east room.
@@ -500,7 +514,8 @@ export const BLOCK_SPEC: HouseSpec = {
     { u0: 7.2, u1: 8.4, v0: 1.4, v1: 2.6, h: 1.3, level: 0, kind: 'crate' },
     { u0: 1.8, u1: 3.6, v0: 9.4, v1: 10.4, h: 0.95, level: 0, kind: 'counter' },
     { u0: -6.2, u1: -4.6, v0: -0.8, v1: 0.8, h: 0.85, level: 1, kind: 'dark', mid: true },
-    { u0: 6.4, u1: 7.8, v0: 5, v1: 6.2, h: 1.25, level: 1, kind: 'crate' },
+    // (50.0: against the end rooms' wall: 0.65 m short of it, it was a slot a body stuck in.)
+    { u0: 6.4, u1: 7.8, v0: 5.65, v1: 6.85, h: 1.25, level: 1, kind: 'crate' },
     { u0: 2.6, u1: 3.8, v0: 9.6, v1: 10.8, h: 1.3, level: 1, kind: 'crate' },
     { u0: -4.6, u1: -3.4, v0: 1.5, v1: 2.7, h: 1.2, level: 2, kind: 'crate' },
     { u0: 6, u1: 8, v0: -0.6, v1: 0.6, h: 0.95, level: 2, kind: 'counter', mid: true },
@@ -509,8 +524,8 @@ export const BLOCK_SPEC: HouseSpec = {
   nodes: [
     [[0, 0], ...BLOCK_HALL, [-6.35, 7.5], [-6.35, 11]],
     [...BLOCK_HALL, [-8.65, 11], [-6.35, 11]],
-    [...BLOCK_HALL, [-8.65, 11], [-6.35, 11]],
-    [[0, 0], [6, 0], [-4, 3], [0, 7.5], [6, 8.5], [-3, 10.6], [6, 10.6]],
+    // (50.0: the top floor's stair well is bay B's alone: the landing's corner by bay A is floor now.)
+    [...BLOCK_HALL, [-6.35, 11]],
   ],
   doors: [
     [[2.75, 13.6], [2.75, 10.6]],
@@ -535,7 +550,8 @@ export const HOUSE_SPEC: HouseSpec = {
   hd: 4.5,
   floors: 2,
   storey: 3.3,
-  roofAccess: true,
+  // 50.0: no way onto the roof.
+  roofAccess: false,
   parapet: 1.1,
   bayA: [-4.7, -2.6],
   bayB: [-2.4, -0.3],
@@ -546,11 +562,10 @@ export const HOUSE_SPEC: HouseSpec = {
     { side: 'n', at: 2.2, w: 1.4, y0: 0, y1: 2.3, level: 0 },
     { side: 'e', at: -1.5, w: 1.3, y0: 0, y1: 2.3, level: 0 },
     { side: 'e', at: 2.2, w: 1.2, y0: 1.0, y1: 2.1, level: 0 },
-    { side: 's', at: 2.2, w: 1.3, y0: 1.0, y1: 2.1, level: 1 },
-    { side: 'n', at: 2.2, w: 1.3, y0: 1.0, y1: 2.1, level: 1 },
-    { side: 'e', at: -1.8, w: 1.2, y0: 1.0, y1: 2.1, level: 1 },
-    { side: 'e', at: 1.8, w: 1.2, y0: 1.0, y1: 2.1, level: 1 },
-    { side: 'w', at: 3.4, w: 1.0, y0: 1.2, y1: 2.1, level: 1 },
+    // 50.0: upstairs, slits to the ends and one to the compound (46.0: five windows).
+    { side: 's', at: 2.2, w: 0.8, y0: 1.2, y1: 1.9, level: 1 },
+    { side: 'n', at: 2.2, w: 0.8, y0: 1.2, y1: 1.9, level: 1 },
+    { side: 'e', at: 1.8, w: 0.8, y0: 1.2, y1: 1.9, level: 1 },
   ],
   walls: [],
   props: [
@@ -560,7 +575,6 @@ export const HOUSE_SPEC: HouseSpec = {
   nodes: [
     [[2, 0], [2, -3.2], [2, 3.2], [-1.35, 0], [-1.35, 3.5]],
     [[2, 0], [2, -3], [2, 3], [-1.35, 3.5]],
-    [[2, 0], [0.8, -3.2], [3.6, 3.2]],
   ],
   doors: [
     [[2.2, 6], [2.2, 3.3]],
@@ -570,4 +584,41 @@ export const HOUSE_SPEC: HouseSpec = {
   lamps: [],
   tanks: [[3, -2.6, 0.7]],
   roofBoxes: [[1.2, 2.2, 1.6, 2.6, 1.0]],
+};
+
+/*
+  50.0, a hut: one storey, no roof to climb, doors at both ends (off each other's line) and a window
+  each side. Placed in the open ground between the bases and the flanks (ArenaLayout.HOUSES.huts): a
+  room to fight through and a wall to stand behind where there was sand, and the upper windows' lines
+  across the field cut.
+*/
+export const HUT_SPEC: HouseSpec = {
+  name: 'HUT',
+  jp: 'كوخ',
+  hw: 3.5,
+  hd: 3,
+  floors: 1,
+  storey: 3,
+  roofAccess: false,
+  parapet: 0.35,
+  bayA: [0, 0],
+  bayB: [0, 0],
+  stair: [0, 0],
+  mirror: false,
+  holes: [
+    { side: 's', at: -1.5, w: 1.3, y0: 0, y1: 2.3, level: 0 },
+    { side: 'n', at: 1.5, w: 1.3, y0: 0, y1: 2.3, level: 0 },
+    { side: 'e', at: 0, w: 1.2, y0: 1.0, y1: 2.0, level: 0 },
+    { side: 'w', at: 0, w: 1.2, y0: 1.0, y1: 2.0, level: 0 },
+  ],
+  walls: [],
+  props: [{ u0: 1.4, u1: 2.6, v0: 0.6, v1: 1.8, h: 1.1, level: 0, kind: 'crate' }],
+  nodes: [[[0, 0], [-1.5, 1.6], [1.5, -1.6], [-2, -1.2]]],
+  doors: [
+    [[-1.5, 4.6], [-1.5, 1.6]],
+    [[1.5, -4.6], [1.5, -1.6]],
+  ],
+  lamps: [],
+  tanks: [],
+  roofBoxes: [],
 };

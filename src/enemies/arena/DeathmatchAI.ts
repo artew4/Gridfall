@@ -6,7 +6,7 @@ import type { TacState } from '../tactics/Squad';
 import type { Thinker } from '../tactics/Scheduler';
 import type { BarkKind, Voice } from '../tactics/Barks';
 import { rand } from '../../core/math';
-import { ARENA, type ArenaCtx } from './ArenaCtx';
+import { ARENA, PRESSURE, pressureScale, type ArenaCtx } from './ArenaCtx';
 import { STAMINA, Stamina, WEIGHT, weightOf } from '../../combat/Stamina';
 import type { Seen, SenseAgent } from './Sensing';
 import type { ArenaContact } from './ArenaDirector';
@@ -140,10 +140,11 @@ export interface ArenaBody extends Combatant {
  * 11.0: aim at this range? Over `enter` m starts an aimed shot; once aiming it holds down to `exit`
  * (hysteresis, no flicker at the border); never beyond `maxRange` (it moves up instead). 13.0: the
  * ranges are the gun's (the rifle's are 11.0's); a gun without sights (the shotgun) never aims.
+ * 50.0: `reach`, the range it fires to now (its gun's, or further returning fire: ARENA.longFire).
  */
-export function wantsAim(d: number, aiming: boolean, arm: BotArm = ARMORY.ar.bot) {
+export function wantsAim(d: number, aiming: boolean, arm: BotArm = ARMORY.ar.bot, reach = arm.maxRange) {
   const a = arm.aim;
-  return !!a && d > (aiming ? a.exit : a.enter) && d <= arm.maxRange;
+  return !!a && d > (aiming ? a.exit : a.enter) && d <= reach;
 }
 
 /** 11.0: how long an aimed shot takes to settle at range `d` (s): longer further out, capped. */
@@ -244,6 +245,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   private scanSide = Math.random() < 0.5 ? -1 : 1;
   private scanUntil = -Infinity;
 
+  /** 50.0: the time of its last frame (reachOf's default). */
+  private nowT = 0;
+
   constructor(readonly self: ArenaBody, persona?: Persona) {
     this.persona = persona ?? drawPersona();
     this.stamina = new Stamina(WEIGHT[weightOf(self.arm.id)]);
@@ -268,11 +272,13 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   }
 
   // ------------------------------------------------------------------ events
-  onSight(_h: Combatant, now: number, clarity = 1) {
+  onSight(h: Combatant, now: number, clarity = 1) {
     // 12.0: a new face in view is decided after its reaction time (7.0: on the same frame, which made
     // a squad turn as one). 34.0: slower for a figure the ground fog half hides (ARENA.fogReact).
+    // 50.0: quicker to the human in form, slower to him struggling (ARENA.pressure).
     const lost = Math.min(1, Math.max(0, (1 - clarity) / (1 - ARENA_SEE)));
-    this.react(now, 1 + ARENA.fogReact * lost);
+    const P = ARENA.pressure;
+    this.react(now, (1 + ARENA.fogReact * lost) * (h.isPlayer && P.on ? pressureScale(P.react) : 1));
   }
 
   /** Hit by `by`: look at it now, maybe jump out of the line. */
@@ -378,10 +384,24 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     return this.snapGoal(ctx, _v.set(me.pos.x + (dx / d) * 8, me.pos.y, me.pos.z + (dz / d) * 8), me.pos.y);
   }
 
-  /** 42.0: how far it fires: its gun's range, an anchor's `roles.anchorRange` × that. */
-  private reachOf() {
-    const r = this.self.arm.maxRange;
-    return ARENA.roles.on && this.role === 'anchor' ? r * ARENA.roles.anchorRange : r;
+  /**
+   * 42.0: how far it fires: its gun's range, an anchor's `roles.anchorRange` × that. 50.0: and at `T`,
+   * returning fire, `longFire.mult` × the gun's range (longFire).
+   */
+  private reachOf(T: Combatant | null = null, now = this.nowT) {
+    const arm = this.self.arm;
+    const r = ARENA.roles.on && this.role === 'anchor' ? arm.maxRange * ARENA.roles.anchorRange : arm.maxRange;
+    return T && this.longFire(T, now) ? Math.max(r, arm.maxRange * (ARENA.longFire.mult[arm.id] ?? 1)) : r;
+  }
+
+  /**
+   * 50.0, return fire (ARENA.longFire): `T` hit it or put a round past it in the last `hurt` s, or
+   * stands `above` m or more over it (a perch). Not with a gun whose `mult` is 1 (the shotgun).
+   */
+  private longFire(T: Combatant, now: number) {
+    const L = ARENA.longFire;
+    if (!L.on || (L.mult[this.self.arm.id] ?? 1) <= 1) return false;
+    return now - (this.alert.get(T.uid) ?? -Infinity) < L.hurt || T.pos.y - this.self.pos.y >= L.above;
   }
 
   /** 42.0: may it break off to recover (an anchor or a wolf, roles on, not on its cooldown)? */
@@ -563,6 +583,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
         if (h.hpFrac < 0.4) s += 1;
       } else s -= age * 0.3;
       if (shotMe) s += 3;
+      // 50.0: the human in form is a bigger threat (ARENA.pressure).
+      if (h.isPlayer && ARENA.pressure.on) s += ARENA.pressure.focus * Math.max(0, PRESSURE.form);
       if (over) s -= ARENA.sectors.overPen;
       // 35.0, a pressing threat (squared distances; the facing is the one from before this loop): one
       // hitting it from outside its front cone, or nearer than what it fights; or one close on its
@@ -1349,7 +1371,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (st === 'push') return close ? 'push' : null;
     if (st === 'engage') {
       // Only to close a gap the gun can't shoot across (its strafe is a walk anyway).
-      const far = T && Math.hypot(T.pos.x - this.self.pos.x, T.pos.z - this.self.pos.z) > this.self.arm.maxRange;
+      const far = T && Math.hypot(T.pos.x - this.self.pos.x, T.pos.z - this.self.pos.z) > this.reachOf(T, now);
       return far && close ? 'push' : null;
     }
     // Hunting, patrolling, holding, advancing: only across ground a hostile can see.
@@ -1369,6 +1391,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const A = ctx.arena!;
     const me = this.self;
     const now = ctx.time;
+    this.nowT = now;
     this.stateT += dt;
     me.tac.actionT += dt;
     me.tac.phaseT += dt;
@@ -1401,7 +1424,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const sprint = ok ? full : run;
     if (this.swing) {
       this.melee(dt, ctx, desired);
-    } else if (this.state === 'engage' && gunner && T && Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > me.arm.maxRange) {
+    } else if (this.state === 'engage' && gunner && T && Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > this.reachOf(T, now)) {
       // Out of effective range: sprint up (no shots, see gun()) until it is in range.
       me.steer(T.pos, sprint, ctx, dt, desired);
     } else if (this.state === 'engage' && gunner && T) {
@@ -1642,7 +1665,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (err > ARENA.fireCone) return;
     // Aimed: nothing leaves the barrel until it has settled on the target; nothing beyond effective range.
     if (this.aiming && this.focusT < this.focusNeed) return;
-    if (Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > this.reachOf()) return;
+    if (Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > this.reachOf(T, ctx.time)) return;
     // 42.0, the warning shot: a wolf opening up on the human from outside his view waits a moment,
     // and its first round goes wide (he hears it, and has his chance to turn).
     const now = ctx.time;
@@ -1692,10 +1715,15 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const clarity = this.seen.get(T.uid)?.clarity ?? 1;
     fog = Math.max(fog, ARENA.fogSpread * (1 - clarity));
     // Aimed: pinpoint (no bloom; a walking strafe adds a touch). Hip: the 7.0 cone, wider by hipSpread.
-    const spread = this.aiming
-      ? ARENA.ads.spread + this.jitter + fog + (strafing ? ARENA.strafeSpread * 0.3 : 0)
-      : ARENA.spread + arm.hipSpread + bloom + this.jitter + fog + (strafing ? ARENA.strafeSpread : 0) + (me.airborne ? ARENA.airSpread : 0) + (me.sliding ? ARENA.slide.spread : 0);
     const range = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
+    // 50.0: returning fire past the gun's range, a little wider each 10 m (ARENA.longFire); on the human,
+    // tighter as he is in form, wider as he struggles (ARENA.pressure).
+    const long = range > arm.maxRange ? (ARENA.longFire.spread * (range - arm.maxRange)) / 10 : 0;
+    const P = ARENA.pressure;
+    const vsHuman = T.isPlayer && P.on ? pressureScale(P.spread) : 1;
+    const spread = vsHuman * (this.aiming
+      ? ARENA.ads.spread + this.jitter + fog + long + (strafing ? ARENA.strafeSpread * 0.3 : 0)
+      : ARENA.spread + arm.hipSpread + bloom + this.jitter + fog + long + (strafing ? ARENA.strafeSpread : 0) + (me.airborne ? ARENA.airSpread : 0) + (me.sliding ? ARENA.slide.spread : 0));
     const r = me.fireRound(ctx, _aim, spread, { aimed: this.aiming, range });
     if (r === 'friend') {
       this.shotT = Math.min(ARENA.burstGap, arm.burstGap);
@@ -1740,7 +1768,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (can && tv) {
       this.lostT = 0;
       const d = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
-      const far = wantsAim(d, this.aiming, me.arm);
+      const far = wantsAim(d, this.aiming, me.arm, this.reachOf(T, now));
       if (far && !this.aiming) {
         this.aiming = true;
         // Back on the same face after a moment's break: the focus it had stands.

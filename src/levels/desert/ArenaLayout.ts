@@ -156,8 +156,20 @@ export const HOUSES = {
     { cx: -61, cz: 26.5, su: 1 as const, hw: 5, hd: 4.5 },
     { cx: 61, cz: 26.5, su: -1 as const, hw: 5, hd: 4.5 },
   ],
+  /**
+   * 50.0, huts (Houses.HUT_SPEC) in the open ground off the middle: the west field between the hamlet
+   * and the centre approach, the east field by the wadi's APC, and between the compound and the
+   * hamlet's house (each built again rotated). Each on its own centre's dune height (`flank`: the flank's).
+   */
+  huts: [
+    { cx: -31, cz: 45, su: 1 as const, hw: 3.5, hd: 3 },
+    { cx: 36, cz: 44, su: -1 as const, hw: 3.5, hd: 3 },
+    // (On the flank's height: the hamlet house's pad reaches it.)
+    { cx: -43, cz: 30, su: 1 as const, hw: 3.5, hd: 3, flank: true },
+  ],
   pad: 1.2,
   fall: 11,
+  hutFall: 7,
 };
 
 /**
@@ -176,6 +188,10 @@ const KEEP_OUT_SOUTH: [number, number, number, number][] = [
   // 28.0: the outer flanks (the trench and the anvil west, the convoy and the spine east).
   [-89, 2, -64, 54],
   [64, 2, 89, 56],
+  // 50.0: the huts.
+  [-36, 40, -26, 50],
+  [31, 39, 41, 49],
+  [-48, 25, -38, 35],
 ];
 
 export function arenaKeepOut(x: number, z: number, r = 0) {

@@ -2588,8 +2588,36 @@ Kills a minute 25.2 → 23.4; quiet 6.5% → 7.7%; first engagement 9.7 → 9.2 
 - The graph: 811 of 811 nodes reachable, no lane waypoint blocked. levelAI: runners 176/176 (48.0: 144/160, the gantry's), gunners 8/8. `stairGaps` clean. `world`: the same report as 48.0. `stress` 32,000 runs: 51, all from the top of a barge's rail (48.0: 7,774, almost all the checker's "left the playable extent").
 - Tests 521 (+5: the maze's brick bond, the quay's walls, the floor, the barges, the cab and the depot wall).
 
+## 50.0: the Desert's houses tamed, the bots made a match for him
+
+Branch `feature/desert-balance-50.0`, from `main` @ `5d46f06` (49.0).
+
+The playtest: up on the houses (the roofs, the windows) he shot the whole map; the open ground off the middle; the houses' floors flickered; the bots were easy (he carried his team, 20 kills and more).
+
+### The houses
+- **No roofs to climb** (the Block's 10.2 m roof, the houses' 6.6 m): the stairs stop at the top floor.
+- **Fewer windows**, the top floors' slits: the Block's upper floors 8 windows a floor at each end → 3 on the first floor, 2 slits (0.7 × 0.6 m) on the second; the houses' upper floor 5 → 3 slits. **Bars across every window** (rounds and sight through, nobody: a jump squeezed a body out through a slit).
+- Field of fire (share of the field 25–100 m away in sight, the best spot / the mean): the Block's roof 59.6% / 11.4% and the houses' 49.1% / 29.9% (gone); the Block's upper floors 20.1% / 3% → 14% / 0.5%; the houses' 26.4% / 5.3% → 18.5% / 1.3%.
+- **The flicker**: the ground floor lay on the pad's sand, the same plane; now 6 cm over it (and its sills), the slab cut under the first stair run.
+- **Huts** (`HUT_SPEC`, `HOUSES.huts`): one storey, no roof to climb, doors at both ends off each other's line, a barred window each side; in the west field (-31, 45), by the wadi's APC (36, 44) and between the compound and the hamlet's house (-43, 30), each again rotated. Their pads blend over 7 m (`hutFall`), laid before the flank houses'; the west one on the flank's height.
+- The Block's first-floor crate against the end rooms' wall (0.65 m short of it: a slot).
+
+### The fight with the human
+- **His hit**: a bot's rifle round 10 → 12.5 (`TDM.playerHit`; the other guns their share): eight hits to drop him, as his eight on a bot's body (survival keeps 10).
+- **Return fire** (`ARENA.longFire`): a bot fires on, aimed, out to 1.9 × its rifle's range (pistol 1.7, SMG 1.6, never the shotgun) at a target that hit it or put a round past it in the last 3 s, or that stands 2.5 m or more over it; the cone 0.004 wider for every 10 m past the gun's range. Until now past 40 m (the SMG 26, the pistol 22) a bot only ran at him.
+- **The pressure** (`ARENA.pressure`, `Pressure.ts`): his form over the last 90 s (kills less 1.5 × deaths, / 6, clamped -0.6 … 1). In form the other team reacts to him up to 30% faster, shoots him up to 35% tighter, scores him up to +2 as a target, and from 0.2 every kill of his tells the victim's team where it came from; struggling, the same eased. Self-play (he spectates) runs at 0.
+- **The duel bench** (one rifleman against him standing, 12 s, calm air, 4 runs each; damage he took): on the Anvil (3.8 m up) at 45 m 0/250/0/249 → 528/579/0/532; on the sand at 30 m 256/282/511/60 → 447/388/499/522. Noisy (dunes cut some lines).
+
+### Self-play (the Desert, 4 matches each, 49.0 → 50.0; bots alone, his pressure off)
+Kills a minute 28.8 → 30.1; quiet 6.6% → 5.8%; first engagement 12.3 → 9.8 s; kill range median 13.1 → 13.1 m, p90 33.3 → 35 m; kills by lane west/compound/east 19/66/15 → 15/66/19%; the Block 7.7% → 7.9% of bot time; stuck 1 (by the east ruins' gate, away from the changes; 49.0 0).
+
+### Checks
+- The graph: 1135 of 1136 (the compound's old one). levelAI: runners 484/488 (49.0: 437/488, the roofs), gunners 8/8. `world` 0 issues (49.0: drops off the Block's roof, a stair flush with a wall). `stress` 32,000 runs: 0 (49.0: 2). `stairGaps` clean.
+- Tests 524 (+3: `pressure.test.ts`; the houses' tests for four runs and the huts' pads).
+
 ## Next
 Human playtest:
+- 50.0 items: the bots (do they feel like a match now: too hard, too easy; do you notice them shooting back from far off, and focusing you when you're on a streak); the Block and the houses (still worth going into without the roofs; the barred slits); the huts in the field; the floors (any flicker left).
 - 49.0 items: Neon Docks (the warehouse: too cramped now, or a good close fight; the stair towers: do you use the door into the catwalks; the crane cab and the crane stair's perch; the quay's zig-zag and the barges' cargo: interesting or just slower; the maze without the gantry; the sniper stack: still too strong over its own half?).
 - 48.0 items: playing OMEGA (does the other end of each map feel new; the HUD in red with OMEGA on the left: readable; teammates in orange accents: any shots at your own side?).
 - 47.0 items: Neon Block's alleys (do the parlour, the konbini and the ramen-ya feel like places to fight through, or doors in the way; still a spawn-to-spawn line anywhere?); the roofs (enough cover now; too cluttered; does the machine room become a camp?); the compass's two rows.

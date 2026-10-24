@@ -117,7 +117,10 @@ export function desertHeight(x: number, z: number): number {
  * left the sand 0.1 m over a house's floor at its edge).
  */
 const HOUSE_RECTS = (() => {
-  const own = [HOUSES.block, ...HOUSES.houses].map((h) => ({ cx: h.cx, cz: h.cz, hw: h.hw, hd: h.hd }));
+  // 50.0: the huts first, each on its own centre's dunes and blended over `hutFall` m (short of the
+  // flank's houses, whose pads are applied after them).
+  const own = HOUSES.huts.map((h) => ({ cx: h.cx, cz: h.cz, hw: h.hw, hd: h.hd, own: !('flank' in h && h.flank), fall: HOUSES.hutFall }));
+  own.push(...[HOUSES.block, ...HOUSES.houses].map((h) => ({ cx: h.cx, cz: h.cz, hw: h.hw, hd: h.hd, own: false, fall: HOUSES.fall })));
   return [...own, ...own.map((h) => ({ ...h, cx: -h.cx, cz: -h.cz }))].map((h) => ({ ...h, y: NaN }));
 })();
 
@@ -139,10 +142,10 @@ function housePads(x: number, z: number, h: number) {
   return h;
 }
 
-function padWeight(r: { cx: number; cz: number; hw: number; hd: number }, x: number, z: number) {
+function padWeight(r: { cx: number; cz: number; hw: number; hd: number; fall: number }, x: number, z: number) {
   const dx = Math.max(Math.abs(x - r.cx) - r.hw - HOUSES.pad, 0), dz = Math.max(Math.abs(z - r.cz) - r.hd - HOUSES.pad, 0);
   const d = Math.hypot(dx, dz);
-  return d >= HOUSES.fall ? 0 : 1 - smoothstep(0, HOUSES.fall, d);
+  return d >= r.fall ? 0 : 1 - smoothstep(0, r.fall, d);
 }
 
 /** 46.0: a flank house's floor (its pad's height) under (x, z) (its centre). */
@@ -152,9 +155,9 @@ export function housePadY(x: number, z: number) {
   return padY(r);
 }
 
-/** A pad's height: its flank's Block's centre's dunes (computed once). */
-function padY(r: { cx: number; y: number }) {
-  if (Number.isNaN(r.y)) r.y = dunes(Math.sign(r.cx) * Math.abs(HOUSES.block.cx), 0);
+/** A pad's height: its flank's Block's centre's dunes (50.0: a hut's, its own centre's), computed once. */
+function padY(r: { cx: number; cz: number; y: number; own: boolean }) {
+  if (Number.isNaN(r.y)) r.y = r.own ? dunes(r.cx, r.cz) : dunes(Math.sign(r.cx) * Math.abs(HOUSES.block.cx), 0);
   return r.y;
 }
 

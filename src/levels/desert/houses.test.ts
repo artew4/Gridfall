@@ -35,10 +35,10 @@ describe('46.0: the flank houses', () => {
     for (const [u0, v0, u1, v1] of rs) for (const [a, b, c, d] of holes) expect((u0 + u1) / 2 > a && (u0 + u1) / 2 < c && (v0 + v1) / 2 > b && (v0 + v1) / 2 < d).toBe(false);
   });
 
-  it('the Block: three storeys and a roof, a stair at each end (six runs), the roof 10.2 m up', () => {
+  it('the Block: three storeys, a stair at each end (50.0: four runs, none to the roof), the roof 10.2 m up', () => {
     const { col, r, at } = house(BLOCK_SPEC);
     const ramps = col.colliders.filter((c) => c.kind === 'ramp');
-    expect(ramps.length).toBe(6);
+    expect(ramps.length).toBe(4);
     // Each run climbs one storey.
     for (const c of ramps) expect(Math.abs(c.h1! - c.h0!)).toBeCloseTo(BLOCK_SPEC.storey, 5);
     expect(r.interior.h).toBeCloseTo(at.y0 + 3 * BLOCK_SPEC.storey, 5);
@@ -83,7 +83,7 @@ describe('46.0: the flank houses', () => {
   });
 
   it('every house stands on a flat pad at its own dune height, both halves', () => {
-    const all = [HOUSES.block, ...HOUSES.houses];
+    const all = [HOUSES.block, ...HOUSES.houses, ...HOUSES.huts];
     for (const h of all)
       for (const s of [1, -1]) {
         const cx = s * h.cx, cz = s * h.cz;

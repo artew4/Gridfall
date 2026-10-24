@@ -5,7 +5,7 @@ import { TRENCH, desertHeight, housePadY } from './Terrain';
 import { BASE, CULVERT_LANE_SOUTH, HOUSES, LANES_NORTH, LANES_SOUTH, OUTER, OUTER_LANES_NORTH, OUTER_LANES_SOUTH, ROOF_LANE, RUINS, rot } from './ArenaLayout';
 import type { Zone } from '../Level';
 import { buildRuins } from './Ruins';
-import { BLOCK_SPEC, HOUSE_SPEC, buildHouse, type HouseKit, type HouseResult, type HouseSpec } from './Houses';
+import { BLOCK_SPEC, HOUSE_SPEC, HUT_SPEC, buildHouse, type HouseKit, type HouseResult, type HouseSpec } from './Houses';
 
 /*
   The arena's structures (6.0; layout and reasoning in ArenaLayout.ts). Everything is authored once in
@@ -310,6 +310,11 @@ export function buildArena(k: ArenaKit): ArenaResult {
     for (const h of HOUSES.houses) {
       put(HOUSE_SPEC, h.cx, h.cz, h.su, 1, m.whitewash);
       put(HOUSE_SPEC, -h.cx, -h.cz, h.su === 1 ? -1 : 1, -1, m.whitewash);
+    }
+    // 50.0: the huts in the open ground.
+    for (const h of HOUSES.huts) {
+      put(HUT_SPEC, h.cx, h.cz, h.su, 1, m.plaster);
+      put(HUT_SPEC, -h.cx, -h.cz, h.su === 1 ? -1 : 1, -1, m.plaster);
     }
   }
 

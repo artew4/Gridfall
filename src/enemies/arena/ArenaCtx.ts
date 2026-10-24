@@ -433,7 +433,34 @@ export const ARENA = {
     /** Where the enemy front is assumed with no contact (progress, -1 own base … +1 theirs). */
     unknownFront: 0.35,
   },
+  /**
+   * 50.0, return fire (the playtest: from a window or a roof 50–80 m out he shot the bots at will; past
+   * its gun's `maxRange` a bot only ran at him). A bot fires on, aimed, out to `mult` × its gun's range
+   * at a target that hit it or put a round past it in the last `hurt` s, or that stands `above` m or
+   * more over it (a perch): the cone wider by `spread` for every 10 m past the gun's range. The
+   * shotgun never (its pellets are nothing at 20 m).
+   */
+  longFire: { on: true, mult: { pistol: 1.7, smg: 1.6, ar: 1.9, shotgun: 1 } as Record<string, number>, hurt: 3, above: 2.5, spread: 0.004 },
+  /**
+   * 50.0, the pressure on the human (Pressure.ts): his form over the last `window` s (kills less 1.5 ×
+   * deaths, /`scale`, clamped to -`ease` … 1) sets how hard the other team plays him: faster to react
+   * to him (`react` × form), tighter on him (`spread`), more of a target (`focus` added to its threat
+   * score), and from `reveal` up every kill of his tells the victim's team where the shot came from.
+   * Below 0 the same, eased (he is struggling).
+   */
+  pressure: { on: true, window: 90, scale: 6, ease: 0.6, react: 0.3, spread: 0.35, focus: 2, reveal: 0.2 },
 };
+
+/**
+ * 50.0: the human's form this match (Pressure.ts writes it, the bots of the other team read it): -1 …
+ * 1, 0 when even or off.
+ */
+export const PRESSURE = { form: 0 };
+
+/** 50.0: a factor that grows with his form above 0 and shrinks with it below (`k` per unit, eased below). */
+export function pressureScale(k: number, form = PRESSURE.form) {
+  return form >= 0 ? 1 - k * form : 1 - k * form * 1.15;
+}
 
 /** DEV counters for the soak and the report (cheap: plain numbers, filled as things happen). */
 export interface ArenaStats {
