@@ -1,0 +1,1282 @@
+{
+ "version": "44.0",
+ "branch": "feature/fronts-loading-44.0",
+ "machine": "Apple M5, headless Chrome; self-play SwiftShader on a dev-server snapshot, hitches GPU=1 (ANGLE Metal)",
+ "method": {
+  "selfplay": "scripts/frontcheck.mjs <map> 3-4 (bot-only whole matches, __dev.tdmSim); before = {\"fronts\":false} (43.0 patrols), same build",
+  "hitchprobe": "GPU=1 scripts/hitchprobe.mjs <maps> 30: the first 30 s of a TDM match after DEPLOY"
+ },
+ "hitches": {
+  "before_43_0": {
+   "oldport": {
+    "framesOver50msFirst30s": 3,
+    "worstFrameMs": 114,
+    "introGapsOver50ms": [
+     129,
+     238
+    ],
+    "programsCompiledInIntro": 15,
+    "programsCompiledInPlay": 1
+   },
+   "favelas": {
+    "framesOver50msFirst30s": 0,
+    "worstFrameMs": 25,
+    "introGapsOver50ms": [],
+    "programsCompiledInIntro": 13,
+    "programsCompiledInPlay": 1
+   },
+   "desert": {
+    "framesOver50msFirst30s": 1,
+    "worstFrameMs": 100,
+    "introGapsOver50ms": [
+     198
+    ],
+    "programsCompiledInIntro": 12,
+    "programsCompiledInPlay": 3
+   }
+  },
+  "after_44_0": {
+   "oldport": {
+    "warmup": {
+     "textures": 31,
+     "programs0": 37,
+     "programs": 6,
+     "ms": 78
+    },
+    "introGapsOver50ms": [],
+    "framesOver50msFirst30s": 0,
+    "worstFrameMs": 24,
+    "programsCompiledInIntro": 1,
+    "programsCompiledInPlay": 0
+   },
+   "favelas": {
+    "warmup": {
+     "textures": 22,
+     "programs0": 34,
+     "programs": 7,
+     "ms": 78
+    },
+    "introGapsOver50ms": [],
+    "framesOver50msFirst30s": 0,
+    "worstFrameMs": 21,
+    "programsCompiledInIntro": 2,
+    "programsCompiledInPlay": 0
+   },
+   "desert": {
+    "warmup": {
+     "textures": 40,
+     "programs0": 36,
+     "programs": 6,
+     "ms": 83
+    },
+    "introGapsOver50ms": [],
+    "framesOver50msFirst30s": 0,
+    "worstFrameMs": 38,
+    "programsCompiledInIntro": 2,
+    "programsCompiledInPlay": 0
+   },
+   "maglev": {
+    "warmup": {
+     "textures": 30,
+     "programs0": 29,
+     "programs": 7,
+     "ms": 74
+    },
+    "introGapsOver50ms": [],
+    "framesOver50msFirst30s": 0,
+    "worstFrameMs": 21,
+    "programsCompiledInIntro": 1,
+    "programsCompiledInPlay": 0
+   }
+  },
+  "boot_warmup_only_no_deploy_warmup": {
+   "oldport": {
+    "warmup": {
+     "textures": 26,
+     "programs0": 0,
+     "programs": 29,
+     "ms": 101
+    },
+    "introGapsOver50ms": [],
+    "framesOver50msFirst30s": 0,
+    "worstFrameMs": 23,
+    "programsCompiledInIntro": 1,
+    "programsCompiledInPlay": 0
+   },
+   "favelas": {
+    "warmup": {
+     "textures": 16,
+     "programs0": 0,
+     "programs": 26,
+     "ms": 88
+    },
+    "introGapsOver50ms": [],
+    "framesOver50msFirst30s": 0,
+    "worstFrameMs": 22,
+    "programsCompiledInIntro": 2,
+    "programsCompiledInPlay": 0
+   },
+   "desert": {
+    "warmup": {
+     "textures": 34,
+     "programs0": 0,
+     "programs": 28,
+     "ms": 107
+    },
+    "introGapsOver50ms": [],
+    "framesOver50msFirst30s": 0,
+    "worstFrameMs": 43,
+    "programsCompiledInIntro": 2,
+    "programsCompiledInPlay": 0
+   },
+   "maglev": {
+    "warmup": {
+     "textures": 26,
+     "programs0": 0,
+     "programs": 21,
+     "ms": 89
+    },
+    "introGapsOver50ms": [],
+    "framesOver50msFirst30s": 0,
+    "worstFrameMs": 21,
+    "programsCompiledInIntro": 1,
+    "programsCompiledInPlay": 0
+   }
+  }
+ },
+ "selfplay": {
+  "oldport": {
+   "before_43_0_patrols": {
+    "matches": 4,
+    "killsPerMin": 20.77,
+    "lanesLitAvg": 2.05,
+    "allThreeLanesPct": 35.85,
+    "noLanePct": 8.0,
+    "fightersPerSite": 2.77,
+    "sites4PlusPct": 28.1,
+    "timeWithBrawlPct": 46.38,
+    "fightSites": 1.85,
+    "quietLivePct": 3.45,
+    "firstEngagementMedianS": 7.97,
+    "firstEngagementP90S": 19.82,
+    "matchSeconds": 316.17,
+    "stuck": 0,
+    "killsByLanePct": {
+     "dock": 27,
+     "none": 0,
+     "warehouse": 24,
+     "yard": 49
+    }
+   },
+   "after_44_0_fronts": {
+    "matches": 3,
+    "killsPerMin": 27.33,
+    "lanesLitAvg": 2.34,
+    "allThreeLanesPct": 49.6,
+    "noLanePct": 1.97,
+    "fightersPerSite": 3.0,
+    "sites4PlusPct": 33.03,
+    "timeWithBrawlPct": 58.27,
+    "fightSites": 1.95,
+    "quietLivePct": 8.13,
+    "firstEngagementMedianS": 7.73,
+    "firstEngagementP90S": 17.63,
+    "matchSeconds": 241.9,
+    "stuck": 0,
+    "killsByLanePct": {
+     "dock": 28,
+     "warehouse": 33,
+     "yard": 39
+    },
+    "fronts": {
+     "crossingsPerMin": 4.08,
+     "breaks": 1.33,
+     "ticketsBled": 0.33,
+     "rallyPct": 41,
+     "rotations": 4.0,
+     "lineAbsMean": [
+      0.15,
+      0.16,
+      0.17
+     ]
+    }
+   }
+  },
+  "maglev": {
+   "before_43_0_patrols": {
+    "matches": 4,
+    "killsPerMin": 13.98,
+    "lanesLitAvg": 1.95,
+    "allThreeLanesPct": 28.95,
+    "noLanePct": 8.1,
+    "fightersPerSite": 2.97,
+    "sites4PlusPct": 32.27,
+    "timeWithBrawlPct": 51.77,
+    "fightSites": 1.82,
+    "quietLivePct": 4.8,
+    "firstEngagementMedianS": 12.07,
+    "firstEngagementP90S": 33.67,
+    "matchSeconds": 445.9,
+    "stuck": 0,
+    "killsByLanePct": {
+     "east": 54,
+     "none": 2,
+     "train": 17,
+     "west": 28
+    }
+   },
+   "after_44_0_fronts": {
+    "matches": 3,
+    "killsPerMin": 20.8,
+    "lanesLitAvg": 2.15,
+    "allThreeLanesPct": 39.97,
+    "noLanePct": 5.37,
+    "fightersPerSite": 3.55,
+    "sites4PlusPct": 44.63,
+    "timeWithBrawlPct": 68.83,
+    "fightSites": 1.81,
+    "quietLivePct": 5.87,
+    "firstEngagementMedianS": 8.7,
+    "firstEngagementP90S": 23.5,
+    "matchSeconds": 306.03,
+    "stuck": 0,
+    "killsByLanePct": {
+     "east": 51,
+     "none": 1,
+     "train": 19,
+     "west": 28
+    },
+    "fronts": {
+     "crossingsPerMin": 3.74,
+     "breaks": 1.67,
+     "ticketsBled": 0.67,
+     "rallyPct": 22,
+     "rotations": 4.67,
+     "lineAbsMean": [
+      0.23,
+      0.28,
+      0.18
+     ]
+    }
+   }
+  },
+  "favelas": {
+   "before_43_0_patrols": {
+    "matches": 4,
+    "killsPerMin": 22.57,
+    "lanesLitAvg": 1.91,
+    "allThreeLanesPct": 39.17,
+    "noLanePct": 17.8,
+    "fightersPerSite": 2.73,
+    "sites4PlusPct": 26.6,
+    "timeWithBrawlPct": 42.95,
+    "fightSites": 2.16,
+    "quietLivePct": 8.53,
+    "firstEngagementMedianS": 14.8,
+    "firstEngagementP90S": 27.9,
+    "matchSeconds": 300.0,
+    "stuck": 0,
+    "killsByLanePct": {
+     "high (crest)": 42,
+     "low (street)": 26,
+     "middle": 30,
+     "none": 2
+    }
+   },
+   "after_44_0_fronts": {
+    "matches": 3,
+    "killsPerMin": 30.83,
+    "lanesLitAvg": 2.05,
+    "allThreeLanesPct": 48.6,
+    "noLanePct": 12.97,
+    "fightersPerSite": 3.17,
+    "sites4PlusPct": 36.07,
+    "timeWithBrawlPct": 57.0,
+    "fightSites": 2.11,
+    "quietLivePct": 8.03,
+    "firstEngagementMedianS": 10.17,
+    "firstEngagementP90S": 21.8,
+    "matchSeconds": 229.27,
+    "stuck": 0,
+    "killsByLanePct": {
+     "high (crest)": 41,
+     "low (street)": 18,
+     "middle": 39,
+     "none": 2
+    },
+    "fronts": {
+     "crossingsPerMin": 4.58,
+     "breaks": 0.0,
+     "ticketsBled": 0.0,
+     "rallyPct": 56,
+     "rotations": 5.67,
+     "lineAbsMean": [
+      0.28,
+      0.21,
+      0.26
+     ]
+    }
+   }
+  },
+  "neonblock": {
+   "before_43_0_patrols": {
+    "matches": 4,
+    "killsPerMin": 10.78,
+    "lanesLitAvg": 1.69,
+    "allThreeLanesPct": 21.52,
+    "noLanePct": 14.93,
+    "fightersPerSite": 2.2,
+    "sites4PlusPct": 16.57,
+    "timeWithBrawlPct": 22.82,
+    "fightSites": 1.64,
+    "quietLivePct": 19.48,
+    "firstEngagementMedianS": 16.18,
+    "firstEngagementP90S": 32.85,
+    "matchSeconds": 575.0,
+    "stuck": 0,
+    "killsByLanePct": {
+     "centre": 49,
+     "east": 12,
+     "west": 39
+    },
+    "teamSize": 5
+   },
+   "after_44_0_fronts": {
+    "matches": 3,
+    "killsPerMin": 18.4,
+    "lanesLitAvg": 2.01,
+    "allThreeLanesPct": 39.73,
+    "noLanePct": 15.2,
+    "fightersPerSite": 3.25,
+    "sites4PlusPct": 37.1,
+    "timeWithBrawlPct": 53.6,
+    "fightSites": 1.71,
+    "quietLivePct": 8.93,
+    "firstEngagementMedianS": 13.3,
+    "firstEngagementP90S": 26.93,
+    "matchSeconds": 345.27,
+    "stuck": 0,
+    "killsByLanePct": {
+     "centre": 58,
+     "east": 6,
+     "west": 36
+    },
+    "fronts": {
+     "crossingsPerMin": 5.66,
+     "breaks": 1.33,
+     "ticketsBled": 4.33,
+     "rallyPct": 46,
+     "rotations": 3.67,
+     "lineAbsMean": [
+      0.19,
+      0.16,
+      0.23
+     ]
+    },
+    "teamSize": 7
+   },
+   "before_43_0_patrols_7v7": {
+    "matches": 3,
+    "killsPerMin": 15.37,
+    "lanesLitAvg": 2.12,
+    "allThreeLanesPct": 39.83,
+    "noLanePct": 7.3,
+    "fightersPerSite": 2.84,
+    "sites4PlusPct": 29.37,
+    "timeWithBrawlPct": 46.2,
+    "fightSites": 1.76,
+    "quietLivePct": 7.5,
+    "firstEngagementMedianS": 15.1,
+    "firstEngagementP90S": 29.37,
+    "matchSeconds": 404.93,
+    "stuck": 0,
+    "killsByLanePct": {
+     "centre": 40,
+     "east": 17,
+     "west": 43
+    },
+    "teamSize": 7
+   }
+  },
+  "docks": {
+   "before_43_0_patrols": {
+    "matches": 3,
+    "killsPerMin": 20.37,
+    "lanesLitAvg": 1.96,
+    "allThreeLanesPct": 32.27,
+    "noLanePct": 9.5,
+    "fightersPerSite": 2.97,
+    "sites4PlusPct": 32.2,
+    "timeWithBrawlPct": 54.37,
+    "fightSites": 2.03,
+    "quietLivePct": 6.7,
+    "firstEngagementMedianS": 12.33,
+    "firstEngagementP90S": 29.53,
+    "matchSeconds": 337.03,
+    "stuck": 0,
+    "killsByLanePct": {
+     "containers": 28,
+     "none": 0,
+     "warehouse": 45,
+     "waterfront": 27
+    }
+   },
+   "after_44_0_fronts": {
+    "matches": 3,
+    "killsPerMin": 29.17,
+    "lanesLitAvg": 2.37,
+    "allThreeLanesPct": 49.67,
+    "noLanePct": 1.37,
+    "fightersPerSite": 3.52,
+    "sites4PlusPct": 42.07,
+    "timeWithBrawlPct": 72.23,
+    "fightSites": 1.98,
+    "quietLivePct": 3.43,
+    "firstEngagementMedianS": 8.13,
+    "firstEngagementP90S": 19.0,
+    "matchSeconds": 225.1,
+    "stuck": 0,
+    "killsByLanePct": {
+     "containers": 29,
+     "none": 1,
+     "warehouse": 50,
+     "waterfront": 20
+    },
+    "fronts": {
+     "crossingsPerMin": 3.68,
+     "breaks": 1.33,
+     "ticketsBled": 0.33,
+     "rallyPct": 29,
+     "rotations": 4.33,
+     "lineAbsMean": [
+      0.24,
+      0.19,
+      0.1
+     ]
+    }
+   }
+  },
+  "crashsite": {
+   "before_43_0_patrols": {
+    "matches": 3,
+    "killsPerMin": 18.8,
+    "lanesLitAvg": 1.91,
+    "allThreeLanesPct": 16.1,
+    "noLanePct": 1.73,
+    "fightersPerSite": 3.35,
+    "sites4PlusPct": 39.23,
+    "timeWithBrawlPct": 63.63,
+    "fightSites": 1.69,
+    "quietLivePct": 3.93,
+    "firstEngagementMedianS": 12.7,
+    "firstEngagementP90S": 23.97,
+    "matchSeconds": 343.37,
+    "stuck": 0,
+    "killsByLanePct": {
+     "none": 2,
+     "outpost": 72,
+     "ravine": 8,
+     "ridge": 17,
+     "tunnels": 1
+    }
+   },
+   "after_44_0_fronts": {
+    "matches": 3,
+    "killsPerMin": 19.97,
+    "lanesLitAvg": 1.92,
+    "allThreeLanesPct": 27.0,
+    "noLanePct": 9.77,
+    "fightersPerSite": 3.71,
+    "sites4PlusPct": 43.53,
+    "timeWithBrawlPct": 63.3,
+    "fightSites": 1.64,
+    "quietLivePct": 4.43,
+    "firstEngagementMedianS": 11.63,
+    "firstEngagementP90S": 23.53,
+    "matchSeconds": 327.53,
+    "stuck": 0,
+    "killsByLanePct": {
+     "none": 1,
+     "outpost": 70,
+     "ravine": 7,
+     "ridge": 21,
+     "tunnels": 1
+    },
+    "fronts": {
+     "crossingsPerMin": 3.78,
+     "breaks": 2.0,
+     "ticketsBled": 1.0,
+     "rallyPct": 18,
+     "rotations": 5.67,
+     "lineAbsMean": [
+      0.17,
+      0.18,
+      0.27
+     ]
+    }
+   }
+  },
+  "desert": {
+   "before_43_0_patrols": {
+    "matches": 3,
+    "killsPerMin": 23.03,
+    "lanesLitAvg": 1.79,
+    "allThreeLanesPct": 27.63,
+    "noLanePct": 15.0,
+    "fightersPerSite": 2.98,
+    "sites4PlusPct": 31.0,
+    "timeWithBrawlPct": 63.4,
+    "fightSites": 3.04,
+    "quietLivePct": 2.87,
+    "firstEngagementMedianS": 13.77,
+    "firstEngagementP90S": 31.67,
+    "matchSeconds": 311.1,
+    "stuck": 0,
+    "killsByLanePct": {
+     "compound": 76,
+     "east flank": 13,
+     "west flank": 11
+    }
+   },
+   "after_44_0_fronts": {
+    "matches": 3,
+    "killsPerMin": 32.93,
+    "lanesLitAvg": 2.11,
+    "allThreeLanesPct": 40.3,
+    "noLanePct": 7.0,
+    "fightersPerSite": 4.32,
+    "sites4PlusPct": 51.33,
+    "timeWithBrawlPct": 84.03,
+    "fightSites": 2.56,
+    "quietLivePct": 3.8,
+    "firstEngagementMedianS": 10.63,
+    "firstEngagementP90S": 27.37,
+    "matchSeconds": 213.17,
+    "stuck": 0,
+    "killsByLanePct": {
+     "compound": 75,
+     "east flank": 15,
+     "none": 1,
+     "west flank": 10
+    },
+    "fronts": {
+     "crossingsPerMin": 2.67,
+     "breaks": 2.0,
+     "ticketsBled": 0.33,
+     "rallyPct": 27,
+     "rotations": 5.67,
+     "lineAbsMean": [
+      0.2,
+      0.17,
+      0.23
+     ]
+    }
+   }
+  }
+ },
+ "ab_waves": {
+  "oldport": {
+   "A_patrols": {
+    "matches": 4,
+    "killsPerMin": 20.77,
+    "lanesLitAvg": 2.05,
+    "allThreeLanesPct": 35.85,
+    "noLanePct": 8.0,
+    "fightersPerSite": 2.77,
+    "sites4PlusPct": 28.1,
+    "timeWithBrawlPct": 46.38,
+    "fightSites": 1.85,
+    "quietLivePct": 3.45,
+    "firstEngagementMedianS": 7.97,
+    "firstEngagementP90S": 19.82,
+    "matchSeconds": 316.17,
+    "stuck": 0,
+    "killsByLanePct": {
+     "dock": 27,
+     "none": 0,
+     "warehouse": 24,
+     "yard": 49
+    }
+   },
+   "B_fronts": {
+    "matches": 4,
+    "killsPerMin": 25.5,
+    "lanesLitAvg": 2.29,
+    "allThreeLanesPct": 49.4,
+    "noLanePct": 5.42,
+    "fightersPerSite": 3.0,
+    "sites4PlusPct": 33.52,
+    "timeWithBrawlPct": 57.42,
+    "fightSites": 1.98,
+    "quietLivePct": 7.92,
+    "firstEngagementMedianS": 7.72,
+    "firstEngagementP90S": 16.15,
+    "matchSeconds": 253.1,
+    "stuck": 0,
+    "killsByLanePct": {
+     "dock": 27,
+     "warehouse": 34,
+     "yard": 40
+    },
+    "fronts": {
+     "crossingsPerMin": 5.13,
+     "breaks": 0.5,
+     "ticketsBled": 3.0,
+     "rallyPct": 40,
+     "rotations": 4.5,
+     "lineAbsMean": [
+      0.17,
+      0.15,
+      0.17
+     ]
+    }
+   },
+   "C_fronts_waves6s": {
+    "matches": 4,
+    "killsPerMin": 22.75,
+    "lanesLitAvg": 2.02,
+    "allThreeLanesPct": 36.25,
+    "noLanePct": 9.15,
+    "fightersPerSite": 2.87,
+    "sites4PlusPct": 30.25,
+    "timeWithBrawlPct": 46.3,
+    "fightSites": 1.8,
+    "quietLivePct": 10.75,
+    "firstEngagementMedianS": 7.8,
+    "firstEngagementP90S": 18.82,
+    "matchSeconds": 285.65,
+    "stuck": 0,
+    "killsByLanePct": {
+     "dock": 29,
+     "none": 0,
+     "warehouse": 30,
+     "yard": 40
+    },
+    "fronts": {
+     "crossingsPerMin": 4.57,
+     "breaks": 0.5,
+     "ticketsBled": 0.75,
+     "rallyPct": 38,
+     "rotations": 4.75,
+     "lineAbsMean": [
+      0.15,
+      0.15,
+      0.15
+     ]
+    }
+   }
+  },
+  "maglev": {
+   "A_patrols": {
+    "matches": 4,
+    "killsPerMin": 13.98,
+    "lanesLitAvg": 1.95,
+    "allThreeLanesPct": 28.95,
+    "noLanePct": 8.1,
+    "fightersPerSite": 2.97,
+    "sites4PlusPct": 32.27,
+    "timeWithBrawlPct": 51.77,
+    "fightSites": 1.82,
+    "quietLivePct": 4.8,
+    "firstEngagementMedianS": 12.07,
+    "firstEngagementP90S": 33.67,
+    "matchSeconds": 445.9,
+    "stuck": 0,
+    "killsByLanePct": {
+     "east": 54,
+     "none": 2,
+     "train": 17,
+     "west": 28
+    }
+   },
+   "B_fronts": {
+    "matches": 4,
+    "killsPerMin": 21.27,
+    "lanesLitAvg": 2.12,
+    "allThreeLanesPct": 36.95,
+    "noLanePct": 4.25,
+    "fightersPerSite": 3.68,
+    "sites4PlusPct": 46.07,
+    "timeWithBrawlPct": 69.8,
+    "fightSites": 1.73,
+    "quietLivePct": 5.65,
+    "firstEngagementMedianS": 9.5,
+    "firstEngagementP90S": 23.82,
+    "matchSeconds": 304.55,
+    "stuck": 0,
+    "killsByLanePct": {
+     "east": 53,
+     "none": 2,
+     "train": 19,
+     "west": 26
+    },
+    "fronts": {
+     "crossingsPerMin": 2.66,
+     "breaks": 4.0,
+     "ticketsBled": 1.25,
+     "rallyPct": 24,
+     "rotations": 4.5,
+     "lineAbsMean": [
+      0.3,
+      0.31,
+      0.18
+     ]
+    }
+   },
+   "C_fronts_waves6s": {
+    "matches": 4,
+    "killsPerMin": 17.2,
+    "lanesLitAvg": 2.12,
+    "allThreeLanesPct": 37.65,
+    "noLanePct": 6.05,
+    "fightersPerSite": 3.44,
+    "sites4PlusPct": 41.12,
+    "timeWithBrawlPct": 62.0,
+    "fightSites": 1.69,
+    "quietLivePct": 6.22,
+    "firstEngagementMedianS": 9.93,
+    "firstEngagementP90S": 26.45,
+    "matchSeconds": 371.23,
+    "stuck": 2,
+    "killsByLanePct": {
+     "east": 49,
+     "none": 1,
+     "train": 24,
+     "west": 26
+    },
+    "fronts": {
+     "crossingsPerMin": 2.75,
+     "breaks": 1.5,
+     "ticketsBled": 1.75,
+     "rallyPct": 20,
+     "rotations": 4.25,
+     "lineAbsMean": [
+      0.27,
+      0.28,
+      0.19
+     ]
+    }
+   }
+  },
+  "favelas": {
+   "A_patrols": {
+    "matches": 4,
+    "killsPerMin": 22.57,
+    "lanesLitAvg": 1.91,
+    "allThreeLanesPct": 39.17,
+    "noLanePct": 17.8,
+    "fightersPerSite": 2.73,
+    "sites4PlusPct": 26.6,
+    "timeWithBrawlPct": 42.95,
+    "fightSites": 2.16,
+    "quietLivePct": 8.53,
+    "firstEngagementMedianS": 14.8,
+    "firstEngagementP90S": 27.9,
+    "matchSeconds": 300.0,
+    "stuck": 0,
+    "killsByLanePct": {
+     "high (crest)": 42,
+     "low (street)": 26,
+     "middle": 30,
+     "none": 2
+    }
+   },
+   "B_fronts": {
+    "matches": 4,
+    "killsPerMin": 32.55,
+    "lanesLitAvg": 2.11,
+    "allThreeLanesPct": 46.83,
+    "noLanePct": 12.78,
+    "fightersPerSite": 3.2,
+    "sites4PlusPct": 36.45,
+    "timeWithBrawlPct": 60.88,
+    "fightSites": 2.19,
+    "quietLivePct": 7.75,
+    "firstEngagementMedianS": 9.43,
+    "firstEngagementP90S": 19.23,
+    "matchSeconds": 208.65,
+    "stuck": 0,
+    "killsByLanePct": {
+     "high (crest)": 39,
+     "low (street)": 19,
+     "middle": 42,
+     "none": 0
+    },
+    "fronts": {
+     "crossingsPerMin": 4.9,
+     "breaks": 0.0,
+     "ticketsBled": 0.0,
+     "rallyPct": 58,
+     "rotations": 4.75,
+     "lineAbsMean": [
+      0.19,
+      0.14,
+      0.19
+     ]
+    }
+   },
+   "C_fronts_waves6s": {
+    "matches": 4,
+    "killsPerMin": 30.27,
+    "lanesLitAvg": 1.96,
+    "allThreeLanesPct": 39.98,
+    "noLanePct": 14.9,
+    "fightersPerSite": 2.92,
+    "sites4PlusPct": 31.0,
+    "timeWithBrawlPct": 47.65,
+    "fightSites": 2.08,
+    "quietLivePct": 8.7,
+    "firstEngagementMedianS": 9.35,
+    "firstEngagementP90S": 21.62,
+    "matchSeconds": 233.28,
+    "stuck": 0,
+    "killsByLanePct": {
+     "high (crest)": 39,
+     "low (street)": 21,
+     "middle": 39,
+     "none": 1
+    },
+    "fronts": {
+     "crossingsPerMin": 3.93,
+     "breaks": 0.0,
+     "ticketsBled": 0.0,
+     "rallyPct": 59,
+     "rotations": 6.5,
+     "lineAbsMean": [
+      0.29,
+      0.15,
+      0.19
+     ]
+    }
+   }
+  },
+  "neonblock": {
+   "A_patrols": {
+    "matches": 4,
+    "killsPerMin": 10.78,
+    "lanesLitAvg": 1.69,
+    "allThreeLanesPct": 21.52,
+    "noLanePct": 14.93,
+    "fightersPerSite": 2.2,
+    "sites4PlusPct": 16.57,
+    "timeWithBrawlPct": 22.82,
+    "fightSites": 1.64,
+    "quietLivePct": 19.48,
+    "firstEngagementMedianS": 16.18,
+    "firstEngagementP90S": 32.85,
+    "matchSeconds": 575.0,
+    "stuck": 0,
+    "killsByLanePct": {
+     "centre": 49,
+     "east": 12,
+     "west": 39
+    }
+   },
+   "B_fronts": {
+    "matches": 4,
+    "killsPerMin": 12.17,
+    "lanesLitAvg": 1.81,
+    "allThreeLanesPct": 25.07,
+    "noLanePct": 12.43,
+    "fightersPerSite": 2.39,
+    "sites4PlusPct": 20.68,
+    "timeWithBrawlPct": 29.38,
+    "fightSites": 1.63,
+    "quietLivePct": 19.42,
+    "firstEngagementMedianS": 14.7,
+    "firstEngagementP90S": 29.75,
+    "matchSeconds": 506.0,
+    "stuck": 1,
+    "killsByLanePct": {
+     "centre": 50,
+     "east": 12,
+     "none": 0,
+     "west": 37
+    },
+    "fronts": {
+     "crossingsPerMin": 4.39,
+     "breaks": 1.5,
+     "ticketsBled": 1.5,
+     "rallyPct": 36,
+     "rotations": 1.5,
+     "lineAbsMean": [
+      0.15,
+      0.17,
+      0.28
+     ]
+    }
+   },
+   "C_fronts_waves6s": {
+    "matches": 4,
+    "killsPerMin": 10.98,
+    "lanesLitAvg": 1.65,
+    "allThreeLanesPct": 23.78,
+    "noLanePct": 19.05,
+    "fightersPerSite": 2.29,
+    "sites4PlusPct": 18.9,
+    "timeWithBrawlPct": 24.23,
+    "fightSites": 1.6,
+    "quietLivePct": 22.35,
+    "firstEngagementMedianS": 14.95,
+    "firstEngagementP90S": 31.25,
+    "matchSeconds": 556.3,
+    "stuck": 2,
+    "killsByLanePct": {
+     "centre": 45,
+     "east": 11,
+     "west": 44
+    },
+    "fronts": {
+     "crossingsPerMin": 4.05,
+     "breaks": 2.5,
+     "ticketsBled": 4.75,
+     "rallyPct": 38,
+     "rotations": 0.75,
+     "lineAbsMean": [
+      0.21,
+      0.23,
+      0.28
+     ]
+    }
+   }
+  }
+ },
+ "neonblock_team_size_with_fronts": {
+  "6": {
+   "matches": 3,
+   "killsPerMin": 16.7,
+   "lanesLitAvg": 2.2,
+   "allThreeLanesPct": 42.13,
+   "noLanePct": 5.87,
+   "fightersPerSite": 2.62,
+   "sites4PlusPct": 27.6,
+   "timeWithBrawlPct": 46.3,
+   "fightSites": 1.81,
+   "quietLivePct": 14.83,
+   "firstEngagementMedianS": 12.2,
+   "firstEngagementP90S": 28.43,
+   "matchSeconds": 368.73,
+   "stuck": 1,
+   "killsByLanePct": {
+    "centre": 47,
+    "east": 15,
+    "west": 38
+   },
+   "fronts": {
+    "crossingsPerMin": 5.26,
+    "breaks": 0.33,
+    "ticketsBled": 0.0,
+    "rallyPct": 37,
+    "rotations": 3.67,
+    "lineAbsMean": [
+     0.14,
+     0.18,
+     0.24
+    ]
+   }
+  },
+  "7": {
+   "matches": 3,
+   "killsPerMin": 20.2,
+   "lanesLitAvg": 2.14,
+   "allThreeLanesPct": 45.37,
+   "noLanePct": 11.7,
+   "fightersPerSite": 3.29,
+   "sites4PlusPct": 40.03,
+   "timeWithBrawlPct": 59.9,
+   "fightSites": 1.73,
+   "quietLivePct": 10.07,
+   "firstEngagementMedianS": 12.3,
+   "firstEngagementP90S": 26.67,
+   "matchSeconds": 316.3,
+   "stuck": 0,
+   "killsByLanePct": {
+    "centre": 58,
+    "east": 10,
+    "west": 31
+   },
+   "fronts": {
+    "crossingsPerMin": 5.01,
+    "breaks": 0.67,
+    "ticketsBled": 1.67,
+    "rallyPct": 44,
+    "rotations": 2.33,
+    "lineAbsMean": [
+     0.15,
+     0.14,
+     0.2
+    ]
+   }
+  },
+  "8": {
+   "matches": 3,
+   "killsPerMin": 20.7,
+   "lanesLitAvg": 2.02,
+   "allThreeLanesPct": 46.57,
+   "noLanePct": 19.17,
+   "fightersPerSite": 4.03,
+   "sites4PlusPct": 48.0,
+   "timeWithBrawlPct": 63.87,
+   "fightSites": 1.73,
+   "quietLivePct": 6.73,
+   "firstEngagementMedianS": 11.97,
+   "firstEngagementP90S": 24.33,
+   "matchSeconds": 312.17,
+   "stuck": 1,
+   "killsByLanePct": {
+    "centre": 49,
+    "east": 10,
+    "west": 41
+   },
+   "fronts": {
+    "crossingsPerMin": 4.44,
+    "breaks": 0.0,
+    "ticketsBled": 0.0,
+    "rallyPct": 39,
+    "rotations": 4.33,
+    "lineAbsMean": [
+     0.19,
+     0.14,
+     0.22
+    ]
+   }
+  }
+ },
+ "rejected_lane_discipline": {
+  "oldport": {
+   "matches": 3,
+   "killsPerMin": 21.53,
+   "lanesLitAvg": 1.91,
+   "allThreeLanesPct": 34.27,
+   "noLanePct": 14.6,
+   "fightersPerSite": 2.68,
+   "sites4PlusPct": 25.87,
+   "timeWithBrawlPct": 39.33,
+   "fightSites": 1.91,
+   "quietLivePct": 9.73,
+   "firstEngagementMedianS": 7.83,
+   "firstEngagementP90S": 19.03,
+   "matchSeconds": 304.5,
+   "stuck": 0,
+   "killsByLanePct": {
+    "dock": 33,
+    "none": 0,
+    "warehouse": 32,
+    "yard": 36
+   },
+   "fronts": {
+    "crossingsPerMin": 3.5,
+    "breaks": 2.0,
+    "ticketsBled": 1.0,
+    "rallyPct": 35,
+    "rotations": 8.0,
+    "lineAbsMean": [
+     0.24,
+     0.15,
+     0.14
+    ]
+   }
+  },
+  "maglev": {
+   "matches": 3,
+   "killsPerMin": 16.97,
+   "lanesLitAvg": 1.81,
+   "allThreeLanesPct": 30.97,
+   "noLanePct": 15.53,
+   "fightersPerSite": 3.58,
+   "sites4PlusPct": 44.93,
+   "timeWithBrawlPct": 60.6,
+   "fightSites": 1.7,
+   "quietLivePct": 4.83,
+   "firstEngagementMedianS": 10.1,
+   "firstEngagementP90S": 27.43,
+   "matchSeconds": 377.63,
+   "stuck": 0,
+   "killsByLanePct": {
+    "east": 51,
+    "train": 18,
+    "west": 31
+   },
+   "fronts": {
+    "crossingsPerMin": 3.06,
+    "breaks": 2.33,
+    "ticketsBled": 7.67,
+    "rallyPct": 21,
+    "rotations": 3.33,
+    "lineAbsMean": [
+     0.29,
+     0.27,
+     0.24
+    ]
+   }
+  },
+  "favelas": {
+   "matches": 3,
+   "killsPerMin": 31.07,
+   "lanesLitAvg": 1.88,
+   "allThreeLanesPct": 37.5,
+   "noLanePct": 17.4,
+   "fightersPerSite": 2.69,
+   "sites4PlusPct": 27.27,
+   "timeWithBrawlPct": 43.6,
+   "fightSites": 2.23,
+   "quietLivePct": 9.57,
+   "firstEngagementMedianS": 9.4,
+   "firstEngagementP90S": 26.0,
+   "matchSeconds": 198.9,
+   "stuck": 0,
+   "killsByLanePct": {
+    "high (crest)": 38,
+    "low (street)": 22,
+    "middle": 38,
+    "none": 2
+   },
+   "fronts": {
+    "crossingsPerMin": 3.81,
+    "breaks": 0.0,
+    "ticketsBled": 0.0,
+    "rallyPct": 55,
+    "rotations": 4.33,
+    "lineAbsMean": [
+     0.35,
+     0.16,
+     0.24
+    ]
+   }
+  },
+  "neonblock": {
+   "matches": 3,
+   "killsPerMin": 15.4,
+   "lanesLitAvg": 1.61,
+   "allThreeLanesPct": 27.9,
+   "noLanePct": 27.5,
+   "fightersPerSite": 2.59,
+   "sites4PlusPct": 25.67,
+   "timeWithBrawlPct": 34.13,
+   "fightSites": 1.86,
+   "quietLivePct": 11.03,
+   "firstEngagementMedianS": 13.47,
+   "firstEngagementP90S": 28.73,
+   "matchSeconds": 416.57,
+   "stuck": 0,
+   "killsByLanePct": {
+    "centre": 52,
+    "east": 13,
+    "none": 0,
+    "west": 35
+   },
+   "fronts": {
+    "crossingsPerMin": 4.66,
+    "breaks": 2.0,
+    "ticketsBled": 7.67,
+    "rallyPct": 31,
+    "rotations": 8.67,
+    "lineAbsMean": [
+     0.23,
+     0.15,
+     0.25
+    ]
+   }
+  },
+  "docks": {
+   "matches": 3,
+   "killsPerMin": 27.33,
+   "lanesLitAvg": 2.24,
+   "allThreeLanesPct": 47.57,
+   "noLanePct": 5.97,
+   "fightersPerSite": 3.15,
+   "sites4PlusPct": 35.63,
+   "timeWithBrawlPct": 60.7,
+   "fightSites": 2.11,
+   "quietLivePct": 4.43,
+   "firstEngagementMedianS": 8.07,
+   "firstEngagementP90S": 18.87,
+   "matchSeconds": 244.87,
+   "stuck": 0,
+   "killsByLanePct": {
+    "containers": 31,
+    "warehouse": 45,
+    "waterfront": 25
+   },
+   "fronts": {
+    "crossingsPerMin": 3.14,
+    "breaks": 1.0,
+    "ticketsBled": 0.67,
+    "rallyPct": 36,
+    "rotations": 6.33,
+    "lineAbsMean": [
+     0.21,
+     0.15,
+     0.11
+    ]
+   }
+  },
+  "crashsite": {
+   "matches": 3,
+   "killsPerMin": 22.7,
+   "lanesLitAvg": 2.13,
+   "allThreeLanesPct": 33.7,
+   "noLanePct": 1.7,
+   "fightersPerSite": 3.65,
+   "sites4PlusPct": 45.33,
+   "timeWithBrawlPct": 70.03,
+   "fightSites": 1.64,
+   "quietLivePct": 4.83,
+   "firstEngagementMedianS": 9.47,
+   "firstEngagementP90S": 20.83,
+   "matchSeconds": 280.1,
+   "stuck": 0,
+   "killsByLanePct": {
+    "none": 3,
+    "outpost": 58,
+    "ravine": 15,
+    "ridge": 25
+   },
+   "fronts": {
+    "crossingsPerMin": 5.63,
+    "breaks": 3.33,
+    "ticketsBled": 4.33,
+    "rallyPct": 20,
+    "rotations": 6.33,
+    "lineAbsMean": [
+     0.16,
+     0.18,
+     0.27
+    ]
+   }
+  },
+  "desert": {
+   "matches": 3,
+   "killsPerMin": 31.57,
+   "lanesLitAvg": 2.0,
+   "allThreeLanesPct": 30.1,
+   "noLanePct": 5.27,
+   "fightersPerSite": 3.9,
+   "sites4PlusPct": 46.67,
+   "timeWithBrawlPct": 81.87,
+   "fightSites": 2.72,
+   "quietLivePct": 3.9,
+   "firstEngagementMedianS": 12.13,
+   "firstEngagementP90S": 24.9,
+   "matchSeconds": 214.53,
+   "stuck": 0,
+   "killsByLanePct": {
+    "compound": 76,
+    "east flank": 12,
+    "west flank": 12
+   },
+   "fronts": {
+    "crossingsPerMin": 2.89,
+    "breaks": 2.0,
+    "ticketsBled": 1.0,
+    "rallyPct": 26,
+    "rotations": 9.33,
+    "lineAbsMean": [
+     0.22,
+     0.14,
+     0.24
+    ]
+   }
+  }
+ }
+}

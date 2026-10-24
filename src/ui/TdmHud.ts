@@ -76,6 +76,14 @@ export class TdmHud {
   private specMates = document.createTextNode('');
   private last29 = { aS: -1, oS: -1, lastA: false, lastO: false, sud: '', spec: '' };
   private tagEls = new Map<Combatant, { el: HTMLDivElement; hp: HTMLElement }>();
+  /**
+   * 44.0, the fronts (between the two sides of the score): a bar per lane, ALPHA's ground from the left
+   * up to the line, OMEGA's from the right; a lane ALPHA pushes glows, one it falls back in pulses red, a
+   * break flashes; the lane he stands in is lit. Off (no fronts): the 26.0 dash.
+   */
+  private vs = el('div', 'vs', '<i>—</i>');
+  private frontRows: { row: HTMLElement; a: HTMLElement; o: HTMLElement; name: Text; key: string }[] = [];
+  private notices = el('div', 'tdm-notices');
   private max = 25;
 
   constructor(parent: HTMLElement) {
@@ -92,7 +100,7 @@ export class TdmHud {
       s.append(b, track, st);
       return s;
     };
-    this.score.append(side('a', 'ALPHA', this.aNum, this.aBar, this.aStand), el('div', 'vs', '<i>—</i>'), side('o', 'OMEGA', this.oNum, this.oBar, this.oStand));
+    this.score.append(side('a', 'ALPHA', this.aNum, this.aBar, this.aStand), this.vs, side('o', 'OMEGA', this.oNum, this.oBar, this.oStand));
     // 29.0: the sudden-death clock (under the score) and the spectator panel (bottom centre).
     const sl = el('div', 'lbl', 'SUDDEN DEATH');
     const st = el('b');
@@ -110,7 +118,7 @@ export class TdmHud {
     sm.appendChild(this.specMates);
     this.spec.append(sn, hp, sm);
     this.board.append(el('div', 'head', `<span class="nm">ALPHA${flSpan('ally', 'em', '')}</span><span>K</span><span>D</span><span class="sc">SCORE</span>`), this.boardRows);
-    this.root.append(this.tags, this.board, this.score, this.sudden, this.feed, this.respawn, this.spec);
+    this.root.append(this.tags, this.board, this.score, this.sudden, this.feed, this.respawn, this.spec, this.notices);
     parent.appendChild(this.root);
   }
 
@@ -245,6 +253,68 @@ export class TdmHud {
     this.feed.prepend(row);
     this.feedRows.unshift({ el: row, t: 0 });
     while (this.feedRows.length > FEED_MAX) this.feedRows.pop()!.el.remove();
+  }
+
+  /**
+   * 44.0: the fronts: each lane's line (ALPHA's progress, -1 … +1), ALPHA's stance there, who has broken
+   * through, the lane he is in (-1: none). `names` once a match (setFrontNames). Writes only what changed.
+   */
+  setFronts(line: readonly number[], stance: readonly string[], broken: readonly (TeamId | null)[], here: number) {
+    if (!this.frontRows.length) return;
+    for (let k = 0; k < this.frontRows.length; k++) {
+      const r = this.frontRows[k];
+      const f = Math.max(0, Math.min(1, (line[k] + 1) / 2));
+      const key = `${Math.round(f * 100)}|${stance[k]}|${broken[k] ?? ''}|${k === here ? 1 : 0}`;
+      if (key === r.key) continue;
+      const [was, st0, br0, h0] = r.key.split('|');
+      r.key = key;
+      if (Math.round(f * 100) !== Number(was)) {
+        r.a.style.transform = `scaleX(${f.toFixed(2)})`;
+        r.o.style.transform = `scaleX(${(1 - f).toFixed(2)})`;
+      }
+      if (stance[k] !== st0) {
+        r.row.classList.toggle('push', stance[k] === 'push');
+        r.row.classList.toggle('back', stance[k] === 'fallback');
+      }
+      if ((broken[k] ?? '') !== br0) {
+        r.row.classList.toggle('broke-a', broken[k] === 'alpha');
+        r.row.classList.toggle('broke-o', broken[k] === 'omega');
+      }
+      if (String(k === here ? 1 : 0) !== h0) r.row.classList.toggle('here', k === here);
+    }
+  }
+
+  /** 44.0: the fronts' lanes by name (null: no fronts this match, the dash). */
+  setFrontNames(names: readonly string[] | null) {
+    this.frontRows = [];
+    this.vs.textContent = '';
+    this.vs.classList.toggle('fronts', !!names);
+    if (!names) {
+      this.vs.innerHTML = '<i>—</i>';
+      return;
+    }
+    for (const n of names) {
+      const row = el('div', 'front');
+      const name = document.createTextNode(n.split(/[\s(]/)[0].toUpperCase().slice(0, 10));
+      const lbl = el('span');
+      lbl.appendChild(name);
+      const track = el('div', 'track');
+      const a = el('i', 'a'), o = el('i', 'o');
+      track.append(a, o);
+      row.append(lbl, track);
+      this.vs.appendChild(row);
+      a.style.transform = o.style.transform = 'scaleX(0.5)';
+      this.frontRows.push({ row, a, o, name, key: '50|hold||0' });
+    }
+  }
+
+  /** 44.0: a short line under the score (a lane held, pushed back), fading out by itself. */
+  notice(text: string) {
+    const n = el('div', 'n');
+    n.textContent = text;
+    n.addEventListener('animationend', () => n.remove());
+    this.notices.appendChild(n);
+    while (this.notices.children.length > 2) this.notices.firstElementChild!.remove();
   }
 
   /** Respawn countdown (seconds left), or null to hide. */

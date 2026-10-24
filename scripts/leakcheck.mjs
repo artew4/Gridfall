@@ -2,7 +2,7 @@
   13.0, the definitive map-transition leak check (DEV, Node 22+ and Google Chrome).
 
     npm run dev            # in another terminal (port 5173)
-    node scripts/leakcheck.mjs [laps=2] [maps=desert,docks,jungle]
+    node scripts/leakcheck.mjs [laps=2] [maps=desert,docks,neonblock]
 
   Headless Chrome over the DevTools protocol plays Team Deathmatch, ends each match and clicks the
   result screen's real next-map card, round the maps `laps` times. Every level it leaves is tagged
@@ -16,13 +16,13 @@ import { openChrome, page, sleep } from './lib/cdp.mjs';
 import { aliveTags } from './lib/heap.mjs';
 
 const laps = Number(process.argv[2] ?? 2);
-const maps = (process.argv[3] ?? 'desert,docks,jungle').split(',');
+const maps = (process.argv[3] ?? 'desert,docks,neonblock').split(',');
 const URL = process.env.URL ?? 'http://localhost:5173/Gridfall/';
 
 const { ev, gc, snapshot, open, close, done } = await openChrome();
 await open(`${URL}?setting=${maps[0]}`);
 
-const intoPlay = `for(let i=0;i<3000&&(__game.state==='intro'||__game.state==='title');i++){ if(__game.intro&&__game.intro.t>0.4) __game.skipIntro(); await sl(30);} __dev.lock(); __dev.god(true);`;
+const intoPlay = `for(let i=0;i<3000&&(__game.state==='intro'||__game.state==='title'||__game.state==='loading');i++){ if(__game.intro&&__game.intro.t>0.4) __game.skipIntro(); await sl(30);} __dev.lock(); __dev.god(true);`;
 await ev(page(`__dev.start('tdm','${maps[0]}'); ${intoPlay} return __game.state;`));
 const counts = `(()=>{ let o=0; __game.scene.traverse(()=>o++); const m=__game.renderer.renderer.info.memory; return { setting: __game.setting, geometries: m.geometries, textures: m.textures, sceneObjects: o, domNodes: document.getElementsByTagName('*').length, minimaps: document.querySelectorAll('.tdm-map').length }; })()`;
 const rows = [];

@@ -3,6 +3,7 @@ import type { Combatant, TeamId } from '../../combat/Team';
 import { ARENA } from './ArenaCtx';
 import type { HighGround } from '../../levels/Level';
 import { pickRole, type ArenaRole } from './Roles';
+import type { Fronts } from './Fronts';
 
 /**
  * 37.1: seconds a posted bot has to reach its post, plus a second for every 2 m it starts from it
@@ -143,6 +144,62 @@ export class ArenaDirector {
   endgame = false;
   /** Event log for checks: [time, what, detail]. Bounded. */
   log: [number, string, string][] = [];
+  /**
+   * 44.0, the fronts (Fronts.ts, shared by both teams; null: off): each of this team's lanes advances to
+   * its sector's line, past it or short of it by the team's stance there; new bots go to the neediest
+   * sector; a pushing sector lends a body to one falling back now and then (a rotation).
+   */
+  fronts: Fronts | null = null;
+  /** 44.0: each lane's sector (Tdm sets it with the fronts). */
+  laneSector: number[] = [];
+  /** 44.0: the sector a bot about to spawn was dealt (its uid once it has one), and when the last rotation went. */
+  private dealt = new Map<number, number>();
+  private rotateT = -Infinity;
+  /** 44.0 (DEV): rotations (a bot sent from a pushing sector to one falling back). */
+  rotations = 0;
+
+  /** 44.0: the fronts on, with each lane's sector. */
+  setFronts(fronts: Fronts | null, laneSector: number[] = []) {
+    this.fronts = fronts;
+    this.laneSector = laneSector;
+    this.dealt.clear();
+    this.rotateT = -Infinity;
+    this.rotations = 0;
+  }
+
+  /** 44.0: the sector of lane `l` (the fronts' sectors; the lane itself without them). */
+  sectorOfLane(l: number) {
+    return this.laneSector[l] ?? l;
+  }
+
+  /** 44.0: bot `uid` (just spawned) goes to sector `k`: the lane of it with fewest of the team, by weight. */
+  dealSector(uid: number, k: number) {
+    this.dealt.set(uid, k);
+    const lanes = this.lanes.map((_, l) => l).filter((l) => this.sectorOfLane(l) === k);
+    if (!lanes.length) return;
+    const count = new Array(this.lanes.length).fill(0);
+    for (const [u, l] of this.laneOf) if (u !== uid) count[l]++;
+    let best = lanes[0];
+    for (const l of lanes) if (count[l] / this.w(l) < count[best] / this.w(best)) best = l;
+    this.laneOf.set(uid, best);
+  }
+
+  /** 44.0: the lane of sector `k` with fewest of the team (for a rally spawn), or -1. */
+  laneInSector(k: number) {
+    const count = new Array(this.lanes.length).fill(0);
+    for (const l of this.laneOf.values()) count[l]++;
+    let best = -1;
+    for (let l = 0; l < this.lanes.length; l++) if (this.sectorOfLane(l) === k && (best < 0 || count[l] / this.w(l) < count[best] / this.w(best))) best = l;
+    return best;
+  }
+
+  /** 44.0: where lane `l` should advance to with the fronts on (progress, this team's axis). */
+  frontWant(l: number) {
+    const F = this.fronts!;
+    const k = this.sectorOfLane(l);
+    const st = F.stance[this.team][k];
+    return THREE.MathUtils.clamp(F.own(this.team, k) + ARENA.fronts.offset[st], -0.95, 0.95);
+  }
 
   /**
    * `own`/`theirs`: the spawn centres; `lanes`: this team's lanes (waypoints from our spawn to theirs);
@@ -236,6 +293,9 @@ export class ArenaDirector {
     this.sectorStats = { peels: 0, ftSum: 0, ftN: 0 };
     this.roles.clear();
     this.seats.clear();
+    this.dealt.clear();
+    this.rotateT = -Infinity;
+    this.rotations = 0;
   }
 
   private note(now: number, what: string, detail = '') {
@@ -322,11 +382,12 @@ export class ArenaDirector {
    * The freshest worthwhile contact for a bot at `p` (nearer and newer is better), or null. 41.0: for
    * bot `uid`, none the team already chases with as many as may (ARENA.sectors.commit).
    */
-  freshest(p: THREE.Vector3, now: number, uid?: number): ArenaContact | null {
+  freshest(p: THREE.Vector3, now: number, uid?: number, keep?: (c: ArenaContact) => boolean): ArenaContact | null {
     let best: ArenaContact | null = null, bs = Infinity;
     for (const c of this.contacts.values()) {
       const age = now - c.t;
       if (age > ARENA.contactTtl || !c.who.alive) continue;
+      if (keep && !keep(c)) continue;
       if (uid !== undefined && this.overCommitted(c.who.uid, uid, now, c.pos)) continue;
       const s = Math.hypot(c.pos.x - p.x, c.pos.z - p.z) + age * 8;
       if (s < bs) {
@@ -1088,17 +1149,19 @@ export class ArenaDirector {
     const stance: Stance = this.momentum > D.push ? 'push' : this.momentum < D.regroup ? 'regroup' : 'hold';
     if (stance !== this.stance) this.note(now, 'stance', `${this.stance}>${stance} m=${this.momentum.toFixed(2)}`);
     this.stance = stance;
-    // Where each lane advances to.
-    const want = this.desiredProgress();
+    // Where each lane advances to. 44.0: with the fronts, each to its own sector's line.
+    const want0 = this.desiredProgress();
     for (let l = 0; l < this.lanes.length; l++) {
       const P = this.laneProg[l];
+      const want = this.fronts ? this.frontWant(l) : want0;
       let i = P.findIndex((p) => p >= want);
       if (i < 0) i = P.length - 1;
       this.laneTarget[l] = i;
     }
     this.coolTo(now);
     this.assignLanes(alive, now);
-    if (ARENA.sectors.on) {
+    // 44.0: the fronts send bodies where they are needed (not the 41.0 peel).
+    if (ARENA.sectors.on && !this.fronts) {
       this.peel(alive, now);
       // A fireteam keeps to its leader's sector (assignLanes balances bodies, one at a time).
       for (const ms of this.fireteams.values()) {
@@ -1134,6 +1197,7 @@ export class ArenaDirector {
   private assignLanes(alive: readonly ArenaMember[], now = 0) {
     const n = this.lanes.length;
     if (!n) return;
+    if (this.fronts) return this.assignFronts(alive, now);
     const count = new Array(n).fill(0);
     const bots = alive.filter((m) => !m.isPlayer).sort((a, b) => a.uid - b.uid);
     for (const m of alive) if (m.isPlayer) count[this.nearestLane(m.pos)]++;
@@ -1199,6 +1263,51 @@ export class ArenaDirector {
         if (mover) this.moveFireteam(mover.uid, empty);
       }
     }
+  }
+
+  /**
+   * 44.0, lanes with the fronts: a bot with no lane takes the one its spawn dealt it (dealSector), else
+   * (the opening) the sector it stands in; a fireteam's members their leader's. Every `rotateCd` s a sector falling
+   * back takes a bot (not in a fight, the newest) from a sector pushing with a body to spare.
+   */
+  private assignFronts(alive: readonly ArenaMember[], now: number) {
+    const F = this.fronts!;
+    const bots = alive.filter((m) => !m.isPlayer).sort((a, b) => a.uid - b.uid);
+    for (const [uid] of this.laneOf) if (!bots.some((b) => b.uid === uid)) this.laneOf.delete(uid);
+    for (const uid of [...this.dealt.keys()]) if (!bots.some((b) => b.uid === uid)) this.dealt.delete(uid);
+    const SC = ARENA.sectors;
+    for (const b of bots) {
+      if (this.laneOf.has(b.uid)) continue;
+      const lead = SC.on ? this.fireteamOf(b.uid)?.[0] ?? b.uid : b.uid;
+      if (lead !== b.uid && this.laneOf.has(lead)) {
+        this.laneOf.set(b.uid, this.laneOf.get(lead)!);
+        continue;
+      }
+      // (The opening's bots: the sector of the zone they stand in; the zones were dealt round-robin.)
+      this.dealSector(b.uid, this.dealt.get(b.uid) ?? F.sectorOf(b.pos.x, b.pos.y, b.pos.z));
+    }
+    if (now - this.rotateT < ARENA.fronts.rotateCd) return;
+    const st = F.stance[this.team];
+    const back = st.indexOf('fallback');
+    if (back < 0) return;
+    const sent = new Array(F.n).fill(0);
+    for (const b of bots) sent[this.sectorOfLane(this.laneOf.get(b.uid) ?? 0)]++;
+    let from = -1;
+    for (let k = 0; k < F.n; k++) if (k !== back && st[k] === 'push' && sent[k] >= 3 && (from < 0 || sent[k] > sent[from])) from = k;
+    if (from < 0) return;
+    // A fireteam's leader, its fireteam with it (they keep to their leader's lane), none of it fighting.
+    const mover = [...bots].reverse().find((b) => {
+      if (this.sectorOfLane(this.laneOf.get(b.uid) ?? 0) !== from || this.leaderOf(b.uid) || this.roleOf(b.uid) !== 'frontliner') return false;
+      const ft = (SC.on && this.fireteamOf(b.uid)) || [b.uid];
+      return sent[from] - ft.length >= 1 && !ft.some((u) => this.fighting(u, now));
+    });
+    if (!mover) return;
+    const to = this.laneInSector(back);
+    if (to < 0) return;
+    this.moveFireteam(mover.uid, to);
+    this.rotateT = now;
+    this.rotations++;
+    this.note(now, 'rotate', `${mover.uid} ${from}>${back}`);
   }
 
   /** 41.0: `lead` and its fireteam (sectors on) to lane `l`; how many moved. */

@@ -255,7 +255,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean; flankThreat?: boolean; scan?: boolean; flankPull?: boolean; watches?: number; tune?: ArenaProfile; spawnTune?: Partial<typeof SPAWN> } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean; flankThreat?: boolean; scan?: boolean; flankPull?: boolean; watches?: number; tune?: ArenaProfile; spawnTune?: Partial<typeof SPAWN>; fronts?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -315,6 +315,9 @@ export async function tdmSim(
   if (td && hg0 && opts.watches !== undefined) td.highGround = opts.watches ? { ...hg0, count: opts.watches } : undefined;
   // (Read before the match's profile turns it on, as `space`.)
   const pull0 = ARENA.flankPull.on;
+  // 44.0 A/B: `fronts: false` is 43.0's patrols (read when the match is set up, so set before it).
+  const fronts0 = ARENA.fronts.on;
+  if (opts.fronts !== undefined) ARENA.fronts.on = opts.fronts;
   // 29.0: the map's tickets unless told (50 since 29.0; 25 forced before).
   startMatch(game, true, opts.tickets, ai, opts.size, opts.profile ?? true);
   if (td) td.highGround = hg0;
@@ -445,6 +448,10 @@ export async function tdmSim(
   const HERD_N = 5, HERD_T = 5;
   const herdHist = new Map<number, { t: number; mates: Set<number> }[]>();
   const sites = { samples: 0, sum: 0, two: 0, three: 0 };
+  // 44.0, brawls and lit lanes: fighters per fight site (a site of 4+ fighters is a brawl, 6+ a big one),
+  // and at every sample how many of the map's three lanes have a fight going (laneOf of the fight).
+  const brawl = { sites: 0, fighters: 0, four: 0, six: 0, samples: 0, anyFour: 0 };
+  const lit = { samples: 0, sum: 0, all3: 0, none: 0 };
   // 42.0, roles (every 15 steps, every living arena bot): per role, samples; alone (no teammate within
   // 15 m) and the nearest teammate; in the enemy's half (its director's progress over 0.15); moving
   // (> 1.5 m/s); an anchor within 2.5 m of its post; states. Each life's role and gun (by uid).
@@ -642,12 +649,34 @@ export async function tdmSim(
           });
         }
         const fx: number[] = [], fz: number[] = [];
+        const lanesOn = new Set<number>();
         for (const b of tdm.bots) {
           if (!b.alive || !FIGHT.has(b.tac.action) || !isArenaBot(b)) continue;
           const T = b.brain.target;
           if (!T?.alive) continue;
           fx.push((b.pos.x + T.pos.x) / 2);
           fz.push((b.pos.z + T.pos.z) / 2);
+          const ln = tdm.fronts ? tdm.fronts.sectorOf(b.pos.x, b.pos.y, b.pos.z) : tdmData?.laneOf?.(b.pos.x, b.pos.y + 1, b.pos.z);
+          if (ln !== null && ln !== undefined && ln < 3) lanesOn.add(ln);
+        }
+        lit.samples++;
+        lit.sum += lanesOn.size;
+        if (lanesOn.size >= 3) lit.all3++;
+        if (!lanesOn.size) lit.none++;
+        if (fx.length) {
+          const sz = clumps(fx, fz, SITE_R).sizes;
+          brawl.samples++;
+          let four = false;
+          for (const n of sz) {
+            brawl.sites++;
+            brawl.fighters += n;
+            if (n >= 4) {
+              brawl.four++;
+              four = true;
+            }
+            if (n >= 6) brawl.six++;
+          }
+          if (four) brawl.anyFour++;
         }
         for (const team of ['alpha', 'omega'] as const) {
           const D = tdm.directors?.[team];
@@ -736,6 +765,7 @@ export async function tdmSim(
   TDM.spawns = spawns0;
   ARENA.lastStand.on = ls0;
   STAMINA.on = stam0;
+  ARENA.fronts.on = fronts0;
   ARENA.space.on = space0;
   ARENA.corridor.on = corridor0;
   ARENA.flankThreat.on = flank0;
@@ -932,6 +962,11 @@ export async function tdmSim(
           return { avgSize: +((a.ftSum + o.ftSum) / Math.max(1, a.ftN + o.ftN)).toFixed(2), peels: a.peels + o.peels, follows: st.follows, capSkips: st.capSkips };
         })()
       : null,
+    // 44.0: the brawls, the lanes lit, the fronts (their lines' mean and distance from the middle, the
+    // times a line crossed it, breaks, tickets bled, respawns at a rally point vs a zone, rotations).
+    brawls: { fightersPerSite: +(brawl.fighters / Math.max(1, brawl.sites)).toFixed(2), sites4PlusPct: +((100 * brawl.four) / Math.max(1, brawl.sites)).toFixed(1), sites6PlusPct: +((100 * brawl.six) / Math.max(1, brawl.sites)).toFixed(1), timeWithBrawlPct: +((100 * brawl.anyFour) / Math.max(1, lit.samples)).toFixed(1) },
+    lanesLit: { avg: +(lit.sum / Math.max(1, lit.samples)).toFixed(2), all3Pct: +((100 * lit.all3) / Math.max(1, lit.samples)).toFixed(1), nonePct: +((100 * lit.none) / Math.max(1, lit.samples)).toFixed(1) },
+    fronts: tdm.fronts ? { ...tdm.fronts.report(), rally: { ...tdm.rallyStats }, rotations: (tdm.directors?.alpha.rotations ?? 0) + (tdm.directors?.omega.rotations ?? 0) } : null,
     fightSites: { linkM: SITE_R, avg: +(sites.sum / Math.max(1, sites.samples)).toFixed(2), twoPlusPct: +((100 * sites.two) / Math.max(1, sites.samples)).toFixed(1), threePlusPct: +((100 * sites.three) / Math.max(1, sites.samples)).toFixed(1) },
     killSpread: (() => {
       const at = k.filter((x) => x.victimPos);

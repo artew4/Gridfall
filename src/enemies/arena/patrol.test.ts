@@ -73,7 +73,8 @@ describe('27.0 patrol: searching a map without bases', () => {
   it('the brain: no contact means patrol on these maps, and the radar stops at patrol.radar m', () => {
     const src: string = readFileSync(new URL('./DeathmatchAI.ts', import.meta.url), 'utf8');
     // 29.0: on the last stand it holds instead.
-    expect(src).toMatch(/next = holding\(A\.director\) \? 'hold' : A\.director\.patrol \? 'patrol' : 'advance'/);
+    // (44.0: with the fronts on, a frontliner walks its lane to the line instead: fronts.test.ts.)
+    expect(src).toMatch(/next = holding\(A\.director\) \? 'hold' : A\.director\.patrol && !\(A\.director\.fronts && !wolf\) \? 'patrol' : 'advance'/);
     expect(src).toMatch(/dir\.patrol && d > ARENA\.patrol\.radar/);
   });
 });

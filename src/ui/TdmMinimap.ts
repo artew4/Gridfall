@@ -149,7 +149,7 @@ export class TdmMinimap {
    * One frame: the player at `p` looking along `yaw` (the Player's: -z at 0), allies and spotted
    * hostiles. Cheap: a blit and a few arcs.
    */
-  draw(p: THREE.Vector3, yaw: number, allies: readonly MapDot[], hostiles: readonly MapDot[], name = '') {
+  draw(p: THREE.Vector3, yaw: number, allies: readonly MapDot[], hostiles: readonly MapDot[], name = '', fronts: readonly FrontMark[] = []) {
     // 17.0: a 2D canvas redrawn (and re-uploaded by the compositor) at most 30 times a second.
     const now = performance.now();
     if (now - this.drawnAt < 1000 / 30 - 1) return;
@@ -172,6 +172,25 @@ export class TdmMinimap {
 
     const c = Math.cos(yaw), s = Math.sin(yaw);
     const R = SIZE / 2 - 8;
+    // 44.0: each lane's line of battle: a dash across the lane where the teams meet, in the colour of
+    // whoever pushes there (white: held), under the dots.
+    for (const f of fronts) {
+      const dx = (f.x - p.x) * SCALE, dz = (f.z - p.z) * SCALE;
+      const x = SIZE / 2 + dx * c - dz * s, y = SIZE / 2 + dx * s + dz * c;
+      if (Math.hypot(x - SIZE / 2, y - SIZE / 2) > R) continue;
+      // Across the axis (ax, az), turned with the map.
+      const ux = -f.az * c - f.ax * s, uy = -f.az * s + f.ax * c;
+      const L = 7;
+      g.strokeStyle = 'rgba(0,0,0,0.6)';
+      g.lineWidth = 4.5;
+      g.beginPath();
+      g.moveTo(x - ux * L, y - uy * L);
+      g.lineTo(x + ux * L, y + uy * L);
+      g.stroke();
+      g.strokeStyle = f.push === 'alpha' ? '#7cc8ff' : f.push === 'omega' ? '#ff6a4d' : 'rgba(242,251,255,0.85)';
+      g.lineWidth = 2.5;
+      g.stroke();
+    }
     const dot = (m: MapDot, color: string, r: number) => {
       const dx = (m.x - p.x) * SCALE, dz = (m.z - p.z) * SCALE;
       const x = SIZE / 2 + dx * c - dz * s, y = SIZE / 2 + dx * s + dz * c;
@@ -218,6 +237,15 @@ export class TdmMinimap {
       g.fillText(name, SIZE / 2, SIZE / 2 + 9);
     }
   }
+}
+
+/** 44.0: a lane's line on the minimap: where (x, z), the base-to-base axis (unit), who pushes there. */
+export interface FrontMark {
+  x: number;
+  z: number;
+  ax: number;
+  az: number;
+  push: 'alpha' | 'omega' | null;
 }
 
 /** A spotted hostile's dot strength: full while in someone's sight, then fading out over `fade` s. */

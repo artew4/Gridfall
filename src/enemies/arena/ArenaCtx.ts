@@ -316,6 +316,48 @@ export const ARENA = {
    * the arena bots alike (a recovering anchor or wolf waits on it). Off: no regeneration (≤ 41.0).
    */
   regen: { on: true, delay: 5, rate: 0.05 },
+  /**
+   * 44.0, the fronts (Fronts.ts; a map with deployment zones): three lines of battle that the teams push
+   * back and forth, a MOBA's lanes.
+   *  - The line moves at most `speed` (progress a second) towards where the teams meet; it stops `cap`
+   *    short of the zones (Tdm: the nearest zone's progress less `capGap`).
+   *  - Strength: bodies sent to a sector, and kills there in the last `window` s at `kill` a body.
+   *    PUSH ahead by `push`, FALL BACK behind by `fallback` (negative), else HOLD.
+   *  - A frontliner with nothing on the board walks its lane to the line, `offset` of the stance past it
+   *    (progress: + into the enemy), and holds there, a waypoint either way; it hunts an unseen contact
+   *    within `radar` m only, or in its own sector (a fight elsewhere is that lane's).
+   *  - Respawns: the team's neediest sector (`outnumbered` per body short, the fair share, `danger` ×
+   *    how far the line is pushed back), in that sector's zone, or (`rally`) at its lane's waypoint
+   *    `rallyBack` behind the line when that is ahead of the zone and safe (the zone's rule).
+   *  - A break (the line held at the cap `breakT` s): the other team bleeds a ticket every `bleed` s.
+   *  - A rotation: every `rotateCd` s a sector falling back takes a free frontliner from one pushing.
+   *  - Waves: a dead bot respawns on its team's next `wave` s beat (after its 3-5 s): the dead come back
+   *    together and go up their lanes as a group (0: each on its own timer, as before).
+   *  - `roles`: the archetypes' shares with the fronts on (a line needs bodies: fewer wolves).
+   *    `site`: the engagement cap's fight size (sectors.site) with the fronts on: brawls happen.
+   * `on: false` is 43.0's patrols (the A/B).
+   */
+  fronts: {
+    on: true,
+    speed: 0.05,
+    capGap: 0.06,
+    window: 15,
+    kill: 0.6,
+    push: 1.4,
+    fallback: -2,
+    breakT: 6,
+    bleed: 5,
+    offset: { push: 0.25, hold: -0.03, fallback: -0.18 },
+    radar: 32,
+    outnumbered: 1,
+    danger: 3,
+    rally: true,
+    rallyBack: 0.28,
+    rotateCd: 8,
+    wave: 0,
+    roles: { frontliner: 0.7, wolf: 0.1, anchor: 0.2 },
+    site: 6,
+  },
   sectors: { on: true, team: 3, join: 1.5, follow: 0.6, followMin: 5, commit: 3, commitTtl: 1, overPen: 3, overFlank: true, site: 4, mateR: 4, crowd: 4, crowdPen: 1.5, need: 1, peelCd: 4 },
   /**
    * 14.0, high ground: a flank's spot may be a floor up to `up` m above the contact (a landing, a

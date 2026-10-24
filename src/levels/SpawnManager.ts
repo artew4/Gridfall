@@ -446,8 +446,10 @@ export class ZoneSpawner {
   }
 
   /** A respawn: the zone, then the spot in it (the zone's own scorer). */
-  pick(team: TeamId, hostiles: readonly SpawnUnit[], allies: readonly SpawnUnit[], now: number, occupied: (p: THREE.Vector3) => boolean = () => false): ZonePick {
-    const { zone, safe } = this.pickZone(team, hostiles, allies);
+  pick(team: TeamId, hostiles: readonly SpawnUnit[], allies: readonly SpawnUnit[], now: number, occupied: (p: THREE.Vector3) => boolean = () => false, prefer?: DeployZone): ZonePick {
+    // 44.0: the fronts' zone (the lane the respawn is sent to) when it is safe; else the scored pick.
+    const pz = prefer && this.zoneSafety(prefer, hostiles).safe ? { zone: prefer, safe: true } : null;
+    const { zone, safe } = pz ?? this.pickZone(team, hostiles, allies);
     zone.uses++;
     zone.lastUse = now;
     this.stats.picks++;

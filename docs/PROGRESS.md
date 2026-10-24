@@ -2437,8 +2437,52 @@ Branch `feature/parkour-43.0`, from `main` @ `6ee486c` (42.0, merged). Full numb
 - `bench(3)` not run: nothing drawn changed, and the CPU cost is in microseconds.
 - The README (the ledge grab, the Space row) and the story's key hint (jump · vault · climb) updated.
 
+## 44.0: the loading screen, and three fronts
+
+Branch `feature/fronts-loading-44.0`, from `main` @ `54f1853` (43.0). Full numbers: `docs/BENCH-44.0.json`.
+
+### The loading screen and the warm-up (`src/ui/LoadingScreen.ts`, `src/core/Warmup.ts`)
+The playtest: the first minutes stutter, as if the game were still loading. It was: WebGL does work the first time something is drawn, not when it is built.
+- **What stalled** (`hitchprobe.mjs`, 43.0, GPU): 12-15 shader programs compiled during the intro (the bots, their name tags, the shadows' depth programs), 1-3 more mid-match (effects), gaps of 129-238 ms in the intro and frames of 85-114 ms in the first 30 s. Textures upload the first time a material is drawn, so every part of a map turned to for the first time paid too. And `compile()` had been building the wrong programs: it ran with the canvas bound (tone mapped, sRGB), while the composer draws the world into a target (no tone mapping, linear), so its programs were still compiled at the first frame.
+- **The screen:** boot, a map change from the menu or a result screen, back to the menu, and DEPLOY load behind it: the map's name, the step (BUILDING THE WORLD, NAVIGATION, COVER AND LANES, TEXTURES, SHADERS, WARMING UP, DEPLOYING), a bar and the percentage. The level's build runs in steps (`Game.buildLevel`, a generator) with a frame between them; the bar is a `scaleX` with a transition, so it creeps on through a long synchronous step. The loop draws and simulates nothing meanwhile (`Game.building`). `loadLevel` (the DEV tools) still builds at once.
+- **The warm-up:** every texture of the world and the viewmodel uploaded (`initTexture`, a few ms between frames); every program compiled with a target bound as the composer's is (`compileAsync`: in parallel where the driver can; `Renderer.compile` does the same for the old synchronous calls); then the whole scene drawn once into a 64 px target with everything shown and nothing culled, shadows on (the depth programs, the buffers). Lights are never touched (their count is in every program). DEPLOY deals the match first (the bots spawned, his spot) and warms that up before the intro: 74-83 ms.
+- **After:** no frame over 50 ms in the first 30 s on Old Port, Favelas, the Desert and Maglev (worst 21-38 ms); no gap over 50 ms in the intro; no program compiled after the intro (one or two sprites still compile in it).
+
+### Three fronts (`src/enemies/arena/Fronts.ts`; `ARENA.fronts`)
+The playtest: around 20.0 the fights were good but in one heap; since bots play like players all over the map (41.0-42.0) a match is a scatter of duels with no shape. The brief: two ends of the map, three lines of battle, one side pushing the other as in a MOBA, fights everywhere, wherever you spawn.
+- **The lines:** one per sector (the map's `laneOf`: a flank, the centre, a flank; a director lane's sector is most of its waypoints'). A line is a progress along ALPHA's base-to-base axis, eased (0.05 a second, about a walk) to where the teams meet in it: between each team's second most forward body there; one team alone takes it to its lead. It stops `capGap` short of the nearest spawn zone in the sector.
+- **Stances:** a team's strength in a sector is the bodies sent there (the directors' lanes; the human where he stands) and its kills there in the last 15 s at 0.6 a body. Ahead by 1.4: PUSH; behind by 2: FALL BACK; else HOLD (with hysteresis).
+- **The bots:** a frontliner with nothing on the board walks its lane to its sector's line (`frontWant`: the line, +0.25 pushing, -0.03 holding, -0.18 falling back), and goes a waypoint either way there (the 20.0 lane walk, `planLane`, now per lane and moving). It goes after a board contact within 32 m, or in its own sector, not across the map. Wolves still prowl (10% of a team with the fronts, 25% before), anchors still hold posts (20%, 25%); the engagement cap allows fights of 6 (was 4).
+- **Reinforcements:** each respawn goes to the team's neediest sector: outnumbered there, under its fair share (the lanes' weights, a sector's mean), its line pushed back towards its spawn (`danger`). It spawns in that sector's zone if safe, or at a rally point: the lane's last waypoint 0.28 behind the line, when that is ahead of the zone, safe by the zone's rule. The human goes to the lane with the most enemies, his team's need first. Every 8 s a sector falling back takes a fireteam (none of it fighting) from one pushing with a body to spare.
+- **Breaks:** a line held at the cap, in the other team's face, for 6 s has broken through: the other team bleeds a ticket every 5 s until it is pushed out (`MatchRules.bleed`, never under 0). BREAKTHROUGH / LINE BROKEN on the banner; a lane held or pushed back in a small notice under the score.
+- **The HUD:** between the two sides of the score, a bar per lane, ALPHA's ground from the left to the line, OMEGA's from the right; the lane he is in outlined, a lane ALPHA pushes glows, one it falls back in pulses red, a broken one flashes. The minimap marks each line across its lane in the pusher's colour. Transforms and opacity only (csscheck: the TDM HUD 0 recalcs a second at rest).
+- **Neon Block 7v7** (5v5 to 43.0): three lanes need two or three a side each. With the fronts, 3 matches each: 6 a side 16.7 kills a minute and 14.8% quiet; 7 a side 20.2 and 10.1%; 8 a side 20.7 and 6.7%, but no lane lit 19% of the time.
+- **Tried and dropped:** respawn waves (a team's dead back together on a 6 s beat, a MOBA's creep waves): fewer kills and more lulls on all four maps (Old Port 25.5 → 22.8 kills a minute, Maglev 21.3 → 17.2; 4 matches each), `ARENA.fronts.wave` 0. Lane discipline in the target choice (an unseen contact in another lane beyond 20 m left alone): fewer fights on six of seven maps (Old Port 27.3 → 21.5, Neon Block 18.4 → 15.4), reverted.
+
+### Results (self-play, `frontcheck.mjs`, 3-4 matches a map; 43.0 is `{"fronts":false}` on the same build)
+| map | kills a minute | all three lanes fighting | fighters a fight | first round after a spawn | match |
+|---|---|---|---|---|---|
+| Old Port | 20.8 → 27.3 | 36% → 50% | 2.8 → 3.0 | 8.0 → 7.7 s | 316 → 242 s |
+| Maglev | 14.0 → 20.8 | 29% → 40% | 3.0 → 3.6 | 12.1 → 8.7 s | 446 → 306 s |
+| Favelas | 22.6 → 30.8 | 39% → 49% | 2.7 → 3.2 | 14.8 → 10.2 s | 300 → 229 s |
+| Neon Block (5v5 → 7v7) | 10.8 → 18.4 | 22% → 40% | 2.2 → 3.3 | 16.2 → 13.3 s | 575 → 345 s |
+| Neon Docks | 20.4 → 29.2 | 32% → 50% | 3.0 → 3.5 | 12.3 → 8.1 s | 337 → 225 s |
+| Crash Site | 18.8 → 20.0 | 16% → 27% | 3.4 → 3.7 | 12.7 → 11.6 s | 343 → 328 s |
+| Desert | 23.0 → 32.9 | 28% → 40% | 3.0 → 4.3 | 13.8 → 10.6 s | 311 → 213 s |
+
+- Fights of four or more: 17-39% of fight sites before, 30-51% after. Stuck bots: 0 in 21 matches.
+- The lines cross the middle 2.7-5.7 times a minute (all three lanes); 0-2 breaks a match, 0-4 tickets bled. 17-55% of respawns at a rally point (Favelas' long lanes the most).
+- Quiet seconds rose on Old Port (3.5% → 8.1%; the others within 1-2 points, Neon Block and Neon Docks fell). Kills by lane are as each map's geometry made them before (the Desert's compound 75%, Crash Site's outpost 70%): the fronts move the fights along the lanes, not between them.
+- Matches are shorter with 50 tickets (the kills come faster): 3.5-5.5 minutes.
+
+### Checks
+- Tests 505 (+7: `fronts.test.ts`: the line's pace and meeting point, the cap, stances with kills and their window, a break and its bleeding and its end, the need, the director's targets per lane and side, the wiring).
+- `leakcheck.mjs 1 desert,docks,neonblock`: 0 alive after a forced GC. `matchstart.mjs 1 oldport,neonblock`: passed. `csscheck.mjs`: the TDM HUD 0 recalcs a second.
+- `npm run build` clean.
+
 ## Next
 Human playtest:
+- 44.0 items: the loading screen (does the first minute still stutter anywhere; is the wait on DEPLOY and on a map change acceptable); the three fronts (does it feel like two sides pushing along three lanes; do you notice the lines in the score and on the minimap; is a fight always near when you respawn; are breakthroughs and their ticket bleed noticeable, too punishing, too rare; do matches end too quickly now: raise `tickets` per map); Neon Block at 7v7 (crowded in the fog?). `__dev.tdmSim({ fronts: false })`, or `ARENA.fronts.on = false` before a match, for the 43.0 bots side by side.
 - 43.0 items: the ledge grab. Does it fire when you mean it (jumping at a crate, a wall, a platform edge) and never when you don't (running past a wall, jumping beside a rail)? Is the 0.2–0.3 s pull-up quick enough to feel aggressive, and the dip and roll physical or nauseating (`MANTLE.dip`, `MANTLE.roll`)? Are the new crate and container tops fun perches, or too strong against bots that can't climb after you? Is 1.75 m the right reach (`MANTLE.maxUp`)? `__dev.mantle(false)` to compare.
 - 42.0 items: do you notice the three kinds of enemy (squads pushing, someone alone coming round behind you, a rifle holding a roof); the warning shot (do you hear it and turn in time, or is it a free kill for you now); are the anchors fair or a wall (Favelas' roofs, Maglev's skybridges); does the slower kill pace feel tense or slow (`ARENA.roles.share` to change the mix); hurt enemies ducking out to heal: smart or annoying; `ARENA.roles.on = false` for the 41.0 bots side by side.
 - 41.0 items: does the enemy team come at you in twos and threes now, or still in a crowd; do your bots move as squads (a leader and one or two beside it) or still run off alone; does a fight elsewhere on the map still pull everyone (it shouldn't: three on one enemy at most); on the Desert, do squads leaving a spawn zone together feel like a wave; `ARENA.sectors.on = false` for a side-by-side.

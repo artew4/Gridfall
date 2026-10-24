@@ -684,7 +684,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       // 42.0: a wolf behind one that faces away closes in before it fires.
       const stalk = !pushing && tv && !LS && this.stalkable(T, dT, now);
       next = pushing ? 'push' : stalk ? 'stalk' : going ? 'flank' : tv ? 'engage' : flanking ? 'flank' : 'hunt';
-    } else next = holding(A.director) ? 'hold' : A.director.patrol ? 'patrol' : 'advance';
+      // 44.0: with the fronts a frontliner (and an anchor with no post) walks its lane to the line; a wolf still prowls.
+    } else next = holding(A.director) ? 'hold' : A.director.patrol && !(A.director.fronts && !wolf) ? 'patrol' : 'advance';
     this.setState(next, ctx, A);
     this.recoverWanted = false;
     if (retreatWhy) {
@@ -1206,7 +1207,12 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const me = this.self;
     // The freshest contact on the board beats the lane (the team's radar). 18.0: on a strict lane (the
     // map's centre of gravity: the maglev's aisle) it is closed on along the lane, as a far hunt is.
-    const c = A.director.freshest(me.pos, ctx.time, me.uid);
+    // 44.0: with the fronts, only a contact within the radar or in its own sector: a fight in another
+    // lane is that lane's (the team doesn't all converge on it, as 20.0's did).
+    const D = A.director;
+    const R2 = ARENA.fronts.radar ** 2;
+    const mine = D.fronts && L?.length ? D.sectorOfLane(D.laneFor(me.uid, me.pos)) : -1;
+    const c = D.freshest(me.pos, ctx.time, me.uid, D.fronts ? (k) => (k.pos.x - me.pos.x) ** 2 + (k.pos.z - me.pos.z) ** 2 <= R2 || D.fronts!.sectorOf(k.pos.x, k.pos.y, k.pos.z) === mine : undefined);
     if (c) {
       const strict = !!L && L.length > 0 && A.director.isStrict(A.director.laneFor(me.uid, me.pos));
       this.goal = (strict ? this.laneGoal(ctx, A, c.pos) : null) ?? c.pos.clone();

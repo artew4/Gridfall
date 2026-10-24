@@ -52,6 +52,16 @@ export class MatchRules {
     return false;
   }
 
+  /**
+   * 44.0: `team` bleeds a ticket (the other has broken through one of its lines, Fronts): one less
+   * respawn, never under 0 (a bleed alone never puts anyone out; its last stand starts as a death's would).
+   */
+  bleed(team: TeamId, now: number) {
+    if (this.outcome || this.tickets[team] <= 0) return;
+    this.tickets[team]--;
+    if (this.tickets[team] === 0) this.stats.lastStandAt[team] = now;
+  }
+
   /** `team` scored a kill: its sudden-death clock (if running) starts again from the top. */
   killed(team: TeamId) {
     if (this.sudden[team] !== null) {

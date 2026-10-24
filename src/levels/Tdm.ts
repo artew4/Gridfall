@@ -9,6 +9,7 @@ import { ThinkScheduler } from '../enemies/tactics/Scheduler';
 import { ArenaGunner, ArenaRunner, isArenaBot } from '../enemies/arena/ArenaBots';
 import { anchorPosts, roleArm, type ArenaRole, type PostCandidate } from '../enemies/arena/Roles';
 import { ArenaDirector } from '../enemies/arena/ArenaDirector';
+import { Fronts, type FrontMember } from '../enemies/arena/Fronts';
 import { Sensing } from '../enemies/arena/Sensing';
 import { ARENA, applyProfile, newArenaStats, type ArenaCtx, type ArenaStats } from '../enemies/arena/ArenaCtx';
 import type { DeathmatchBrain } from '../enemies/arena/DeathmatchAI';
@@ -16,7 +17,7 @@ import type { ArenaMember, Spot } from '../enemies/arena/ArenaDirector';
 import type { ArenaState } from '../enemies/arena/DeathmatchAI';
 import { PlayerSense } from '../enemies/arena/PlayerSense';
 import type { SenseAgent } from '../enemies/arena/Sensing';
-import { TdmMinimap, spotAlpha, type MapDot } from '../ui/TdmMinimap';
+import { TdmMinimap, spotAlpha, type FrontMark, type MapDot } from '../ui/TdmMinimap';
 import { ARENA_SEE, fogRange } from '../world/Visibility';
 import { RANGED_ONLY, filterRoster, type RosterRequest, type Slot as RosterSlot, type UnitKind } from '../enemies/Roster';
 import { otherTeam, TEAMS, type Combatant, type TeamId } from '../combat/Team';
@@ -349,6 +350,12 @@ export class TdmRules implements ModeRules {
     this.sched.resetStats();
     this.unprofile?.();
     this.unprofile = this.ai === 'arena' && !TDM.force.noProfile ? applyProfile(this.data.arena) : null;
+    // 44.0: the fronts (a map with zones) take more of the team into the lines, and let fights grow.
+    if (this.frontsWanted()) {
+      const F = ARENA.fronts;
+      const undo = [this.unprofile, applyProfile({ roles: { share: { ...F.roles } }, sectors: { site: F.site } })];
+      this.unprofile = () => undo.reverse().forEach((u) => u?.());
+    }
     if (this.ai === 'arena') this.beginArena();
     else {
       // Back to the 6.0 path (an A/B after an arena match): nothing of the arena may linger.
@@ -496,6 +503,8 @@ export class TdmRules implements ModeRules {
     e.name = s.name;
     // (An anchor with no free post fights as a frontliner.)
     if (dir && isArenaBot(e)) e.brain.role = s.role = dir.setRole(e.uid, s.role);
+    // 44.0: the fronts' sector its respawn was sent to (its lane there).
+    if (dir && pad?.sector !== undefined && s.role !== 'wolf') dir.dealSector(e.uid, pad.sector);
     e.invulnUntil = this.now + TDM.protect;
     // Facing the other base (enemy yaw: forward = (sin, cos); ALPHA's base is in the south). 27.0: the pad's way.
     e.yaw = pad ? pad.yaw : s.team === 'alpha' ? Math.PI : 0;
@@ -592,6 +601,13 @@ export class TdmRules implements ModeRules {
   zoner: ZoneSpawner | null = null;
   /** 31.0: the zone of the last respawn picked (his toast). */
   private lastZone: DeployZone | null = null;
+  /** 44.0: the three lines of battle (ARENA.fronts; a map with zones), shared by both teams; null: off. */
+  fronts: Fronts | null = null;
+  /** 44.0 (DEV): respawns at a lane's rally point behind its line, and in a zone, this match. */
+  rallyStats = { rally: 0, zone: 0 };
+  private frontMembers: FrontMember[] = [];
+  /** 44.0: the last fronts event the HUD announced. */
+  private frontSeen = 0;
   private zoneVisual: SpawnZoneVisual | null = null;
   /** 27.0: the match's first spawn: where each slot (and the player) starts. */
   private openAt = new Map<Slot | 'player', SpawnAt>();
@@ -707,7 +723,58 @@ export class TdmRules implements ModeRules {
         this.directors[t].setWatch(this.data.highGround ?? null, watchFree);
       }
     }
+    this.setupFronts(zones);
     return true;
+  }
+
+  /** 44.0: does this match play on fronts (the arena, ARENA.fronts on, the map's zones in use)? */
+  private frontsWanted() {
+    return this.ai === 'arena' && ARENA.fronts.on && !!this.data.zones && TDM.spawns === 'zones' && this.data.lanes.alpha.length >= 2;
+  }
+
+  /**
+   * 44.0: the fronts: three sectors (the map's laneOf; a point outside it by its nearest lane), each
+   * director lane's sector by most of its waypoints, each sector's cap short of the nearest zone in it
+   * (either team's), the directors told.
+   */
+  private setupFronts(zones: readonly DeployZone[]) {
+    this.fronts = null;
+    this.frontMarks.length = 0;
+    this.game.tdmHud.setFrontNames(null);
+    for (const t of TEAMS) this.directors?.[t].setFronts(null);
+    if (!this.directors || !this.frontsWanted()) return;
+    const A = this.directors.alpha;
+    const lo = this.data.laneOf?.bind(this.data);
+    const n = 3;
+    const sectorsOf = (lanes: THREE.Vector3[][]) =>
+      lanes.map((L, i) => {
+        const c = new Array(n).fill(0);
+        for (const w of L) {
+          const k = lo?.(w.x, w.y + 1, w.z);
+          if (k !== null && k !== undefined && k < n) c[k]++;
+        }
+        const best = c.indexOf(Math.max(...c));
+        return c[best] > 0 ? best : Math.round((i * (n - 1)) / Math.max(1, lanes.length - 1));
+      });
+    const secA = sectorsOf(this.data.lanes.alpha);
+    const sectorOf = (x: number, y: number, z: number) => {
+      const k = lo?.(x, y + 1, z);
+      return k !== null && k !== undefined && k < n ? k : secA[A.nearestLane({ x, z })];
+    };
+    const progress = (x: number, z: number) => A.progress({ x, z });
+    const caps = new Array(n).fill(Infinity);
+    for (const z of zones) {
+      const k = sectorOf(z.centre.x, z.centre.y, z.centre.z);
+      caps[k] = Math.min(caps[k], Math.abs(progress(z.centre.x, z.centre.z)) - ARENA.fronts.capGap);
+    }
+    const all = Math.min(...caps.filter((c) => c < Infinity));
+    const capOf = caps.map((c) => Math.max(0.3, Math.min(0.95, c < Infinity ? c : all < Infinity ? all : 0.6)));
+    this.fronts = new Fronts(n, progress, sectorOf, capOf, this.data.laneNames?.slice(0, n) ?? ['left', 'centre', 'right']);
+    this.directors.alpha.setFronts(this.fronts, secA);
+    this.directors.omega.setFronts(this.fronts, sectorsOf(this.data.lanes.omega));
+    this.rallyStats = { rally: 0, zone: 0 };
+    this.frontSeen = 0;
+    this.game.tdmHud.setFrontNames(this.fronts.names);
   }
 
   /** 31.0: the zones (empty unless TDM.spawns is 'zones' on a map that has them). */
@@ -767,7 +834,7 @@ export class TdmRules implements ModeRules {
   }
 
   /** 27.0: a respawn's pad for `team`, scored now against everyone alive (rays only at this moment). */
-  private pickPad(team: TeamId): SpawnAt {
+  private pickPad(team: TeamId, player = false): SpawnAt {
     const t0 = performance.now();
     const unit = (c: Combatant): SpawnUnit => {
       const f = c.facing(_face);
@@ -785,11 +852,27 @@ export class TdmRules implements ModeRules {
     const fireteam = this.ai === 'arena' && ARENA.sectors.on;
     if (this.zoner) {
       this.zoner.fireteam = fireteam;
-      const zp = this.zoner.pick(team, hostiles, allies, this.now, occupied);
+      // 44.0, the fronts: the sector that needs this body (the human: where the fight is), its rally point
+      // behind the line if that is ahead of the zone and safe, else that sector's zone if safe.
+      let sector: number | undefined, prefer: DeployZone | undefined;
+      if (this.fronts) {
+        sector = player ? this.playerSector() : this.fronts.neediest(team, this.sectorWeights(team));
+        this.fronts.sent(team, sector);
+        const r = ARENA.fronts.rally ? this.rallyAt(team, sector, hostiles, occupied) : null;
+        if (r) {
+          this.rallyStats.rally++;
+          this.directors?.[otherTeam(team)].heardSpawn(r.at, this.now, this.friends[otherTeam(team)]);
+          this.lastZone = null;
+          return { at: r.at, yaw: r.yaw, sector, pick: { pad: { id: -2, pos: r.at, yaw: r.yaw, side: team, lane: sector }, nearest: r.nearest, rays: r.rays, ms: performance.now() - t0, fallback: false } };
+        }
+        this.rallyStats.zone++;
+        prefer = this.zoneOfSector(team, sector);
+      }
+      const zp = this.zoner.pick(team, hostiles, allies, this.now, occupied, prefer);
       this.zoneVisual?.flash(zp.zone);
       this.directors?.[otherTeam(team)].heardSpawn(zp.zone.centre, this.now, this.friends[otherTeam(team)]);
       this.lastZone = zp.zone;
-      return { at: zp.at, yaw: zp.pad.yaw, pick: { ...zp, ms: performance.now() - t0 } };
+      return { at: zp.at, yaw: zp.pad.yaw, sector, pick: { ...zp, ms: performance.now() - t0 } };
     }
     const lf = this.data.laneOf;
     const W = this.data.laneWeights ?? [1, 1, 1];
@@ -802,6 +885,118 @@ export class TdmRules implements ModeRules {
     // The other team hears a pad come alive near them (a lead for its patrols).
     this.directors?.[otherTeam(team)].heardSpawn(pick.pad.pos, this.now, this.friends[otherTeam(team)]);
     return { at: pick.at, yaw: pick.pad.yaw, pick: { ...pick, ms: performance.now() - t0 } };
+  }
+
+  /**
+   * 44.0, waves (the fronts on, ARENA.fronts.wave s): a bot's respawn waits for its team's next wave
+   * (each team's on its own beat, half a period apart), so the dead come back together and walk to
+   * their lanes as a group: a push. Without the fronts, `t` as it was.
+   */
+  private waveAt(team: TeamId, t: number) {
+    const P = ARENA.fronts.wave;
+    if (!this.fronts || !(P > 0)) return t;
+    const off = this.startT + (team === 'alpha' ? 0 : P / 2);
+    return off + Math.ceil((t - off) / P) * P;
+  }
+
+  /**
+   * 44.0: the map's lane weights per sector (ALPHA's lanes; OMEGA's are the same lanes): each sector's
+   * lanes' mean, so a sector with more lanes is not worth more bodies (the Desert's compound has three
+   * of its seven: summed, it took 89 of a match's 111 kills).
+   */
+  private sectorWeights(team: TeamId) {
+    const D = this.directors![team];
+    const W = team === 'alpha' ? this.data.laneWeights : this.data.laneWeights?.slice().reverse();
+    const n = this.fronts!.n;
+    const w = new Array(n).fill(0), c = new Array(n).fill(0);
+    for (let l = 0; l < D.lanes.length; l++) {
+      w[D.sectorOfLane(l)] += W?.[l] ?? 1;
+      c[D.sectorOfLane(l)]++;
+    }
+    return w.map((v, k) => (c[k] ? v / c[k] : 1));
+  }
+
+  /**
+   * 44.0: the human's respawn sector: where his team is needed, and more where the enemy is (he came to
+   * fight: the lane with the most of them, the one his team is losing first).
+   */
+  private playerSector() {
+    const F = this.fronts!;
+    const need = F.need('alpha', this.sectorWeights('alpha'));
+    let best = 0, bs = -Infinity;
+    for (let k = 0; k < F.n; k++) {
+      const s = need[k] + 0.5 * F.strength.omega[k] + Math.random() * 0.3;
+      if (s > bs) {
+        bs = s;
+        best = k;
+      }
+    }
+    return best;
+  }
+
+  /** 44.0: `team`'s zone in sector `k` (else the one nearest the sector's lanes' start), or undefined. */
+  private zoneOfSector(team: TeamId, k: number): DeployZone | undefined {
+    const F = this.fronts!;
+    const own = this.zoner!.zonesOf(team);
+    const inK = own.filter((z) => F.sectorOf(z.centre.x, z.centre.y, z.centre.z) === k);
+    if (inK.length) return inK[Math.floor(Math.random() * inK.length)];
+    const D = this.directors![team];
+    const l = D.laneInSector(k);
+    if (l < 0) return undefined;
+    const start = D.lanes[l][0];
+    return own.reduce<DeployZone | undefined>((b, z) => (!b || z.centre.distanceTo(start) < b.centre.distanceTo(start) ? z : b), undefined);
+  }
+
+  /**
+   * 44.0: a rally point for `team` in sector `k`: on its lane there, the last waypoint `rallyBack` behind
+   * the line (its own progress), when that is ahead of its zones there (a zone is as near otherwise);
+   * safe as a zone is (no hostile within the map's hardMin, none in sight within its sight range); a
+   * free spot a step off the waypoint, facing up the lane. Null: none.
+   */
+  private rallyAt(team: TeamId, k: number, hostiles: readonly SpawnUnit[], occupied: (p: THREE.Vector3) => boolean) {
+    const F = this.fronts!;
+    const D = this.directors![team];
+    const l = D.laneInSector(k);
+    if (l < 0) return null;
+    const W = D.lanes[l];
+    const want = F.own(team, k) - ARENA.fronts.rallyBack;
+    // Ahead of the team's zones in this sector (or any of its zones) by a margin, else the zone will do.
+    const zs = this.zoner!.zonesOf(team);
+    const zk = zs.filter((z) => F.sectorOf(z.centre.x, z.centre.y, z.centre.z) === k);
+    const zp = Math.max(...(zk.length ? zk : zs).map((z) => D.progress(z.centre)));
+    if (want < zp + 0.15) return null;
+    let i = -1;
+    for (let j = 0; j < W.length; j++) if (D.progress(W[j]) <= want) i = j;
+    if (i < 0) return null;
+    const S = { ...SPAWN, ...this.data.spawnTuning };
+    const col = this.game.col;
+    let rays = 0, nearest = Infinity;
+    const p = W[i];
+    for (const h of hostiles) {
+      const d = h.pos.distanceTo(p);
+      nearest = Math.min(nearest, d);
+      if (d < S.hardMin) return null;
+    }
+    const chest = _eye.set(p.x, p.y + 1.2, p.z);
+    for (const h of hostiles) {
+      if (h.pos.distanceTo(p) > S.sight) continue;
+      rays++;
+      this.sched.spend(1);
+      if (col.lineOfSight(_eye2.set(h.pos.x, h.pos.y + 1.6, h.pos.z), chest)) return null;
+    }
+    // A free spot a step off it (the waypoint itself, else a ring), on its floor.
+    const next = W[Math.min(W.length - 1, i + 1)];
+    const yaw = next === p ? (team === 'alpha' ? Math.PI : 0) : Math.atan2(next.x - p.x, next.z - p.z);
+    for (const r of [0, 1.2, 2.2])
+      for (let a = 0; a < (r ? 8 : 1); a++) {
+        const x = p.x + Math.cos((a / 8) * Math.PI * 2) * r, z = p.z + Math.sin((a / 8) * Math.PI * 2) * r;
+        const y = col.groundHeightAt(x, z, 0.3, p.y + 1.2);
+        if (!(Math.abs(y - p.y) < 0.6)) continue;
+        const q = new THREE.Vector3(x, y, z);
+        if (occupied(q) || col.blocked(new THREE.Vector3(x, y + 0.05, z), 0.5, 1.8)) continue;
+        return { at: q, yaw, rays, nearest };
+      }
+    return null;
   }
 
   /** 27.0 (DEV): a yard respawn (the 'bases' A/B), logged as the pads' are: pad -1, its nearest hostile. */
@@ -904,6 +1099,7 @@ export class TdmRules implements ModeRules {
     if (by && by.team !== v.team) this.rules.killed(by.team);
     this.spawner?.noteDeath(v.pos, this.now);
     this.zoner?.noteDeath(v.pos, this.now);
+    if (by && by.team !== v.team) this.fronts?.kill(by.team, v.pos.x, v.pos.y, v.pos.z, this.now);
     const weapon = by ? this.armOf(by)?.tag : undefined;
     // 29.0: a final death is marked OUT in the feed.
     g.tdmHud.kill(by, v, weapon, !granted);
@@ -911,7 +1107,7 @@ export class TdmRules implements ModeRules {
     if (vs) {
       vs.deaths++;
       vs.bot = null;
-      vs.respawnAt = granted ? this.now + rand(TDM.respawn[0], TDM.respawn[1]) : Infinity;
+      vs.respawnAt = granted ? this.waveAt(v.team, this.now + rand(TDM.respawn[0], TDM.respawn[1])) : Infinity;
     }
     if (by) {
       if (by.isPlayer) this.player.kills++;
@@ -1083,7 +1279,7 @@ export class TdmRules implements ModeRules {
     allies.length = hostiles.length = 0;
     for (const b of this.bots) if (b.alive && b.team === 'alpha') allies.push({ x: b.pos.x, y: b.pos.y, z: b.pos.z, a: 1 });
     for (const s of this.directors!.alpha.spotted(now, this.spots)) hostiles.push({ x: s.pos.x, y: s.pos.y, z: s.pos.z, a: spotAlpha(s.age, ARENA.spot.fade) });
-    this.minimap!.draw(g.player.pos, g.player.yaw, allies, hostiles, g.playerUnit.name);
+    this.minimap!.draw(g.player.pos, g.player.yaw, allies, hostiles, g.playerUnit.name, this.frontMarks);
   }
 
   /**
@@ -1115,11 +1311,80 @@ export class TdmRules implements ModeRules {
     for (const v of viewers) {
       for (const h of this.hostiles[v.self.team]) if (h.alive && v.seen.get(h.uid)?.vis) dirs[v.self.team].sighting(h, now, 'sight', v.self);
     }
+    // 44.0: the lines first (the directors read them), each body where it stands and the sector it was sent to.
+    if (this.fronts && !this.winner) this.updateFronts(now);
     for (const t of TEAMS) {
       const enemyAlive = this.hostiles[t].filter((h) => h.alive).length;
       dirs[t].update(now, this.friends[t], enemyAlive, { own: this.tickets[t], theirs: this.tickets[otherTeam(t)] });
     }
     for (const br of this.sched.pick(brains, now)) br.decide(this.ctxs[br.self.team]);
+  }
+
+  /** 44.0: the lines on the minimap (one a sector, on its first ALPHA lane), set at each fronts step. */
+  private frontMarks: FrontMark[] = [];
+  private markFronts() {
+    const F = this.fronts!;
+    const D = this.directors!.alpha;
+    const ax = D.axisXZ;
+    this.frontMarks.length = 0;
+    for (let k = 0; k < F.n; k++) {
+      const l = D.laneSector.indexOf(k);
+      if (l < 0) continue;
+      const W = D.lanes[l];
+      const want = F.line[k];
+      let x = W[0].x, z = W[0].z;
+      for (let i = 0; i + 1 < W.length; i++) {
+        const a = D.progress(W[i]), b = D.progress(W[i + 1]);
+        if ((a - want) * (b - want) <= 0 && a !== b) {
+          const t = (want - a) / (b - a);
+          x = W[i].x + (W[i + 1].x - W[i].x) * t;
+          z = W[i].z + (W[i + 1].z - W[i].z) * t;
+          break;
+        }
+        if (i === W.length - 2) {
+          const last = Math.abs(D.progress(W[W.length - 1]) - want) < Math.abs(D.progress(W[0]) - want) ? W[W.length - 1] : W[0];
+          x = last.x;
+          z = last.z;
+        }
+      }
+      const pa = F.stance.alpha[k] === 'push', po = F.stance.omega[k] === 'push';
+      this.frontMarks.push({ x, z, ax: ax.x, az: ax.z, push: pa && !po ? 'alpha' : po && !pa ? 'omega' : null });
+    }
+  }
+
+  /** 44.0: the fronts' step (every director step): the lines, the stances, a break's bleeding, the HUD. */
+  private frontT = -Infinity;
+  private updateFronts(now: number) {
+    const F = this.fronts!;
+    if (now - this.frontT < ARENA.director.every) return;
+    this.frontT = now;
+    const ms = this.frontMembers;
+    ms.length = 0;
+    const g = this.game;
+    for (const b of this.bots) {
+      if (!b.alive) continue;
+      const d = this.directors![b.team];
+      const l = isArenaBot(b) && d.roleOf(b.uid) !== 'wolf' ? d.laneOf.get(b.uid) : undefined;
+      ms.push({ team: b.team, x: b.pos.x, y: b.pos.y, z: b.pos.z, sector: l === undefined ? null : d.sectorOfLane(l) });
+    }
+    if (!this.spectate && g.player.alive) ms.push({ team: 'alpha', x: g.player.pos.x, y: g.player.pos.y, z: g.player.pos.z, sector: null });
+    const bleed = F.update(now, ms);
+    this.markFronts();
+    for (const t of TEAMS) for (let i = 0; i < bleed[t]; i++) this.rules.bleed(t, now);
+    // The HUD: the lines, and a break (or one held) announced.
+    const here = !this.spectate && g.player.alive ? F.sectorOf(g.player.pos.x, g.player.pos.y, g.player.pos.z) : -1;
+    g.tdmHud.setFronts(F.line, F.stance.alpha, F.broken, here);
+    while (this.frontSeen < F.events.length) {
+      const e = F.events[this.frontSeen++];
+      if (e.what === 'push') continue;
+      const lane = (F.names[e.sector] ?? '').toUpperCase();
+      if (e.what === 'break') g.hud.bannerShow(e.team === 'alpha' ? 'BREAKTHROUGH' : 'LINE BROKEN', `${lane} · ${e.team === 'alpha' ? 'OMEGA BLEEDS TICKETS' : 'DEFEND'}`, 2.2);
+      else g.tdmHud.notice(`${lane}: ${e.team === 'alpha' ? 'LINE HELD' : 'OMEGA PUSHED BACK'}`);
+    }
+    if (F.events.length > 48) {
+      F.events.splice(0, F.events.length - 16);
+      this.frontSeen = F.events.length;
+    }
   }
 
   /**
@@ -1151,13 +1416,15 @@ export class TdmRules implements ModeRules {
 
   private respawnPlayer() {
     const g = this.game;
-    const pad = this.spawner || this.zoner ? this.pickPad('alpha') : null;
+    const pad = this.spawner || this.zoner ? this.pickPad('alpha', true) : null;
     if (pad?.pick) this.logSpawn('alpha', pad.pick, g.playerUnit.uid, pad.at);
     const p = pad?.at ?? this.forwardPoint('alpha') ?? this.spawnPoint('alpha');
     // (The player's yaw looks down -z at 0: the enemy convention's yaw + π.)
     g.revive(p, pad ? pad.yaw + Math.PI : 0);
     // 31.0: where he came in.
     if (this.zoner && this.lastZone) g.hud.zoneShow(`DEPLOYED · ZONE ${this.lastZone.id}`, fl('deploying'));
+    // 44.0: or at his lane's rally point, behind its line.
+    else if (this.fronts && pad?.sector !== undefined) g.hud.zoneShow(`DEPLOYED · ${(this.fronts.names[pad.sector] ?? '').toUpperCase()} FRONT`, fl('deploying'));
     g.playerInvulnUntil = this.now + TDM.protect;
     this.playerRespawnAt = Infinity;
     this.killerName = null;
@@ -1397,5 +1664,7 @@ const _face = new THREE.Vector2();
 interface SpawnAt {
   at: THREE.Vector3;
   yaw: number;
+  /** 44.0: the fronts' sector it was sent to. */
+  sector?: number;
   pick?: { pad: SpawnPad; nearest: number; rays: number; ms: number; fallback: boolean };
 }

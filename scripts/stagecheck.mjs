@@ -51,7 +51,7 @@ for (let c = 0; c < cycles; c++) {
 }
 
 // Into a match from the maps screen.
-await ev(page(`${click('[data-mode="tdm"]')} for(let i=0;i<500&&(__game.stage||__game.loading);i++) await sl(20); await sl(300); ${click('[data-act="deploy"]')} for(let i=0;i<3000&&(__game.state==='intro'||__game.state==='title');i++){ if(__game.intro&&__game.intro.t>0.4) __game.skipIntro(); await sl(30);} return __game.state;`));
+await ev(page(`${click('[data-mode="tdm"]')} for(let i=0;i<500&&(__game.stage||__game.loading);i++) await sl(20); await sl(300); ${click('[data-act="deploy"]')} for(let i=0;i<3000&&(__game.state==='intro'||__game.state==='title'||__game.state==='loading');i++){ if(__game.intro&&__game.intro.t>0.4) __game.skipIntro(); await sl(30);} return __game.state;`));
 await sleep(2500);
 const match = await ev(counts('match'));
 if (match.stage || match.scene === 'menu-stage') { console.error('the stage outlived the deploy', match); done(1); }

@@ -17,8 +17,11 @@ export const NEONBLOCK_INFO: LevelInfo = {
   name: 'TOKYO: NEON BLOCK',
   biome: 'tokyo',
   jp: '東京 · ネオン街区',
-  blurb: 'A Shinjuku block after the rain, fog lying in its streets: close fights in the alleys, long ones across the clear rooftops. 5v5.',
+  blurb: 'A Shinjuku block after the rain, fog lying in its streets: close fights in the alleys, long ones across the clear rooftops. 7v7.',
   modes: ['tdm'],
+  // 44.0: 7v7 (5v5 to 43.0): three fronts need two or three a side in each lane. Self-play with the
+  // fronts, 3 matches each: 5 a side 12 kills a minute and 19% quiet, 7 a side 20 and 10%.
+  teamSize: 7,
   loading: 'WIRING THE NEON…',
   windowTitle: 'Gridfall — Tokyo: Neon Block',
   enemies: NEON_SYNTHS,
@@ -28,7 +31,7 @@ export const NEONBLOCK_INFO: LevelInfo = {
   place: 'SECTOR 4, SHINJUKU',
   clock: '01:16',
   cine: {
-    tdm: { t1: 'GRIDFALL', t2: '東京 · ネオン街区 · NEON BLOCK', t3: 'TEAM DEATHMATCH 5v5 · ALPHA vs OMEGA<br/>LANTERN ALLEY · MAIN STREET · THE ROOFTOPS' },
+    tdm: { t1: 'GRIDFALL', t2: '東京 · ネオン街区 · NEON BLOCK', t3: 'TEAM DEATHMATCH 7v7 · ALPHA vs OMEGA<br/>LANTERN ALLEY · MAIN STREET · THE ROOFTOPS' },
   },
 };
 
