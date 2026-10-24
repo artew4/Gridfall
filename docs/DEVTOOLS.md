@@ -102,6 +102,7 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
   - `await __dev.fog()`: the live HeightFog module (`{ at, on }`): `at(from, to)` is the hidden share between two points as the picture draws it (the bots' sight uses the same function); a page `import()` of the module gets a second instance with the fog off, so tests in the page go through this.
   - `tdmSim(...).fog` now splits ground / roof / across by the fog's dense top (Neon Block 6.2 m: the landings and the footbridge count as ground).
   - `bench(3)` on Neon Block gains four views: the Lantern Bridge, the Transit Rail's deck, the Lantern Market, a roof looking down into the smog.
+- The menu (45.0): `csscheck.mjs` quiets the logo's glitch on `.gm-logo` (the `h1` is gone); uicheck covers the redesigned root, PLAY and result screens.
 - The fronts and the loading screen (44.0):
   - `node scripts/frontcheck.mjs [maps=desert,oldport] [matches=2] [out.jsonl] [opts JSON]` (Node 22+, Google Chrome; `URL=`, `PORT=`): bot-only whole matches per map; per match and averaged: kills a minute, the lanes lit, the brawls, fight sites at once, quiet time, the first engagement after a spawn (median, p90), kills by lane, the fronts' report, stuck bots (with where). `opts`: tdmSim's options whole, e.g. `'{"fronts":false}'` (43.0's patrols, the A/B) or `'{"tune":{"fronts":{"wave":6}}}'`.
   - `tdmSim({ fronts: false })`: the match without the fronts (set before the match is set up: `tune` is applied after it, too late for the fronts).

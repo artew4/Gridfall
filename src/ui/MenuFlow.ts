@@ -39,6 +39,9 @@ export const MODE_LABEL: Record<Mode, { name: string; fl: FlavorKey; line: strin
   story: { name: 'STORY ESCAPE', fl: 'modeStory', line: 'Get out of Shinjuku before the last train.' },
 };
 
+/** 45.0: the modes as the menu's tabs name them (short; no blurb). */
+export const MENU_MODE: Record<Mode, string> = { tdm: 'TEAM DEATHMATCH', arcade: 'SURVIVAL', story: 'STORY' };
+
 /** Root menu order. */
 export const MODE_ORDER: readonly Mode[] = ['tdm', 'arcade', 'story'];
 

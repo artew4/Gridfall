@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 // @ts-ignore: node's fs in the test runner (the app's tsconfig has no node types; vitest returns CSS empty under ?raw)
 import { readFileSync } from 'node:fs';
-import { mapCardHtml } from './MapCard';
+import { mapTileHtml, menuMapName } from './MapCard';
 import { boardOrder, scoreOf } from './TdmHud';
 import type { LevelInfo } from '../levels/Level';
 
@@ -30,30 +30,34 @@ describe('24.0: the stylesheet scales and stays cheap', () => {
     expect(css).not.toMatch(/:hover[^{]*\{[^}]*infinite/);
   });
 
-  it('map cards animate transform and opacity on hover, nothing else', () => {
-    const rules = [...css.matchAll(/([^{}]*\.map-card[^{}]*:hover[^{}]*)\{([^}]*)\}/g)];
+  it('45.0: map tiles animate transform and opacity on hover, nothing else', () => {
+    const rules = [...css.matchAll(/([^{}]*\.gm-tile[^{}]*:hover[^{}]*)\{([^}]*)\}/g)];
     expect(rules.length).toBeGreaterThan(0);
     for (const [, , body] of rules) for (const p of [...body.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1])) expect(['transform', 'opacity', 'outline']).toContain(p);
   });
 });
 
-describe('24.0: the map card', () => {
+describe('45.0: the map tile', () => {
   const info = { id: 'oldport', name: 'OLD PORT', biome: 'docks', jp: 'СТАРЫЙ ПОРТ', blurb: 'A harbour.', modes: ['tdm', 'arcade'], teamSize: 7 } as unknown as LevelInfo;
-  it('carries its click hook, its painted art, the watermark in its script, the modes', () => {
-    const h = mapCardHtml(info, { data: 'setting' });
+  it('carries its click hook, its painted art and its name, and no small print', () => {
+    const h = mapTileHtml(info);
     expect(h).toContain('data-setting="oldport"');
     expect(h).toContain('class="mc-art" data-map="oldport"');
-    expect(h).toMatch(/class="mc-wm jp" lang="ru"[^>]*>СТАРЫЙ ПОРТ/);
-    expect(h).toContain('<i>7v7 TDM</i><i>SURVIVAL</i>');
-    expect(h).toContain('class="mc-glow"');
+    expect(h).toContain('<b>OLD PORT</b>');
+    expect(h).not.toContain('A harbour.');
+    expect(h).not.toContain('СТАРЫЙ');
   });
-  it("the result screens' variant: data-map, small, a tag", () => {
-    const h = mapCardHtml(info, { data: 'map', on: true, small: true, tag: 'REMATCH' });
-    expect(h).toMatch(/class="map-card on sm" data-map="oldport"/);
-    expect(h).toContain('<span class="mc-tag">REMATCH</span>');
+  it("the result screens' variant: data-map, picked, a tag", () => {
+    const h = mapTileHtml(info, 'map', 'REMATCH', true);
+    expect(h).toMatch(/class="gm-tile on" data-map="oldport"/);
+    expect(h).toContain('<i>REMATCH</i>');
+  });
+  it('names a map without its city', () => {
+    expect(menuMapName({ name: 'TOKYO: NEON BLOCK' } as LevelInfo)).toBe('NEON BLOCK');
+    expect(menuMapName({ name: 'OLD PORT' } as LevelInfo)).toBe('OLD PORT');
   });
   it('every level in the menu has a painted thumbnail', () => {
-    for (const id of ['tokyo', 'neonblock', 'desert', 'jungle', 'crashsite', 'docks', 'oldport', 'maglev']) expect(css).toContain(`.mc-art[data-map="${id}"]`);
+    for (const id of ['tokyo', 'neonblock', 'desert', 'jungle', 'crashsite', 'docks', 'oldport', 'maglev', 'favelas']) expect(css).toContain(`.mc-art[data-map="${id}"]`);
   });
 });
 

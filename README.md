@@ -36,7 +36,7 @@ No install and no plugin. Open the link, click, play. Desktop browser with a mou
 
 ## The modes
 
-The main menu asks for the mode first, then shows the maps that have it. Type your name on the menu (it starts as *Artem*): it shows on your HUD, under your arrow on the minimap, in the kill feed and on the scoreboard. In a match, the HUD keeps the score top centre (ALPHA kills against OMEGA kills), the kill feed top right, and a live board of your team top left (kills, deaths, score, your row in gold). After a match, the result screen lists the next maps for the same mode, so you can go straight into another map (or a rematch) without the main menu.
+The main menu (redesigned in 45.0) is big type and one word a button: **PLAY**, **SETTINGS**, **CONTROLS**, your name top right, the gun in hand over its 3D model with 1–4 to switch. PLAY opens the modes as tabs and the maps as tiles over the live map, the picked map's name huge, and a PLAY slab to start. Click your name to change it (it starts as *Artem*): it shows on your HUD, under your arrow on the minimap, in the kill feed and on the scoreboard. In a match, the HUD keeps the score top centre (ALPHA kills against OMEGA kills), the kill feed top right, and a live board of your team top left (kills, deaths, score, your row in gold). After a match, the result screen lists the next maps for the same mode, so you can go straight into another map (or a rematch) without the main menu.
 
 - **Story Escape** (Tokyo): you are Arashi Kaito, framed for a bombing, and every patrol in the district has your description. Four acts across the streets, the rooftops and the Sakura Line metro, ending on the last express out. Stealth comes first: keep your weapon holstered and stay out of view cones. If you're seen, break line of sight and lose the search.
 - **Arcade Survival** (Tokyo, Desert, Jungle): wave after wave of enemies who fight as a squad.
@@ -104,8 +104,8 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Fog is fair:** in a sandstorm or the jungle mist, bots see only as far as a player could pick a figure out of the haze, contrast exp(−(ρd)²), and their aim degrades with distance.
 
 ### A UI that belongs to the place
-- **Biome flavor:** the sub-text under every English label is written in the script of the map you're on. Japanese in Tokyo, Arabic in the desert (Arabic-Indic numerals), Russian industrial stencils on the docks, Thai with military grid references in the jungle. One dictionary drives the HUD, the menus, the zone names and the crates and neon in the world; a level load switches it in one pass.
-- **A live main menu:** your loadout's gun turns on a crate under a spotlight, its own small scene, built when the menu opens and destroyed (checked under a forced GC) before a map is shown. Rajdhani and Orbitron, scanlines, chromatic aberration on hover, glitch transitions, and UI sounds tuned to the menu theme's key.
+- **Biome flavor:** the in-game sub-text (the HUD, zone names, the world's signs) is written in the script of the map you're on; the menus keep to one clean line of English since 45.0. Japanese in Tokyo, Arabic in the desert (Arabic-Indic numerals), Russian industrial stencils on the docks, Thai with military grid references in the jungle. One dictionary drives the HUD, the menus, the zone names and the crates and neon in the world; a level load switches it in one pass.
+- **A live main menu:** your loadout's gun sways side-on over a hexagonal plinth under a spotlight, its own small scene, built when the menu opens and destroyed (checked under a forced GC) before a map is shown. Rajdhani and Orbitron, scanlines, chromatic aberration on hover, glitch transitions, and UI sounds tuned to the menu theme's key.
 
 ### Ballistics without garbage
 - **Object-pooled rounds:** every bot round in flight comes from a free-list pool and is drawn by two InstancedMeshes. One draw call each for kinetic tracers and energy bolts; no allocation per shot.
@@ -128,7 +128,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
   - fixed-view benchmarks.
 
   See [docs/DEVTOOLS.md](docs/DEVTOOLS.md).
-- **No warm-up stutter (44.0):** the game loads behind a loading screen with a progress bar and percentage (at start, on a map change, on DEPLOY), and before a match starts every texture is uploaded to the GPU, every shader compiled (with the post-processing target bound, as it will be drawn) and the whole map drawn once with shadows, so nothing compiles or uploads in the middle of a fight.
+- **No warm-up stutter (44.0):** the game loads behind a loading screen with a progress bar and percentage (at start, on a map change, on PLAY), and before a match starts every texture is uploaded to the GPU, every shader compiled (with the post-processing target bound, as it will be drawn) and the whole map drawn once with shadows, so nothing compiles or uploads in the middle of a fight.
 - **Continuous deployment:** every push to `main` is type-checked, tested, built and published to GitHub Pages by GitHub Actions.
 
 ## Tech stack

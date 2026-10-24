@@ -1,5 +1,5 @@
 import { flSpan } from './Flavor';
-import { mapCardHtml } from './MapCard';
+import { mapTileHtml, menuMapName } from './MapCard';
 import * as THREE from 'three';
 import type { Combatant, TeamId } from '../combat/Team';
 import type { LevelInfo } from '../levels/Level';
@@ -445,11 +445,10 @@ export class TdmScreen {
       `<table class="res-board ${t === 'alpha' ? 'a' : 'o'}"><thead><tr><th class="n">#</th><th class="nm">${name}</th><th>K</th><th>D</th><th class="sc">SCORE</th></tr></thead><tbody>${team(t)}</tbody></table>`;
     this.root.innerHTML = `
       <div class="res">
-        <div class="end-title res-title ${res === 'draw' ? 'draw' : won ? 'win' : 'lose'}">${title}${res === 'draw' ? '' : flSpan(won ? 'victory' : 'defeat')}</div>
+        <div class="end-title res-title ${res === 'draw' ? 'draw' : won ? 'win' : 'lose'}">${title}</div>
         ${how ? `<div class="res-how">${how}</div>` : ''}
-        <div class="res-score"><span class="a">ALPHA <b>${tickets.alpha}</b></span><span class="vs">TICKETS LEFT · ${mm}:${ss}</span><span class="o"><b>${tickets.omega}</b> OMEGA</span></div>
+        <div class="res-score"><span class="a">ALPHA <b>${tickets.alpha}</b></span><span class="vs">${mm}:${ss}</span><span class="o"><b>${tickets.omega}</b> OMEGA</span></div>
         <div class="res-boards">${board('alpha', 'ALPHA')}${board('omega', 'OMEGA')}</div>
-        <div class="res-note">SCORE · 100 A KILL · −25 A DEATH</div>
         ${nextMapsHtml(next)}
       </div>`;
     bindNextMaps(this.root, (id) => this.onNextMap(id), () => this.onMenu());
@@ -458,7 +457,7 @@ export class TdmScreen {
 
   /** 13.0: between the click and the new map: the board gives way to a deploy note while it builds. */
   deploying(info: LevelInfo) {
-    this.root.innerHTML = `<div class="end-title">DEPLOYING${flSpan('deploying', 'span', 'jp', info.biome)}</div><div class="end-sub">${info.name} · ${info.loading}</div>`;
+    this.root.innerHTML = `<div class="end-title res-title">${menuMapName(info)}</div>`;
     // Survival comes here from the death screen, with this screen still hidden.
     this.root.classList.remove('hidden');
   }
@@ -473,10 +472,11 @@ export class TdmScreen {
  * card per map of the mode, the one just played first as REMATCH, and a small MAIN MENU.
  */
 export function nextMapsHtml(next: { info: LevelInfo; again: boolean }[]) {
-  return `<div class="next-maps">
-    <div class="mm-label">CHOOSE NEXT MAP ${flSpan('nextMap')}</div>
-    <div class="map-grid sm">${next.map(({ info, again }) => mapCardHtml(info, { data: 'map', on: again, tag: again ? 'REMATCH' : undefined, small: true })).join('')}</div>
-    <button class="pm-btn small" data-act="menu">MAIN MENU${flSpan('mainMenu')}</button>
+  // 45.0: the main menu's tiles (art and name), the rematch first and tagged; MAIN MENU as its BACK.
+  return `<div class="next-maps gm-next">
+    <div class="gm-next-h">NEXT MATCH</div>
+    <div class="gm-row">${next.map(({ info, again }) => mapTileHtml(info, 'map', again ? 'REMATCH' : '', again)).join('')}</div>
+    <button class="gm-menu" data-act="menu"><i></i>MAIN MENU</button>
   </div>`;
 }
 

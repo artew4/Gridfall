@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { ARMORY, type WeaponId } from '../entities/weapons/armory';
 import type { LevelLook } from '../levels/Level';
-import { crateTexture } from '../levels/desert/textures';
 import { makeAmmoDisplay } from '../world/Textures';
 import { disposeScene } from '../core/dispose';
 import { gunMats } from '../entities/weapons/theme';
@@ -56,6 +55,8 @@ export class MenuStage {
   private _at = new THREE.Vector3();
   private static readonly UP = new THREE.Vector3(0, 1, 0);
   weapon: WeaponId;
+  /** 45.0: the gun's middle over the turntable (m). */
+  private gunMid = 0.2;
 
   constructor(renderer: THREE.WebGLRenderer, weapon: WeaponId) {
     const s = this.scene;
@@ -97,13 +98,14 @@ export class MenuStage {
     contact.position.y = 0.003;
     s.add(contact);
 
-    // The crate and the turntable on it.
-    const crate = new THREE.Mesh(
-      new THREE.BoxGeometry(1.15, 0.72, 0.85),
-      new THREE.MeshStandardMaterial({ map: crateTexture('GRIDFALL', 'ARMORY · 7', '#2a2f3a', '#c9d2dc'), roughness: 0.7, metalness: 0.15 }),
-    );
+    // 45.0: a dark hexagonal plinth (the 16.0 crate's stencils fought the menu's type), a lit edge.
+    const crate = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.66, 0.72, 6), new THREE.MeshStandardMaterial({ color: 0x0b0d14, roughness: 0.85, metalness: 0.3 }));
     crate.position.y = 0.36;
     s.add(crate);
+    const edge = new THREE.Mesh(new THREE.TorusGeometry(0.585, 0.008, 6, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 0.25, 1.3) }));
+    edge.rotation.x = Math.PI / 2;
+    edge.position.y = 0.722;
+    s.add(edge);
     const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.36, 0.035, 40), new THREE.MeshStandardMaterial({ color: 0x15171d, roughness: 0.55, metalness: 0.7 }));
     plate.position.y = 0.738;
     s.add(plate);
@@ -122,7 +124,7 @@ export class MenuStage {
     s.add(spot, spot.target);
     s.add(lightCone(spot.position, spot.target.position, spot.angle * 0.92));
     const rimC = new THREE.PointLight(0x19e6ff, 7, 7, 2);
-    rimC.position.set(-1.6, 1.5, -1.2);
+    rimC.position.set(-1.6, 1.9, -1.4);
     const rimM = new THREE.PointLight(0xff2fd0, 6, 7, 2);
     rimM.position.set(1.7, 1.3, -1.0);
     // A cool fill from the camera's side so the gun's dark metal reads between the rims.
@@ -187,10 +189,12 @@ export class MenuStage {
     });
     const size = box.getSize(this._dir), c = box.getCenter(this._at);
     // Up to 1.8× life size: a rifle fills the plate, the pistol stays a pistol.
-    const k = Math.min(1.8, 0.95 / Math.max(size.x, size.y, size.z));
+    const k = Math.min(2.2, 1.05 / Math.max(size.x, size.y, size.z));
     this.gun.scale.setScalar(k);
     // Centred over the plate, hovering just above it.
-    this.gun.position.set(-c.x * k, -box.min.y * k + 0.025, -c.z * k);
+    this.gun.position.set(-c.x * k, -box.min.y * k + 0.04, -c.z * k);
+    // 45.0: the halo goes behind the gun's middle (it sat under it once the camera came down).
+    this.gunMid = 0.04 + (size.y * k) / 2;
     this.turntable.add(this.gun);
   }
 
@@ -198,24 +202,26 @@ export class MenuStage {
   update(dt: number, cam: THREE.PerspectiveCamera) {
     this.time.value += dt;
     const t = this.time.value;
-    this.spin += dt * 0.42;
+    this.spin += dt;
     this.swapT = Math.min(1, this.swapT + dt * 2.5);
     const pop = 1 - Math.pow(1 - this.swapT, 3);
-    this.turntable.rotation.y = this.spin;
     this.turntable.position.y = SHOW.y + Math.sin(t * 0.9) * 0.015;
     this.turntable.scale.setScalar(0.6 + 0.4 * pop);
 
-    const a = 0.55 + Math.sin(t * 0.06) * 0.35;
-    const r = 1.65 + Math.sin(t * 0.11) * 0.1;
-    cam.position.set(Math.sin(a) * r, 1.12 + Math.sin(t * 0.13) * 0.05, Math.cos(a) * r);
+    const a = 0.55 + Math.sin(t * 0.06) * 0.2;
+    const r = 1.55 + Math.sin(t * 0.11) * 0.06;
+    cam.position.set(Math.sin(a) * r, 1.02 + Math.sin(t * 0.13) * 0.04, Math.cos(a) * r);
+    // 45.0: the gun shown side on (its barrel across the view, muzzle to the right), swaying ±30°: a
+    // full turn put it end-on half the time, a dark stub on the plate.
+    this.turntable.rotation.y = a + Math.PI / 2 + Math.sin(this.spin * 0.45) * 0.5;
     // Look a little to the left of the gun so it sits right of centre (the menu has the left).
     const dir = this._dir.copy(SHOW).sub(cam.position).normalize();
     const right = this._right.crossVectors(dir, MenuStage.UP).normalize();
     const off = cam.aspect > 1.25 ? 0.36 : 0;
     // The halo sits behind the gun on the line from the camera.
-    this.halo.position.copy(SHOW).addScaledVector(dir, 1.4).setY(SHOW.y + 0.25);
+    this.halo.position.copy(SHOW).addScaledVector(dir, 1.4).setY(this.turntable.position.y + this.gunMid);
     this.halo.lookAt(cam.position);
-    cam.lookAt(this._at.copy(SHOW).addScaledVector(right, -off).setY(SHOW.y + 0.16));
+    cam.lookAt(this._at.copy(SHOW).addScaledVector(right, -off).setY(SHOW.y + 0.02));
   }
 
   /** Frees everything the stage made (GPU side); the caller drops the stage itself. */

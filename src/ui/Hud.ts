@@ -1,9 +1,9 @@
 import type { LevelInfo, SettingId } from '../levels/Level';
-import { MODE_LABEL, MODE_ORDER, canDeploy, mapsFor, type MenuState } from './MenuFlow';
+import { MENU_MODE, MODE_ORDER, canDeploy, mapsFor, type MenuState } from './MenuFlow';
 import { NAME_MAX } from '../gameplay/PlayerName';
 import { ARMORY, ARMORY_ORDER, type WeaponId } from '../entities/weapons/armory';
 import { nextMapsHtml } from './TdmHud';
-import { mapCardHtml } from './MapCard';
+import { mapTileHtml, menuMapName } from './MapCard';
 
 import { fl, flSpan, flWave, prewarmFlavor } from './Flavor';
 
@@ -94,45 +94,51 @@ export class Hud {
 
     this.banner.id = 'banner';
     this.title.id = 'title';
+    // 45.0: the main menu, redesigned: big type, one word a button, no small print (the flavor lines,
+    // the mode blurbs, the gun's line, the tagline are gone from it). Three screens: the root (the logo,
+    // PLAY, SETTINGS, CONTROLS; his callsign; the loadout over the stage's gun), PLAY (the mode tabs, the
+    // picked map's name over the live map, a strip of map tiles, PLAY) and CONTROLS.
     this.title.innerHTML = `
-      <h1>GRIDFALL</h1>
-      <div class="sub"></div>
-      <div class="jp"></div>
-      <div class="loading">BUILDING THE CITY…</div>
       <div class="mainmenu hidden">
-        <div class="mm-screen" data-screen="root">
-          <div class="mm-label">CALLSIGN ${flSpan('callsign')}</div>
-          <input class="mm-name" type="text" maxlength="${NAME_MAX}" spellcheck="false" autocomplete="off" aria-label="Player name" />
-          <div class="mm-label">MODE ${flSpan('mode')}</div>
-          <div class="mm-modes"></div>
-          <div class="mm-label">ARMORY ${flSpan('armory')}</div>
-          <div class="mm-armory"></div>
-          <button class="pm-btn" data-act="settings">SETTINGS${flSpan('settings')}</button>
-          <button class="pm-btn" data-act="controls">CONTROLS${flSpan('controls')}</button>
-        </div>
-        <div class="mm-screen hidden" data-screen="maps">
-          <div class="mm-label mm-mode-title"></div>
-          <div class="settings-row map-grid"></div>
-          <div class="mm-note"></div>
-          <div class="mm-actions">
-            <button class="pm-btn" data-act="back">BACK${flSpan('back')}</button>
-            <button class="pm-btn primary" data-act="deploy">DEPLOY${flSpan('deploy')}</button>
+        <div class="mm-screen gm-root" data-screen="root">
+          <div class="gm-logo" aria-label="Gridfall"><span>GRID</span><span>FALL</span></div>
+          <label class="gm-player"><span class="gm-avatar" aria-hidden="true"></span><input class="mm-name" type="text" maxlength="${NAME_MAX}" spellcheck="false" autocomplete="off" aria-label="Player name" /></label>
+          <nav class="gm-nav">
+            <button class="gm-item gm-play" data-act="play"><span>PLAY</span></button>
+            <button class="gm-item" data-act="settings"><span>SETTINGS</span></button>
+            <button class="gm-item" data-act="controls"><span>CONTROLS</span></button>
+          </nav>
+          <div class="gm-loadout">
+            <div class="gm-gun-class"></div>
+            <div class="gm-gun-name"></div>
+            <div class="mm-armory gm-guns"></div>
           </div>
         </div>
-      </div>
-      <div class="controlsPanel hidden">
-        <div class="cp-grid">
-          <b>W A S D</b><span>MOVE</span><b>MOUSE</b><span>LOOK</span>
-          <b>LMB</b><span>FIRE (WEAPON DRAWN)</span><b>R</b><span>RELOAD</span>
-          <b>RMB</b><span>AIM DOWN SIGHTS (HOLD)</span><b>C</b><span>CROUCH (TAP · HOLD) · SPRINTING: SLIDE</span>
-          <b>X</b><span>HOLSTER / DRAW</span><b>E</b><span>INTERACT (HOLD FOR SOME)</span>
-          <b>SHIFT</b><span>SPRINT</span><b>SPACE</b><span>JUMP · VAULT LOW RAILINGS</span>
-          <b>TAB</b><span>OBJECTIVE OVERVIEW (HOLD)</span><b>ESC</b><span>PAUSE · SETTINGS</span>
+        <div class="mm-screen gm-maps hidden" data-screen="maps">
+          <div class="gm-bar">
+            <button class="gm-back" data-act="back"><i></i>BACK</button>
+            <div class="gm-tabs mm-modes"></div>
+          </div>
+          <div class="gm-hero">
+            <div class="gm-hero-name"></div>
+            <div class="gm-hero-size"></div>
+          </div>
+          <div class="gm-strip settings-row"></div>
+          <button class="gm-go" data-act="deploy"><span>PLAY</span></button>
         </div>
-        <div class="cp-notes">A drawn weapon gets you noticed by security and civilians. Break line of sight to lose a pursuit; they search the last place they saw you.</div>
-        <button class="pm-btn" data-act="back">BACK${flSpan('back')}</button>
       </div>
-      <div class="controls">HEADPHONES RECOMMENDED</div>`;
+      <div class="controlsPanel gm-controls hidden">
+        <div class="gm-bar"><button class="gm-back" data-act="back"><i></i>BACK</button></div>
+        <div class="gm-h">CONTROLS</div>
+        <div class="cp-grid">
+          <kbd>W A S D</kbd><span>MOVE</span><kbd>MOUSE</kbd><span>LOOK</span>
+          <kbd>LMB</kbd><span>FIRE</span><kbd>RMB</kbd><span>AIM</span>
+          <kbd>R</kbd><span>RELOAD</span><kbd>1–4</kbd><span>WEAPON</span>
+          <kbd>SHIFT</kbd><span>SPRINT</span><kbd>SPACE</kbd><span>JUMP · CLIMB</span>
+          <kbd>C</kbd><span>CROUCH · SLIDE</span><kbd>E</kbd><span>INTERACT</span>
+          <kbd>X</kbd><span>HOLSTER</span><kbd>ESC</kbd><span>PAUSE</span>
+        </div>
+      </div>`;
     this.pause.id = 'pause';
     this.pause.innerHTML = '<div class="big">PAUSED</div><div class="hint">CLICK TO RESUME</div>';
     this.death.id = 'death';
@@ -146,11 +152,10 @@ export class Hud {
   }
 
   setReady() {
-    this.title.querySelector('.loading')?.remove();
     this.title.querySelector('.mainmenu')!.classList.remove('hidden');
     // 24.0: the logo's glitch, a one-shot every 7 s while the title is shown (no endless CSS loop).
     window.setInterval(() => {
-      const h = this.title.querySelector('h1');
+      const h = this.title.querySelector<HTMLElement>('.gm-logo');
       if (!h || this.title.classList.contains('hidden') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       h.classList.remove('logo-glitch');
       void h.offsetWidth;
@@ -164,8 +169,7 @@ export class Hud {
     this.nameInput = this.title.querySelector<HTMLInputElement>('.mm-name')!;
     this.title.querySelector('.mm-modes')!.innerHTML = MODE_ORDER.filter((m) => mapsFor(m, levels).length)
       .map((m) => {
-        const L = MODE_LABEL[m], n = mapsFor(m, levels).length;
-        return `<button class="pm-btn mm-mode${m === 'tdm' ? ' primary' : ''}" data-mode="${m}">${L.name}${flSpan(L.fl)}<span class="mm-line">${L.line} · ${n} MAP${n === 1 ? '' : 'S'}</span></button>`;
+        return `<button class="gm-tab mm-mode" data-mode="${m}">${MENU_MODE[m]}</button>`;
       })
       .join('');
   }
@@ -177,8 +181,6 @@ export class Hud {
   selectLevel(l: LevelInfo, loading: boolean) {
     this.loaded = l;
     this.loadingLevel = loading;
-    this.title.querySelector('.sub')!.textContent = l.tagline;
-    this.title.querySelector('.jp')!.textContent = l.jpLine;
     this.renderMenu(this.menuState);
   }
 
@@ -196,25 +198,27 @@ export class Hud {
     t.querySelector('.controlsPanel')!.classList.toggle('hidden', st.screen !== 'controls');
     t.querySelector('.mainmenu')!.classList.toggle('on-controls', st.screen === 'controls');
     if (st.screen !== 'maps' || !st.mode) return;
-    const L = MODE_LABEL[st.mode];
-    t.querySelector('.mm-mode-title')!.innerHTML = `${L.name} · MAP ${flSpan(L.fl)}`;
+    for (const b of Array.from(t.querySelectorAll<HTMLElement>('.gm-tab'))) b.classList.toggle('on', b.dataset.mode === st.mode);
     const row = t.querySelector('.settings-row')!;
     const maps = mapsFor(st.mode, this.levels);
     const key = maps.map((m) => m.id).join(',');
     if (row.getAttribute('data-for') !== key) {
       row.setAttribute('data-for', key);
-      // 24.0: the map cards (MapCard.ts), a grid.
-      row.innerHTML = maps.map((l) => mapCardHtml(l, { data: 'setting' })).join('');
+      // 45.0: tiles: the painted art and the name, nothing else.
+      row.innerHTML = maps.map((l) => mapTileHtml(l)).join('');
+    }
+    // The picked map, big, over the live map behind the menu.
+    const pick = this.levels.find((l) => l.id === st.map);
+    if (pick) {
+      t.querySelector('.gm-hero-name')!.textContent = menuMapName(pick);
+      t.querySelector('.gm-hero-size')!.textContent = st.mode === 'tdm' ? `${pick.teamSize ?? 5} VS ${pick.teamSize ?? 5}` : st.mode === 'arcade' ? 'SURVIVAL' : 'STORY';
     }
     for (const b of Array.from(row.querySelectorAll<HTMLElement>('[data-setting]'))) b.classList.toggle('on', b.dataset.setting === st.map);
     const loaded = (this.loaded?.id ?? 'tokyo') as SettingId;
     const busy = this.loadingLevel || st.map !== loaded;
     const deploy = t.querySelector<HTMLButtonElement>('[data-act="deploy"]')!;
     deploy.disabled = !canDeploy(st, this.levels, loaded, this.loadingLevel);
-    const note = t.querySelector<HTMLElement>('.mm-note')!;
-    const picked = this.levels.find((l) => l.id === st.map);
-    note.textContent = busy ? (picked?.loading ?? '') : '';
-    note.classList.toggle('busy', busy);
+    deploy.classList.toggle('busy', busy);
   }
 
   /** 16.0: the screen change's glitch (the stylesheet's `glitching` keyframes) and its sound. */
@@ -237,11 +241,13 @@ export class Hud {
     if (!row.childElementCount) {
       row.innerHTML = ARMORY_ORDER.map((id) => {
         const a = ARMORY[id];
-        return `<button class="mm-gun" data-gun="${id}"><kbd>${a.key}</kbd><b>${a.spec.name}</b>${flSpan(id)}<em>${a.kind}</em></button>`;
-      }).join('') + '<div class="mm-gun-line"></div>';
+        return `<button class="gm-gun mm-gun" data-gun="${id}" aria-label="${a.spec.name}"><kbd>${a.key}</kbd><b>${a.spec.name}</b></button>`;
+      }).join('');
     }
     for (const b of Array.from(row.querySelectorAll<HTMLElement>('[data-gun]'))) b.classList.toggle('on', b.dataset.gun === current);
-    row.querySelector('.mm-gun-line')!.textContent = ARMORY[current].blurb;
+    // 45.0: the gun in hand, big, over the stage's model: its class, its name.
+    this.title.querySelector('.gm-gun-class')!.textContent = ARMORY[current].kind;
+    this.title.querySelector('.gm-gun-name')!.textContent = ARMORY[current].spec.name;
   }
 
   /** 13.0: the player's name on the HUD (with his team in Team Deathmatch). */
@@ -361,11 +367,9 @@ export class Hud {
 
   /** HUD corner: where and when (the story replaces the time as the clock runs). */
   setPlace(place: string, clock: string) {
-    this.placeClock = clock;
     this.clockEl.innerHTML = `${place} · <b>${clock}</b>`;
   }
 
-  private placeClock = '02:47';
 
   setClock(t: string) {
     const b = this.clockEl.querySelector('b');
@@ -382,15 +386,12 @@ export class Hud {
   showDeath(s: DeathStats) {
     const mm = Math.floor(s.time / 60);
     const ss = Math.floor(s.time % 60);
-    this.death.innerHTML = `<div class="big">${s.title ?? 'FLATLINED'}</div>
-      <div class="hint" style="animation:none;margin-top:10px;font-family:var(--jp)">${this.placeClock} · ${fl('flatline')}</div>
-      <div class="stats">
-        <span>WAVE</span><span>${String(s.wave).padStart(2, '0')}</span>
-        <span>NEUTRALIZED</span><span>${s.kills}</span>
-        <span>ACCURACY</span><span>${Math.round(s.accuracy * 100)}%</span>
-        <span>SURVIVED</span><span>${mm}:${String(ss).padStart(2, '0')}</span>
-      </div>
-      ${s.story ? '<div class="hint">CLICK TO RETRY FROM THE CHECKPOINT</div><button class="pm-btn death-full" data-act="full">RESTART STORY</button>' : '<div class="hint">CLICK TO RISE AGAIN</div>'}
+    // 45.0: the menu's type: the title big, four numbers, one action; no flavor line.
+    const stat = (v: string, k: string) => `<div><b>${v}</b><span>${k}</span></div>`;
+    this.death.innerHTML = `<div class="big dt-title">${s.title ?? 'FLATLINED'}</div>
+      <div class="dt-stats">${stat(String(s.wave).padStart(2, '0'), 'WAVE')}${stat(String(s.kills), 'KILLS')}${stat(`${Math.round(s.accuracy * 100)}%`, 'ACCURACY')}${stat(`${mm}:${String(ss).padStart(2, '0')}`, 'TIME')}</div>
+      <div class="dt-again">${s.story ? 'RETRY' : 'PLAY AGAIN'}</div>
+      ${s.story ? '<button class="gm-menu death-full" data-act="full"><i></i>RESTART STORY</button>' : ''}
       ${s.next ? nextMapsHtml(s.next) : ''}`;
     this.show(this.death, true);
   }

@@ -1,8 +1,10 @@
 import type { Settings } from './Settings';
-import { flSpan } from './Flavor';
 import { FPS_CAPS, PRESETS, type QualityPreset } from '../core/Performance';
 
 type SliderKey = 'master' | 'music' | 'sfx';
+
+/** 45.0: the presets as the settings name them (one word each). */
+const QUALITY_NAME: Record<QualityPreset, string> = { power: 'LOW', balanced: 'MEDIUM', high: 'HIGH' };
 
 /**
  * Esc menu in the HUD's visual language: resume, restart, three volume sliders and mute.
@@ -25,30 +27,36 @@ export class PauseMenu {
   constructor(parent: HTMLElement, private settings: Settings) {
     this.root.id = 'pausemenu';
     this.root.className = 'layer hidden';
+    // 45.0: two columns in the main menu's type: the title and the big actions on the left, the
+    // settings on the right as label / value rows. No flavor lines, no notes.
     this.root.innerHTML = `
-      <div class="pm-panel">
-        <div class="pm-title">PAUSED${flSpan('paused')}</div>
-        <button class="pm-btn primary" data-act="resume">RESUME${flSpan('resume')}</button>
-        <div class="pm-hint"></div>
-        <button class="pm-btn" data-act="restart">RESTART${flSpan('restart')}</button>
-        <button class="pm-btn" data-act="quit">QUIT TO MAIN MENU${flSpan('quitToMenu')}</button>
-        <div class="pm-sep"><span>AUDIO</span>${flSpan('audio')}</div>
-        ${(['master', 'music', 'sfx'] as SliderKey[])
-          .map(
-            (k) => `<label class="pm-slider"><span class="name">${k.toUpperCase()}</span>
-              <input type="range" min="0" max="100" step="1" data-key="${k}" />
-              <span class="val"></span></label>`,
-          )
-          .join('')}
-        <button class="pm-btn toggle" data-act="mute"></button>
-        <div class="pm-sep"><span>GRAPHICS</span>${flSpan('graphics')}</div>
-        <div class="pm-row">${(Object.keys(PRESETS) as QualityPreset[])
-          .map((q) => `<button class="pm-btn pm-chip" data-quality="${q}">${PRESETS[q].label}</button>`)
-          .join('')}</div>
-        <button class="pm-btn toggle" data-act="fps"></button>
-        <button class="pm-btn toggle" data-act="tips"></button>
-        <div class="pm-note"></div>
-        <div class="pm-foot">SETTINGS ARE SAVED · ${flSpan('saved', 'span', '')}</div>
+      <div class="pm-wrap">
+        <div class="pm-side">
+          <div class="pm-title">PAUSED</div>
+          <nav class="pm-nav">
+            <button class="gm-item pm-item" data-act="resume"><span>RESUME</span></button>
+            <div class="pm-hint"></div>
+            <button class="gm-item pm-item" data-act="restart"><span>RESTART</span></button>
+            <button class="gm-item pm-item" data-act="quit"><span>QUIT</span></button>
+          </nav>
+        </div>
+        <div class="pm-panel">
+          <div class="pm-sec">AUDIO</div>
+          ${(['master', 'music', 'sfx'] as SliderKey[])
+            .map(
+              (k) => `<label class="pm-slider"><span class="name">${k === 'sfx' ? 'EFFECTS' : k.toUpperCase()}</span>
+                <input type="range" min="0" max="100" step="1" data-key="${k}" />
+                <span class="val"></span></label>`,
+            )
+            .join('')}
+          <button class="pm-opt toggle" data-act="mute"></button>
+          <div class="pm-sec">GRAPHICS</div>
+          <div class="pm-row">${(Object.keys(PRESETS) as QualityPreset[])
+            .map((q) => `<button class="pm-chip" data-quality="${q}">${QUALITY_NAME[q]}</button>`)
+            .join('')}</div>
+          <button class="pm-opt toggle" data-act="fps"></button>
+          <button class="pm-opt toggle" data-act="tips"></button>
+        </div>
       </div>`;
     parent.appendChild(this.root);
     this.hint = this.root.querySelector('.pm-hint')!;
@@ -86,7 +94,7 @@ export class PauseMenu {
         // Two-step restart avoids losing a run to a stray click.
         if (!this.restartArmed) {
           this.restartArmed = true;
-          this.root.querySelector('[data-act="restart"]')!.innerHTML = `CONFIRM RESTART${flSpan('confirm')}`;
+          this.root.querySelector('[data-act="restart"]')!.innerHTML = '<span>CONFIRM?</span>';
           return;
         }
         this.onRestart();
@@ -94,7 +102,7 @@ export class PauseMenu {
         // Two-step as well: the run is lost.
         if (!this.quitArmed) {
           this.quitArmed = true;
-          this.root.querySelector('[data-act="quit"]')!.innerHTML = `CONFIRM QUIT${flSpan('confirm')}`;
+          this.root.querySelector('[data-act="quit"]')!.innerHTML = '<span>CONFIRM?</span>';
           return;
         }
         this.onQuit();
@@ -123,13 +131,11 @@ export class PauseMenu {
       s.val.textContent = String(this.settings[k]).padStart(3, '0');
       s.input.style.setProperty('--fill', `${this.settings[k]}%`);
     }
-    this.muteBtn.innerHTML = this.settings.muted ? `SOUND: <b>MUTED</b>${flSpan('muted')}` : `SOUND: <b>ON</b>${flSpan('soundOn')}`;
+    this.muteBtn.innerHTML = `<span>SOUND</span><b>${this.settings.muted ? 'OFF' : 'ON'}</b>`;
     this.muteBtn.classList.toggle('on', this.settings.muted);
     for (const b of Array.from(this.root.querySelectorAll<HTMLElement>('[data-quality]'))) b.classList.toggle('on', b.dataset.quality === this.settings.quality);
-    this.root.querySelector('[data-act="fps"]')!.innerHTML = `FRAME RATE: <b>${this.settings.fps} FPS</b>${flSpan(this.settings.fps <= 30 ? 'powerSave' : this.settings.fps <= 60 ? 'standard' : 'smooth')}`;
-    this.root.querySelector('[data-act="tips"]')!.innerHTML = `CONTROL TIPS: <b>${this.settings.tips ? 'ON' : 'OFF'}</b>${flSpan('tips')}`;
-    this.root.querySelector('.pm-note')!.textContent =
-      this.settings.quality === 'power' ? '30 FPS, LOWER RESOLUTION — RUNS COOLEST' : this.settings.quality === 'high' ? 'FULL RESOLUTION AND RATE — MOST GPU WORK' : 'RECOMMENDED';
+    this.root.querySelector('[data-act="fps"]')!.innerHTML = `<span>FRAME RATE</span><b>${this.settings.fps} FPS</b>`;
+    this.root.querySelector('[data-act="tips"]')!.innerHTML = `<span>CONTROL TIPS</span><b>${this.settings.tips ? 'ON' : 'OFF'}</b>`;
   }
 
   setHint(text: string) {
@@ -145,14 +151,15 @@ export class PauseMenu {
     if (on) {
       this.mode = mode;
       const settings = mode === 'settings';
-      this.root.querySelector('.pm-title')!.innerHTML = settings ? `SETTINGS${flSpan('settings')}` : `PAUSED${flSpan('paused')}`;
-      this.root.querySelector('[data-act="resume"]')!.innerHTML = settings ? `BACK${flSpan('back')}` : `RESUME${flSpan('resume')}`;
+      this.root.classList.toggle('from-menu', settings);
+      this.root.querySelector('.pm-title')!.textContent = settings ? 'SETTINGS' : 'PAUSED';
+      this.root.querySelector('[data-act="resume"]')!.innerHTML = settings ? '<span>BACK</span>' : '<span>RESUME</span>';
       (this.root.querySelector('[data-act="restart"]') as HTMLElement).style.display = settings ? 'none' : '';
       (this.root.querySelector('[data-act="quit"]') as HTMLElement).style.display = settings ? 'none' : '';
       this.restartArmed = false;
       this.quitArmed = false;
-      this.root.querySelector('[data-act="restart"]')!.innerHTML = `RESTART${flSpan('restart')}`;
-      this.root.querySelector('[data-act="quit"]')!.innerHTML = `QUIT TO MAIN MENU${flSpan('quitToMenu')}`;
+      this.root.querySelector('[data-act="restart"]')!.innerHTML = '<span>RESTART</span>';
+      this.root.querySelector('[data-act="quit"]')!.innerHTML = '<span>MAIN MENU</span>';
       this.setHint('');
       this.sync();
     }

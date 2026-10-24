@@ -43,7 +43,7 @@ const hover = async (sel) => {
 };
 // The title's logo glitch (an endless clip-path animation) recalculates style every frame by itself:
 // stop it for the hover rows, so they show what the hover alone costs.
-await ev(`(() => { const st = document.createElement('style'); st.id = 'csscheck-quiet'; st.textContent = '#title h1 { animation: none !important; }'; document.head.appendChild(st); })()`);
+await ev(`(() => { const st = document.createElement('style'); st.id = 'csscheck-quiet'; st.textContent = '#title h1, #title .gm-logo { animation: none !important; }'; document.head.appendChild(st); })()`);
 rows.push(await measure('title, logo glitch off'));
 await hover('#title [data-act="settings"]');
 rows.push(await measure('title, a button hovered'));

@@ -687,6 +687,8 @@ export class Game {
       if (el.dataset.setting) return this.menuEvent({ type: 'map', id: el.dataset.setting as SettingId });
       const act = el.dataset.act;
       if (act === 'settings') return this.menu.show(true, 'settings');
+      // 45.0: PLAY on the root opens the maps in the last mode picked (Team Deathmatch the first time).
+      if (act === 'play') return this.menuEvent({ type: 'mode', mode: this.menuState.mode ?? 'tdm' });
       if (act === 'controls') return this.menuEvent({ type: 'controls' });
       if (act === 'back') return this.menuEvent({ type: 'back' });
       if (act !== 'deploy' || this.loading) return;
