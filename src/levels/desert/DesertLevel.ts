@@ -156,7 +156,8 @@ export class DesertLevel implements LevelRuntime {
       zoneAt: o.zoneAt,
       testGoals: [
         // (12.0: the culvert's centre is on its floor.)
-        ...o.interiors.map((r) => new THREE.Vector3((r.x0 + r.x1) / 2, r.h < 0 ? CULVERT.floor : 0.12, (r.z0 + r.z1) / 2)),
+        // (46.0: the flank houses bring their own goals, a level each.)
+        ...o.interiors.filter((r) => !o.arena.houses.interiors.includes(r)).map((r) => new THREE.Vector3((r.x0 + r.x1) / 2, r.h < 0 ? CULVERT.floor : 0.12, (r.z0 + r.z1) / 2)),
         // 12.0: the new roofs and the skybridge.
         new THREE.Vector3(-20, 3.55, -14.5),
         new THREE.Vector3(18, 5.25, -14),
@@ -218,6 +219,8 @@ export class DesertLevel implements LevelRuntime {
     // Enemies come out of the dust: no closer than what the storm still lets you see.
     game.waves.minSpawnDistance = () => Math.max(24, Math.min(70, this.storm.visibility * 1.05));
     game.ctx.sightRange = this.storm.visibility;
+    // 46.0: two under a roof (the compound's buildings, the flank houses, the culvert) see each other whatever the storm.
+    game.ctx.sheltered = (a, b) => this.inside(a) && this.inside(b);
     game.weapon.setLights({ sky: 0xd8e4f4, ground: 0x9a7650, hemi: 1.1, key: 0xffe6c4, keyI: 2.6, rim: 0xffd2a0, rimI: 0.8 });
     const r = game.renderer.renderer;
     r.shadowMap.autoUpdate = false;
@@ -246,6 +249,10 @@ export class DesertLevel implements LevelRuntime {
     this.hemi.color.set(0xbfd4f0).lerp(game.fog.color, s);
     game.glows.update(f.elapsed, f.camPos);
     game.ctx.sightRange = this.storm.visibility;
+    // 46.0: no storm in the room he stands in: the picture's fog thins indoors (the weather's own is
+    // kept for the AI, EnemyCtx.weatherFog), and the dust is masked there (the storm's interiors).
+    game.ctx.weatherFog = game.fog.density;
+    game.fog.density *= 1 - 0.8 * this.indoors;
     game.audio.setWind(s, this.indoors);
     this.outpost.update(f.elapsed, s);
   }

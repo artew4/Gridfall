@@ -353,20 +353,19 @@ export class Effects {
   }
 
   /**
-   * A shot's tracer from the muzzle to what it hit. Energy (the plasma pistol): the 3.x look, a soft
-   * glowing streak at 280 m/s. Kinetic (8.1): a thinner, hotter, longer yellow-orange line at 520 m/s.
+   * A shot's tracer from the muzzle to what it hit (8.1): a thin, hot yellow-orange line at 520 m/s.
+   * (46.0: the plasma pistol's soft 280 m/s streak is gone with it.)
    */
-  tracer(from: THREE.Vector3, to: THREE.Vector3, color = new THREE.Color(1.0, 0.75, 0.4), kind: 'kinetic' | 'energy' = 'energy') {
+  tracer(from: THREE.Vector3, to: THREE.Vector3, color = new THREE.Color(1.0, 0.75, 0.4)) {
     const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
     const len = Math.hypot(dx, dy, dz);
     if (len < 1.5) return;
-    const kinetic = kind === 'kinetic';
-    const speed = kinetic ? 520 : 280;
+    const speed = 520;
     const k = speed / len;
-    const hot = kinetic ? 5 : 3;
+    const hot = 5;
     this.add.spawn({
       x: from.x, y: from.y, z: from.z, vx: dx * k, vy: dy * k, vz: dz * k,
-      r: color.r * hot, g: color.g * hot, b: color.b * hot, size: kinetic ? 0.011 : 0.018, stretch: kinetic ? 0.008 : 0.012, life: Math.min(len / speed, 0.25),
+      r: color.r * hot, g: color.g * hot, b: color.b * hot, size: 0.011, stretch: 0.008, life: Math.min(len / speed, 0.25),
     });
   }
 

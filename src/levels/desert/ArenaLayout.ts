@@ -60,9 +60,10 @@ export function inBase(x: number, z: number, side: 'south' | 'north', pad = 0) {
  * (bots never walk into a spawn on their own). 0 = left (west), 1 = centre, 2 = right (east).
  */
 export const LANES_SOUTH: [number, number][][] = [
-  [[-17, 53], [-30, 50], [-43, 47], [-50, 40], [-53, 27], [-58, 14], [-60, 0], [-58, -14], [-53, -27], [-50, -40], [-43, -47], [-30, -50]],
+  // 46.0: through the Block, door to door (its south door, the end room, the hall, out of the north end).
+  [[-17, 53], [-30, 50], [-43, 47], [-50, 40], [-53, 27], [-51.25, 18], [-51.25, 13.7], [-51.25, 10.4], [-52.75, 5.8], [-54, 0], [-52.75, -5.8], [-51.25, -10.4], [-51.25, -13.7], [-51.25, -18], [-53, -27], [-50, -40], [-43, -47], [-30, -50]],
   [[0, 48.5], [-3, 40], [-7, 31], [-7, 24.5], [-5, 14], [-2, 6], [2, -6], [5, -14], [7, -24.5], [7, -31], [3, -40], [0, -46]],
-  [[17, 53], [30, 50], [43, 47], [50, 40], [53, 27], [58, 14], [60, 0], [58, -14], [53, -27], [50, -40], [43, -47], [30, -50]],
+  [[17, 53], [30, 50], [43, 47], [50, 40], [53, 27], [51.25, 18], [51.25, 13.7], [51.25, 10.4], [52.75, 5.8], [54, 0], [52.75, -5.8], [51.25, -10.4], [51.25, -13.7], [51.25, -18], [53, -27], [50, -40], [43, -47], [30, -50]],
 ];
 
 /** The same lanes as seen from the north base (left is east for a team facing south). */
@@ -142,6 +143,24 @@ export const RUINS = {
 };
 
 /**
+ * 46.0, the flank houses (Houses.ts): on each main flank the Block on its midline (three storeys and a
+ * roof, where the 6.0 pump house stood) and a house on each team's half of it (two storeys and a roof,
+ * where the hamlet's second hut stood, and in the wadi). South-half placements: the Block on the west
+ * flank, a house in the hamlet (west) and one in the wadi (east); each is built again rotated 180°.
+ * `su`: +1 when +u (the house's compound side) is +x. Each stands on a flat pad (Terrain.ts) `pad` m
+ * round its walls, blended back into the dunes over `fall` m.
+ */
+export const HOUSES = {
+  block: { cx: -54, cz: 0, su: 1 as const, hw: 10, hd: 12 },
+  houses: [
+    { cx: -61, cz: 26.5, su: 1 as const, hw: 5, hd: 4.5 },
+    { cx: 61, cz: 26.5, su: -1 as const, hw: 5, hd: 4.5 },
+  ],
+  pad: 1.2,
+  fall: 11,
+};
+
+/**
  * Places the old random dune scatter (rocks, brush) must keep clear of: the arena's structures
  * (south half; the check rotates the point). Rects x0, z0, x1, z1.
  */
@@ -152,8 +171,8 @@ const KEEP_OUT_SOUTH: [number, number, number, number][] = [
   [37, 4, 67, 56],
   // Centre approach.
   [-16, 29, 13, 50],
-  // The pump houses on the flanks (both, since x is its own pair).
-  [-66, -6, -54, 6],
+  // The pump houses on the flanks (both, since x is its own pair). 46.0: the Block's pad.
+  [-66, -14, -42, 14],
   // 28.0: the outer flanks (the trench and the anvil west, the convoy and the spine east).
   [-89, 2, -64, 54],
   [64, 2, 89, 56],

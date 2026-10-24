@@ -103,6 +103,8 @@ export class Sensing {
    * ARENA_SEE of its contrast is not seen (25.0: a cap, 13 m with both feet under 3 m, nothing else).
    */
   fog: ((eye: THREE.Vector3, chest: THREE.Vector3) => number) | null = null;
+  /** 46.0: is this pair under a roof (EnemyCtx.sheltered)? Then the weather's range doesn't apply. */
+  shelter: ((a: THREE.Vector3, b: THREE.Vector3) => boolean) | null = null;
   /** 25.0 (DEV): pairs the fog cut (in range otherwise, the fog hid them). */
   fogCut = 0;
 
@@ -150,7 +152,7 @@ export class Sensing {
         const d2 = dx * dx + dz * dz;
         const d = Math.sqrt(d2);
         // Pre-filters, no ray: out of range; behind its back and nothing drew its eye there.
-        if (d > Math.min(range, S.range)) {
+        if (d > Math.min(range, S.range) && !(d <= S.range && this.shelter?.(me.pos, h.pos))) {
           s.vis = false;
           continue;
         }

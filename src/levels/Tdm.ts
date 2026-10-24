@@ -447,6 +447,8 @@ export class TdmRules implements ModeRules {
     // 25.0: the map's ground fog caps sight; its routing bias by gun.
     // 34.0: the bots see the ground fog as the picture draws it (HeightFog.heightFogAt, the live fog).
     this.sensing.fog = d.groundFog ? (eye, chest) => heightFogAt(eye, chest) : null;
+    // 46.0: two under a roof see each other whatever the weather outside.
+    this.sensing.shelter = g.ctx.sheltered ?? null;
     g.nav.bias = d.navBias ?? null;
     this.arenaStats = newArenaStats();
     this.brains = [];
@@ -741,6 +743,7 @@ export class TdmRules implements ModeRules {
     this.fronts = null;
     this.frontMarks.length = 0;
     this.game.tdmHud.setFrontNames(null);
+    this.game.tdmHud.setCompassFronts(null);
     for (const t of TEAMS) this.directors?.[t].setFronts(null);
     if (!this.directors || !this.frontsWanted()) return;
     const A = this.directors.alpha;
@@ -775,6 +778,7 @@ export class TdmRules implements ModeRules {
     this.rallyStats = { rally: 0, zone: 0 };
     this.frontSeen = 0;
     this.game.tdmHud.setFrontNames(this.fronts.names);
+    this.game.tdmHud.setCompassFronts(this.fronts.names);
   }
 
   /** 31.0: the zones (empty unless TDM.spawns is 'zones' on a map that has them). */
@@ -789,6 +793,8 @@ export class TdmRules implements ModeRules {
     const g = this.game;
     const members: Record<TeamId, (Slot | 'player')[]> = { alpha: this.spectate ? [] : ['player'], omega: [] };
     for (const s of this.slots) members[s.team].push(s);
+    // 46.0: shuffled (he was always first: the same pad every match).
+    for (const t of TEAMS) shuffle(members[t]);
     const pads = sp.opening({ alpha: members.alpha.length, omega: members.omega.length });
     const taken: THREE.Vector3[] = [];
     for (const team of TEAMS) {
@@ -809,12 +815,16 @@ export class TdmRules implements ModeRules {
     }
   }
 
-  /** 31.0: the opening in zones: squads of two dealt round-robin over each team's zones. */
+  /**
+   * 31.0: the opening in zones: squads of two dealt round-robin over each team's zones. 46.0: in a
+   * shuffled order, so he isn't always first (zone A, the same flank every match).
+   */
   private openingZones() {
     const zs = this.zoner!;
     const g = this.game;
     const members: Record<TeamId, (Slot | 'player')[]> = { alpha: this.spectate ? [] : ['player'], omega: [] };
     for (const s of this.slots) members[s.team].push(s);
+    for (const t of TEAMS) shuffle(members[t]);
     const deal = zs.opening({ alpha: members.alpha.length, omega: members.omega.length });
     const taken: THREE.Vector3[] = [];
     const occupied = (q: THREE.Vector3) => taken.some((t) => t.distanceTo(q) < 1);
@@ -1264,6 +1274,11 @@ export class TdmRules implements ModeRules {
     g.tdmHud.setRespawn(g.state === 'dead' && !this.winner && this.playerRespawnAt < Infinity ? this.playerRespawnAt - now : null, this.killerName);
     this.updateSpectate(dt);
     g.tdmHud.update(dt, g.camera, this.friends.alpha);
+    // 46.0: the compass (his heading, the fronts' marks).
+    if (!this.spectate && g.player.alive) {
+      const here = this.fronts ? this.fronts.sectorOf(g.player.pos.x, g.player.pos.y, g.player.pos.z) : -1;
+      g.tdmHud.updateCompass(-g.player.yaw, g.player.pos.x, g.player.pos.z, this.frontMarks, here);
+    }
     if (this.directors && this.minimap && TDM.spotting) {
       const t0 = performance.now();
       this.drawMap(now);
@@ -1305,7 +1320,8 @@ export class TdmRules implements ModeRules {
       (a) => this.hostiles[a.self.team],
       (a, h) => dirs[a.self.team].isHot(h.uid, now),
       // The arena sees only what a player could pick out of the scene's fog (world/Visibility.ts).
-      this.game.fog.density > 0 ? fogRange(this.game.fog.density, ARENA_SEE) : undefined,
+      // 46.0: the weather's own density (the picture's thins round a player indoors on the Desert).
+      (this.game.ctx.weatherFog ?? this.game.fog.density) > 0 ? fogRange(this.game.ctx.weatherFog ?? this.game.fog.density, ARENA_SEE) : undefined,
     );
     // What anyone sees goes on the team's board (who saw it, from where: the flankers read that).
     for (const v of viewers) {
@@ -1348,7 +1364,7 @@ export class TdmRules implements ModeRules {
         }
       }
       const pa = F.stance.alpha[k] === 'push', po = F.stance.omega[k] === 'push';
-      this.frontMarks.push({ x, z, ax: ax.x, az: ax.z, push: pa && !po ? 'alpha' : po && !pa ? 'omega' : null });
+      this.frontMarks.push({ x, z, ax: ax.x, az: ax.z, push: pa && !po ? 'alpha' : po && !pa ? 'omega' : null, label: (F.names[k] ?? '?')[0].toUpperCase() });
     }
   }
 
@@ -1661,6 +1677,15 @@ export class TdmRules implements ModeRules {
 }
 const _face = new THREE.Vector2();
 /** 27.0: where a spawn puts someone: the spot, the pad's facing, and (a scored respawn) how it was picked. */
+/** 46.0: Fisher-Yates in place. */
+export function shuffle<T>(a: T[], rand: () => number = Math.random) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 interface SpawnAt {
   at: THREE.Vector3;
   yaw: number;

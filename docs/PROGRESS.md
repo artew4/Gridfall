@@ -2493,8 +2493,35 @@ The playtest: the menu looked generated: small labels, a translation under every
 - **The stage:** the gun shown side on (it turned end-on half the time: a dark stub), swaying ±30°, bigger, on a dark hexagonal plinth with a lit edge (the crate's stencils fought the type); the cyan rim's hot spot on the glossy top gone (matte plinth, the rim raised).
 - Hovers move transform and opacity (and a colour once): csscheck's menus as at 44.0 (root 0.4 recalcs a second with the logo's glitch off, a hovered button 0.4, a hovered tile 0.8). uicheck at 1280×720 to 3840×2160: no spill, smallest menu text 12 px at 720p (the result screen's spill at 720p, the old MAIN MENU button, gone). stagecheck and leakcheck: 0 alive after a forced GC. Tests 506.
 
+## 46.0: firearms only, the Desert's flank houses, the compass, a random first spawn
+
+Branch `feature/desert-houses-46.0`, from `main` @ `8596c0a` (45.0).
+
+### No laser guns
+Every round is a bullet, the player's and every bot's, on every map: `Ballistic` is `'kinetic'` alone. Gone: the energy bolts (a glowing core with a trail and a light), the plasma pistol's zap and report, the SMG's energy zap, the plasma whiz and impact, the corporate finish's cyan bolts. The pistol and the SMG fire warm tracers (were cyan and magenta), eject brass, and sound like firearms; the neon finishes stay a look. Survival's synths fire rifles too.
+
+### The Desert's flank houses (`src/levels/desert/Houses.ts`; `HOUSES` in ArenaLayout)
+The playtest: the main flanks were open sand with a few low walls. On each main flank now:
+- **The Block** (where the pump house stood): three storeys and a walkable roof behind a parapet, 20 × 24 m, mirror-symmetric (each team comes at it from its own end). A stairwell at each end (switchback: bay A to floor 1 and on to the roof, bay B to floor 2), the end rooms behind a wall with two doors, a hall round an atrium open through floors 1 and 2 (railed: rounds and sight pass), the east rooms towards the compound, windows all round, counters and crates for cover, tanks and units on the roof, a warm lamp a floor (pooled lights). Doors: each end (the end room, the nook under the landing), each long side.
+- **A house** on each team's half of each main flank (the hamlet's second hut, and in the wadi): two storeys and a roof, doors towards home, towards the Block and towards the compound.
+- Built by one generic builder from a spec (levels, stair bays, holes, interior walls with doorways, props, nodes, doors, lamps): slabs with their holes (`rectMinus`), facades a storey at a time with openings, cornices, the parapet; each stair run an invisible ramp with treads over it and a stepped fill under it; railings solid to bodies, open to rounds.
+- Each stands on a flat pad (Terrain: a flank's pads share its Block's height; blended over 11 m). The main flank lanes run through the Block door to door. The 6.0 pump houses, the hamlet's R2 and R3, a wadi berm and rock are gone or moved.
+- **No storm inside:** the houses are interiors (the dust masked in them, MAX_ROOMS 10 → 20); the picture's fog thins to 20% round a player indoors; the AI keeps the weather's own density (`EnemyCtx.weatherFog`), and two under a roof see each other whatever the storm (`EnemyCtx.sheltered`, `Sensing.shelter`; their aim isn't fogged either).
+- **Self-play** (Desert, 4 matches each, 45.0 → 46.0): the Block 8% of bot time and 64 of 469 kills (13.6%), 47 of them inside it (killer and victim); the flanks' share of kills west 19%, east 16% (about 10% and 15%); kills a minute 32.7 → 30.6, quiet 3.4% → 5.6%, stuck 0. The houses: 5.5% of bot time, 3 kills (they sit behind each team's line: a flank pushed in reaches them).
+- **Checks:** the graph: every house node reachable (1157 of 1158; the one left over is the compound's, as before). `stress` 32,000 runs: 0 in the houses (2 on a 6 cm collider on the barracks roof: the checker's thin-wall test, the class the houses' railings were thickened to 10 cm for). `world`: only drops over 10 m off the Block's parapet (fall damage: the roof is 10.2 m up). `stairGaps` clean (treads inset 2 cm from the bays' walls). levelAI: the survival runners stall near the top of the runs to the roofs (they make for a target in sight over the railings); the arena bots don't (0 stuck).
+
+### The compass and the lanes on the minimap
+Under the score a compass: the heading's ticks, N/E/S/W, and a marker for each lane's front (its name and distance, in the colour of the side pushing there; his own lane lit). A front behind him is pinned to the side to turn to. On the minimap each front's dash carries its lane's letter.
+
+### A random first spawn
+The opening dealt the team's members in order, him first: zone A, the same flank every match. Now in a shuffled order (zones and the 27.0 pads alike).
+
+### Checks
+- Tests 513 (+7: `houses.test.ts`).
+
 ## Next
 Human playtest:
+- 46.0 items: the guns as firearms on the neon maps (do the pistol and the SMG feel right without the zap?); the Block (tense indoors: the atrium, the stairwells, the doors at the ends; too dark?; the roof too strong?); the houses (worth going into?); no storm indoors; the compass (does it tell you which flank is which and where the fronts are?); a different flank at the start of each match.
 - 45.0 items: the menu (does it read as designed; PLAY → the map screen → PLAY: too many steps?; the map tiles without a blurb: enough to choose; the gun on its plinth).
 - 44.0 items: the loading screen (does the first minute still stutter anywhere; is the wait on DEPLOY and on a map change acceptable); the three fronts (does it feel like two sides pushing along three lanes; do you notice the lines in the score and on the minimap; is a fight always near when you respawn; are breakthroughs and their ticket bleed noticeable, too punishing, too rare; do matches end too quickly now: raise `tickets` per map); Neon Block at 7v7 (crowded in the fog?). `__dev.tdmSim({ fronts: false })`, or `ARENA.fronts.on = false` before a match, for the 43.0 bots side by side.
 - 43.0 items: the ledge grab. Does it fire when you mean it (jumping at a crate, a wall, a platform edge) and never when you don't (running past a wall, jumping beside a rail)? Is the 0.2–0.3 s pull-up quick enough to feel aggressive, and the dip and roll physical or nauseating (`MANTLE.dip`, `MANTLE.roll`)? Are the new crate and container tops fun perches, or too strong against bots that can't climb after you? Is 1.75 m the right reach (`MANTLE.maxUp`)? `__dev.mantle(false)` to compare.

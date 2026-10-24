@@ -22,9 +22,8 @@ const touch = (m: THREE.InstancedMesh) => {
 interface Bolt {
   /** Slot in the pool (free-list index). */
   i: number;
-  /** 8.1: what fired it decides how it looks (kinetic tracer or energy bolt) and how it lands. */
+  /** 8.1: the shooter's look (its tracer colour unless the gun has its own). */
   look: EnemyLook;
-  kinetic: boolean;
   /** HDR colour of the core (the shooter's team look). */
   color: THREE.Color;
   /** Metres flown (a tracer's streak never reaches back past the muzzle). */
@@ -94,12 +93,10 @@ export interface BoltTargets {
  * Slow, visible gunner rounds: readable and dodgeable, which keeps the gunners fair. They look like
  * the setting's weapons but fly and hit the same.
  *
- * 8.1, rendering: two InstancedMeshes (one draw call each, whatever the number in flight):
- *  - energy bolts (plasma synths, Tokyo guards): the neon blaster look — a stretched glowing core,
- *    a trail, the nearest one lighting its surroundings;
- *  - kinetic rounds (mercs, jungle guards, the garrison): a thin additive tracer streak, its length
- *    the distance flown in 1/20 s (and never back past the muzzle), no trail, and a brass casing out
- *    of the shooter's rifle when it's near the camera.
+ * 8.1, rendering: one InstancedMesh (one draw call, whatever the number in flight): a thin additive
+ * tracer streak, its length the distance flown in 1/20 s (and never back past the muzzle), and a brass
+ * casing out of the shooter's gun when it's near the camera. (46.0: every round is a bullet; the
+ * energy bolts of 8.1-45.0, a glowing core with a trail and a light, are gone.)
  * The rounds are a fixed pool with a free list; the per-frame loop allocates nothing.
  */
 export class Projectiles {
@@ -113,7 +110,6 @@ export class Projectiles {
   private dirN = new THREE.Vector3();
   /** Where the camera (the player) was last frame: bots near it eject visible brass. */
   private view = new THREE.Vector3(0, -1000, 0);
-  private energy: THREE.InstancedMesh;
   private tracers: THREE.InstancedMesh;
   /** DEV counters: rounds fired, rounds refused for lack of a free slot. */
   stats = { fired: 0, dropped: 0, maxInFlight: 0 };
@@ -127,9 +123,10 @@ export class Projectiles {
   passedFriends = 0;
   /** A round passed close to him without hitting. */
   onWhiz: () => void = () => {};
-  light: THREE.PointLight;
   /** A round left a barrel (TDM: the other team hears it). */
   onFire: (from: THREE.Vector3, by: Combatant | null) => void = () => {};
+  /** A spare light for the story's scripted shots (the intro's, the guards'): off unless they use it. */
+  light: THREE.PointLight;
   private look: EnemyLook = NEON_SYNTHS;
 
   constructor(scene: THREE.Scene, private col: CollisionWorld, private fx: Effects, private audio: AudioEngine, look: EnemyLook = NEON_SYNTHS) {
@@ -137,27 +134,23 @@ export class Projectiles {
     // bots fire continuously).
     // 13.0: shotguns put eight pellets in the air per pull.
     const N = 192;
-    const core = new THREE.SphereGeometry(0.06, 8, 6);
-    core.scale(1, 1, 4);
-    this.energy = new THREE.InstancedMesh(core, new THREE.MeshBasicMaterial({ color: 0xffffff }), N);
     // A unit streak from its head (the round, at the origin) back along -z.
     const streak = new THREE.BoxGeometry(1, 1, 1);
     streak.translate(0, 0, -0.5);
     this.tracers = new THREE.InstancedMesh(streak, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), N);
-    for (const m of [this.energy, this.tracers]) {
-      m.count = 0;
-      m.frustumCulled = false;
-      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      m.setColorAt(0, new THREE.Color());
-      scene.add(m);
-    }
-    for (let i = 0; i < N; i++) {
-      this.bolts.push({ i, look, kinetic: false, color: new THREE.Color(), travel: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, whizzed: false, active: false, team: 'omega', by: null, dosed: new Set(), aimed: false, range: NaN, bolt: look.bolt, dmg: 1, round: null });
-      this.free.push(N - 1 - i);
-    }
+    const m = this.tracers;
+    m.count = 0;
+    m.frustumCulled = false;
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    m.setColorAt(0, new THREE.Color());
+    scene.add(m);
     this.light = new THREE.PointLight(0xffa040, 0, 9, 2);
     this.light.userData.unpooled = true;
     scene.add(this.light);
+    for (let i = 0; i < N; i++) {
+      this.bolts.push({ i, look, color: new THREE.Color(), travel: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, whizzed: false, active: false, team: 'omega', by: null, dosed: new Set(), aimed: false, range: NaN, bolt: look.bolt, dmg: 1, round: null });
+      this.free.push(N - 1 - i);
+    }
     this.setLook(look);
   }
 
@@ -183,7 +176,6 @@ export class Projectiles {
     const look = (by as { look?: EnemyLook } | null)?.look ?? this.look;
     b.look = look;
     const round = opts.round;
-    b.kinetic = (round?.ballistic ?? look.ballistic) === 'kinetic';
     b.bolt = round?.bolt ?? look.bolt;
     b.dmg = round?.damage ?? 1;
     b.round = round ?? null;
@@ -200,7 +192,7 @@ export class Projectiles {
     const inFlight = this.bolts.length - this.free.length;
     if (inFlight > this.stats.maxInFlight) this.stats.maxInFlight = inFlight;
     // Brass out of a rifle near the camera (right of the shot, onto the shooter's floor).
-    if (b.kinetic && !opts.quiet && by && from.distanceToSquared(this.view) < 40 * 40) {
+    if (!opts.quiet && by && from.distanceToSquared(this.view) < 40 * 40) {
       const l = Math.hypot(dir.x, dir.z) || 1;
       this.fx.casings.spawn(from.x, from.y - 0.05, from.z, -dir.z / l, 0, dir.x / l, 0, 1, 0, by.pos.y, false);
     }
@@ -212,11 +204,10 @@ export class Projectiles {
       b.active = false;
       this.free.push(b.i);
     }
-    this.energy.count = this.tracers.count = 0;
+    this.tracers.count = 0;
   }
 
   update(dt: number, player: Player) {
-    let lightAt: THREE.Vector3 | null = null;
     this.view.copy(player.pos);
     // 11.0: the hit volume shrinks with a crouch (the body's height scale).
     const k = player.heightScale;
@@ -228,11 +219,6 @@ export class Projectiles {
       b.pos.addScaledVector(b.vel, dt);
       const step = b.vel.length() * dt;
       b.travel += step;
-      // Trail (energy only: a kinetic tracer is its own streak).
-      if (!b.kinetic) {
-        const tr = b.bolt.trail;
-        this.fx.add.spawn({ x: b.pos.x, y: b.pos.y, z: b.pos.z, r: tr[0], g: tr[1], b: tr[2], size: 0.09 * b.bolt.size, life: 0.18, grow: -0.3 });
-      }
 
       // Player hit: closest approach of this step's segment to the chest axis (scratch vectors only).
       const seg = this.seg.subVectors(b.pos, this.prev);
@@ -250,7 +236,7 @@ export class Projectiles {
       }
       if (forPlayer && !b.whizzed && closest.distanceTo(chest) < 2.2) {
         b.whizzed = true;
-        this.audio.plasmaWhiz(closest, b.kinetic ? 'human' : 'synth');
+        this.audio.roundWhiz(closest);
         this.onWhiz();
       }
       const dir = this.dirN.copy(seg).normalize();
@@ -258,52 +244,32 @@ export class Projectiles {
       if (this.targets && this.botStep(b, dir, step, hit ? hit.dist : step)) continue;
       if (hit || b.life <= 0) {
         if (hit) {
-          if (b.kinetic) {
-            // A bullet: an ordinary impact on whatever it struck.
-            this.fx.impact(hit.point, hit.normal, hit.surface);
-            this.audio.hitSurface(hit.point, hit.surface);
-          } else {
-            this.fx.sparks(hit.point, hit.normal, 12, new THREE.Color(1, 0.55, 0.15), 5);
-            this.fx.add.spawn({ x: hit.point.x, y: hit.point.y, z: hit.point.z, r: 4, g: 2, b: 0.5, size: 0.6, life: 0.1 });
-            this.audio.plasmaImpact(hit.point);
-          }
+          // A bullet: an ordinary impact on whatever it struck.
+          this.fx.impact(hit.point, hit.normal, hit.surface);
+          this.audio.hitSurface(hit.point, hit.surface);
         }
         this.deactivate(b);
         continue;
       }
-      if (!b.kinetic && (!lightAt || b.pos.distanceToSquared(chest) < lightAt.distanceToSquared(chest))) lightAt = b.pos;
     }
-    if (lightAt) {
-      this.light.position.copy(lightAt);
-      this.light.intensity = 6;
-    } else this.light.intensity = 0;
     this.draw();
   }
 
-  /** Both instanced meshes from the live rounds (compacted every frame; no allocation). */
+  /** The tracers from the live rounds (compacted every frame; no allocation). */
   private draw() {
-    let ne = 0, nk = 0;
+    let nk = 0;
     for (const b of this.bolts) {
       if (!b.active) continue;
       const v = b.vel;
       const speed = v.length();
       _q.setFromUnitVectors(_Z, _d.copy(v).divideScalar(speed || 1));
-      if (b.kinetic) {
-        // 1/20 s of flight, at least 0.4 m, never back past the muzzle.
-        const len = Math.min(Math.max(0.4, speed * 0.05), b.travel);
-        _s.set(0.016, 0.016, Math.max(0.05, len));
-        this.tracers.setMatrixAt(nk, _m.compose(b.pos, _q, _s));
-        this.tracers.setColorAt(nk++, b.color);
-      } else {
-        const k = b.bolt.size;
-        _s.set(k, k, k);
-        this.energy.setMatrixAt(ne, _m.compose(b.pos, _q, _s));
-        this.energy.setColorAt(ne++, b.color);
-      }
+      // 1/20 s of flight, at least 0.4 m, never back past the muzzle.
+      const len = Math.min(Math.max(0.4, speed * 0.05), b.travel);
+      _s.set(0.016, 0.016, Math.max(0.05, len));
+      this.tracers.setMatrixAt(nk, _m.compose(b.pos, _q, _s));
+      this.tracers.setColorAt(nk++, b.color);
     }
-    this.energy.count = ne;
     this.tracers.count = nk;
-    if (ne) touch(this.energy);
     if (nk) touch(this.tracers);
   }
 

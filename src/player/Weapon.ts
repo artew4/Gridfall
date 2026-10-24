@@ -6,7 +6,7 @@ import { reloadKind } from '../audio/ReloadSynth';
 import type { Player } from './Player';
 import type { WeaponSpec } from '../entities/types';
 import { KITSUNE_9 } from '../entities/weapons/kitsune9';
-import { ballisticFor, gunMats, stripColour, type GunTheme } from '../entities/weapons/theme';
+import { gunMats, stripColour, type GunTheme } from '../entities/weapons/theme';
 
 /** The reload timeline below is authored for this length and scaled to each weapon's. */
 const BASE_RELOAD = 1.35;
@@ -183,14 +183,14 @@ export class Weapon {
     this.flashes = [];
   }
 
-  /** 21.0: what the gun fires in its finish (every gun kinetic on a military map). */
+  /** 21.0: what the gun fires (46.0: always bullets). */
   get ballistic() {
-    return ballisticFor(this.spec.ballistic, this.theme);
+    return this.spec.ballistic;
   }
 
-  /** 21.0: the report: the energy pistol's plasma becomes a plain pistol crack when it fires kinetic. */
+  /** 21.0: the report. */
   get sound() {
-    return this.spec.sound === 'plasma' && this.ballistic === 'kinetic' ? 'pistol' : this.spec.sound;
+    return this.spec.sound;
   }
 
   /** "Low" for the HUD and the strips: three rounds on a pistol, a fifth of a rifle magazine. */
@@ -275,7 +275,7 @@ export class Weapon {
       f.scale.setScalar(rand(0.8, 1.25));
     }
     this.bloom = Math.min(1, this.bloom + this.spec.bloomPerShot);
-    this.audio.gunshot(this.sound, this.ballistic === 'energy');
+    this.audio.gunshot(this.sound);
     this.ammoDisplay.draw(this.ammo, this.spec.mag, false);
     // Auto-reload on empty after the same short beat as before, but on the game clock (pauses with it).
     if (this.ammo === 0) this.autoReloadT = 0.25;

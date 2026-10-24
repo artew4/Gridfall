@@ -4,8 +4,8 @@ import type { WeaponBuild, WeaponSpec } from '../types';
 /**
  * The "Kitsune-9" pistol (21.0: the arsenal's pistol; 13.0–20.0 it was listed as the SMG): a slide
  * with strips that show the remaining rounds, an ammo counter on the back, a barrel ring. The finish is
- * the map's (theme.ts): neon strips and plasma on the blaster maps, a parkerized service pistol with
- * kinetic rounds on the military ones, white polymer with a cyan LED on Maglev.
+ * the map's (theme.ts): neon strips on the blaster maps, a parkerized service pistol on the military
+ * ones, white polymer with a cyan LED on Maglev; it fires bullets on all of them (46.0).
  *
  * 21.0, the mobility king: no speed lost while aiming, the fastest sights (0.1 s) and draw, a head
  * hit worth 1.5× more; low body damage that falls to 45% between 25 and 40 m.
@@ -37,9 +37,9 @@ export const KITSUNE_9: WeaponSpec = {
   shell: [0.18, -0.08, -0.35],
   flash: { color: [6, 4.2, 2.6], size: 1, at: [0, 0.02, -0.15], light: 0xffa860 },
   tracer: [1.0, 0.75, 0.4],
-  ballistic: 'energy',
-  // The plasma pistol's zap; the viewmodel makes it a plain pistol crack on a military map.
-  sound: 'plasma',
+  ballistic: 'kinetic',
+  // 46.0: a pistol's crack on every map (the plasma zap is gone).
+  sound: 'pistol',
   ammoGlow: true,
   build({ gun, slide, mag, display, mats }: WeaponBuild) {
     const { frame: metal, polymer, trim: accent, glove, sleeve, glow: strip } = mats;

@@ -34,10 +34,13 @@ export interface GunHandling {
  * A player weapon: model, handling and feel. The viewmodel mechanics (springs, sway, bob, raise and
  * holster, reload timeline, muzzle flash) are shared; this decides what they look and feel like.
  */
-/** 8.1: kinetic rounds (tracers, brass) or energy bolts (plasma). */
-export type Ballistic = 'kinetic' | 'energy';
-/** 21.0: the report: the pistol's crack, the SMG's buzz, the rifle, the shotgun; 'plasma' is the energy pistol. */
-export type GunSound = 'plasma' | 'pistol' | 'smg' | 'rifle' | 'shotgun';
+/**
+ * 8.1: kinetic rounds (tracers, brass); 8.1-45.0 also energy bolts (plasma). 46.0: every round is a
+ * firearm's, the player's and every bot's (the playtest: no laser guns).
+ */
+export type Ballistic = 'kinetic';
+/** 21.0: the report: the pistol's crack, the SMG's buzz, the rifle, the shotgun (46.0: no plasma). */
+export type GunSound = 'pistol' | 'smg' | 'rifle' | 'shotgun';
 
 export interface WeaponSpec {
   id: string;
@@ -80,8 +83,7 @@ export interface WeaponSpec {
   /** Tracer colour (linear). */
   tracer: [number, number, number];
   /**
-   * 8.1: what it fires. Kinetic (rifle, shotgun): thin fast yellow-orange tracers and brass casings
-   * ejected; energy (the Kitsune's plasma): the neon blaster look, no casings.
+   * 8.1: what it fires: thin fast yellow-orange tracers and brass casings ejected (46.0: every gun).
    */
   ballistic: Ballistic;
   sound: GunSound;

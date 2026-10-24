@@ -916,10 +916,10 @@ export class AudioEngine {
   /**
    * The player's shot. 21.0: every gun has its own report, scaled to its weight: the shotgun a cannon
    * (the loudest, the lowest, the longest), the SMG a buzzsaw (quiet, short, high, a little pitch
-   * wander so a stream of them buzzes), the pistol a sharp crack, the rifle between. `energy`: the
-   * SMG's energy variant (blaster and corporate maps), a short zap instead of the crack.
+   * wander so a stream of them buzzes), the pistol a sharp crack, the rifle between. (46.0: no energy
+   * zaps or plasma report: every gun is a firearm.)
    */
-  gunshot(kind: GunSound = 'plasma', energy = false) {
+  gunshot(kind: GunSound = 'pistol') {
     if (!this.started) return;
     // The jungle falls silent around a gunshot, then the insects come back over a few seconds.
     if (this.insects) {
@@ -929,21 +929,9 @@ export class AudioEngine {
       this.insects.gain.setTargetAtTime(0.35, t + 1.2, 2.2);
     }
     if (kind === 'rifle') return this.rifleShot();
+    if (kind === 'smg') return this.smgShot();
     if (kind === 'shotgun') return this.shotgunShot();
-    if (kind === 'smg') return this.smgShot(energy);
-    if (kind === 'pistol') return this.pistolShot();
-    const t = this.now();
-    const o = this.out(null, 0.9);
-    const p = rand(0.95, 1.05);
-    this.burst(o, this.white, 'highpass', 1800, 0.7, 0.9, 0.001, 0.05, t);
-    this.burst(o, this.white, 'lowpass', 6000 * p, 0.8, 1.0, 0.002, 0.22, t, 400);
-    this.tone(o, 'sine', 160 * p, 40, 1.1, 0.002, 0.2, t);
-    this.tone(o, 'sawtooth', 1500 * p, 160, 0.12, 0.001, 0.09, t);
-    this.tone(o, 'square', 3200, 3000, 0.05, 0.001, 0.012, t + 0.035);
-    // Futuristic tail: a quick filtered zap.
-    const z = this.filter('bandpass', 2400, 4);
-    z.connect(o);
-    this.tone(z, 'sawtooth', 2600, 700, 0.3, 0.001, 0.07, t);
+    return this.pistolShot();
   }
 
   /**
@@ -967,16 +955,10 @@ export class AudioEngine {
   }
 
   /** 21.0, the SMG: a buzzsaw. Each round small and short (no low punch, a tight high crack), quieter than the rifle. */
-  private smgShot(energy: boolean) {
+  private smgShot() {
     const t = this.now();
     const o = this.out(null, 0.38);
     const p = rand(0.9, 1.12);
-    if (energy) {
-      this.tone(o, 'sawtooth', 2100 * p, 520, 0.22, 0.001, 0.05, t);
-      this.tone(o, 'square', 340 * p, 120, 0.18, 0.001, 0.045, t);
-      this.burst(o, this.white, 'bandpass', 3200 * p, 1.2, 0.35, 0.0005, 0.03, t);
-      return;
-    }
     this.burst(o, this.white, 'highpass', 3200 * p, 0.7, 0.9, 0.0005, 0.02, t);
     this.burst(o, this.white, 'bandpass', 1700 * p, 1.1, 0.7, 0.001, 0.045, t, 500);
     this.tone(o, 'sine', 190 * p, 70, 0.5, 0.001, 0.04, t);
@@ -1171,14 +1153,13 @@ export class AudioEngine {
   }
 
   /** A bot's shot. 13.0: `gun` (an armory weapon) decides the report; without it, the look's voice does. */
-  enemyShot(pos: V3, voice: 'synth' | 'human' = 'synth', gun?: GunSound, energy = false) {
+  enemyShot(pos: V3, gun?: GunSound) {
     if (!this.started) return;
     const o = this.out(pos, gun === 'shotgun' ? 1.0 : gun === 'smg' ? 0.4 : 0.7);
     if (gun === 'smg') {
       // 21.0: an SMG at range, a quick high rattle.
       const t = this.now();
-      if (energy) this.tone(o, 'sawtooth', rand(1700, 2200), 500, 0.12, 0.001, 0.05, t);
-      else this.burst(o, this.white, 'highpass', rand(2600, 3200), 0.7, 0.4, 0.0005, 0.025, t);
+      this.burst(o, this.white, 'highpass', rand(2600, 3200), 0.7, 0.4, 0.0005, 0.025, t);
       this.burst(o, this.white, 'bandpass', rand(1300, 1700), 1, 0.3, 0.001, 0.04, t);
       return;
     }
@@ -1196,17 +1177,11 @@ export class AudioEngine {
       this.burst(o, this.pink, 'bandpass', 380, 0.7, 0.2, 0.01, 0.35, t + 0.1);
       return;
     }
-    if (gun === 'rifle' || (!gun && voice === 'human')) {
-      // A rifle at range: crack, thump and a dry tail.
-      const t = this.now();
-      this.burst(o, this.white, 'highpass', 2200, 0.6, 0.45, 0.0005, 0.03, t);
-      this.burst(o, this.brown, 'lowpass', 700, 0.7, 0.6, 0.002, 0.14, t, 120);
-      this.burst(o, this.pink, 'bandpass', 600, 0.8, 0.15, 0.005, 0.18, t + 0.08);
-      return;
-    }
-    this.tone(o, 'square', 900, 140, 0.25, 0.002, 0.18);
-    this.tone(o, 'sawtooth', 2400, 600, 0.12, 0.001, 0.1);
-    this.burst(o, this.white, 'bandpass', 1500, 1, 0.3, 0.001, 0.12);
+    // A rifle at range (46.0: a gunner with no armory gun too, synths included): crack, thump, a dry tail.
+    const t = this.now();
+    this.burst(o, this.white, 'highpass', 2200, 0.6, 0.45, 0.0005, 0.03, t);
+    this.burst(o, this.brown, 'lowpass', 700, 0.7, 0.6, 0.002, 0.14, t, 120);
+    this.burst(o, this.pink, 'bandpass', 600, 0.8, 0.15, 0.005, 0.18, t + 0.08);
   }
 
   gunnerCharge(pos: V3, voice: 'synth' | 'human' = 'synth') {
@@ -1223,22 +1198,11 @@ export class AudioEngine {
     this.tone(o, 'triangle', 600, 2800, 0.04, 0.6, 0.1);
   }
 
-  plasmaImpact(pos: V3) {
-    if (!this.started) return;
-    const o = this.out(pos, 0.4);
-    this.burst(o, this.white, 'bandpass', 1200, 1, 0.4, 0.001, 0.15, this.now(), 300);
-    this.tone(o, 'sine', 500, 80, 0.2, 0.001, 0.15);
-  }
-
-  plasmaWhiz(pos: V3, voice: 'synth' | 'human' = 'synth') {
+  /** A round snapping past him: a sharp supersonic crack (46.0: every round is a bullet). */
+  roundWhiz(pos: V3) {
     if (!this.started) return;
     const o = this.out(pos, 0.1);
-    if (voice === 'human') {
-      // A round snapping past: a sharp supersonic crack.
-      this.burst(o, this.white, 'highpass', 3500, 0.8, 0.22, 0.0005, 0.025);
-      return;
-    }
-    this.tone(o, 'sawtooth', 1200, 500, 0.08, 0.02, 0.2);
+    this.burst(o, this.white, 'highpass', 3500, 0.8, 0.22, 0.0005, 0.025);
   }
 
   runnerScreech(pos: V3, voice: 'synth' | 'human' = 'synth') {

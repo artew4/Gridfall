@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ARMORY, ARMORY_ORDER } from './armory';
 import { falloffAt } from '../../enemies/Projectiles';
-import { ballisticFor, gunThemeFor, themedArm } from './theme';
+import { gunThemeFor, themedArm } from './theme';
 
 /*
   21.0: the asymmetric balance, as arithmetic. A bot has 150 hp; the hitbox multipliers are head 2,
@@ -94,13 +94,18 @@ describe('21.0: weapon themes', () => {
     for (const s of ['tokyo', 'neonblock', 'docks']) expect(gunThemeFor(s)).toBe('blaster');
     for (const s of ['desert', 'jungle', 'oldport', 'firebase']) expect(gunThemeFor(s)).toBe('military');
   });
-  it('a military map fires kinetic only; a themed bot gun is a copy (the armory is untouched)', () => {
-    expect(ballisticFor('energy', 'military')).toBe('kinetic');
-    expect(ballisticFor('energy', 'blaster')).toBe('energy');
-    const smg = ARMORY.smg.bot;
-    const m = themedArm(smg, 'military');
-    expect(m.ballistic).toBe('kinetic');
-    expect(smg.ballistic).toBe('energy');
-    expect(themedArm(smg, 'corporate').bolt.core).not.toEqual(smg.bolt.core);
+  it('46.0: every gun fires bullets on every map, the player\'s and the bots\'; a themed bot gun is a copy', () => {
+    for (const id of ARMORY_ORDER) {
+      expect(ARMORY[id].spec.ballistic).toBe('kinetic');
+      expect(ARMORY[id].bot.ballistic).toBe('kinetic');
+      for (const t of ['blaster', 'military', 'corporate'] as const) {
+        const a = themedArm(ARMORY[id].bot, t);
+        expect(a.ballistic).toBe('kinetic');
+        expect(a).not.toBe(ARMORY[id].bot);
+      }
+      // A warm tracer (red over blue): no cyan or magenta plasma.
+      const [r, , b] = ARMORY[id].bot.bolt.core;
+      expect(r).toBeGreaterThan(b);
+    }
   });
 });

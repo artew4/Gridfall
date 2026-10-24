@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Terrain } from '../../world/Collision';
 import { smoothstep } from '../../core/math';
-import { BASE } from './ArenaLayout';
+import { BASE, HOUSES } from './ArenaLayout';
 
 /** Flat pad of the outpost (y = 0 exactly inside it, so buildings sit on level ground). */
 const PAD_RX = 44;
@@ -104,8 +104,58 @@ export function desertHeight(x: number, z: number): number {
   // Each base stands on a flat pad that blends back into the dunes.
   const k = basePad(x, z);
   if (k > 0) h += (BASE.y - h) * k;
+  // 46.0: the flank houses' pads (each house on level ground at its centre's own dune height), blended
+  // in one after another (continuous where two pads' falls meet).
+  h = housePads(x, z, h);
   // 28.0: the outer flanks' trenches.
   return h - trenchDepth(x, z);
+}
+
+/**
+ * 46.0: the flank houses' footprints (both halves: the south-half placements and their rotations). A
+ * flank's pads share one height, its Block's (they overlap where their falls meet: two heights there
+ * left the sand 0.1 m over a house's floor at its edge).
+ */
+const HOUSE_RECTS = (() => {
+  const own = [HOUSES.block, ...HOUSES.houses].map((h) => ({ cx: h.cx, cz: h.cz, hw: h.hw, hd: h.hd }));
+  return [...own, ...own.map((h) => ({ ...h, cx: -h.cx, cz: -h.cz }))].map((h) => ({ ...h, y: NaN }));
+})();
+
+/** The dunes alone (no pads, no trench) at (x, z): what a pad levels. */
+function dunes(x: number, z: number) {
+  let h = 0.5 * (rawHeight(x, z) + rawHeight(-x, -z));
+  const k = basePad(x, z);
+  if (k > 0) h += (BASE.y - h) * k;
+  return h;
+}
+
+/** 46.0: `h` levelled by every pad whose fall reaches (x, z). */
+function housePads(x: number, z: number, h: number) {
+  for (const r of HOUSE_RECTS) {
+    const k = padWeight(r, x, z);
+    if (k <= 0) continue;
+    h += (padY(r) - h) * k;
+  }
+  return h;
+}
+
+function padWeight(r: { cx: number; cz: number; hw: number; hd: number }, x: number, z: number) {
+  const dx = Math.max(Math.abs(x - r.cx) - r.hw - HOUSES.pad, 0), dz = Math.max(Math.abs(z - r.cz) - r.hd - HOUSES.pad, 0);
+  const d = Math.hypot(dx, dz);
+  return d >= HOUSES.fall ? 0 : 1 - smoothstep(0, HOUSES.fall, d);
+}
+
+/** 46.0: a flank house's floor (its pad's height) under (x, z) (its centre). */
+export function housePadY(x: number, z: number) {
+  const r = HOUSE_RECTS.find((p) => Math.abs(p.cx - x) < 0.5 && Math.abs(p.cz - z) < 0.5);
+  if (!r) return desertHeight(x, z);
+  return padY(r);
+}
+
+/** A pad's height: its flank's Block's centre's dunes (computed once). */
+function padY(r: { cx: number; y: number }) {
+  if (Number.isNaN(r.y)) r.y = dunes(Math.sign(r.cx) * Math.abs(HOUSES.block.cx), 0);
+  return r.y;
 }
 
 /** 1 on a base's pad, falling to 0 over BASE.pad.fall metres outside it. */

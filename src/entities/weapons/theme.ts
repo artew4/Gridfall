@@ -8,12 +8,13 @@ import { RIG_GUNS } from '../enemies/rigGuns';
   the furniture, the trim, the glow...) and the theme answers. One model, three finishes:
 
    - 'blaster' (Tokyo, Neon Block, Neon Docks): dark sleek gunmetal and graphite polymer, neon
-     emissive strips and rings, energy bolts from the pistol and the SMG.
+     emissive strips and rings.
    - 'military' (Desert, Firebase Viper, Crash Site, Old Port): matte black and parkerized steel, olive
      drab and coyote polymer, wood and woodland camo furniture, nothing that glows; every gun kinetic
      (tracers, brass).
    - 'corporate' (Maglev Terminal): white gloss polymer, carbon-fibre panels, satin aluminium, small
-     cyan indicator lights (dim: a status LED, not a neon tube); the pistol and the SMG fire energy.
+     cyan indicator lights (dim: a status LED, not a neon tube).
+  46.0: a finish is only a look: every gun fires bullets on every map (tracers, brass, a firearm's report).
 
   Materials are made fresh for each build (the viewmodel and the menu stage dispose what they built);
   textures (camo, carbon weave) are made once per theme and shared, never disposed with a model.
@@ -139,14 +140,6 @@ export function stripColour(theme: GunTheme): THREE.Color | null {
   return g ? new THREE.Color(...g) : null;
 }
 
-/**
- * What a gun fires in a theme: energy bolts only where the look is sci-fi and the gun was built for
- * them (the pistol and the SMG), kinetic everywhere else (and every gun on a 'military' map).
- */
-export function ballisticFor(base: Ballistic, theme: GunTheme): Ballistic {
-  return theme === 'military' ? 'kinetic' : base;
-}
-
 /** The theme a map's guns wear: Maglev's corporate, the neon maps' blaster, the rest military. */
 export function gunThemeFor(setting: string): GunTheme {
   if (setting === 'maglev') return 'corporate';
@@ -203,14 +196,11 @@ export function themeRigGun(weapon: THREE.Object3D, theme: GunTheme) {
 }
 
 /**
- * A bot's gun in a theme: its rounds kinetic on a military map, and on Maglev the energy bolts in the
- * hall's cool white-cyan. A fresh copy per spawn (the armory's entry is never changed, and a DEV A/B
- * that edits it is seen at once).
+ * A bot's gun in a theme: a fresh copy per spawn (the armory's entry is never changed, and a DEV A/B
+ * that edits it is seen at once). 46.0: every round a bullet, whatever the finish.
  */
-export function themedArm<T extends { ballistic: Ballistic; bolt: { core: [number, number, number]; trail: [number, number, number]; size: number } }>(arm: T, theme: GunTheme): T {
-  const a = { ...arm, ballistic: ballisticFor(arm.ballistic, theme) };
-  if (theme === 'corporate' && arm.ballistic === 'energy') a.bolt = { core: [2.2, 3.4, 4.2], trail: [0.5, 0.8, 1.0], size: arm.bolt.size };
-  return a;
+export function themedArm<T extends { ballistic: Ballistic }>(arm: T, _theme: GunTheme): T {
+  return { ...arm };
 }
 
 /** Woodland camo: olive base, blotches of dark green, brown and khaki (tiles). */

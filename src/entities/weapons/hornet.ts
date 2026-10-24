@@ -36,7 +36,7 @@ export const HORNET_SMG: WeaponSpec = {
   shell: [0.2, -0.17, -0.4],
   flash: { color: [6, 4, 1.8], size: 1.0, at: [0, 0.012, -0.445], light: 0xffb050 },
   tracer: [1.0, 0.65, 0.3],
-  ballistic: 'energy',
+  ballistic: 'kinetic',
   sound: 'smg',
   ammoGlow: true,
   build({ gun, slide, mag, mats }: WeaponBuild) {

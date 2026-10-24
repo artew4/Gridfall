@@ -56,6 +56,13 @@ export interface EnemyCtx {
    * by level (the jungle's is already cut to 85% for the survival AI).
    */
   fog?: THREE.FogExp2;
+  /**
+   * 46.0: the weather's own fog density, when the picture's differs (the Desert thins its fog round a
+   * player indoors: the storm is outside, not in his room); the arena AI reads this one.
+   */
+  weatherFog?: number;
+  /** 46.0: are both points under a roof (a house, a building)? Then the weather between them is nothing. */
+  sheltered?: (a: THREE.Vector3, b: THREE.Vector3) => boolean;
   /** 7.0, TDM: the arena AI (director, sensing, scheduler) when the mode runs it; absent otherwise. */
   arena?: ArenaCtx;
   /** 6.0: the team of the agents this context drives (absent: OMEGA, survival). */
@@ -1453,7 +1460,7 @@ export class Gunner extends TacticalEnemy {
         dir.z += rand(-spread, spread);
         dir.normalize();
         ctx.projectiles.fire(muzzle, dir, 24 + ctx.difficulty, this);
-        ctx.audio.enemyShot(muzzle, this.look.voice);
+        ctx.audio.enemyShot(muzzle);
         ctx.fx.add.spawn({ x: muzzle.x, y: muzzle.y, z: muzzle.z, r: 5, g: 2.5, b: 0.6, size: 0.45, life: 0.06 });
         this.leanX.impulse(-2);
       }

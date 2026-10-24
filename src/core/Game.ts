@@ -999,7 +999,7 @@ export class Game {
         target = null;
         eh = null;
       }
-      this.fx.tracer(muzzle, origin.clone().addScaledVector(pd, maxDist), tracer, this.weapon.ballistic);
+      this.fx.tracer(muzzle, origin.clone().addScaledVector(pd, maxDist), tracer);
       this.nearMisses(origin, pd, maxDist, target, suppressed);
       if (target && eh) {
         const k = fall ? (eh.dist <= fall.near ? 1 : eh.dist >= fall.far ? fall.min : 1 - ((eh.dist - fall.near) / (fall.far - fall.near)) * (1 - fall.min)) : 1;

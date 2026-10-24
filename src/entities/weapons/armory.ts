@@ -102,9 +102,10 @@ export const ARMORY: Record<WeaponId, ArmoryEntry> = {
     bot: {
       id: 'pistol',
       tag: 'PST',
-      sound: 'plasma',
-      ballistic: 'energy',
-      bolt: { core: [0.6, 3.2, 4.2], trail: [0.1, 0.7, 1.0], size: 0.75 },
+      sound: 'pistol',
+      ballistic: 'kinetic',
+      // 46.0: a bullet's warm tracer (the cyan plasma bolt is gone).
+      bolt: { core: [4.2, 2.8, 1.3], trail: [1, 0.6, 0.25], size: 0.6 },
       // 15 a round to a bot, 51 to the head: three head hits, ten to the body. (The sims: at 20 a
       // round its bots, hard to hit at a full run, took 21–24% of the kills; the target is ~15%.)
       damage: 0.75,
@@ -136,8 +137,8 @@ export const ARMORY: Record<WeaponId, ArmoryEntry> = {
       id: 'smg',
       tag: 'SMG',
       sound: 'smg',
-      ballistic: 'energy',
-      bolt: { core: [3.4, 0.8, 3.6], trail: [0.8, 0.15, 0.9], size: 0.55 },
+      ballistic: 'kinetic',
+      bolt: { core: [4.4, 2.5, 1.0], trail: [1, 0.55, 0.2], size: 0.5 },
       // 14 a round: eleven to drop a bot, a stream of them.
       damage: 0.7,
       pellets: 1,

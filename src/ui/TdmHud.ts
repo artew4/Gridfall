@@ -84,6 +84,16 @@ export class TdmHud {
   private vs = el('div', 'vs', '<i>—</i>');
   private frontRows: { row: HTMLElement; a: HTMLElement; o: HTMLElement; name: Text; key: string }[] = [];
   private notices = el('div', 'tdm-notices');
+  /**
+   * 46.0, the compass under the score: the heading's ticks and N/E/S/W, and a marker for each lane's
+   * front (its name and how far, in the pusher's colour; his own lane lit). A front behind him is
+   * pinned to the compass's edge on the side to turn to. Transforms only, written when they move.
+   */
+  private compass = el('div', 'tdm-compass hidden');
+  private compassBand = el('i', 'band');
+  private compassMarks: { el: HTMLElement; x: number; o: number }[] = [];
+  private frontMarks: { el: HTMLElement; name: Text; dist: Text; x: number; o: number; key: string }[] = [];
+  private compassBandX = NaN;
   private max = 25;
 
   constructor(parent: HTMLElement) {
@@ -118,7 +128,13 @@ export class TdmHud {
     sm.appendChild(this.specMates);
     this.spec.append(sn, hp, sm);
     this.board.append(el('div', 'head', `<span class="nm">ALPHA${flSpan('ally', 'em', '')}</span><span>K</span><span>D</span><span class="sc">SCORE</span>`), this.boardRows);
-    this.root.append(this.tags, this.board, this.score, this.sudden, this.feed, this.respawn, this.spec, this.notices);
+    this.compass.appendChild(this.compassBand);
+    for (const c of ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']) {
+      const m = el('b', c.length === 1 ? 'card' : 'card minor', c);
+      this.compass.appendChild(m);
+      this.compassMarks.push({ el: m, x: NaN, o: NaN });
+    }
+    this.root.append(this.tags, this.board, this.score, this.compass, this.sudden, this.feed, this.respawn, this.spec, this.notices);
     parent.appendChild(this.root);
   }
 
@@ -306,6 +322,80 @@ export class TdmHud {
       a.style.transform = o.style.transform = 'scaleX(0.5)';
       this.frontRows.push({ row, a, o, name, key: '50|hold||0' });
     }
+  }
+
+  /** 46.0: the compass's front markers by lane name (null: no fronts this match, the compass alone). */
+  setCompassFronts(names: readonly string[] | null) {
+    for (const f of this.frontMarks) f.el.remove();
+    this.frontMarks = [];
+    this.compass.classList.remove('hidden');
+    for (const n of names ?? []) {
+      const m = el('div', 'front-mark');
+      const nm = document.createTextNode(n.split(/[\s(]/)[0].toUpperCase());
+      const d = document.createTextNode('');
+      const b = el('span');
+      b.appendChild(nm);
+      const i = el('i');
+      i.appendChild(d);
+      m.append(b, i);
+      this.compass.appendChild(m);
+      this.frontMarks.push({ el: m, name: nm, dist: d, x: NaN, o: NaN, key: '' });
+    }
+  }
+
+  /**
+   * 46.0: the compass for a player at (px, pz) facing `heading` (radians clockwise from north, -z),
+   * and the fronts' marks (world x, z; who pushes there), `here` his own lane (-1: none).
+   */
+  updateCompass(heading: number, px: number, pz: number, marks: readonly { x: number; z: number; push: 'alpha' | 'omega' | null }[], here: number) {
+    const DEG = 180 / Math.PI, SPAN = 75, K = 0.2;
+    const hd = ((heading * DEG) % 360 + 360) % 360;
+    // The ticks: a band of 15° ticks under the letters, moved by the heading modulo a tick.
+    const bx = -((hd * K) % 3);
+    // (A first write from NaN: a comparison with NaN is false, so `!(… <= …)`.)
+    if (!(Math.abs(bx - this.compassBandX) <= 0.01)) {
+      this.compassBandX = bx;
+      this.compassBand.style.transform = `translateX(${bx.toFixed(2)}rem)`;
+    }
+    const place = (m: { el: HTMLElement; x: number; o: number }, bearing: number, pin: boolean) => {
+      let rel = bearing - hd;
+      rel = ((rel + 540) % 360) - 180;
+      const off = Math.abs(rel) > SPAN;
+      if (off && !pin) {
+        if (m.o !== 0) m.el.style.opacity = '0';
+        m.o = 0;
+        return;
+      }
+      // (Pinned a little inside the edge, clear of the compass's fade.)
+      const x = (off ? Math.sign(rel) * (SPAN - 8) : rel) * K;
+      const o = off ? 0.55 : 1;
+      if (!(Math.abs(x - m.x) <= 0.02)) {
+        m.x = x;
+        m.el.style.transform = `translateX(calc(${x.toFixed(2)}rem - 50%))`;
+      }
+      if (o !== m.o) {
+        m.o = o;
+        m.el.style.opacity = String(o);
+      }
+    };
+    this.compassMarks.forEach((m, i) => place(m, i * 45, false));
+    this.frontMarks.forEach((f, k) => {
+      const mk = marks[k];
+      if (!mk) return;
+      const dx = mk.x - px, dz = mk.z - pz;
+      place(f, Math.atan2(dx, -dz) * DEG, true);
+      const d = Math.round(Math.hypot(dx, dz) / 5) * 5;
+      const key = `${d}|${mk.push ?? ''}|${k === here ? 1 : 0}`;
+      if (key === f.key) return;
+      const [d0, p0, h0] = f.key.split('|');
+      f.key = key;
+      if (String(d) !== d0) f.dist.data = `${d}M`;
+      if ((mk.push ?? '') !== p0) {
+        f.el.classList.toggle('a', mk.push === 'alpha');
+        f.el.classList.toggle('o', mk.push === 'omega');
+      }
+      if (String(k === here ? 1 : 0) !== h0) f.el.classList.toggle('here', k === here);
+    });
   }
 
   /** 44.0: a short line under the score (a lane held, pushed back), fading out by itself. */

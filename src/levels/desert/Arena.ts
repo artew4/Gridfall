@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { worldBox, type StaticBuilder } from '../../world/Builder';
 import type { Collider, CollisionWorld } from '../../world/Collision';
-import { TRENCH, desertHeight } from './Terrain';
-import { BASE, CULVERT_LANE_SOUTH, LANES_NORTH, LANES_SOUTH, OUTER, OUTER_LANES_NORTH, OUTER_LANES_SOUTH, ROOF_LANE, RUINS, rot } from './ArenaLayout';
+import { TRENCH, desertHeight, housePadY } from './Terrain';
+import { BASE, CULVERT_LANE_SOUTH, HOUSES, LANES_NORTH, LANES_SOUTH, OUTER, OUTER_LANES_NORTH, OUTER_LANES_SOUTH, ROOF_LANE, RUINS, rot } from './ArenaLayout';
 import type { Zone } from '../Level';
 import { buildRuins } from './Ruins';
+import { BLOCK_SPEC, HOUSE_SPEC, buildHouse, type HouseKit, type HouseResult, type HouseSpec } from './Houses';
 
 /*
   The arena's structures (6.0; layout and reasoning in ArenaLayout.ts). Everything is authored once in
@@ -42,6 +43,11 @@ export interface ArenaKit {
     crate: THREE.Material;
     /** 38.0: the ruins' masonry (instanced, tinted per block). */
     sandstone: THREE.Material;
+    /** 46.0: the flank houses' plaster (the Block's, the houses'), their trim, their lamps. */
+    plaster: THREE.Material;
+    whitewash: THREE.Material;
+    roof: THREE.Material;
+    bulb: THREE.Material;
   };
   boulder(r: number, h: number): THREE.BufferGeometry;
   rnd(): number;
@@ -62,6 +68,8 @@ export interface ArenaResult {
   ruins: { posts: THREE.Vector3[]; hvas: THREE.Vector3[] };
   /** 38.0: the outcrops' tops (centres, on the rock), for the patrols. */
   outcrops: THREE.Vector3[];
+  /** 46.0: the flank houses: their rooms (the storm's masks, the zones), the patrols' places in them, their roofs' centres. */
+  houses: { interiors: HouseResult['interior'][]; hvas: THREE.Vector3[]; roofs: THREE.Vector3[] };
 }
 
 const DOOR_H = 2.3;
@@ -78,7 +86,7 @@ export function buildArena(k: ArenaKit): ArenaResult {
   const ALPHA_BASE = zone('alpha-base', 'ALPHA BASE', 'قاعدة الحلفاء'), OMEGA_BASE = zone('omega-base', 'OMEGA BASE', 'قاعدة العدو');
   const HAMLET_S = zone('hamlet-s', 'SOUTH HAMLET', 'القرية الجنوبية'), HAMLET_N = zone('hamlet-n', 'NORTH HAMLET', 'القرية الشمالية');
   const WADI_S = zone('wadi-s', 'SOUTH WADI', 'الوادي الجنوبي'), WADI_N = zone('wadi-n', 'NORTH WADI', 'الوادي الشمالي');
-  const out: ArenaResult = { spawns: { south: [], north: [] }, coverPoints: [], nodes: [], links: [], lanes: { south: [], north: [] }, zones: [], testGoals: [], ruins: { posts: [], hvas: [] }, outcrops: [] };
+  const out: ArenaResult = { spawns: { south: [], north: [] }, coverPoints: [], nodes: [], links: [], lanes: { south: [], north: [] }, zones: [], testGoals: [], ruins: { posts: [], hvas: [] }, outcrops: [], houses: { interiors: [], hvas: [], roofs: [] } };
 
   /** Lowest terrain under a rect (corners and middle). */
   const low = (x0: number, z0: number, x1: number, z1: number) =>
@@ -230,17 +238,8 @@ export function buildArena(k: ArenaKit): ArenaResult {
         { side: 'e', at: 47, w: 1.4 }, { side: 'n', at: -49, w: 1.4 },
         { side: 's', at: -48.5, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'w', at: 46.5, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 },
       ]);
-      const r2: [number, number, number, number] = [-63, 23, -55, 30];
-      const f2 = desertHeight(...P(flip, -59, 26.5));
-      walls(flip, r2, f2, 2.7, 0.35, m.mud, [
-        { side: 'e', at: 26.5, w: 1.4 }, { side: 'n', at: -59, w: 1.4 }, { side: 's', at: -61, w: 1.4 },
-        { side: 'w', at: 26.5, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'e', at: 28.8, w: 1.0, y0: WIN_Y0, y1: WIN_Y1 },
-      ]);
-      // R3: knee-to-waist walls, gaps on every side.
-      const f3 = desertHeight(...P(flip, -57, 10.5));
-      walls(flip, [-60, 8, -54, 13], f3, 1.15, 0.35, m.mud, [
-        { side: 'n', at: -57, w: 1.6, y1: 9 }, { side: 's', at: -56, w: 1.6, y1: 9 }, { side: 'e', at: 10.5, w: 1.6, y1: 9 }, { side: 'w', at: 10, w: 1.4, y1: 9 },
-      ]);
+      // 46.0: the second hut (R2) is a house now (Houses.ts), and the knee-high enclosure (R3) went with
+      // the pump house (the Block's south approach).
       low1(flip, -47, 36, -43, 36.4, 1.1, m.mud, 'concrete');
       low1(flip, -52.4, 17, -52, 21, 1.1, m.mud, 'concrete');
       // Doors (both sides) and rooms on the graph.
@@ -251,12 +250,8 @@ export function buildArena(k: ArenaKit): ArenaResult {
       };
       const a1 = node(...P(flip, -48.5, 47));
       out.links.push([door(-43.8, 47, -46.2, 47), a1], [door(-49, 42.8, -49, 45.2), a1]);
-      const a2 = node(...P(flip, -59, 26.5));
-      out.links.push([door(-53.8, 26.5, -56.2, 26.5), a2], [door(-59, 21.8, -59, 24.2), a2], [door(-61, 31.2, -61, 28.8), a2]);
-      node(...P(flip, -57, 10.5));
-      for (const [x, z] of [[-44.6, 45.2], [-44.6, 49], [-52.6, 45], [-50.5, 43.4], [-54.4, 24.5], [-54.4, 29.2], [-63.6, 25], [-60.6, 9.2], [-53.4, 12], [-45, 35.6], [-51.6, 19]]) cover(...P(flip, x, z));
+      for (const [x, z] of [[-44.6, 45.2], [-44.6, 49], [-52.6, 45], [-50.5, 43.4], [-45, 35.6], [-51.6, 19]]) cover(...P(flip, x, z));
       goal(...P(flip, -48.5, 47));
-      goal(...P(flip, -59, 26.5));
       out.zones.push({ zone: flip ? HAMLET_N : HAMLET_S, rect: R(flip, -66, 6, -40, 54) });
     }
 
@@ -267,13 +262,12 @@ export function buildArena(k: ArenaKit): ArenaResult {
       berm(40, 52.2, 48, 53);
       berm(52, 41, 52.8, 47);
       berm(46, 33.2, 54, 34);
-      berm(59, 20, 59.8, 28);
       berm(50, 15.6, 57, 16.4);
       rock(flip, 47, 44, 1.8, 3.0);
       rock(flip, 58, 37, 2.1, 3.4);
       rock(flip, 49.5, 26, 1.6, 2.6);
-      rock(flip, 63.5, 31, 2.0, 3.0);
-      rock(flip, 54, 9, 1.7, 2.8);
+      // 46.0: clear of the wadi's house (and the Block's north approach, rotated).
+      rock(flip, 67.5, 33.5, 2.0, 3.0);
       // APC: hull, turret.
       const [x0, z0, x1, z1] = R(flip, 41.7, 36, 44.3, 42);
       const fa = desertHeight((x0 + x1) / 2, (z0 + z1) / 2);
@@ -284,7 +278,7 @@ export function buildArena(k: ArenaKit): ArenaResult {
       low1(flip, 54.5, 48, 58.5, 48.6, 1.05, m.sandbag);
       low1(flip, 54.5, 48.6, 55.1, 51.5, 1.05, m.sandbag);
       low1(flip, 57.9, 48.6, 58.5, 51.5, 1.05, m.sandbag);
-      for (const [x, z] of [[44, 53.6], [51.4, 44], [50, 34.6], [60.4, 24], [53.5, 17], [45, 39], [56.5, 50.5]]) cover(...P(flip, x, z));
+      for (const [x, z] of [[44, 53.6], [51.4, 44], [50, 34.6], [53.5, 17], [45, 39], [56.5, 50.5]]) cover(...P(flip, x, z));
       // Into the nest by its open side.
       const ni = node(...P(flip, 56.5, 50.2)), no = node(...P(flip, 56.5, 53.4));
       out.links.push([ni, no]);
@@ -293,23 +287,30 @@ export function buildArena(k: ArenaKit): ArenaResult {
     }
   }
 
-  // ===================================================================== Pump houses (each flank's midpoint)
-  // Point-symmetric on their own (doors at both ends), one on each flank: x = -60 and its rotation.
-  for (const flip of [false, true]) {
-    const f = desertHeight(...P(flip, -60, 0));
-    walls(flip, [-62.5, -2.5, -57.5, 2.5], f, 2.8, 0.35, m.mud, [
-      { side: 'n', at: -60, w: 1.4 }, { side: 's', at: -60, w: 1.4 },
-      { side: 'w', at: 0, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'e', at: 0, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 },
-    ]);
-    // A pump inside (cover in the middle of the room).
-    const [px, pz] = P(flip, -60, 0);
-    solid(px - 0.6, pz - 0.5, px + 0.6, pz + 0.5, f + 1.1, m.darkMetal, 'metal');
-    // Through the house: outside, inside either end, round the pump.
-    const n = (x: number, z: number) => node(...P(flip, x, z));
-    const oN = n(-60, -4), iN = n(-60, -1.6), side = n(-61.4, 0), iS = n(-60, 1.6), oS = n(-60, 4);
-    out.links.push([oN, iN], [iN, side], [side, iS], [iS, oS]);
-    for (const [x, z] of [[-60, 1.4], [-60, -1.4], [-63.1, 1.5], [-56.9, -1.5]]) cover(...P(flip, x, z));
-    goal(...P(flip, -61.4, 0));
+  // ===================================================================== 46.0: the flank houses
+  // The Block on each main flank's midline (where the pump house stood) and a house on each team's half
+  // of each main flank (Houses.ts; placements in ArenaLayout.HOUSES).
+  {
+    const hk: HouseKit = { b, col, scene: k.scene, mats: { wall: m.plaster, trim: m.roof, floor: m.concrete, rail: m.darkMetal, crate: m.crate, wood: m.wood, dark: m.darkMetal, lamp: m.bulb } };
+    const put = (spec: HouseSpec, cx: number, cz: number, su: 1 | -1, sv: 1 | -1, wall: THREE.Material) => {
+      const r = buildHouse({ ...hk, mats: { ...hk.mats, wall } }, spec, { cx, cz, y0: housePadY(cx, cz), su, sv });
+      const n0 = out.nodes.length;
+      // (A door's outside node stands on the sand.)
+      out.nodes.push(...r.nodes.map((p) => (Number.isNaN(p.y) ? p.setY(desertHeight(p.x, p.z)) : p)));
+      out.links.push(...r.links.map(([i, j]) => [n0 + i, n0 + j] as [number, number]));
+      out.coverPoints.push(...r.cover);
+      out.testGoals.push(...r.goals);
+      out.houses.hvas.push(...r.hvas);
+      out.houses.interiors.push(r.interior);
+      out.houses.roofs.push(new THREE.Vector3((r.interior.x0 + r.interior.x1) / 2, r.interior.h, (r.interior.z0 + r.interior.z1) / 2));
+    };
+    const B = HOUSES.block;
+    put(BLOCK_SPEC, B.cx, B.cz, B.su, 1, m.plaster);
+    put(BLOCK_SPEC, -B.cx, -B.cz, B.su === 1 ? -1 : 1, -1, m.plaster);
+    for (const h of HOUSES.houses) {
+      put(HOUSE_SPEC, h.cx, h.cz, h.su, 1, m.whitewash);
+      put(HOUSE_SPEC, -h.cx, -h.cz, h.su === 1 ? -1 : 1, -1, m.whitewash);
+    }
   }
 
   // ===================================================================== 28.0: the outer flanks

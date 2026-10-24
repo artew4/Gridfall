@@ -58,7 +58,6 @@ describe('30.0 stamina', () => {
   });
 
   it('weight classes by the player\'s sound family or a bot\'s armory id', () => {
-    expect(weightOf('plasma')).toBe('pistol');
     expect(weightOf('pistol')).toBe('pistol');
     expect(weightOf('smg')).toBe('smg');
     expect(weightOf('ar')).toBe('rifle');

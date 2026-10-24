@@ -120,6 +120,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     trunk: std(T.woodTexture(), 0x9c8466, 0.95),
     // 38.0: the ruins' masonry: a pale weathered face each block tints (InstancedMesh colours).
     sandstone: std(T.plasterTexture('#ece2d0'), 0xffffff, 0.95, 0, 0.2),
+    // 46.0: the flank Block's warm ochre plaster.
+    housePlaster: std(T.plasterTexture('#d6b98e'), 0xffffff),
   };
 
   /** A box that is both seen and solid, with the same bounds. */
@@ -843,9 +845,11 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   const arena = buildArena({
     b, col, scene, rnd, boulder,
-    mats: { mud: m.mud, hesco: m.hesco, concrete: m.concrete, sandbag: m.sandbag, rock: m.rock, rust: m.rust, darkMetal: m.darkMetal, tent: m.tent, wood: m.wood, crate: crateMats.gear, sandstone: m.sandstone },
+    mats: { mud: m.mud, hesco: m.hesco, concrete: m.concrete, sandbag: m.sandbag, rock: m.rock, rust: m.rust, darkMetal: m.darkMetal, tent: m.tent, wood: m.wood, crate: crateMats.gear, sandstone: m.sandstone, plaster: m.housePlaster, whitewash: m.whitewash, roof: m.roof, bulb: m.bulb },
     flag: (c) => T.canvasTexture(c),
   });
+  // 46.0: the flank houses are interiors too (the storm stays out, "indoors", their zone, no grid nodes in them).
+  interiors.push(...arena.houses.interiors);
 
   b.build(scene);
   scene.traverse((o) => {

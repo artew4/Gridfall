@@ -190,6 +190,17 @@ export class TdmMinimap {
       g.strokeStyle = f.push === 'alpha' ? '#7cc8ff' : f.push === 'omega' ? '#ff6a4d' : 'rgba(242,251,255,0.85)';
       g.lineWidth = 2.5;
       g.stroke();
+      // 46.0: the lane's letter by its line (which flank is which, at a glance).
+      if (f.label) {
+        g.font = '700 9px ui-monospace, monospace';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        const lx = x + ux * (L + 6), ly = y + uy * (L + 6);
+        g.fillStyle = 'rgba(0,0,0,0.65)';
+        g.fillRect(lx - 5.5, ly - 6, 11, 12);
+        g.fillStyle = g.strokeStyle;
+        g.fillText(f.label, lx, ly + 0.5);
+      }
     }
     const dot = (m: MapDot, color: string, r: number) => {
       const dx = (m.x - p.x) * SCALE, dz = (m.z - p.z) * SCALE;
@@ -246,6 +257,8 @@ export interface FrontMark {
   ax: number;
   az: number;
   push: 'alpha' | 'omega' | null;
+  /** 46.0: the lane's letter on the map. */
+  label?: string;
 }
 
 /** A spotted hostile's dot strength: full while in someone's sight, then fading out over `fade` s. */

@@ -26,9 +26,9 @@ export type Layer =
   | { v: 'noise'; at: number; color: 'white' | 'pink' | 'brown'; filter: BiquadFilterType; f: number; q: number; peak: number; attack: number; decay: number; fEnd?: number }
   | { v: 'metal'; at: number; base: number; peak: number; decay: number; ratios: number[] };
 
-/** The neon pistol's 'plasma' is still a pistol in the hand. */
+/** The reload a gun's report family makes. */
 export function reloadKind(sound: GunSound): ReloadKind {
-  return sound === 'plasma' ? 'pistol' : sound;
+  return sound;
 }
 
 const tone = (at: number, wave: OscillatorType, f0: number, f1: number, peak: number, attack: number, decay: number): Layer => ({ v: 'tone', at, wave, f0, f1, peak, attack, decay });

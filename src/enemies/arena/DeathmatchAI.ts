@@ -1678,7 +1678,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // Fog: aim degrades with the contrast lost on the way (and nothing is fired past fog sight).
     // The scene's own fog density (9.0; 8.1 inferred it from sightRange, which the jungle scales).
     let fog = 0;
-    const rho = ctx.fog?.density ?? (ctx.sightRange !== undefined ? densityOfSightRange(ctx.sightRange) : 0);
+    // 46.0: the weather's (not the picture's), and none between two under a roof.
+    const rho = ctx.sheltered?.(me.pos, T.pos) ? 0 : ctx.weatherFog ?? ctx.fog?.density ?? (ctx.sightRange !== undefined ? densityOfSightRange(ctx.sightRange) : 0);
     if (rho > 0) {
       const d = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
       if (d > fogRange(rho, ARENA_SEE)) {

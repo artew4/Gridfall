@@ -50,7 +50,7 @@ export const STAMINA = {
 
 /** The weight class of a gun by its sound family (the player's spec) or armory id (a bot's arm). */
 export function weightOf(key: string): WeightClass {
-  if (key === 'plasma' || key === 'pistol') return 'pistol';
+  if (key === 'pistol') return 'pistol';
   if (key === 'smg') return 'smg';
   if (key === 'shotgun') return 'shotgun';
   return 'rifle';

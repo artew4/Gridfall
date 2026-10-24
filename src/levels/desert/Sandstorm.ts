@@ -9,7 +9,8 @@ const STORM_DENSITY = 0.062;
 /** Distance at which FogExp2 hides 90% of a surface: sqrt(ln 10) / density. */
 const HIDE_90 = Math.sqrt(Math.log(10));
 /** Interiors the dust shader keeps out of (12.0: eight with the culvert). */
-const MAX_ROOMS = 10;
+// 46.0: 20 (the flank houses: six more).
+const MAX_ROOMS = 20;
 
 type Phase = 'calm' | 'rising' | 'peak' | 'easing';
 
