@@ -11,7 +11,13 @@ import type { LevelInfo } from '../levels/Level';
  * else (the picked one is named big over the live map). Hover and the pick move transform and opacity.
  */
 export function mapTileHtml(l: LevelInfo, data: 'setting' | 'map' = 'setting', tag = '', on = false) {
-  return `<button class="gm-tile${on ? ' on' : ''}" data-${data}="${l.id}"><span class="mc-art" data-map="${l.id}" aria-hidden="true"></span>${tag ? `<i>${tag}</i>` : ''}<b>${menuMapName(l)}</b><span class="gm-tile-frame" aria-hidden="true"></span></button>`;
+  // 52.0: the map's picture over the painted art (the art shows until the picture has loaded).
+  return `<button class="gm-tile${on ? ' on' : ''}" data-${data}="${l.id}"><span class="mc-art" data-map="${l.id}" aria-hidden="true"><img class="mc-shot" src="${mapPicture(l.id)}" alt="" loading="lazy" decoding="async"></span>${tag ? `<i>${tag}</i>` : ''}<b>${menuMapName(l)}</b><span class="gm-tile-frame" aria-hidden="true"></span></button>`;
+}
+
+/** 52.0: a map's picture (public/maps, scripts/mapshots.mjs), under the site's base path. */
+export function mapPicture(id: string) {
+  return `${import.meta.env.BASE_URL}maps/${id}.webp`;
 }
 
 /** 45.0: a map's name in the menu: without its city ("TOKYO: NEON BLOCK" is NEON BLOCK). */

@@ -31,12 +31,11 @@ describe('13.0: the main menu state machine (mode first, then the map)', () => {
     expect(menuStep({ ...root, screen: 'controls' }, { type: 'back' }, LEVELS, 'desert').screen).toBe('root');
   });
 
-  it('deploy waits for the picked map to be the one built, and not loading', () => {
+  it('deploy needs a mode and a map of it, nothing loading (52.0: not the map built: PLAY builds it)', () => {
     const s = menuStep(menuStep(root, { type: 'mode', mode: 'tdm' }, LEVELS, 'desert'), { type: 'map', id: 'docks' }, LEVELS, 'desert');
-    expect(canDeploy(s, LEVELS, 'desert', false)).toBe(false);
-    expect(canDeploy(s, LEVELS, 'docks', true)).toBe(false);
-    expect(canDeploy(s, LEVELS, 'docks', false)).toBe(true);
-    expect(canDeploy(root, LEVELS, 'docks', false)).toBe(false);
+    expect(canDeploy(s, LEVELS, false)).toBe(true);
+    expect(canDeploy(s, LEVELS, true)).toBe(false);
+    expect(canDeploy(root, LEVELS, false)).toBe(false);
   });
 
   it('after a match: every map of the same mode, the one just played first as the rematch', () => {

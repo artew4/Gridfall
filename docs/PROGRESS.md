@@ -2644,8 +2644,38 @@ The playtest: a breakthrough on a flank won nothing a player felt; spawns everyw
 ### Checks
 - Tests 529 (+5: `objectives.test.ts`: the meter, through neutral, the drift, the bleed rates and the last line, the need).
 
+## 52.0: the menu's freezes gone, the loads cut
+
+Branch `feature/perf-menu-52.0`, from `main` @ `7d75401` (51.0).
+
+The playtest: freezes on the menu (each map clicked froze it), freezes in the first moments of play, slow loads.
+
+### Measured first (`scripts/perfprobe.mjs`, headless Chrome on the GPU: the boot, the root menu idle, each map picked, PLAY to the intro, the intro, the first seconds of play with him walking, turning and firing)
+- 51.0: each map picked on the maps screen built it: a main-thread task of 56–689 ms (Deep Jungle 689, the Desert 478, Neon Block 401) and 1–2.5 s of loading. The root menu idle, the intro and play clean on this machine (no frame over 33 ms), but play allocated 22–28 MB/s (50–92 collections in 20 s) and spent 15% of the main thread in script: the stalls a slower machine feels.
+
+### The maps screen (no build on a pick)
+- A pick builds nothing: the screen shows the map's **picture** (`public/maps/<id>.webp`, 1920×1080, 100–320 KB, rendered by `scripts/mapshots.mjs` from each map's own title camera); PLAY builds the map if it isn't the one loaded (behind the loading screen) and goes in. Nothing 3D runs or draws while the maps screen is up.
+- The layout: the picture over the whole screen (cross-fading on a pick, every picture fetched and decoded when the screen opens), a dark panel on the left with BACK and the modes, a grid of the maps (their pictures), PLAY at its foot (big, a shine sweeping across it, the map's name under it), the map's name huge on the right. The result screens' next-map tiles show the pictures too.
+- The menu draws at 60 (was 30: the stage's swaying gun at 30 on a 60–120 Hz screen read as stutter).
+
+### Loads
+- **The nav graph's links, the vault links and the cover spots cached** in the browser (IndexedDB, `core/NavCache.ts`), each under a fingerprint of everything it was computed from (every collider, the holes, the terrain on a grid, the hand graph, `ALGO` for the code): a changed map is a miss and computes fresh; no IndexedDB, a miss. Checked: the cached graph equals a fresh one on six maps.
+- **The graph's build**: whether each node stands on the terrain asked once a node (it was asked for every pair of nodes: half a million terrain samples on Deep Jungle) and the distance tested before any ray or floor sample: the same links. Deep Jungle's terrain: the distance to the tunnels skipped beyond the distance its callers care about (a box round them first).
+- Load times (PLAY on a map not loaded, to the intro; the first time, no cache / again): Deep Jungle 2.8 s (the pick and the deploy) → 0.76 s / ~0.4 s; the Desert 1.1 s → 0.9 s / 0.37 s; the Docks 1.1 s → 0.48 s / 0.38 s.
+
+### Play
+- **Transparent double-sided materials drawn in one pass** (`forceSinglePass`, set at every warm-up): three.js drew them twice and marked them changed every frame (their programs looked up and parameters rebuilt: the spawn zones' rings, the objectives' beacons, the halos).
+- **The terrain under a ray**: a bound per 1 m cell (the highest corner + 0.6 m, built lazily 16 × 16 cells at a time): a ray over its cell's bound skips the height function (an 80 m sight line over the dunes sampled it a hundred times). The same crossings (`terrainbound.test.ts`: 3,000 rays on three terrains).
+- **The bots' routes** ranked in reused typed arrays (an object a node a route before) and their search's relax made once per search (a closure a node before): the same routes (levelAI on the Desert: runners 485/488, 50.0 484).
+- Play (the Desert, 20 s, him walking and firing): 27.9 → 22.9 MB/s allocated, 92 → 51 collections, script 2.92 → 2.47 s; the Docks 22.5 → 16.7 MB/s, 50 → 34.
+
+### Checks
+- `perfprobe` (the Desert, Deep Jungle, Favelas): map picks' longest task 0 ms (51.0: up to 689), PLAY to the intro 0.27–0.76 s, no frame over 25 ms in the intro or play, no program compiled in play. `uicheck` clean at 1440×900 to 3840×2160. `leakcheck` (the Desert, the Docks, Neon Block): 0 of 24 left-level objects alive.
+- Tests 530 (+1: `terrainbound.test.ts`; the menu's and the frame cap's updated).
+
 ## Next
 Human playtest:
+- 52.0 items: the menu (any freeze left on the root menu, a pick, PLAY; the maps screen's pictures: good enough, or worth a better shot of some maps); the first seconds of play (still a hitch? on which map); loads (the first time and again: the second should be much quicker).
 - 51.0 items: the points (does taking a flank feel worth it; the spawn zone opening near it; 10 s to take one: too slow, too fast; the double breakthrough and the last line: a comeback or a stalemate; the beacons, the flags by the bars, "DEFEND WEST": readable; starting from one zone: too long a walk on the Docks?).
 - 50.0 items: the bots (do they feel like a match now: too hard, too easy; do you notice them shooting back from far off, and focusing you when you're on a streak); the Block and the houses (still worth going into without the roofs; the barred slits); the huts in the field; the floors (any flicker left).
 - 49.0 items: Neon Docks (the warehouse: too cramped now, or a good close fight; the stair towers: do you use the door into the catwalks; the crane cab and the crane stair's perch; the quay's zig-zag and the barges' cargo: interesting or just slower; the maze without the gantry; the sniper stack: still too strong over its own half?).

@@ -47,7 +47,9 @@ export function effectiveCap(cap: FpsCap, state: LoopState, focused: boolean): n
   // 17.0: a match's result screen (TDM): the arena shows through a 50–90% dark vignette.
   if (state === 'results') return Math.min(cap, 30);
   if (state === 'dead') return Math.min(cap, 30);
-  if (state === 'title') return focused ? Math.min(cap, 30) : 10;
+  // 52.0: 60 (was 30): the stage's swaying gun at 30 on a 60–120 Hz screen read as stutter; the maps
+  // screen draws no 3D at all now (its map's picture), so the menu's cost is the stage alone.
+  if (state === 'title') return focused ? Math.min(cap, 60) : 10;
   return cap;
 }
 

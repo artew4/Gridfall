@@ -72,9 +72,12 @@ export function menuStep(s: MenuState, e: MenuEvent, levels: readonly LevelInfo[
   }
 }
 
-/** Ready to start: on the maps screen, with a mode and a map that supports it, and that map built. */
-export function canDeploy(s: MenuState, levels: readonly LevelInfo[], loaded: SettingId, loading: boolean) {
-  return s.screen === 'maps' && !!s.mode && s.map === loaded && !loading && mapsFor(s.mode, levels).some((m) => m.id === s.map);
+/**
+ * Ready to start: on the maps screen, with a mode and a map that supports it, nothing loading. 52.0:
+ * the map needn't be built: PLAY builds it (a pick on the maps screen no longer does).
+ */
+export function canDeploy(s: MenuState, levels: readonly LevelInfo[], loading: boolean) {
+  return s.screen === 'maps' && !!s.mode && !!s.map && !loading && mapsFor(s.mode, levels).some((m) => m.id === s.map);
 }
 
 /** After a match: every map with the same mode, the one just played first (the rematch). */

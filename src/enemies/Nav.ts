@@ -70,25 +70,40 @@ export class Nav {
   private slope: number;
   private cost: ((a: THREE.Vector3, b: THREE.Vector3) => number) | null;
 
-  constructor(private col: CollisionWorld, layout: NavLayout) {
+  /** 52.0: the links computed for this graph (NavCache), and a call when the vault links are built. */
+  onVaultBuilt: ((ve: number[][]) => void) | null = null;
+
+  /**
+   * `saved` (52.0, NavCache): the links (and vault links) a build of the same geometry computed; the
+   * automatic linking is skipped (the hand links, climbs and drops are the layout's as always).
+   */
+  constructor(private col: CollisionWorld, layout: NavLayout, saved?: { edges: number[][]; vaultEdges?: number[][] | null }) {
     this.slope = layout.slope ?? 0;
     this.cost = layout.cost ?? null;
     // Stored at body height so LOS checks start from the chest of a standing enemy.
     this.nodes = layout.nodes.map((p) => new THREE.Vector3(p.x, p.y + BODY, p.z));
-    this.edges = this.nodes.map(() => []);
+    this.edges = saved ? saved.edges.map((e) => e.slice()) : this.nodes.map(() => []);
+    if (saved?.vaultEdges) this.vaultEdges = saved.vaultEdges.map((e) => e.slice());
     const link = (i: number, j: number) => {
       if (!this.edges[i].includes(j)) this.edges[i].push(j);
       if (!this.edges[j].includes(i)) this.edges[j].push(i);
     };
-    for (let i = 0; i < this.nodes.length; i++) {
+    // 52.0: whether each node stands on the terrain, once (it was asked for every pair of nodes, near
+    // or far: half a million terrain samples on Deep Jungle, most of its 0.6 s graph), and the
+    // distance tested before anything that casts a ray or samples a floor. The same links.
+    const onT = layout.faces && !saved ? this.nodes.map((n) => this.onTerrain(n)) : null;
+    for (let i = 0; !saved && i < this.nodes.length; i++) {
+      const ni = this.nodes[i];
       for (let j = i + 1; j < this.nodes.length; j++) {
-        const ni = this.nodes[i], nj = this.nodes[j];
+        const nj = this.nodes[j];
+        const dx = ni.x - nj.x, dz = ni.z - nj.z, dy = ni.y - nj.y;
+        if (dx * dx + dy * dy + dz * dz >= 196) continue;
         // 19.0 (`faces`): the slope allowance is for the terrain's hummocks; between built floors (a
         // terrace, a stair) a link climbs no more than anywhere else.
-        const terrain = !layout.faces || (this.onTerrain(ni) && this.onTerrain(nj));
-        const rise = 0.5 + (terrain ? (layout.slope ?? 0) * Math.hypot(ni.x - nj.x, ni.z - nj.z) : 0);
-        if (Math.abs(ni.y - nj.y) > rise) continue;
-        if (ni.distanceTo(nj) < 14 && this.clear(ni, nj) && this.walkable(ni, nj) && (!layout.faces || this.faceless(ni, nj))) link(i, j);
+        const terrain = !onT || (onT[i] && onT[j]);
+        const rise = 0.5 + (terrain ? (layout.slope ?? 0) * Math.hypot(dx, dz) : 0);
+        if (Math.abs(dy) > rise) continue;
+        if (this.clear(ni, nj) && this.walkable(ni, nj) && (!layout.faces || this.faceless(ni, nj))) link(i, j);
       }
     }
     for (const [i, j] of layout.links) {
@@ -181,6 +196,7 @@ export class Nav {
       }
     }
     this.vaultEdges = ve;
+    this.onVaultBuilt?.(ve);
     return ve;
   }
 
@@ -229,27 +245,42 @@ export class Nav {
    * differences weigh heavily, so halfway up a stair the stair's own nodes win over the street below.
    */
   nearestVisible(q: THREE.Vector3): number {
-    const cand: { i: number; s: number }[] = [];
-    for (let i = 0; i < this.nodes.length; i++) {
-      const n = this.nodes[i];
-      const dy = n.y - q.y;
-      cand.push({ i, s: (n.x - q.x) ** 2 + (n.z - q.z) ** 2 + dy * dy * 9 });
+    // 52.0: scores and order in reused typed arrays (an object a node, a thousand, every route: the
+    // bots' paths were a tenth of a match's allocations); the same order (ties by index, as the stable
+    // sort of 7.0–51.0 left them).
+    const N = this.nodes.length;
+    if (this.nvS.length !== N) {
+      this.nvS = new Float64Array(N);
+      this.nvO = new Int32Array(N);
     }
-    cand.sort((a, b) => a.s - b.s);
+    const sc = this.nvS, ord = this.nvO;
+    for (let i = 0; i < N; i++) {
+      const n = this.nodes[i];
+      const dx = n.x - q.x, dz = n.z - q.z, dy = n.y - q.y;
+      sc[i] = dx * dx + dz * dz + dy * dy * 9;
+      ord[i] = i;
+    }
+    ord.sort((a, b) => sc[a] - sc[b] || a - b);
+    const cand = ord;
     // Rays are the expensive part: test in order of preference. A node a body can walk straight to
     // (corridor clear down to knee height) wins over one merely visible across a low barrier — ending a
     // route there would leave the walker pressed against the barrier. Fall back to the nearest visible.
     let visible = -1;
     let tried = 0;
     for (let k = 0; k < cand.length; k++) {
-      const n = this.nodes[cand[k].i];
+      const n = this.nodes[cand[k]];
       if (!this.col.lineOfSight(q, n) || !this.walkable(q, n)) continue;
-      if (this.clear(q, n)) return cand[k].i;
-      if (visible < 0) visible = cand[k].i;
+      if (this.clear(q, n)) return cand[k];
+      if (visible < 0) visible = cand[k];
       if (++tried >= 12) break;
     }
     return visible;
   }
+  private nvS = new Float64Array(0);
+  private nvO = new Int32Array(0);
+  private rtS = new Float64Array(0);
+  private rtD = new Float64Array(0);
+  private rtO = new Int32Array(0);
 
   /** Dijkstra; returns node indices from start to goal. */
   path(from: number, to: number): number[] {
@@ -318,8 +349,11 @@ export class Nav {
       while (i > 0) {
         const p = (i - 1) >> 1;
         if (hd[p] <= hd[i]) break;
-        [hd[p], hd[i]] = [hd[i], hd[p]];
-        [hn[p], hn[i]] = [hn[i], hn[p]];
+        const td = hd[p], tn = hn[p];
+        hd[p] = hd[i];
+        hn[p] = hn[i];
+        hd[i] = td;
+        hn[i] = tn;
         i = p;
       }
     };
@@ -336,32 +370,42 @@ export class Nav {
           if (l < hd.length && hd[l] < hd[m]) m = l;
           if (r < hd.length && hd[r] < hd[m]) m = r;
           if (m === i) break;
-          [hd[m], hd[i]] = [hd[i], hd[m]];
-          [hn[m], hn[i]] = [hn[i], hn[m]];
+          const td = hd[m], tn = hn[m];
+          hd[m] = hd[i];
+          hn[m] = hn[i];
+          hd[i] = td;
+          hn[i] = tn;
           i = m;
         }
       }
       return v;
     };
+    // (52.0: one relax for the whole search, not a closure made at every node.)
+    let u = -1, du = 0;
+    let nu = this.nodes[0];
+    const relax = (v: number) => {
+      if (done[v]) return;
+      const nv = this.nodes[v];
+      const nd = du + nu.distanceTo(nv) * (this.cost ? this.cost(nu, nv) : 1) * (kind ? this.bias!(nu, nv, kind) : 1);
+      if (nd < dist[v]) {
+        dist[v] = nd;
+        next[v] = u;
+        push(nd, v);
+      }
+    };
     while (hd.length) {
-      const u = pop();
+      u = pop();
       if (done[u]) continue;
       done[u] = 1;
-      const du = dist[u];
-      const nu = this.nodes[u];
-      const relax = (v: number) => {
-        if (done[v]) return;
-        const nv = this.nodes[v];
-        const nd = du + nu.distanceTo(nv) * (this.cost ? this.cost(nu, nv) : 1) * (kind ? this.bias!(nu, nv, kind) : 1);
-        if (nd < dist[v]) {
-          dist[v] = nd;
-          next[v] = u;
-          push(nd, v);
-        }
-      };
-      for (const v of edges[u]) relax(v);
+      du = dist[u];
+      nu = this.nodes[u];
+      const eu = edges[u];
+      for (let e = 0; e < eu.length; e++) relax(eu[e]);
       // The field is searched backwards from the goal: a drop v → u is taken from v, so it relaxes v.
-      if (vault) for (const v of this.dropsIn[u]) relax(v);
+      if (vault) {
+        const di = this.dropsIn[u];
+        for (let e = 0; e < di.length; e++) relax(di[e]);
+      }
     }
     const f = { dist, next };
     memo.set(key, f);
@@ -379,24 +423,34 @@ export class Nav {
     const b = this.nearestVisible(to);
     if (b < 0) return [];
     const { dist, next } = this.toward(b, vault, opts.bias ?? null);
-    const cand: { i: number; s: number; d: number }[] = [];
-    for (let i = 0; i < this.nodes.length; i++) {
+    // 52.0: the entries ranked in reused typed arrays (was an object a node every route), the same order.
+    const N = this.nodes.length;
+    if (this.rtS.length !== N) {
+      this.rtS = new Float64Array(N);
+      this.rtD = new Float64Array(N);
+      this.rtO = new Int32Array(N);
+    }
+    const sc = this.rtS, dd = this.rtD;
+    let m = 0;
+    for (let i = 0; i < N; i++) {
       if (dist[i] === Infinity) continue;
       const n = this.nodes[i];
-      const dy = n.y - from.y;
-      const d = Math.sqrt((n.x - from.x) ** 2 + (n.z - from.z) ** 2 + dy * dy * 9);
-      cand.push({ i, s: d + dist[i], d });
+      const dx = n.x - from.x, dz = n.z - from.z, dy = n.y - from.y;
+      const d = Math.sqrt(dx * dx + dz * dz + dy * dy * 9);
+      sc[i] = d + dist[i];
+      dd[i] = d;
+      this.rtO[m++] = i;
     }
-    cand.sort((x, y) => x.s - y.s);
+    const cand = this.rtO.subarray(0, m).sort((x, y) => sc[x] - sc[y] || x - y);
     // 7.0: a caller may cap the entry search (rays); the best few entries are almost always it.
     const tries = opts.tries ?? Infinity;
     const onStair = this.onClimb(from);
-    const entry = (c: { i: number }) => {
-      const n = this.nodes[c.i];
+    const entry = (i: number) => {
+      const n = this.nodes[i];
       // 19.0: a stair is entered at its foot or its top (level with the walker), never in its middle
       // from beside it (the corridor rays clear the steps' edge; the body walks into its side), unless
       // the walker is on the stair already.
-      if (this.climb.has(c.i) && Math.abs(n.y - from.y) > 0.35 && !onStair) return false;
+      if (this.climb.has(i) && Math.abs(n.y - from.y) > 0.35 && !onStair) return false;
       return (this.clear(from, n) || (vault && from.distanceTo(n) < 14 && this.clearVault(from, n))) && this.walkable(from, n);
     };
     const walk = (i: number) => {
@@ -404,17 +458,17 @@ export class Nav {
       for (let v = i; v >= 0 && out.length < 200; v = next[v]) out.push(v);
       return out;
     };
-    for (let k = 0; k < cand.length && k < tries; k++) if (entry(cand[k])) return walk(cand[k].i);
+    for (let k = 0; k < cand.length && k < tries; k++) if (entry(cand[k])) return walk(cand[k]);
     // 33.0: the best-ranked entries all failed (walled off from the walker: a ravine floor under its rim,
     // ranked by the short way on over the wall). The nodes nearest the walker, by plain distance, are
     // the ones it can actually walk to: the best of the first few that are clear.
     if (cand.length > tries) {
-      const near = cand.slice().sort((a, b) => a.d - b.d).slice(0, NEAREST_TRIES);
-      let best: { i: number; s: number } | null = null;
-      for (const c of near) if ((!best || c.s < best.s) && entry(c)) best = c;
-      if (best) {
+      const near = Array.from(cand).sort((a, b) => dd[a] - dd[b] || sc[a] - sc[b] || a - b).slice(0, NEAREST_TRIES);
+      let best = -1;
+      for (const c of near) if ((best < 0 || sc[c] < sc[best]) && entry(c)) best = c;
+      if (best >= 0) {
         this.stats.nearestEntries++;
-        return walk(best.i);
+        return walk(best);
       }
     }
     return [];

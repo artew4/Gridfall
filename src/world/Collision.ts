@@ -457,12 +457,16 @@ export class CollisionWorld {
   /**
    * First crossing of a ray into the terrain within `maxDist` (or Infinity): marched in 0.75 m steps
    * from where the ray first dips below the terrain's highest point, then refined by bisection.
-   * Rays starting under the surface ignore it (nothing is meant to be down there).
+   * Rays starting under the surface ignore it (nothing is meant to be down there). 52.0: a step over
+   * its cell's bound (TerrainBound) needs no height: an 80 m sight line over the dunes sampled the
+   * Desert's full height function a hundred times (a third of a match's allocations); now only where
+   * it comes near the ground. The same crossings.
    */
   private rayTerrain(ox: number, oy: number, oz: number, dir: THREE.Vector3, maxDist: number): number {
     const t = this.terrain!;
-    const above = (d: number) => oy + dir.y * d - t.height(ox + dir.x * d, oz + dir.z * d);
-    if (above(0) < 0) return Infinity;
+    if (this.bound?.t !== t) this.bound = new TerrainBound(t);
+    const B = this.bound;
+    if (oy - t.height(ox, oz) < 0) return Infinity;
     let s0 = 0;
     if (oy > t.maxHeight) {
       if (dir.y >= -1e-6) return Infinity;
@@ -473,11 +477,12 @@ export class CollisionWorld {
     let prev = s0;
     for (let d = s0 + STEP; ; d += STEP) {
       const cur = Math.min(d, maxDist);
-      if (above(cur) < 0) {
+      const x = ox + dir.x * cur, z = oz + dir.z * cur, y = oy + dir.y * cur;
+      if (y <= B.max(x, z) && y - t.height(x, z) < 0) {
         let lo = prev, hi = cur;
         for (let k = 0; k < 10; k++) {
           const mid = (lo + hi) / 2;
-          if (above(mid) < 0) hi = mid;
+          if (oy + dir.y * mid - t.height(ox + dir.x * mid, oz + dir.z * mid) < 0) hi = mid;
           else lo = mid;
         }
         return hi;
@@ -486,6 +491,7 @@ export class CollisionWorld {
       prev = cur;
     }
   }
+  private bound: TerrainBound | null = null;
 
   /** Surface normal of the terrain from central differences. */
   terrainNormal(x: number, z: number, out = new THREE.Vector3()) {
@@ -502,5 +508,35 @@ export class CollisionWorld {
     if (len < 1e-4) return true;
     d.divideScalar(len);
     return this.raycast(a, d, len - 0.05, this._hit) === null;
+  }
+}
+
+/**
+ * 52.0: an upper bound of a terrain's height per 1 m cell: the highest of its four corners plus
+ * `MARGIN` (the terrains' slopes stay under 22°, 0.4 a metre, so nothing inside a cell rises more than
+ * 0.3 m over its corners; cuts like the trenches only go down). Built lazily, 16 × 16 cells at a time,
+ * where rays pass.
+ */
+class TerrainBound {
+  private static readonly MARGIN = 0.6;
+  private tiles = new Map<number, Float32Array>();
+  constructor(readonly t: Terrain) {}
+
+  max(x: number, z: number) {
+    const cx = Math.floor(x), cz = Math.floor(z);
+    const tx = cx >> 4, tz = cz >> 4;
+    const key = (tx + 4096) * 8192 + (tz + 4096);
+    const a = this.tiles.get(key) ?? this.build(tx, tz, key);
+    return a[((cz & 15) << 4) | (cx & 15)];
+  }
+
+  private build(tx: number, tz: number, key: number) {
+    const s = new Float32Array(17 * 17);
+    for (let j = 0; j <= 16; j++) for (let i = 0; i <= 16; i++) s[j * 17 + i] = this.t.height(tx * 16 + i, tz * 16 + j);
+    const a = new Float32Array(256);
+    for (let j = 0; j < 16; j++)
+      for (let i = 0; i < 16; i++) a[j * 16 + i] = Math.max(s[j * 17 + i], s[j * 17 + i + 1], s[(j + 1) * 17 + i], s[(j + 1) * 17 + i + 1]) + TerrainBound.MARGIN;
+    this.tiles.set(key, a);
+    return a;
   }
 }

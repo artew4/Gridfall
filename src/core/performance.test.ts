@@ -37,7 +37,8 @@ describe('frame pacing', () => {
   });
 
   it('menus draw less, a paused game not at all', () => {
-    expect(effectiveCap(120, 'title', true)).toBe(30);
+    expect(effectiveCap(120, 'title', true)).toBe(60);
+    expect(effectiveCap(30, 'title', true)).toBe(30);
     expect(effectiveCap(60, 'title', false)).toBe(10);
     expect(effectiveCap(60, 'paused', true)).toBe(0);
     expect(effectiveCap(90, 'play', true)).toBe(90);

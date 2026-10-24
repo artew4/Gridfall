@@ -934,3 +934,37 @@ html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
 .tdm-alarm.theirs b { color: var(--red); animation: tdmPulse 0.9s ease-in-out infinite; }
 .tdm-compass .front-mark.alert { background: rgba(255, 60, 60, 0.28); color: #ffd0c8; box-shadow: inset 0 0 0 1px var(--red); animation: tdmPulse 0.8s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .tdm-alarm.theirs b, .tdm-compass .front-mark.alert, .tdm-score .front.losing span, .tdm-score .front.losing .flag { animation: none; } }
+
+/*
+  52.0, the maps screen: the picked map's picture over the whole screen (two layers cross-fading), a
+  dark panel on the left with the modes, a grid of the maps (their pictures) and PLAY at its foot, the
+  map's name big on the right over the picture. Nothing 3D draws behind it.
+*/
+.gm-maps .gm-bg { position: fixed; inset: 0; z-index: 0; background: #04060c; }
+.gm-maps .gm-bg i { position: absolute; inset: -2%; background-size: cover; background-position: center; opacity: 0; transform: scale(1.04); transition: opacity 0.45s ease-out, transform 6s ease-out; }
+.gm-maps .gm-bg i.on { opacity: 1; transform: scale(1); }
+.gm-maps .gm-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(3, 5, 10, 0.92) 0%, rgba(3, 5, 10, 0.8) 30%, rgba(3, 5, 10, 0.2) 58%, rgba(3, 5, 10, 0.05) 75%, rgba(3, 5, 10, 0.45) 100%), linear-gradient(0deg, rgba(3, 5, 10, 0.7) 0%, rgba(3, 5, 10, 0) 30%); }
+.gm-maps .gm-side { position: absolute; z-index: 1; left: 0; top: 0; bottom: 0; width: min(46rem, 44vw); display: flex; flex-direction: column; gap: clamp(1.2rem, 2.4vh, 2rem); padding: 5.5vh 2.6vw 5vh 3.6vw; box-sizing: border-box; }
+#title .gm-maps .gm-bar { position: static; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 2.4rem; }
+#title .gm-maps .gm-tab { font-size: clamp(1.05rem, 1.35vw, 1.55rem); }
+#title .gm-maps .gm-grid { position: static; flex: 1; min-height: 0; height: auto; display: grid; grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: auto; grid-auto-columns: auto; gap: 0.75rem; align-content: start; overflow-y: auto; margin: 0; padding: 0.4rem 0.4rem 0.4rem 0; }
+#title .gm-maps .gm-tile { height: auto; aspect-ratio: 16 / 9; transform: none; }
+#title .gm-maps .gm-tile:hover { transform: translateY(-0.15rem); }
+#title .gm-maps .gm-tile.on { transform: none; }
+#title .gm-maps .gm-tile b { font-size: clamp(0.85rem, 1.05vw, 1.2rem); }
+.mc-art .mc-shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+#title .gm-maps .gm-go { position: relative; right: auto; bottom: auto; width: 100%; height: clamp(5.4rem, 11vh, 7.5rem); flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; font-size: clamp(2.2rem, 3.4vw, 3.6rem); overflow: hidden; }
+/* A shine sweeping across PLAY now and then (transform only: nothing repaints). */
+#title .gm-maps .gm-go::before { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.32) 50%, rgba(255, 255, 255, 0) 70%); transform: translateX(-110%); animation: gm-go-shine 3.2s ease-in-out infinite; pointer-events: none; }
+.gm-go small { font-family: var(--ui); font-weight: 700; font-size: clamp(0.8rem, 0.95vw, 1.05rem); letter-spacing: 0.32em; opacity: 0.9; }
+#title .gm-maps .gm-go:disabled::before { animation: none; opacity: 0; }
+#title .gm-maps .gm-go.busy span::after { display: none; }
+@keyframes gm-go-shine { 0%, 55% { transform: translateX(-110%); } 85%, 100% { transform: translateX(110%); } }
+.gm-maps .gm-hero { position: absolute; z-index: 1; left: calc(min(46rem, 44vw) + 3vw); right: 4vw; bottom: 7vh; text-align: right; pointer-events: none; }
+.gm-maps .gm-hero-name { font-size: clamp(2.4rem, 4.6vw, 6rem); overflow-wrap: anywhere; }
+@media (max-width: 1100px) { #title .gm-maps .gm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) {
+  .gm-maps .gm-side { width: 100vw; }
+  .gm-maps .gm-hero { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { #title .gm-maps .gm-go::before { animation: none; opacity: 0; } .gm-maps .gm-bg i { transition: opacity 0.2s; transform: none; } }

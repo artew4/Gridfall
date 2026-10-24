@@ -23,6 +23,7 @@ import { SafetyNet } from '../player/SafetyNet';
 import { Weapon } from '../player/Weapon';
 import { Projectiles } from '../enemies/Projectiles';
 import { Nav } from '../enemies/Nav';
+import { cacheGet, cachePut, fingerprint, hashLayout } from './NavCache';
 import { Waves } from '../enemies/Waves';
 import type { Enemy, EnemyCtx, EnemyHit } from '../enemies/Enemy';
 import { Hud } from '../ui/Hud';
@@ -124,6 +125,8 @@ export class Game {
   readonly loadingScreen = new LoadingScreen(document.body);
   /** 44.0: a load is building or warming up between frames: the loop draws and simulates nothing. */
   private building = false;
+  /** 52.0 (DEV, perfprobe): the last level load: its steps' time, the warm-up's, nav and cover (cached?). */
+  loadStats: { buildMs?: number; warmMs?: number; nav?: { ms: number; cached: boolean }; cover?: { ms: number; cached: boolean } } = {};
   /** 44.0 (DEV): the last warm-up (textures uploaded, programs compiled, ms). */
   lastWarmup: { textures: number; programs: number; ms: number } | null = null;
   tdmScreen: TdmScreen;
@@ -351,7 +354,7 @@ export class Game {
    * 44.0: the build in steps, each yielding how far it is (0..1), what comes next and how many seconds
    * that will take without a paint (the bar creeps on through it); `loadLevel` runs it at once.
    */
-  private *buildLevel(id: SettingId): Generator<{ f: number; what: string; creep?: number }> {
+  private *buildLevel(id: SettingId): Generator<{ f: number; what: string; creep?: number; wait?: Promise<unknown> }> {
     if (this.level) this.unloadLevel();
     yield { f: 0.08, what: 'BUILDING THE WORLD', creep: 2.5 };
     if (import.meta.env.DEV) StaticBuilder.registry = [];
@@ -411,8 +414,19 @@ export class Game {
     };
     // A round cracking past him counts as pressure too (the rushers' opening).
     this.projectiles.onWhiz = () => (this.waves.squad.player.pressureT = this.playerUnit.pressureT = this.elapsed);
-    yield { f: 0.6, what: 'NAVIGATION', creep: 0.6 };
-    this.nav = new Nav(this.col, d.nav);
+    // 52.0: the graph's links (and the vault links) from the cache when this geometry was built before
+    // (NavCache: a shown load awaits the lookup; `loadLevel` doesn't, and computes them).
+    const navKey = `nav:${id}`;
+    const navFp = fingerprint(this.col, (h) => hashLayout(h, d.nav.nodes, [...d.nav.links, ...(d.nav.drops ?? [])], [d.nav.slope ?? 0, d.nav.faces ? 1 : 0]));
+    const got: { nav?: { edges: number[][]; vaultEdges?: number[][] | null } | null; cover?: number[] | null } = {};
+    yield { f: 0.6, what: 'NAVIGATION', creep: 0.6, wait: cacheGet<{ edges: number[][]; vaultEdges?: number[][] | null }>(navKey, navFp).then((v) => (got.nav = v)) };
+    const navT = performance.now();
+    this.nav = new Nav(this.col, d.nav, got.nav ?? undefined);
+    this.loadStats.nav = { ms: Math.round(performance.now() - navT), cached: !!got.nav };
+    const nav = this.nav;
+    if (!got.nav) cachePut(navKey, navFp, { edges: nav.edges, vaultEdges: null });
+    // The vault links come at a match's start (Tdm): stored with the links once built.
+    nav.onVaultBuilt = (ve) => cachePut(navKey, navFp, { edges: nav.edges, vaultEdges: ve });
 
     // Only spawn on open ground that the nav graph can reach: never inside walls or off-map.
     this.waves.spawns = d.spawns.filter((p) => {
@@ -444,8 +458,24 @@ export class Game {
     yield { f: 0.7, what: 'COVER AND LANES', creep: 0.8 };
     level.attach();
     // Authored spots plus spots round every waist-high solid (dynamic cover needs all sides), once
-    // the level's whole collision world exists.
-    this.ctx.coverPoints = buildCoverSpots(this.col, this.nav, d.coverPoints, d.bounds);
+    // the level's whole collision world exists. 52.0: from the cache when this geometry had them.
+    const coverKey = `cover:${id}`;
+    const coverFp = fingerprint(this.col, (h) => {
+      hashLayout(h, this.nav.nodes, [], [d.bounds.min.x, d.bounds.min.y, d.bounds.max.x, d.bounds.max.y]);
+      hashLayout(h, d.coverPoints, []);
+    });
+    yield { f: 0.75, what: 'COVER AND LANES', creep: 0.5, wait: cacheGet<number[]>(coverKey, coverFp).then((v) => (got.cover = v)) };
+    const coverT = performance.now();
+    if (got.cover) {
+      const c = got.cover;
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i + 2 < c.length; i += 3) pts.push(new THREE.Vector3(c[i], c[i + 1], c[i + 2]));
+      this.ctx.coverPoints = pts;
+    } else {
+      this.ctx.coverPoints = buildCoverSpots(this.col, this.nav, d.coverPoints, d.bounds);
+      cachePut(coverKey, coverFp, this.ctx.coverPoints.flatMap((p) => [p.x, p.y, p.z]));
+    }
+    this.loadStats.cover = { ms: Math.round(performance.now() - coverT), cached: !!got.cover };
     this.rules = this.arcade;
 
     document.title = level.info.windowTitle;
@@ -480,11 +510,16 @@ export class Game {
     this.building = true;
     const span = (to - from) * 0.75;
     try {
+      const t0 = performance.now();
       for (const p of this.buildLevel(id)) {
         L.set(from + span * p.f, p.what, p.creep);
+        if (p.wait) await p.wait;
         await paint();
       }
+      this.loadStats.buildMs = Math.round(performance.now() - t0);
+      const tw = performance.now();
       await this.warm(from + span, to);
+      this.loadStats.warmMs = Math.round(performance.now() - tw);
     } finally {
       this.building = false;
       this.freshClock = true;
@@ -499,6 +534,8 @@ export class Game {
     const what = { textures: 'TEXTURES', shaders: 'SHADERS', scene: 'WARMING UP' } as const;
     const was = this.building;
     this.building = true;
+    singlePass(this.scene);
+    singlePass(this.weaponScene);
     try {
       this.lastWarmup = await warmUp(
         this.renderer.renderer,
@@ -542,21 +579,6 @@ export class Game {
     this.level.startAudio();
   }
 
-  /** Menu: pick a setting (builds it behind the title, keeps the choice). */
-  private async selectSetting(id: SettingId) {
-    if (this.loading || id === this.setting || !LEVELS[id]) return;
-    this.loading = true;
-    this.hud.selectLevel(levelEntry(id).info, true);
-    // 44.0: built and warmed up behind the loading screen.
-    try {
-      await this.loadLevelShown(id);
-    } finally {
-      this.loading = false;
-    }
-    this.hud.selectLevel(this.level.info, false);
-    this.rememberSetting(id);
-  }
-
   private rememberSetting(id: SettingId) {
     try {
       localStorage.setItem(SETTING_KEY, id);
@@ -571,8 +593,26 @@ export class Game {
     this.hud.renderMenu(this.menuState);
     // Leaving the root for the maps destroys the stage before the map (maybe a new one) is built.
     this.syncStage();
-    const want = this.menuState.map;
-    if (this.menuState.screen === 'maps' && want && want !== this.setting) void this.selectSetting(want);
+    // (52.0: a pick builds nothing: the screen shows the map's picture, PLAY builds it.)
+  }
+
+  /**
+   * 52.0, PLAY: the picked map built now if it isn't the one loaded (behind the loading screen: 85%
+   * the map, the rest the match), then into the match as DEPLOY always went.
+   */
+  private async deployMap(id: SettingId) {
+    if (id === this.setting) return this.deploy();
+    this.loading = true;
+    const info = levelEntry(id).info;
+    this.loadingScreen.show(info.name, info.jp);
+    try {
+      await this.loadLevelShown(id, 0, false, 0.85);
+    } finally {
+      this.loading = false;
+    }
+    this.rememberSetting(id);
+    this.hud.selectLevel(this.level.info, false);
+    await this.deploy(0.85);
   }
 
   // ------------------------------------------------------------------ loadout (13.0)
@@ -693,11 +733,11 @@ export class Game {
       if (act === 'back') return this.menuEvent({ type: 'back' });
       if (act !== 'deploy' || this.loading) return;
       const st = this.menuState;
-      if (!st.mode || st.map !== this.setting || !this.level.info.modes.includes(st.mode)) return;
+      if (!st.mode || !st.map || !levelEntry(st.map).info.modes.includes(st.mode)) return;
       this.mode = st.mode;
       this.hud.show(this.hud.title, false);
       this.input.requestLock();
-      void this.deploy();
+      void this.deployMap(st.map);
     });
     // 16.0: a tick when the pointer enters a button or card (once per element), a glitch on a screen change.
     let hovered: Element | null = null;
@@ -1185,6 +1225,13 @@ export class Game {
     }
 
     if (this.ready) this.updateLoadout();
+    // 52.0: the maps screen covers the screen with the picked map's picture: nothing 3D runs or draws.
+    if (this.state === 'title' && this.menuState.screen === 'maps' && !this.loading && !this.building) {
+      this.updateMusic(dt);
+      this.hud.update(rawDt);
+      input.endFrame();
+      return;
+    }
     // The level is not drawn behind the menu's stage: it doesn't run either.
     if (!paused && !this.stage) this.updateWorld(dt, rawDt);
     this.updateMusic(dt);
@@ -1471,4 +1518,19 @@ export class Game {
       ...this.level.debug?.(),
     };
   }
+}
+
+/**
+ * 52.0: every transparent double-sided material in `root` drawn in one pass. three.js draws such a
+ * material twice (back faces, then front) and marks it changed for each (`needsUpdate`), every frame:
+ * its program looked up again, its parameters rebuilt (the spawn zones' rings, the objectives' beacons,
+ * the halos: 12 materials, a fifth of a match's allocations). They are additive glows and see-through
+ * panels: the order of their two sides doesn't show.
+ */
+function singlePass(root: THREE.Object3D) {
+  root.traverse((o) => {
+    const m = (o as THREE.Mesh).material;
+    if (!m) return;
+    for (const x of Array.isArray(m) ? m : [m]) if (x.transparent && x.side === THREE.DoubleSide && !x.forceSinglePass) x.forceSinglePass = true;
+  });
 }

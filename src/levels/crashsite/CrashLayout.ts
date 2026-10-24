@@ -111,10 +111,12 @@ export function tunnelRects(): (Rect & { kind: 'hub' | 'run' | 'pit' })[] {
   return out;
 }
 const TR = tunnelRects();
+/** 52.0: the box round every tunnel space (its distance is a floor under the distance to any of them). */
+const TRB: Rect = { x0: Math.min(...TR.map((r) => r.x0)), x1: Math.max(...TR.map((r) => r.x1)), z0: Math.min(...TR.map((r) => r.z0)), z1: Math.max(...TR.map((r) => r.z1)) };
 /** Signed distance to a rect (negative inside: the distance to its nearest edge). */
 function rectDist(x: number, z: number, r: Rect) {
   const dx = Math.max(r.x0 - x, 0, x - r.x1), dz = Math.max(r.z0 - z, 0, z - r.z1);
-  if (dx > 0 || dz > 0) return Math.hypot(dx, dz);
+  if (dx > 0 || dz > 0) return Math.sqrt(dx * dx + dz * dz);
   return -Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z);
 }
 /** The pit's floor: its stair's slope (5 cm under the steps), level with the ground at its head. */
@@ -122,8 +124,14 @@ export function pitFloor(x: number) {
   const P = TUNNEL.pit;
   return TUNNEL.floor * THREE.MathUtils.clamp((x - P.x0) / (P.x1 - P.x0), 0, 1) - 0.05;
 }
-/** Distance to the nearest tunnel space (negative inside one). */
-export function tunnelDist(x: number, z: number) {
+/**
+ * Distance to the nearest tunnel space (negative inside one). 52.0: `far`, the distance past which the
+ * caller doesn't care how far: a point that far from the tunnels' box gets the box's distance (a floor
+ * under the true one) without the 11 spaces (the terrain is sampled a million times building the graph).
+ */
+export function tunnelDist(x: number, z: number, far = Infinity) {
+  const b = rectDist(x, z, TRB);
+  if (b >= far) return b;
   let d = Infinity;
   for (const r of TR) d = Math.min(d, rectDist(x, z, r));
   return d;
@@ -249,7 +257,7 @@ export function ravineFloor(z: number) {
  */
 export function crashHeight(x: number, z: number): number {
   const s = crashSurface(x, z);
-  return tunnelDist(x, z) < TUNNEL.wall ? tunnelCarve(x, z, s) : s;
+  return tunnelDist(x, z, TUNNEL.wall) < TUNNEL.wall ? tunnelCarve(x, z, s) : s;
 }
 
 /**
@@ -272,7 +280,7 @@ export function crashSurface(x: number, z: number): number {
   // Hummocks, faded out where the arena needs flat ground.
   const yard = Math.abs(z) > COURT - 2 ? smoothstep(COURT + 2, COURT - 2, Math.abs(z)) : 1;
   // 19.0: flat round the centre (33.0: the outpost and its stairs stand on y = 0), and round the tunnels.
-  const wreck = smoothstep(22, 28, Math.hypot(x / 1.3, z)) * smoothstep(TUNNEL.wall + 0.3, TUNNEL.wall + 4, tunnelDist(x, z));
+  const wreck = smoothstep(22, 28, Math.hypot(x / 1.3, z)) * smoothstep(TUNNEL.wall + 0.3, TUNNEL.wall + 4, tunnelDist(x, z, TUNNEL.wall + 4));
   const ridge = smoothstep(-31, -26, x);
   const bank = x > RAVINE.x1 ? smoothstep(RAVINE.x1 + RAVINE.rim, RAVINE.x1 + RAVINE.rim + 4, x) : x < RAVINE.x0 ? smoothstep(RAVINE.x0 - RAVINE.rim, RAVINE.x0 - RAVINE.rim - 4, x) : 0;
   // |z|: mirror-symmetric, like everything else on the map.

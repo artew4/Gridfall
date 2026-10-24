@@ -1,9 +1,9 @@
-import type { LevelInfo, SettingId } from '../levels/Level';
+import type { LevelInfo } from '../levels/Level';
 import { MENU_MODE, MODE_ORDER, canDeploy, mapsFor, type MenuState } from './MenuFlow';
 import { NAME_MAX } from '../gameplay/PlayerName';
 import { ARMORY, ARMORY_ORDER, type WeaponId } from '../entities/weapons/armory';
 import { nextMapsHtml } from './TdmHud';
-import { mapTileHtml, menuMapName } from './MapCard';
+import { mapPicture, mapTileHtml, menuMapName } from './MapCard';
 
 import { fl, flSpan, flWave, prewarmFlavor } from './Flavor';
 
@@ -52,7 +52,6 @@ export class Hud {
   nameInput!: HTMLInputElement;
   private levels: LevelInfo[] = [];
   private menuState: MenuState = { screen: 'root', mode: null, map: null };
-  private loaded: LevelInfo | null = null;
   private loadingLevel = true;
   banner = el('div', 'layer');
   title = el('div', 'layer screen');
@@ -115,16 +114,19 @@ export class Hud {
           </div>
         </div>
         <div class="mm-screen gm-maps hidden" data-screen="maps">
-          <div class="gm-bar">
-            <button class="gm-back" data-act="back"><i></i>BACK</button>
-            <div class="gm-tabs mm-modes"></div>
+          <div class="gm-bg" aria-hidden="true"><i></i><i></i></div>
+          <div class="gm-side">
+            <div class="gm-bar">
+              <button class="gm-back" data-act="back"><i></i>BACK</button>
+              <div class="gm-tabs mm-modes"></div>
+            </div>
+            <div class="gm-grid settings-row"></div>
+            <button class="gm-go" data-act="deploy"><span>PLAY</span><small class="gm-go-map"></small></button>
           </div>
           <div class="gm-hero">
             <div class="gm-hero-name"></div>
             <div class="gm-hero-size"></div>
           </div>
-          <div class="gm-strip settings-row"></div>
-          <button class="gm-go" data-act="deploy"><span>PLAY</span></button>
         </div>
       </div>
       <div class="controlsPanel gm-controls hidden">
@@ -174,12 +176,8 @@ export class Hud {
       .join('');
   }
 
-  /**
-   * The level built behind the menu: its lines under the title. While `loading`, DEPLOY waits for it
-   * to finish building.
-   */
-  selectLevel(l: LevelInfo, loading: boolean) {
-    this.loaded = l;
+  /** The level being built (52.0: by PLAY, or the boot's): while `loading`, PLAY waits. */
+  selectLevel(_l: LevelInfo, loading: boolean) {
     this.loadingLevel = loading;
     this.renderMenu(this.menuState);
   }
@@ -207,18 +205,53 @@ export class Hud {
       // 45.0: tiles: the painted art and the name, nothing else.
       row.innerHTML = maps.map((l) => mapTileHtml(l)).join('');
     }
-    // The picked map, big, over the live map behind the menu.
+    // The picked map, big, over its picture (52.0: a still, not the live map: a pick builds nothing).
     const pick = this.levels.find((l) => l.id === st.map);
     if (pick) {
       t.querySelector('.gm-hero-name')!.textContent = menuMapName(pick);
       t.querySelector('.gm-hero-size')!.textContent = st.mode === 'tdm' ? `${pick.teamSize ?? 5} VS ${pick.teamSize ?? 5}` : st.mode === 'arcade' ? 'SURVIVAL' : 'STORY';
+      t.querySelector('.gm-go-map')!.textContent = menuMapName(pick);
+      this.showMapPicture(pick.id);
     }
     for (const b of Array.from(row.querySelectorAll<HTMLElement>('[data-setting]'))) b.classList.toggle('on', b.dataset.setting === st.map);
-    const loaded = (this.loaded?.id ?? 'tokyo') as SettingId;
-    const busy = this.loadingLevel || st.map !== loaded;
     const deploy = t.querySelector<HTMLButtonElement>('[data-act="deploy"]')!;
-    deploy.disabled = !canDeploy(st, this.levels, loaded, this.loadingLevel);
-    deploy.classList.toggle('busy', busy);
+    deploy.disabled = !canDeploy(st, this.levels, this.loadingLevel);
+    deploy.classList.toggle('busy', this.loadingLevel);
+  }
+
+  /**
+   * 52.0: the maps screen's background: the picked map's picture (public/maps, rendered by
+   * scripts/mapshots.mjs), cross-faded over the last one: two layers, the new one decoded first.
+   */
+  private picShown = '';
+  private picLayer = 0;
+  private picsLoaded = false;
+  private showMapPicture(id: string) {
+    if (id === this.picShown) return;
+    this.picShown = id;
+    const layers = Array.from(this.title.querySelectorAll<HTMLElement>('.gm-bg i'));
+    if (!this.picsLoaded) {
+      // Every map's picture fetched and decoded now (the screen opened): a pick swaps at once.
+      this.picsLoaded = true;
+      for (const l of this.levels) {
+        const im = new Image();
+        im.decoding = 'async';
+        im.src = mapPicture(l.id);
+      }
+    }
+    const next = layers[this.picLayer ^ 1], cur = layers[this.picLayer];
+    const url = mapPicture(id);
+    const swap = () => {
+      if (this.picShown !== id) return;
+      next.style.backgroundImage = `url("${url}")`;
+      next.classList.add('on');
+      cur.classList.remove('on');
+      this.picLayer ^= 1;
+    };
+    const im = new Image();
+    im.src = url;
+    if (im.decode) im.decode().then(swap, swap);
+    else swap();
   }
 
   /** 16.0: the screen change's glitch (the stylesheet's `glitching` keyframes) and its sound. */
