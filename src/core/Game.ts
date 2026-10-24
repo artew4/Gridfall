@@ -38,6 +38,8 @@ import { ArcadeRules } from '../levels/Arcade';
 import { TdmRules } from '../levels/Tdm';
 import { TdmHud, TdmScreen, type TdmLine } from '../ui/TdmHud';
 import { Countdown } from '../ui/Countdown';
+import { LoadingScreen } from '../ui/LoadingScreen';
+import { warmUp } from './Warmup';
 import type { TeamId } from '../combat/Team';
 import { TokyoLevel } from '../levels/tokyo/TokyoLevel';
 import { BarkView } from '../ui/BarkView';
@@ -65,6 +67,8 @@ export type { Interactable };
 const SETTING_KEY = 'gridfall.setting';
 const OLD_SETTING_KEY = 'neonrain.setting'; // before 10.0
 const _mantleXZ = new THREE.Vector2();
+/** 44.0: the next frame painted (the loading screen's step shows before the next synchronous one). */
+const paint = () => new Promise<void>((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 /** The menu's last chosen setting (per browser; separate from the audio/graphics settings). */
 function savedSetting(): SettingId {
@@ -116,6 +120,12 @@ export class Game {
   tdmHud: TdmHud;
   /** 36.0: TDM's pre-match countdown (3, 2, 1, START!). */
   countdown: Countdown;
+  /** 44.0: the loading screen (boot, a map change, a deploy's warm-up). */
+  readonly loadingScreen = new LoadingScreen(document.body);
+  /** 44.0: a load is building or warming up between frames: the loop draws and simulates nothing. */
+  private building = false;
+  /** 44.0 (DEV): the last warm-up (textures uploaded, programs compiled, ms). */
+  lastWarmup: { textures: number; programs: number; ms: number } | null = null;
   tdmScreen: TdmScreen;
   /** 13.0: the weapon he carries and the one he asked for next (every mode but the story), and its picker. */
   loadout = new Loadout();
@@ -230,10 +240,13 @@ export class Game {
     this.hud.nameInput.value = this.playerName;
     const first = savedSetting();
     this.hud.selectLevel(levelEntry(first).info, true);
-    // Let the title paint before the heavy procedural build.
-    await new Promise((r) => setTimeout(r, 30));
+    // 44.0: the boot loads behind the loading screen (the level built, then warmed up).
+    const info = levelEntry(first).info;
+    this.loadingScreen.show('GRIDFALL', info.name);
+    this.loadingScreen.set(0.03, 'ENGINE');
+    await paint();
     this.buildEngine();
-    this.loadLevel(first);
+    await this.loadLevelShown(first, 0.05);
     this.ready = true;
     this.applyGraphics();
     this.hud.setReady();
@@ -287,7 +300,7 @@ export class Game {
     if (this.lightPool && this.lightPool.budget !== p.lights) {
       this.lightPool.dispose();
       this.lightPool = new LightPool(this.scene, p.lights);
-      r.renderer.compile(this.scene, this.camera);
+      r.compile(this.scene, this.camera);
     }
     if (this.level instanceof TokyoLevel) for (const g of this.level.signs) if (g.light) g.light.visible = p.signLights;
     this.perf.lowT = this.perf.highT = 0;
@@ -301,7 +314,7 @@ export class Game {
   setPipeline(p: Pipeline) {
     this.renderer.setPipeline(p);
     this.level.setVisual?.(p !== 'v37');
-    this.renderer.renderer.compile(this.scene, this.camera);
+    this.renderer.compile(this.scene, this.camera);
   }
 
   // ------------------------------------------------------------------ engine and levels
@@ -328,7 +341,19 @@ export class Game {
    * then the level's own systems. Frees the previous level first.
    */
   loadLevel(id: SettingId) {
+    for (const _ of this.buildLevel(id));
+    // Compile everything up front so the first shot doesn't hitch.
+    this.renderer.compile(this.scene, this.camera);
+    this.levelUp();
+  }
+
+  /**
+   * 44.0: the build in steps, each yielding how far it is (0..1), what comes next and how many seconds
+   * that will take without a paint (the bar creeps on through it); `loadLevel` runs it at once.
+   */
+  private *buildLevel(id: SettingId): Generator<{ f: number; what: string; creep?: number }> {
     if (this.level) this.unloadLevel();
+    yield { f: 0.08, what: 'BUILDING THE WORLD', creep: 2.5 };
     if (import.meta.env.DEV) StaticBuilder.registry = [];
     this.scene = new THREE.Scene();
     this.scene.fog = this.fog;
@@ -386,6 +411,7 @@ export class Game {
     };
     // A round cracking past him counts as pressure too (the rushers' opening).
     this.projectiles.onWhiz = () => (this.waves.squad.player.pressureT = this.playerUnit.pressureT = this.elapsed);
+    yield { f: 0.6, what: 'NAVIGATION', creep: 0.6 };
     this.nav = new Nav(this.col, d.nav);
 
     // Only spawn on open ground that the nav graph can reach: never inside walls or off-map.
@@ -415,6 +441,7 @@ export class Game {
       damagePlayer: (dmg, f) => this.damagePlayer(dmg, f),
       fog: this.fog,
     };
+    yield { f: 0.7, what: 'COVER AND LANES', creep: 0.8 };
     level.attach();
     // Authored spots plus spots round every waist-high solid (dynamic cover needs all sides), once
     // the level's whole collision world exists.
@@ -428,12 +455,64 @@ export class Game {
     // 17.0: the level's point lights behind the preset's budget of real ones (before the compile).
     this.lightPool = new LightPool(s, PRESETS[this.settings.quality].lights);
     if (this.ready) this.applyGraphics();
-    // Compile everything up front so the first shot doesn't hitch.
-    this.renderer.renderer.compile(s, this.camera);
+    yield { f: 0.85, what: 'TEXTURES' };
+  }
+
+  /** The level is built (and compiled or warmed up): its sounds, the menu's stage back over it. */
+  private levelUp() {
     this.levelAudio = false;
     this.startLevelAudio();
     // A level built while the menu's stage is up (the boot, back to a menu): the stage stays on screen.
     if (this.stage) this.showStage();
+  }
+
+  /**
+   * 44.0: build `id` behind the loading screen (already shown, or shown now with the map's name), from
+   * `from` of the bar: the steps, then the warm-up (Warmup.ts). The loop is held throughout. `hide`:
+   * the screen goes when done (a deploy keeps it up for the match's warm-up).
+   */
+  private async loadLevelShown(id: SettingId, from = 0, hide = true, to = 1) {
+    const L = this.loadingScreen;
+    if (!L.active) {
+      const info = levelEntry(id).info;
+      L.show(info.name, info.jp);
+    }
+    this.building = true;
+    const span = (to - from) * 0.75;
+    try {
+      for (const p of this.buildLevel(id)) {
+        L.set(from + span * p.f, p.what, p.creep);
+        await paint();
+      }
+      await this.warm(from + span, to);
+    } finally {
+      this.building = false;
+      this.freshClock = true;
+    }
+    this.levelUp();
+    if (hide) await L.hide();
+  }
+
+  /** 44.0: warm the world and the viewmodel up (Warmup.ts), the bar from `from` to `to`. */
+  private async warm(from: number, to: number) {
+    const L = this.loadingScreen;
+    const what = { textures: 'TEXTURES', shaders: 'SHADERS', scene: 'WARMING UP' } as const;
+    const was = this.building;
+    this.building = true;
+    try {
+      this.lastWarmup = await warmUp(
+        this.renderer.renderer,
+        [
+          { scene: this.scene, camera: this.camera },
+          { scene: this.weaponScene, camera: this.weaponCamera },
+        ],
+        (f, w) => L.set(from + (to - from) * f, what[w]),
+        this.renderer.offscreen,
+      );
+    } finally {
+      this.building = was;
+      this.freshClock = true;
+    }
   }
 
   /** Frees the loaded level: its enemies, sounds, DOM, GPU resources. */
@@ -468,10 +547,9 @@ export class Game {
     if (this.loading || id === this.setting || !LEVELS[id]) return;
     this.loading = true;
     this.hud.selectLevel(levelEntry(id).info, true);
-    // Let the loading note paint before the synchronous build.
-    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 20)));
+    // 44.0: built and warmed up behind the loading screen.
     try {
-      this.loadLevel(id);
+      await this.loadLevelShown(id);
     } finally {
       this.loading = false;
     }
@@ -617,7 +695,7 @@ export class Game {
       this.mode = st.mode;
       this.hud.show(this.hud.title, false);
       this.input.requestLock();
-      this.startIntro();
+      void this.deploy();
     });
     // 16.0: a tick when the pointer enters a button or card (once per element), a glitch on a screen change.
     let hovered: Element | null = null;
@@ -734,7 +812,7 @@ export class Game {
     const g = this.renderer.grade.uniforms;
     g.uFlash.value = 0;
     g.uDamage.value = 0;
-    this.renderer.renderer.compile(st.scene, this.camera);
+    this.renderer.compile(st.scene, this.camera);
   }
 
   /**
@@ -1005,6 +1083,8 @@ export class Game {
 
   // ------------------------------------------------------------------ frame
   private frame() {
+    // 44.0: a load between its steps: nothing runs on a half-built level (the loading screen is up).
+    if (this.building) return;
     this.clock.update();
     // Time-based simulation: dt is the real time since the last drawn frame (so the frame cap never
     // changes game speed), clamped so a hitch can't tunnel anything through a wall.
@@ -1175,10 +1255,11 @@ export class Game {
     this.rules.toTitle();
     this.rules = this.arcade;
     this.renderer.grade.uniforms.uFade.value = 1;
-    // Let the note paint before the synchronous build.
-    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 20)));
+    // 44.0: the build and the match's warm-up behind one loading screen (85% the map, the rest the match).
+    const info = levelEntry(id).info;
+    this.loadingScreen.show(info.name, info.jp);
     try {
-      this.loadLevel(id);
+      await this.loadLevelShown(id, 0, false, 0.85);
     } finally {
       this.loading = false;
     }
@@ -1187,7 +1268,28 @@ export class Game {
     this.resetRun();
     this.tdmScreen.hide();
     this.input.requestLock();
-    this.startIntro();
+    await this.deploy(0.85);
+  }
+
+  /**
+   * 44.0: into the intro behind the loading screen: the match is dealt (its bots spawned, the player on
+   * his spot), then warmed up (their rigs, name tags, the effects), so the flight and the first
+   * minutes don't compile or upload anything. The intro is held at its start until then.
+   */
+  private async deploy(from = 0) {
+    const L = this.loadingScreen;
+    if (!L.active) L.show(this.level.info.name, this.level.info.jp);
+    L.set(from + (1 - from) * 0.15, 'DEPLOYING');
+    this.building = true;
+    try {
+      await paint();
+      this.startIntro();
+      await this.warm(from + (1 - from) * 0.2, 1);
+    } finally {
+      this.building = false;
+      this.freshClock = true;
+    }
+    await L.hide(250);
   }
 
   /** What a run leaves on the engine (shared by the menu and a map change). */
@@ -1271,10 +1373,9 @@ export class Game {
     g.uLetterbox.value = 0;
     g.uDamage.value = 0;
     g.uFlash.value = 0;
-    // Let the menu paint before the synchronous rebuild.
-    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 20)));
+    // 44.0: rebuilt and warmed up behind the loading screen.
     try {
-      this.loadLevel(this.setting);
+      await this.loadLevelShown(this.setting);
     } finally {
       this.loading = false;
     }

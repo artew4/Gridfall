@@ -1,5 +1,6 @@
 /*
   Headless Chrome over the DevTools protocol, for the DEV memory checks (leakcheck.mjs, stagecheck.mjs):
+  (44.0: GPU=1 renders on the machine's GPU, ANGLE Metal, instead of SwiftShader: real frame times.)
   a page of our own, `ev` (evaluate, awaiting promises), `gc` (a forced full GC, which the page itself
   cannot run, then the heap in MB) and `snapshot` (a parsed heap snapshot). Node 22+ (global WebSocket).
 */
@@ -12,7 +13,7 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function openChrome({ port = 9333, chrome = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'gridfall-cdp-'));
-  const proc = spawn(chrome, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--window-size=1280,800', '--autoplay-policy=no-user-gesture-required', 'about:blank'], { stdio: 'ignore' });
+  const proc = spawn(chrome, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, ...(process.env.GPU ? ['--use-angle=metal', '--ignore-gpu-blocklist'] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']), '--window-size=1280,800', '--autoplay-policy=no-user-gesture-required', 'about:blank'], { stdio: 'ignore' });
   const cleanup = () => {
     try { proc.kill(); } catch {}
     try { rmSync(dir, { recursive: true, force: true }); } catch {}

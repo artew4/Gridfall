@@ -810,3 +810,12 @@ html .map-grid.sm .map-card .mc-wm { font-size: 2rem !important; }
 .stamina.dry i { background: var(--red); }
 #hud.spectating .stamina { display: none; }
 
+
+/* ---------- 44.0: the loading screen (over everything; the bar is a transform: it creeps through a build) ---------- */
+.loading-screen { z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, #0a0816 0%, #000 78%); pointer-events: auto; cursor: progress; transition: opacity 0.45s ease; }
+.ls-title { font-family: var(--display); font-weight: 700; font-size: clamp(1.75rem, 4vw, 3rem); letter-spacing: 0.3em; padding-left: 0.3em; color: #f2fbff; text-shadow: 0 0 1.25rem rgba(255, 47, 208, 0.45), 0 0 3rem rgba(34, 232, 255, 0.3); text-align: center; }
+.ls-sub { margin-top: 0.5rem; min-height: 1rem; font-family: var(--jp); font-size: 0.8125rem; letter-spacing: 0.5em; color: rgba(255, 120, 200, 0.8); }
+.ls-track { position: relative; margin-top: 2.5rem; width: min(30rem, 72vw); height: 0.25rem; background: var(--cyan-faint); overflow: hidden; }
+.ls-track i { position: absolute; inset: 0; transform-origin: 0 50%; transform: scaleX(0); background: linear-gradient(90deg, var(--magenta), #19e6ff); box-shadow: 0 0 0.75rem rgba(34, 232, 255, 0.6); will-change: transform; }
+.ls-row { display: flex; justify-content: space-between; width: min(30rem, 72vw); margin-top: 0.75rem; font-size: 0.75rem; letter-spacing: 0.3em; color: var(--cyan-dim); }
+.ls-pct { font-family: var(--display); font-size: 1rem; letter-spacing: 0.15em; color: var(--cyan); }

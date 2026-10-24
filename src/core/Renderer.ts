@@ -214,6 +214,25 @@ export class Renderer {
     this.resize();
   }
 
+  /**
+   * 44.0: compile `scene`'s programs as they will be drawn: the composer draws the world into a target
+   * (no tone mapping, linear output), so a compile with the canvas bound built programs it never used
+   * (the RAW pipeline draws to the canvas).
+   */
+  compile(scene: THREE.Scene, camera: THREE.Camera) {
+    const r = this.renderer;
+    const prev = r.getRenderTarget();
+    if (this.pipeline !== 'raw') r.setRenderTarget((this.compileTarget ??= new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType })));
+    r.compile(scene, camera);
+    r.setRenderTarget(prev);
+  }
+  private compileTarget: THREE.WebGLRenderTarget | null = null;
+
+  /** 44.0: does the world draw into a target (the composer), not the canvas? */
+  get offscreen() {
+    return this.pipeline !== 'raw';
+  }
+
   /** A level switch draws a new scene. */
   setScene(scene: THREE.Scene) {
     this.scene = scene;
