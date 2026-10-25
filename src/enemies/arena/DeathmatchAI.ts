@@ -55,7 +55,7 @@ import type { ArenaRole } from './Roles';
 /** 37.1: how far a bot holding a high-ground post strafes from it (m: a bridge roof is 3 × 5 m). */
 const WATCH_LEASH = 1.2;
 
-export type ArenaState = 'emerge' | 'advance' | 'patrol' | 'hold' | 'hunt' | 'engage' | 'push' | 'break' | 'flank' | 'retreat' | 'stalk' | 'recover';
+export type ArenaState = 'emerge' | 'advance' | 'patrol' | 'hold' | 'hunt' | 'engage' | 'push' | 'break' | 'flank' | 'retreat' | 'stalk' | 'recover' | 'chase';
 
 /** 12.0: a bot's temperament (ARENA.persona). */
 export interface Persona {
@@ -257,6 +257,129 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   /** 54.0: it killed someone (Tdm): an anchor moves on from where it fired. */
   onKill(now: number) {
     this.killT = now;
+    this.hotUntil = now + ARENA.instinct.hotFor;
+  }
+
+  // ------------------------------------------------------------------ 55.0: the instincts (ARENA.instinct)
+  /** On the trail of (null: not on one): until when; where it was last seen, its run then, and when. */
+  chasing: Combatant | null = null;
+  private chaseUntil = 0;
+  private readonly chaseAt = new THREE.Vector3();
+  private readonly chaseVel = new THREE.Vector3();
+  private chaseSeenT = -Infinity;
+  /** At the trail's end with nothing in sight (it looks round there until it gives up). */
+  private trailDone = false;
+  /** Last roll for a victim (uid → time); the last one it hurt, to roll for at the next decide. */
+  private readonly chaseRolled = new Map<number, number>();
+  private chaseCand: Combatant | null = null;
+  /** A teammate's killer it means to pay back, until when. */
+  grudge: Combatant | null = null;
+  private grudgeUntil = 0;
+  /** The reload it rolled on (target uid, when); rushing one now. */
+  private punishFor = -1;
+  private punishT = -Infinity;
+  punishing = false;
+  /** Bolder after a kill until then (the hot hand). */
+  private hotUntil = -Infinity;
+  /** Quick reacquisitions since the last decide (for the stats). */
+  private reacqN = 0;
+
+  /** Its trail ends (`why`: ArenaStats.instinct.chaseEnd). */
+  endChase(A: ArenaCtx, why: keyof ArenaCtx['stats']['instinct']['chaseEnd']) {
+    if (!this.chasing) return;
+    A.stats.instinct.chaseEnd[why]++;
+    A.director.releaseChase(this.self.uid);
+    this.chasing = null;
+    if (this.state === 'chase') {
+      this.goal = null;
+      this.urgent = true;
+    }
+  }
+
+  /** A teammate `v` was killed by `by`: near enough, it may mean to pay that one back (ARENA.instinct.grudge). */
+  onMateDown(v: Combatant, by: Combatant, now: number, ctx: EnemyCtx) {
+    const I = ARENA.instinct, G = I.grudge, me = this.self, A = ctx.arena;
+    if (!I.on || !G.on || !A || !me.alive || me.kind !== 'gunner' || by.team === me.team || !by.alive || this.grudge?.alive) return;
+    if (Math.hypot(v.pos.x - me.pos.x, v.pos.z - me.pos.z) > G.r || Math.hypot(by.pos.x - me.pos.x, by.pos.z - me.pos.z) > G.reach) return;
+    if (Math.random() >= G.p * this.persona.aggro) return;
+    this.grudge = by;
+    this.grudgeUntil = now + G.time;
+    A.stats.instinct.grudges++;
+    // It saw where that came from.
+    A.director.sighting(by, now, 'callout');
+    this.urgent = true;
+    me.bark('payback', ctx);
+  }
+
+  /**
+   * Once a decide: a trail's end (the victim down, healed, home, lost; the chaser hurt; out of time),
+   * a roll for a new one on the last one it hurt, the grudge and the punish running out.
+   */
+  private instincts(ctx: EnemyCtx, A: ArenaCtx, now: number) {
+    const I = ARENA.instinct;
+    if (!I.on) return;
+    const me = this.self, dir = A.director, C = I.chase;
+    if (this.reacqN) {
+      A.stats.instinct.reacquired += this.reacqN;
+      this.reacqN = 0;
+    }
+    if (this.grudge && (!this.grudge.alive || now > this.grudgeUntil)) this.grudge = null;
+    if (this.punishing && (now >= this.pushUntil || this.state !== 'push')) this.punishing = false;
+    const V = this.chasing;
+    if (V) {
+      if (this.visible(V)) {
+        this.chaseAt.copy(V.pos);
+        this.chaseVel.copy(V.vel);
+        this.chaseSeenT = now;
+        this.trailDone = false;
+      }
+      const lost = now - this.chaseSeenT > C.lose && (this.trailDone || now - this.chaseSeenT > C.lose * 2.5);
+      const far = Math.hypot(this.chaseAt.x - me.pos.x, this.chaseAt.z - me.pos.z) > C.range;
+      const why = !V.alive ? 'other' : me.hpFrac < C.quitHp ? 'hurt' : V.hpFrac > C.healed ? 'healed' : dir.progress(this.chaseAt) > C.deep ? 'home' : lost || far ? 'lost' : now > this.chaseUntil ? 'time' : null;
+      if (why) this.endChase(A, why);
+    }
+    const V2 = this.chaseCand;
+    this.chaseCand = null;
+    if (!V2 || this.chasing || !C.on || me.kind !== 'gunner' || holding(dir) || this.watchAt || (ARENA.roles.on && this.role === 'anchor')) return;
+    if (!V2.alive || V2.hpFrac > C.hp || this.dealtTo(V2.uid, now) < C.dealt) return;
+    if (now - (this.chaseRolled.get(V2.uid) ?? -Infinity) < C.reroll) return;
+    this.chaseRolled.set(V2.uid, now);
+    const wolf = ARENA.roles.on && this.role === 'wolf';
+    const p = C.p * this.persona.aggro * (wolf ? C.wolf : 1) * (now < this.hotUntil ? C.hot : 1) * (me.hpFrac < C.selfHp ? C.selfMult : 1);
+    if (Math.random() >= p || !dir.claimChase(me.uid, V2.uid)) return;
+    this.chasing = V2;
+    this.chaseUntil = now + C.time;
+    this.chaseAt.copy(V2.pos);
+    this.chaseVel.copy(V2.vel);
+    this.chaseSeenT = now;
+    this.trailDone = false;
+    A.stats.instinct.chases++;
+    if (V2.isPlayer) A.stats.instinct.chaseOnPlayer++;
+    me.bark('chase', ctx);
+  }
+
+  /** The trail out of sight: where it was going (its last seen run, `lead` s on), the team's newer sightings first. */
+  private planChase(ctx: EnemyCtx, A: ArenaCtx) {
+    const V = this.chasing!;
+    const C = ARENA.instinct.chase;
+    if (this.visible(V)) {
+      this.goal = null;
+      return;
+    }
+    const c = A.director.contacts.get(V.uid);
+    if (c && c.seenT > this.chaseSeenT) {
+      this.chaseAt.copy(c.pos);
+      this.chaseVel.copy(c.vel);
+      this.chaseSeenT = c.seenT;
+      this.trailDone = false;
+      this.goal = null;
+    }
+    if (this.goal || this.trailDone) return;
+    const sp = Math.hypot(this.chaseVel.x, this.chaseVel.z);
+    const l = Math.min(C.leadMax, sp * C.lead);
+    _v.copy(this.chaseAt);
+    if (sp > 0.5) _v.set(this.chaseAt.x + (this.chaseVel.x / sp) * l, this.chaseAt.y, this.chaseAt.z + (this.chaseVel.z / sp) * l);
+    this.goal = this.snapGoal(ctx, _v, this.chaseAt.y) ?? this.chaseAt.clone();
   }
 
   constructor(readonly self: ArenaBody, persona?: Persona) {
@@ -283,13 +406,17 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   }
 
   // ------------------------------------------------------------------ events
-  onSight(h: Combatant, now: number, clarity = 1) {
+  onSight(h: Combatant, now: number, clarity = 1, was = -Infinity) {
     // 12.0: a new face in view is decided after its reaction time (7.0: on the same frame, which made
     // a squad turn as one). 34.0: slower for a figure the ground fog half hides (ARENA.fogReact).
     // 50.0: quicker to the human in form, slower to him struggling (ARENA.pressure).
     const lost = Math.min(1, Math.max(0, (1 - clarity) / (1 - ARENA_SEE)));
     const P = ARENA.pressure;
-    this.react(now, (1 + ARENA.fogReact * lost) * (h.isPlayer && P.on ? pressureScale(P.react) : 1));
+    // 55.0: one it lost a moment ago, back round the same corner: its gun was already there.
+    const R = ARENA.instinct.reacquire;
+    const back = ARENA.instinct.on && R.on && now - was < R.within && (h === this.target || h === this.chasing);
+    if (back) this.reacqN++;
+    this.react(now, (1 + ARENA.fogReact * lost) * (h.isPlayer && P.on ? pressureScale(P.react) : 1) * (back ? R.react : 1));
   }
 
   /** Hit by `by`: look at it now, maybe jump out of the line. */
@@ -298,7 +425,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // 42.0: an anchor or a wolf hit breaks off to recover (unless it is about to finish its target).
     if (this.mayRecover(ctx.time) && this.self.hpFrac < ARENA.roles.recoverBelow) {
       const T = this.target;
-      const finishing = !!T && T.alive && T.hpFrac <= ARENA.roles.finishHp && Math.hypot(T.pos.x - this.self.pos.x, T.pos.z - this.self.pos.z) <= this.self.arm.pushRange;
+      const finishing = (!!T && T.alive && T.hpFrac <= ARENA.roles.finishHp && Math.hypot(T.pos.x - this.self.pos.x, T.pos.z - this.self.pos.z) <= this.self.arm.pushRange) || (!!this.chasing && this.self.hpFrac >= ARENA.instinct.chase.quitHp);
       if (!finishing) {
         this.recoverWanted = true;
         this.recoverFrom = by;
@@ -380,9 +507,12 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   onDealt(victim: Combatant, dmg: number, now: number) {
     this.dealt.push([now, victim.uid, dmg]);
     if (this.dealt.length > 24) this.dealt.shift();
+    // 55.0: worth a chase? (rolled at the next decide, on its health after this hit)
+    this.chaseCand = victim;
   }
 
   died(A: ArenaCtx | undefined) {
+    if (A) this.endChase(A, 'died');
     A?.director.releasePush(this.self.uid);
     A?.director.releaseFlank(this.self.uid);
     if (A && this.state === 'retreat') A.stats.retreatDeaths++;
@@ -483,6 +613,14 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.holdAt = null;
     }
     if (s === 'engage' && STAMINA.on) A.stats.staminaAtEngage.push(Math.round(this.stamina.value));
+    // 55.0: breaking off from a shooter calls it out to the team near (cover me off him).
+    if (ARENA.instinct.on && ARENA.instinct.cover.on && (s === 'retreat' || s === 'recover' || s === 'break')) {
+      const from = s === 'recover' ? this.recoverFrom : s === 'break' && this.evading ? this.snipedBy : this.target;
+      if (from?.alive && from.team !== this.self.team) {
+        A.director.callCover(from.uid, this.self.pos, ctx.time);
+        A.stats.instinct.covers++;
+      }
+    }
     this.state = s;
     this.stateT = 0;
     this.goal = null;
@@ -547,6 +685,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     }
     const dir = A.director;
     const wolf = ARENA.roles.on && this.role === 'wolf';
+    this.instincts(ctx, A, now);
+    const I = ARENA.instinct;
     // ---- Target: the highest threat among those it sees and the board's fresh contacts.
     let best: Combatant | null = null, bs = -Infinity, cur = -Infinity, bestShotMe = false, bestVis = false, bestFlank = false;
     me.facing(_f);
@@ -597,6 +737,12 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       // 50.0: the human in form is a bigger threat (ARENA.pressure).
       if (h.isPlayer && ARENA.pressure.on) s += ARENA.pressure.focus * Math.max(0, PRESSURE.form);
       if (over) s -= ARENA.sectors.overPen;
+      // 55.0: on its trail, its grudge, called out by a teammate breaking off from it.
+      if (I.on) {
+        if (h === this.chasing) s += I.chase.bonus;
+        if (h === this.grudge) s += I.grudge.bonus;
+        if (I.cover.on && dir.covering(h.uid, me.pos, now)) s += I.cover.bonus;
+      }
       // 35.0, a pressing threat (squared distances; the facing is the one from before this loop): one
       // hitting it from outside its front cone, or nearer than what it fights; or one close on its
       // flank or behind it and nearer than what it fights (the nearer the bigger).
@@ -692,7 +838,10 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       next = 'recover';
       A.stats.recovers++;
       dir.leftPost(me.uid);
-    } else if (this.state === 'retreat' && this.keepRetreating(ctx, A, T, tv, dT, contact)) next = 'retreat';
+    }
+    // 55.0: on a trail (tunnel vision: no breaking off, no regrouping), unless another in sight is the bigger threat.
+    else if (this.chasing && !holding(dir) && (T === this.chasing || !tv)) next = 'chase';
+    else if (this.state === 'retreat' && this.keepRetreating(ctx, A, T, tv, dT, contact)) next = 'retreat';
     else if ((retreatWhy = this.retreatWhy(ctx, now, T, tv, dT))) next = 'retreat';
     else if (this.state === 'break' && this.stateT < ARENA.breakMax && (this.reloading || this.stateT < 0.5)) next = 'break';
     // Reloading is done on the move unless someone is shooting at it.
@@ -710,7 +859,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     else if (this.watchAt && (!tv || dir.watchHeld(me.uid) || (this.role === 'anchor' && dT > this.reachOf()))) next = 'hold';
     else if (T && (tv || (contact && now - contact.t < ARENA.contactTtl))) {
       // 12.0: a bold bot pushes sooner (higher health, less damage dealt), a careful one later.
-      const ag = this.persona.aggro;
+      // 55.0: bolder after a kill (the hot hand).
+      const ag = this.persona.aggro * (I.on && now < this.hotUntil ? I.hotAggro : 1);
       // 29.0: on the last stand only a nearly dead target is worth leaving the group for.
       const LS = dir.lastStand && ARENA.lastStand.on;
       const HOLD = holding(dir);
@@ -725,6 +875,18 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       if (!pushing && hurt && reach && (tv || !gunner) && !anchor && dir.claimPush(me.uid, T.uid, now, !gunner)) {
         this.pushUntil = now + ARENA.pushMax;
         pushing = true;
+      }
+      // 55.0: caught reloading close: a roll (once a reload) to rush it while its gun is empty.
+      const PU = I.punish;
+      if (!pushing && I.on && PU.on && gunner && tv && T.reloading && !anchor && !HOLD && dT <= me.arm.pushRange * PU.range && (this.punishFor !== T.uid || now - this.punishT > 3)) {
+        this.punishFor = T.uid;
+        this.punishT = now;
+        if (Math.random() < PU.p * ag) {
+          this.pushUntil = now + PU.time;
+          pushing = this.punishing = true;
+          A.stats.instinct.punishes++;
+          me.bark('go', ctx);
+        }
       }
       // 12.0: out of its sight but in a teammate's (the shared spotting): go round.
       const flanking = !pushing && !tv && !!contact && !LS && !anchor && this.wantsFlank(ctx, A, T, contact, now);
@@ -767,6 +929,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       this.goal = this.laneGoal(ctx, A, contact.pos) ?? this.approach(ctx, A, T!, contact.pos) ?? _v.copy(contact.pos).addScaledVector(contact.vel, ARENA.huntLead).clone();
       if (!this.laneTo && !this.approaching) this.goal.y = contact.pos.y;
     } else if (next === 'hunt' && T && !contact) this.goal = T.pos.clone();
+    else if (next === 'chase') this.planChase(ctx, A);
     else if (next === 'advance') this.planLane(ctx, A);
     else if (next === 'patrol') this.planPatrol(ctx, A);
     else if (next === 'hold') {
@@ -1440,6 +1603,8 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (st === 'flank') return 'flank';
     const close = !gunner || this.self.arm.id !== 'ar';
     if (st === 'push') return close ? 'push' : null;
+    // 55.0: on a trail it runs it down (in sight a rifle walks and fires).
+    if (st === 'chase') return close || !this.chasing || !this.visible(this.chasing) ? 'push' : null;
     if (st === 'engage') {
       // Only to close a gap the gun can't shoot across (its strafe is a walk anyway).
       const far = T && Math.hypot(T.pos.x - this.self.pos.x, T.pos.z - this.self.pos.z) > this.reachOf(T, now);
@@ -1534,6 +1699,24 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
         me.tac.action = 'windup';
         me.tac.actionT = 0;
       }
+    } else if (this.state === 'chase' && this.chasing) {
+      // 55.0: in sight, at it (a rifle closes to 14 m, a close gun to 6, then circles it, firing);
+      // out of sight, down the trail.
+      const V = this.chasing;
+      if (this.visible(V)) {
+        const near = me.arm.id === 'ar' ? 14 : 6;
+        const d = me.steer(V.pos, sprint, ctx, dt, desired);
+        if (gunner && d < near) {
+          strafing = true;
+          this.strafe(dt, ctx, V, run, desired);
+        }
+      } else if (this.goal) {
+        if (me.steer(this.goal, sprint, ctx, dt, desired) < 1.5 && Math.abs(this.goal.y - me.pos.y) < 1.5) {
+          this.goal = null;
+          this.trailDone = true;
+          this.urgent = true;
+        }
+      }
     } else if (this.state === 'stalk' && T) {
       // 42.0: closing in behind it, gun down (it fires once it turns, or close enough: engage).
       me.steer(T.pos, sprint, ctx, dt, desired);
@@ -1602,6 +1785,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     } else if (now < this.snapUntil && !fleeing) {
       // 35.0: shot at by one it can't see: it turns to the shot's origin, fast (its eyes then find it).
       me.face(this.snapAt, dt, ARENA.yawRate);
+    } else if (this.state === 'chase' && this.chasing) {
+      // 55.0: its gun on where it went (pre-aimed: chest height).
+      me.face(_v.set(this.chaseAt.x, this.chaseAt.y + this.chasing.chestY, this.chaseAt.z), dt, 12);
     } else if (T && this.state !== 'advance' && this.state !== 'patrol' && !fleeing) {
       const c = A.director.contacts.get(T.uid);
       const p = c?.pos ?? T.pos;

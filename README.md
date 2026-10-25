@@ -54,6 +54,7 @@ The main menu (redesigned in 45.0) is big type and one word a button: **PLAY**, 
   | 3 | Jackal AR | the baseline: steady at mid and long range; wide from the hip |
   | 4 | Boar M12, pump shotgun | one shell drops a man inside 8 m and shoves him back; useless past 15 m, heavy to carry |
 
+- **Combat instincts (55.0):** bots fight on rolls, not rules. A bot that's just put a couple of good hits into you may go after you to finish you off: it takes you over everyone else, runs you down past its usual range, and if you break line of sight it sprints towards where you were going, gun already up on that corner. It gives up if it loses you for a few seconds, gets badly hurt itself, you heal up, or you make it back to your own half. Not every bot does it: the bold ones more often, and more often again just after a kill. A bot that sees a teammate killed nearby may go after the killer. Catch one reloading close up and it may rush you. A bot falling back calls out its attacker, so the teammates near it focus on them. And one that's just lost sight of you reacts faster when you come back round the same corner. Chasing is a gamble, though: a bot running you down doesn't take cover or fall back, so you can lure it into your teammates.
 - **Stamina (30.0):** sprinting and sliding cost breath, and what you carry decides how much: a full sprint lasts 9 s with the pistol, 5.5 s with the SMG, 3.5 s with the rifle or the shotgun, and the light guns get it back faster. Run dry and you walk until you've recovered a fifth. A thin bar under the crosshair shows it while it isn't full. Bots walk too, and sprint only to cross open ground, flank, push in with a close gun or get out of fire, keeping some in reserve for the fight.
 
   The bots carry the same four, and fight like them: pistol bots sprint and strafe, shotgun bots slide and hop from cover to close in, rifle bots hang back and aim. The story keeps its own gun (the Kitsune).
@@ -88,7 +89,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 |---|---|---|
 | Goal | be a readable, fair threat to one player | be a convincing player among peers |
 | Decisions | utility scoring per enemy, a squad director handing out roles | a state machine per bot, an arena director per team |
-| In a fight | real cover against the threat's position, pop-and-shoot after a laser warning, suppression pins | snap-targeting the moment it sees you; hip fire on the move up close, an aimed shot at range; jumps and vaults; the Push on a wounded target |
+| In a fight | real cover against the threat's position, pop-and-shoot after a laser warning, suppression pins | snap-targeting the moment it sees you; hip fire on the move up close, an aimed shot at range; jumps and vaults; the Push on a wounded target; instincts on a roll: chasing the wounded down out of sight, paying back a teammate's killer, rushing a reload, covering a teammate falling back |
 | Team play | suppressors pin you while flankers work round your sides; melee rushes are slotted and timed | three front lines the teams push back and forth (push / hold / fall back per lane, reinforcements to the lane that needs them), shared team spotting (your eyes count too), pincer flanks on whoever a teammate is fighting, push claims |
 | Information | no wallhacks: last known position, then a widening search | sight plus heard gunfire, bounded by fog contrast |
 
@@ -120,7 +121,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **505 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **539 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;

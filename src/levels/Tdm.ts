@@ -1342,6 +1342,16 @@ export class TdmRules implements ModeRules {
       victimArch: v.isPlayer ? 'player' : this.directors?.[v.team].roles.get(v.uid),
     });
     if (this.directors) {
+      if (isArenaBot(by)) {
+        // 55.0: the instincts' kills (before the director forgets the cover calls on it).
+        const I = this.arenaStats.instinct;
+        if (by.brain.chasing === v) by.brain.endChase(this.ctxs[by.team].arena!, 'kill');
+        if (by.brain.grudge === v) I.grudgeKills++;
+        if (by.brain.punishing && by.brain.target === v) I.punishKills++;
+        if (this.directors[by.team].covering(v.uid, by.pos, this.now)) I.coverKills++;
+      }
+      // 55.0: a teammate down near: one of them may mean to pay its killer back.
+      if (by && by.team !== v.team) for (const b of this.bots) if (b.alive && b !== v && b.team === v.team && isArenaBot(b)) b.brain.onMateDown(v, by, this.now, this.ctxs[b.team]);
       this.directors[otherTeam(v.team)].hostileDied(v, this.now);
       this.directors[v.team].friendDied(v, this.now);
       this.sensing?.forget(v.uid);
@@ -1833,6 +1843,11 @@ export class TdmRules implements ModeRules {
   updateEnding(dt: number) {
     // The world carries on behind the result (slow motion), nobody respawns.
     this.update(dt);
+  }
+
+  /** 55.0: a bot's round in him counts to its instincts as one in a bot does (a chase on him). */
+  onPlayerHurt(dmg: number, by: Combatant | null) {
+    if (isArenaBot(by)) by.brain.onDealt(this.game.playerUnit, dmg, this.now);
   }
 
   onGunshot() {

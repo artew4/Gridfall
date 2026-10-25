@@ -2738,8 +2738,40 @@ The playtest: on Neon Docks "lots of freezes", at the spawn's weapon swap above 
 - `leakcheck` 2 laps: 0 alive, geometries and textures flat from the second lap (the four guns: +24 geometries on the Desert).
 - Tests 530.
 
+## 55.0: combat instincts
+
+Branch `feature/combat-55.0`, from `feature/docks-freezes-54.1` @ `6299f38` (54.1, not merged yet).
+
+The ask: "a bot that hit someone well should sometimes go after him to finish him, as a player does (not always: a chance); and more fight scenarios: a really good combat system".
+
+### The instincts (`ARENA.instinct`, all rolls scaled by the bot's aggro)
+- **Chase: finish him.** A gunner (not an anchor, not on a watch) that dealt 25 hp or more to one in 2.5 s, now under 60%, rolls 45% (× 1.4 a wolf, × 1.5 within 8 s of its own kill, × 0.35 itself under 45%; once a victim every 6 s) to go on its trail for up to 12 s (`DeathmatchBrain.chasing`, state `chase`). It takes it over any other target (+6; one shooting it from the flank still wins), runs at it in sight at any range up to 45 m (a rifle closes to 14 m, a close gun to 6, then circles it firing), and out of sight sprints to where it was going (1.2 s along its last seen run, 9 m at most; the team's newer sightings move the trail), its gun at chest height on that corner. Tunnel vision: no breaks, evading, regrouping or recovering while on it. It gives up lost for 4 s (at the trail's end; 10 s on the way), itself under 30%, the victim healed over 85% or deep in its own half (progress > 0.75: no chasing into a spawn), or out of time. Two of a team on one victim at most (`ArenaDirector.claimChase`). The human counts: a bot's round in him is `onDealt` too (`ModeRules.onPlayerHurt`). Bark: "He's hit, after him!".
+- **Payback.** A teammate killed within 25 m of a gunner by one within 45 m: a 40% roll marks the killer for 9 s (+3 threat), its position called to the team. Bark: "You'll pay for that!".
+- **Reload punish.** Its target in sight reloading within 1.4 × its push range: a 55% roll (once a reload) rushes it for 2.5 s.
+- **Cover me.** A bot breaking off from a shooter (a retreat, a recovery, a break) calls it out: for 4 s that shooter is +2.5 threat to the team within 30 m of the caller.
+- **The gun on the corner.** One it lost sight of under 2.5 s ago (its target or its chase) seen again: reacted to in 0.55 × its reaction time (`Sensing` passes when it was last seen).
+- **The hot hand.** For 8 s after a kill its push thresholds are × 1.3.
+
+### Self-play (`tdmSim`; `instinct: false` is 54.1's bots)
+| | Desert on (6) | Desert off (3) | Docks on (6) | Docks off (3) |
+|---|---|---|---|---|
+| kills / min | 23.1–35.4 (mean 28.8) | 24.1–31.3 (27.3) | 19.1–23.3 (20.6) | 17.5–18.5 (18.1) |
+| kill range median | 14.3–18.2 m | 19.1–23.6 m | 8.1–9.3 m | 7.4–9.6 m |
+| chases a match | 55–74 | | 36–58 | |
+| killed by the chaser | 16–30 | | 13–26 | |
+| chaser hurt off it / killed on it | 15–26 / 1–4 | | 10–21 / 2–5 | |
+| lost / healed / home | 0–3 / 0 / 0–5 | | 0–1 / 0–1 / 0–1 | |
+| paybacks (the killer killed) | 55–74 (9–14) | | 35–65 (6–12) | |
+| reload punishes (kills) | 38–65 (1–11) | | 8–33 (0–4) | |
+
+Stuck 0 in all of them (1 in one match with the instincts off, on the Docks). The other maps, one or two matches each: Neon Block 27–28 chases (8–14 killed by the chaser), Old Port 48–56 (22–29), Maglev 41 (18), Favelas 52 (19); stuck 0. On the human: Neon Docks, him held at half health and moved round the map for 60 s: 2 chases on him.
+
+### Checks
+- Tests 539 (+9: the chase's roll and its odds, the trail out of sight, tunnel vision, its ends, the per-victim cap, payback, the reload punish, the quick reacquisition, the cover call).
+
 ## Next
 Human playtest:
+- 55.0 items: the instincts (chased down when hurt: too often, too rare, fair; do you hear "after him!" in time to turn it into an ambush; paybacks after a kill of yours; rushed while reloading close; bots back round a corner on you faster).
 - 54.1 items: the weapon swap at the spawn (no freeze, the first time too); any freeze left on the Docks (where, doing what).
 - 54.0 items: the bots (hard enough now, everywhere, on the Desert; a team on 0 tickets: does it still fight, or fold too easily now; the snipers: do they move often enough, too often); the Docks' racks (shooting through the gaps).
 - 53.0 items: Neon Block (the footbridge's panels: a better fight or just in the way; the roofs' booths and signs; the roofs' light: no glare left, still readable at night?).

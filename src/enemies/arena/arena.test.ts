@@ -4,7 +4,7 @@ import wavesSrc from '../Waves.ts?raw';
 import squadSrc from '../tactics/Squad.ts?raw';
 import arcadeSrc from '../../levels/Arcade.ts?raw';
 import enemySrc from '../Enemy.ts?raw';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ArenaDirector } from './ArenaDirector';
 import { Sensing, type Seen, type SenseAgent } from './Sensing';
 import { stepAir, vaultAhead, vaultSpeed } from './Locomotion';
@@ -742,5 +742,134 @@ describe('35.0: sensing notices a hostile close behind it', () => {
     expect(run(-7.5, true)).toBe(true);
     expect(run(-12, true)).toBe(false);
     expect(run(-7.5, false)).toBe(false);
+  });
+});
+
+describe('55.0: combat instincts', () => {
+  afterEach(() => vi.restoreAllMocks());
+  /** A bot that just put `dmg` into `h` (in sight, `hp` left), the roll coming up `roll`. */
+  const hurtOne = (roll: number, hp = 0.5, dmg = 30, at = v(0, 0, -20)) => {
+    const h = Object.assign(unit(at, 'omega'), { hpFrac: hp });
+    const r = rig(v(0, 0, 0), { hostiles: [h] });
+    see(r.brain, h, true);
+    r.brain.decide(r.ctx);
+    vi.spyOn(Math, 'random').mockReturnValue(roll);
+    r.brain.onDealt(h, dmg, 0);
+    (r.ctx as { time: number }).time = 0.3;
+    r.brain.decide(r.ctx);
+    return { h, ...r };
+  };
+
+  it('a good hit on one under 60%: a roll puts it on the trail (and only a roll: not always)', () => {
+    const a = hurtOne(0);
+    expect(a.brain.chasing).toBe(a.h);
+    expect(a.brain.state).toBe('chase');
+    expect(a.stats.instinct.chases).toBe(1);
+    const b = hurtOne(0.99);
+    expect(b.brain.chasing).toBeNull();
+    // Not one barely scratched, nor one still healthy.
+    expect(hurtOne(0, 0.5, 10).brain.chasing).toBeNull();
+    expect(hurtOne(0, 0.8).brain.chasing).toBeNull();
+  });
+
+  it('out of sight it runs on where the victim was going, its gun on that corner', () => {
+    const a = hurtOne(0);
+    a.h.vel.set(5, 0, 0);
+    a.brain.decide(a.ctx);
+    see(a.brain, a.h, false, 0.5);
+    a.h.pos.set(8, 0, -20);
+    (a.ctx as { time: number }).time = 0.6;
+    a.brain.decide(a.ctx);
+    expect(a.brain.state).toBe('chase');
+    // Led along its run (from x 0, not to where it is now: it isn't seen there).
+    expect(a.brain.goal!.x).toBeGreaterThan(3);
+    expect(a.brain.goal!.z).toBeCloseTo(-20, 0);
+  });
+
+  it('tunnel vision: hurt from somewhere unseen, it stays on the trail (a retreat otherwise)', () => {
+    const a = hurtOne(0);
+    const sniper = unit(v(30, 0, -30), 'omega');
+    (a.ctx as unknown as { hostiles: Combatant[] }).hostiles.push(sniper);
+    see(a.brain, sniper, false);
+    a.me.hpFrac = 0.5;
+    a.brain.alert.set(sniper.uid, 0.5);
+    (a.ctx as { time: number }).time = 0.6;
+    a.brain.decide(a.ctx);
+    expect(a.brain.state).toBe('chase');
+  });
+
+  it('it gives up: itself badly hurt, the victim healed, or lost for long', () => {
+    const a = hurtOne(0);
+    a.me.hpFrac = 0.2;
+    (a.ctx as { time: number }).time = 1;
+    a.brain.decide(a.ctx);
+    expect(a.brain.chasing).toBeNull();
+    expect(a.stats.instinct.chaseEnd.hurt).toBe(1);
+    const b = hurtOne(0);
+    b.h.hpFrac = 0.95;
+    b.brain.decide(b.ctx);
+    expect(b.stats.instinct.chaseEnd.healed).toBe(1);
+    const c = hurtOne(0);
+    see(c.brain, c.h, false, 0.3);
+    (c.ctx as { time: number }).time = 0.3 + ARENA.instinct.chase.lose * 2.5 + 0.1;
+    c.brain.decide(c.ctx);
+    expect(c.stats.instinct.chaseEnd.lost).toBe(1);
+  });
+
+  it('at most `chase.per` of a team on one victim', () => {
+    const d = director();
+    for (let b = 1; b <= ARENA.instinct.chase.per; b++) expect(d.claimChase(b, 99)).toBe(true);
+    expect(d.claimChase(50, 99)).toBe(false);
+    d.releaseChase(1);
+    expect(d.claimChase(50, 99)).toBe(true);
+  });
+
+  it('a teammate killed near it: a roll marks the killer (payback), who becomes its target', () => {
+    const killer = unit(v(10, 0, -25), 'omega'), other = unit(v(-3, 0, -12), 'omega');
+    const mate = unit(v(5, 0, -6), 'alpha');
+    const r = rig(v(0, 0, 0), { hostiles: [killer, other], friends: [mate] });
+    see(r.brain, killer, true);
+    see(r.brain, other, true);
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    r.brain.onMateDown(mate, killer, 0, r.ctx);
+    expect(r.brain.grudge).toBe(killer);
+    r.brain.decide(r.ctx);
+    expect(r.brain.target).toBe(killer);
+    expect(r.stats.instinct.grudges).toBe(1);
+    // Far from it: nothing.
+    const far = rig(v(0, 0, 50), { hostiles: [killer] });
+    far.brain.onMateDown(mate, killer, 0, far.ctx);
+    expect(far.brain.grudge).toBeNull();
+  });
+
+  it('its target caught reloading close by: a roll rushes it', () => {
+    const h = Object.assign(unit(v(0, 0, -18), 'omega'), { reloading: true });
+    const r = rig(v(0, 0, 0), { hostiles: [h] });
+    see(r.brain, h, true);
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    r.brain.decide(r.ctx);
+    expect(r.brain.state).toBe('push');
+    expect(r.stats.instinct.punishes).toBe(1);
+  });
+
+  it('one it lost a moment ago, seen again round the corner, is reacted to faster', () => {
+    const h = unit(v(0, 0, -20), 'omega');
+    const t = (was: number) => {
+      const { brain } = rig(v(0, 0, 0), { persona: { react: 0.2 } });
+      brain.target = h;
+      brain.nextThink = 100;
+      brain.onSight(h, 5, 1, was);
+      return brain.nextThink - 5;
+    };
+    expect(t(4)).toBeLessThanOrEqual(0.2 * ARENA.instinct.reacquire.react * 1.25 + 1e-9);
+    expect(t(-Infinity)).toBeGreaterThanOrEqual(0.2 * 0.8 - 1e-9);
+  });
+
+  it('breaking off from a shooter calls it out: the team near takes it as a bigger threat', () => {
+    const d = director();
+    d.callCover(7, v(0, 0, 0), 0);
+    expect(d.covering(7, v(10, 0, 5), 1)).toBe(true);
+    expect(d.covering(7, v(80, 0, 5), 1)).toBe(false);
+    expect(d.covering(7, v(10, 0, 5), ARENA.instinct.cover.time + 0.1)).toBe(false);
   });
 });

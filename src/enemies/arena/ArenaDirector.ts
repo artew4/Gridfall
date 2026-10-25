@@ -861,6 +861,8 @@ export class ArenaDirector {
     this.contacts.delete(v.uid);
     this.pushes.delete(v.uid);
     this.flanks.delete(v.uid);
+    this.chases.delete(v.uid);
+    this.covers.delete(v.uid);
     for (const [b, c] of this.commits) if (c.v === v.uid) this.commits.delete(b);
     this.trades.push([now, +1]);
   }
@@ -869,6 +871,7 @@ export class ArenaDirector {
     this.addHeat(v.pos, ARENA.lanePressure.death, now);
     this.laneOf.delete(v.uid);
     this.hvaClaim.delete(v.uid);
+    this.releaseChase(v.uid);
     this.commits.delete(v.uid);
     this.roles.delete(v.uid);
     this.seats.delete(v.uid);
@@ -903,6 +906,50 @@ export class ArenaDirector {
 
   pushersOn(victim: number) {
     return this.pushes.get(victim)?.bots.length ?? 0;
+  }
+
+  // ------------------------------------------------------------------ 55.0: chases and cover calls
+  /** Victim uid → the bots on its trail (ARENA.instinct.chase). */
+  private chases = new Map<number, number[]>();
+  /** Shooter uid → a teammate's call to cover it off him: until when, and where the caller was. */
+  private covers = new Map<number, { until: number; x: number; z: number }>();
+
+  /** May `bot` go after `victim` (at most `chase.per` of the team on one)? */
+  claimChase(bot: number, victim: number) {
+    const c = this.chases.get(victim) ?? [];
+    if (c.includes(bot)) return true;
+    if (c.length >= ARENA.instinct.chase.per) return false;
+    c.push(bot);
+    this.chases.set(victim, c);
+    return true;
+  }
+
+  releaseChase(bot: number) {
+    for (const [k, c] of this.chases) {
+      const i = c.indexOf(bot);
+      if (i >= 0) c.splice(i, 1);
+      if (!c.length) this.chases.delete(k);
+    }
+  }
+
+  chasersOn(victim: number) {
+    return this.chases.get(victim)?.length ?? 0;
+  }
+
+  /** A teammate at `at` breaks off from `shooter`: cover me off him. */
+  callCover(shooter: number, at: { x: number; z: number }, now: number) {
+    this.covers.set(shooter, { until: now + ARENA.instinct.cover.time, x: at.x, z: at.z });
+  }
+
+  /** Is `shooter` called out for cover to a bot at `at`? */
+  covering(shooter: number, at: { x: number; z: number }, now: number) {
+    const c = this.covers.get(shooter);
+    if (!c) return false;
+    if (c.until < now) {
+      this.covers.delete(shooter);
+      return false;
+    }
+    return (c.x - at.x) ** 2 + (c.z - at.z) ** 2 < ARENA.instinct.cover.r ** 2;
   }
 
   // ------------------------------------------------------------------ flank claims (12.0)

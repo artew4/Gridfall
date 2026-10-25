@@ -258,7 +258,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean; flankThreat?: boolean; scan?: boolean; flankPull?: boolean; watches?: number; tune?: ArenaProfile; spawnTune?: Partial<typeof SPAWN>; fronts?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean; flankThreat?: boolean; scan?: boolean; flankPull?: boolean; watches?: number; tune?: ArenaProfile; spawnTune?: Partial<typeof SPAWN>; fronts?: boolean; instinct?: boolean } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -306,6 +306,9 @@ export async function tdmSim(
   // 29.0 A/B: the last-stand instincts off (the bots fight on as before, under the same rules).
   const ls0 = ARENA.lastStand.on;
   if (opts.lastStand !== undefined) ARENA.lastStand.on = opts.lastStand;
+  // 55.0 A/B: `instinct: false` is 54.0's bots (no chases, grudges, punishes, cover calls, quick reacquisitions).
+  const inst0 = ARENA.instinct.on;
+  if (opts.instinct !== undefined) ARENA.instinct.on = opts.instinct;
   // 30.0 A/B: `stamina: false` is the endless sprint of 29.0 (the bots sprint as they did).
   const stam0 = STAMINA.on;
   if (opts.stamina !== undefined) STAMINA.on = opts.stamina;
@@ -767,6 +770,7 @@ export async function tdmSim(
   TDM.force.noForward = false;
   TDM.spawns = spawns0;
   ARENA.lastStand.on = ls0;
+  ARENA.instinct.on = inst0;
   STAMINA.on = stam0;
   ARENA.fronts.on = fronts0;
   ARENA.space.on = space0;
@@ -1111,6 +1115,8 @@ export async function tdmSim(
         ? {
             // 54.0: anchors seated and moved on (time served, no sight, a kill given away).
             anchors: { arrived: st.anchorArrive, moved: st.anchorMoves },
+            // 55.0: the instincts (chases and how they ended, grudges, reload punishes, cover calls, quick reacquisitions).
+            instinct: st.instinct,
             jumps: st.jumps,
             vaults: st.vaults,
             pushes: st.pushes,

@@ -973,6 +973,7 @@ export class Game {
     if (this.state !== 'play' || !this.player.alive) return;
     if (this.elapsed < this.playerInvulnUntil) return;
     if (by) this.playerAttacker = by;
+    this.rules.onPlayerHurt?.(dmg, by);
     this.player.damage(dmg, from, this.elapsed);
     this.damageFx = Math.min(1, this.damageFx + 0.6);
     // HUD arrow: angle of the source relative to where we look.

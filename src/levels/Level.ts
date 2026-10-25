@@ -1,4 +1,5 @@
 import type { Biome } from '../ui/Flavor';
+import type { Combatant } from '../combat/Team';
 import type * as THREE from 'three';
 import type { NavLayout } from '../enemies/Nav';
 import type { Breakable, CabinetSpot } from '../gameplay/Interactives';
@@ -259,6 +260,8 @@ export interface ModeRules {
   onIntroSkipped?(): void;
   /** A shot was fired (listeners react before anything is hit). */
   onGunshot?(origin: THREE.Vector3): void;
+  /** 55.0: a round (or a blow) hurt him, from `by`. */
+  onPlayerHurt?(dmg: number, by: Combatant | null): void;
   /** Something other than enemies in the line of fire (bystanders). */
   bystander?(origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number): { dist: number; hit(dir: THREE.Vector3): void } | null;
   onKill?(): void;

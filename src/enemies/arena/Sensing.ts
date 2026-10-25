@@ -44,8 +44,8 @@ export interface SenseAgent {
   readonly target: Combatant | null;
   readonly alert: Map<number, number>;
   readonly seen: Map<number, Seen>;
-  /** Told the moment a hostile comes into view (34.0: with what the fog left of it, 0..1). */
-  onSight(h: Combatant, now: number, clarity?: number): void;
+  /** Told the moment a hostile comes into view (34.0: with what the fog left of it, 0..1; 55.0: when it was last seen before, if ever). */
+  onSight(h: Combatant, now: number, clarity?: number, was?: number): void;
   /**
    * 12.0: a viewer with a field of view (cos of its half-angle; nothing outside it is seen, alerted
    * or not) and one re-check interval for everything inside it (the human).
@@ -248,10 +248,11 @@ export class Sensing {
     }
     if (vis) {
       if (!s.vis) {
+        const was = s.last;
         s.since = now;
         s.vis = true;
         s.last = now;
-        a.onSight(h, now, s.clarity ?? 1);
+        a.onSight(h, now, s.clarity ?? 1, was);
       }
       s.last = now;
     } else s.vis = false;

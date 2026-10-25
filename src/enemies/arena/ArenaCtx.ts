@@ -491,6 +491,40 @@ export const ARENA = {
     /** A frontliner hunting a contact goes to its front's point first when that is within `pull` m. */
     pull: 45,
   },
+  /**
+   * 55.0, combat instincts (the playtest: "a bot that hit someone well should sometimes go after him to
+   * finish him, as a player does"). Each is a roll, not a rule, and its odds scale with the bot's aggro
+   * (Persona). A gunner, not an anchor (its post is its job), not on the last stand:
+   *  - chase (finish him): it dealt `dealt` hp or more to one in `window` s and that one is under `hp`
+   *    of its health: a roll of `p` (× `wolf` for a wolf; × `hot` within `hotFor` s of a kill of its
+   *    own; × `selfMult` itself under `selfHp`; one roll a victim every `reroll` s) puts it on that
+   *    one's trail for up to `time` s. It takes it over any other target (`bonus`; one shooting it from
+   *    the flank still wins), rushes it in sight at any range up to `range` m (no push claim: `per` of
+   *    a team on one victim), and out of sight sprints to where it was going (`lead` s along its last
+   *    seen run, `leadMax` m at most) with its gun up at that corner; the team's newer sightings move
+   *    the trail. It gives up lost for `lose` s, itself under `quitHp`, the victim healed over `healed`
+   *    or deep in its own half (`deep`: progress, ours -1 … theirs +1). Tunnel vision: no breaks, no
+   *    evading, no flanking off it, no regrouping while on the trail.
+   *  - grudge (payback): a teammate killed within `r` m of it, by one within `reach` m: a roll of `p`
+   *    marks the killer for `time` s (+`bonus` to its threat, hunted to where it shot from).
+   *  - reload punish: its target in sight reloading within `range` × its gun's push range: a roll of
+   *    `p` (once a reload) rushes it for `time` s.
+   *  - cover: a teammate breaking off from a shooter (a retreat, a recovery, a break for cover) calls it
+   *    out: for `time` s that shooter is +`bonus` to the team within `r` m of the caller.
+   *  - reacquire: one it lost sight of under `within` s ago seen again is reacted to in `react` × its
+   *    reaction time (its gun was on the corner it went round).
+   *  - hot hand: a kill makes it bolder for `hotFor` s (its push thresholds × `hotAggro`).
+   */
+  instinct: {
+    on: true,
+    chase: { on: true, dealt: 25, window: 2.5, hp: 0.6, p: 0.45, wolf: 1.4, hot: 1.5, selfHp: 0.45, selfMult: 0.35, reroll: 6, time: 12, bonus: 6, range: 45, per: 2, lead: 1.2, leadMax: 9, lose: 4, quitHp: 0.3, healed: 0.85, deep: 0.75 },
+    grudge: { on: true, r: 25, reach: 45, p: 0.4, time: 9, bonus: 3 },
+    punish: { on: true, range: 1.4, p: 0.55, time: 2.5 },
+    cover: { on: true, r: 30, time: 4, bonus: 2.5 },
+    reacquire: { on: true, within: 2.5, react: 0.55 },
+    hotFor: 8,
+    hotAggro: 1.3,
+  },
 };
 
 /**
@@ -508,6 +542,24 @@ export function pressureScale(k: number, form = PRESSURE.form) {
 export interface ArenaStats {
   /** 54.0: anchors that moved on from a post. */
   anchorMoves: number;
+  /**
+   * 55.0, the instincts: chases started, how they ended (the victim killed by the chaser, killed by
+   * another, lost, out of time, the chaser hurt, the victim healed or home, the chaser killed on it);
+   * grudges marked and the killers killed by them; reload punishes and their kills; cover calls and
+   * the callers' attackers killed by those answering; quick reacquisitions.
+   */
+  instinct: {
+    chases: number;
+    chaseEnd: { kill: number; other: number; lost: number; time: number; hurt: number; healed: number; home: number; died: number };
+    chaseOnPlayer: number;
+    grudges: number;
+    grudgeKills: number;
+    punishes: number;
+    punishKills: number;
+    covers: number;
+    coverKills: number;
+    reacquired: number;
+  };
   jumps: number;
   vaults: number;
   pushes: number;
@@ -619,7 +671,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { anchorMoves: 0, jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0, capSkips: 0, follows: 0, stalks: 0, warnShots: 0, recovers: 0, recoverEnd: { healed: 0, timeout: 0, cornered: 0 }, anchorArrive: 0 };
+  return { anchorMoves: 0, instinct: { chases: 0, chaseEnd: { kill: 0, other: 0, lost: 0, time: 0, hurt: 0, healed: 0, home: 0, died: 0 }, chaseOnPlayer: 0, grudges: 0, grudgeKills: 0, punishes: 0, punishKills: 0, covers: 0, coverKills: 0, reacquired: 0 }, jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0, capSkips: 0, follows: 0, stalks: 0, warnShots: 0, recovers: 0, recoverEnd: { healed: 0, timeout: 0, cornered: 0 }, anchorArrive: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */
