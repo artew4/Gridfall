@@ -2720,8 +2720,27 @@ The playtest: the Desert too easy, the bots in general not a fight you have to c
 - Self-play (3 each): Docks kpm 16.9–19.8 (51.0: 16.1–17.9), Desert 29–30.1, stuck 0 in all six.
 - Tests 530.
 
+## 54.1: the weapon swap's freeze gone
+
+Branch `feature/docks-freezes-54.1`, from `main` @ `f19987b` (54.0).
+
+The playtest: on Neon Docks "lots of freezes", at the spawn's weapon swap above all.
+
+### The cause
+- A swap built the gun from scratch (geometry, materials, the flash's texture): 18–27 ms of main thread a swap. And it freed the last gun first: its materials were the only users of their programs, so the programs went with them and the next swap compiled them again: a 250 ms freeze in a cold browser (the first swaps of a session; Chrome's shader cache hid it later). It hit every swap at the spawn, and every respawn with another gun queued.
+
+### The fix
+- The viewmodel keeps every gun it has built in the map's finish (`Weapon.built`): a swap puts the gun in hand aside and re-parents the next one (its magazine's rest, its flash, the strips' colour, the ammo); a new finish (another map's) frees them all.
+- The loading builds all four guns of the armory and compiles their programs (`Weapon.prewarm` in `Game.warm`): no swap in a match builds or compiles anything.
+
+### Checks
+- Docks (GPU, 1728×1080 at 2x, High): a swap's frame 18–27 ms → ≤ 6 ms, no program built or freed by a swap (4 guns × 3 rounds, the same model each time: parts, magazine, flashes); 60 s of play with fast flicks across the map: no frame over 25 ms, no long task, no program compiled mid-match (`hitchprobe` docks, desert 60 s: none). Load 266 ms (52.0: 480 ms).
+- `leakcheck` 2 laps: 0 alive, geometries and textures flat from the second lap (the four guns: +24 geometries on the Desert).
+- Tests 530.
+
 ## Next
 Human playtest:
+- 54.1 items: the weapon swap at the spawn (no freeze, the first time too); any freeze left on the Docks (where, doing what).
 - 54.0 items: the bots (hard enough now, everywhere, on the Desert; a team on 0 tickets: does it still fight, or fold too easily now; the snipers: do they move often enough, too often); the Docks' racks (shooting through the gaps).
 - 53.0 items: Neon Block (the footbridge's panels: a better fight or just in the way; the roofs' booths and signs; the roofs' light: no glare left, still readable at night?).
 - 52.0 items: the menu (any freeze left on the root menu, a pick, PLAY; the maps screen's pictures: good enough, or worth a better shot of some maps); the first seconds of play (still a hitch? on which map); loads (the first time and again: the second should be much quicker).

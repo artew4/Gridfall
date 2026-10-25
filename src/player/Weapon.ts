@@ -8,6 +8,16 @@ import type { WeaponSpec } from '../entities/types';
 import { KITSUNE_9 } from '../entities/weapons/kitsune9';
 import { gunMats, stripColour, type GunTheme } from '../entities/weapons/theme';
 
+/** 54.1: a gun built and put aside: its parts by parent, the magazine's rest, its flash. */
+interface BuiltGun {
+  gun: THREE.Object3D[];
+  slide: THREE.Object3D[];
+  mag: THREE.Object3D[];
+  magRest: THREE.Vector3;
+  flashes: THREE.Mesh[];
+  flashTex: THREE.Texture | null;
+}
+
 /** The reload timeline below is authored for this length and scaled to each weapon's. */
 const BASE_RELOAD = 1.35;
 
@@ -26,6 +36,12 @@ export class Weapon {
   maxAmmo = KITSUNE_9.mag;
   private magRest = new THREE.Vector3();
   private flashTex: THREE.Texture | null = null;
+  /**
+   * 54.1: the guns built in this finish, kept while it lasts: a swap re-parents a built model instead
+   * of building one (a swap was 18–27 ms of main thread, and the last gun's materials freed took their
+   * programs with them, so the next swap compiled them again: a 250 ms freeze on the spawn's picker).
+   */
+  private built = new Map<WeaponSpec, BuiltGun>();
   reloading = false;
   private reloadT = 0;
   private autoReloadT = 0;
@@ -118,12 +134,24 @@ export class Weapon {
 
   setSpec(spec: WeaponSpec, theme: GunTheme = this.theme) {
     if (this.spec === spec && this.theme === theme && this.gun.children.length) return;
-    this.disposeModel();
+    if (theme !== this.theme) this.disposeModels();
+    else this.stash();
     this.spec = spec;
     this.theme = theme;
     this.slide.position.set(0, 0, 0);
     this.mag.position.set(0, 0, 0);
     this.mag.rotation.set(0, 0, 0);
+    const kept = this.built.get(spec);
+    if (kept) {
+      this.gun.add(...kept.gun);
+      if (kept.slide.length) this.slide.add(...kept.slide);
+      if (kept.mag.length) this.mag.add(...kept.mag);
+      this.mag.position.copy(kept.magRest);
+      this.flashes = kept.flashes;
+      this.flashTex = kept.flashTex;
+      this.dress(spec);
+      return;
+    }
     const mats = gunMats(theme);
     spec.build({ gun: this.gun, slide: this.slide, mag: this.mag, display: this.ammoDisplay.texture, mats });
     this.magRest.copy(this.mag.position);
@@ -145,8 +173,6 @@ export class Weapon {
       f.renderOrder = 10;
       this.gun.add(f);
     }
-    this.flashLight.color.set(spec.flash.light);
-    this.flashLight.position.set(spec.muzzle[0], spec.muzzle[1] + 0.05, spec.muzzle[2] + 0.1);
     // The strips take the shared ammo-strip material where the theme glows (on a military finish they
     // stay plain metal). A material only the strips used is freed here: nothing else will.
     this.stripBase = stripColour(theme);
@@ -162,20 +188,69 @@ export class Weapon {
       });
       for (const m of replaced) if (!used.has(m)) m.dispose();
     }
+    this.built.set(spec, { gun: [], slide: [], mag: [], magRest: this.magRest.clone(), flashes: this.flashes, flashTex: this.flashTex });
+    this.dress(spec);
+  }
+
+  /** What every swap sets, built or kept: the flash light, the strips' colour, the magazine. */
+  private dress(spec: WeaponSpec) {
+    this.magRest.copy(this.mag.position);
+    this.flashLight.color.set(spec.flash.light);
+    this.flashLight.position.set(spec.muzzle[0], spec.muzzle[1] + 0.05, spec.muzzle[2] + 0.1);
+    if (this.stripBase) this.stripMat.color.copy(this.stripBase);
     this.maxAmmo = spec.mag;
     this.reset();
   }
 
-  private disposeModel() {
-    const mats = new Set<THREE.Material>();
-    this.gun.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (!m.isMesh) return;
-      m.geometry.dispose();
-      for (const mat of Array.isArray(m.material) ? m.material : [m.material]) if (mat !== this.stripMat) mats.add(mat);
-    });
+  /** The gun in hand put aside (kept for its next swap in this finish). */
+  private stash() {
+    const kept = this.built.get(this.spec);
+    if (!kept) return this.disposeModels();
+    kept.slide = [...this.slide.children];
+    kept.mag = [...this.mag.children];
+    kept.gun = [...this.gun.children];
+    this.slide.clear();
+    this.mag.clear();
+    this.gun.clear();
+    this.flashes = [];
+    this.flashTex = null;
+  }
+
+  /**
+   * 54.1: builds every gun in `specs` in the current finish and compiles its programs (`compile`: the
+   * viewmodel's scene as drawn), so no swap in this map builds or compiles anything. The gun in hand
+   * stays in hand.
+   */
+  prewarm(specs: readonly WeaponSpec[], compile: () => void) {
+    const hand = this.spec;
+    for (const s of specs) {
+      if (this.built.has(s)) continue;
+      this.setSpec(s);
+      compile();
+    }
+    this.setSpec(hand);
+  }
+
+  /** Every gun built in this finish freed (the viewmodel outlives levels: nothing may be left behind). */
+  private disposeModels() {
+    const mats = new Set<THREE.Material>(), texs = new Set<THREE.Texture>();
+    const free = (root: THREE.Object3D) =>
+      root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        m.geometry.dispose();
+        for (const mat of Array.isArray(m.material) ? m.material : [m.material]) if (mat !== this.stripMat) mats.add(mat);
+      });
+    // The model in hand, then the ones put aside (the slide and the magazine sit in the gun's children).
+    free(this.gun);
+    for (const k of this.built.values()) {
+      for (const o of [...k.gun, ...k.slide, ...k.mag]) free(o);
+      if (k.flashTex) texs.add(k.flashTex);
+    }
+    if (this.flashTex) texs.add(this.flashTex);
     for (const m of mats) m.dispose();
-    this.flashTex?.dispose();
+    for (const t of texs) t.dispose();
+    this.built.clear();
     this.flashTex = null;
     this.slide.clear();
     this.mag.clear();

@@ -48,7 +48,7 @@ import { nearMissDose } from '../enemies/tactics/Squad';
 import { buildCoverSpots } from '../enemies/tactics/CoverSpots';
 import { PlayerUnit, registerUnit } from '../combat/PlayerUnit';
 import type { Combatant } from '../combat/Team';
-import { ARMORY, armoryByKey, type WeaponId } from '../entities/weapons/armory';
+import { ARMORY, ARMORY_ORDER, armoryByKey, type WeaponId } from '../entities/weapons/armory';
 import { gunThemeFor } from '../entities/weapons/theme';
 import { Loadout } from '../gameplay/Loadout';
 import { SpawnZone } from '../gameplay/SpawnZone';
@@ -535,6 +535,15 @@ export class Game {
     const was = this.building;
     this.building = true;
     singlePass(this.scene);
+    // 54.1: every gun of the armory built and compiled now (a swap at the spawn built one: a freeze).
+    if (!(this.mode === 'story' && this.level.info.storyWeapon))
+      this.weapon.prewarm(
+        ARMORY_ORDER.map((id) => ARMORY[id].spec),
+        () => {
+          singlePass(this.weaponScene);
+          this.renderer.compile(this.weaponScene, this.weaponCamera);
+        },
+      );
     singlePass(this.weaponScene);
     try {
       this.lastWarmup = await warmUp(
