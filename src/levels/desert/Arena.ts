@@ -228,6 +228,30 @@ export function buildArena(k: ArenaKit): ArenaResult {
     rock(flip, -14.5, 47, 1.7, 2.9);
     for (const [x, z] of [[4.7, 37.3], [4.7, 44.7], [-7.2, 45.2], [0.7, 35.7], [-10, 39.4], [9, 35.2], [-14.5, 44.6]]) cover(...P(flip, x, z));
 
+    // ===================================================================== 56.0: the field
+    // The open dunes round the compound (the playtest: "a lot of empty ground without cover, a long
+    // field of fire"): blast walls (T-walls, 3.2 m, a panel every 1.2 m) and shipping containers
+    // (2.6 m) in the ground between the bases, the compound and the flanks, clear of every lane.
+    {
+      const twall = (x0: number, z0: number, x1: number, z1: number) => {
+        const alongX = x1 - x0 > z1 - z0, L = alongX ? x1 - x0 : z1 - z0, n = Math.max(1, Math.round(L / 1.2));
+        for (let i = 0; i < n; i++) {
+          const a0 = (alongX ? x0 : z0) + (L * i) / n, a1 = (alongX ? x0 : z0) + (L * (i + 1)) / n;
+          if (alongX) tall(flip, a0, z0, a1, z1, 3.2, m.concrete);
+          else tall(flip, x0, a0, x1, a1, 3.2, m.concrete);
+        }
+      };
+      const box = (x0: number, z0: number, x1: number, z1: number, mat: THREE.Material) => tall(flip, x0, z0, x1, z1, 2.6, mat, 'metal');
+      // South-east of the compound, the south-west, and its east side (the west side is the rotation).
+      box(17, 33, 19.44, 39.06, m.rust);
+      twall(24, 31.2, 28.5, 31.6);
+      box(-24, 35, -17.94, 37.44, m.rust);
+      twall(-27.6, 30, -27.2, 34.5);
+      twall(34, 8, 34.4, 13);
+      box(35, -16, 37.44, -9.94, m.rust);
+      for (const [x, z] of [[18.2, 32.4], [18.2, 39.7], [26.2, 32.2], [-21, 34.4], [-21, 38], [-26.6, 32.2], [33.4, 10.5], [36.2, -16.6], [36.2, -9.3]]) cover(...P(flip, x, z));
+    }
+
     // ===================================================================== Hamlet (west in the south half)
     // R1 on the lane: in through the east door, out of the north door (the lane runs on north-west). R2
     // beside it, enterable from the east, the north and the south. R3 a broken enclosure of low walls. Loose low walls between them.

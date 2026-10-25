@@ -157,7 +157,8 @@ export class DesertLevel implements LevelRuntime {
       testGoals: [
         // (12.0: the culvert's centre is on its floor.)
         // (46.0: the flank houses bring their own goals, a level each.)
-        ...o.interiors.filter((r) => !o.arena.houses.interiors.includes(r)).map((r) => new THREE.Vector3((r.x0 + r.x1) / 2, r.h < 0 ? CULVERT.floor : 0.12, (r.z0 + r.z1) / 2)),
+        // (56.0: the Cistern's middle is the sinkhole's slabs: its goal is off them, by the south arm.)
+        ...o.interiors.filter((r) => !o.arena.houses.interiors.includes(r)).map((r) => new THREE.Vector3(r.name === 'CULVERT' ? 14 : (r.x0 + r.x1) / 2, r.h < 0 ? CULVERT.floor : 0.12, r.name === 'CISTERN' ? 6 : (r.z0 + r.z1) / 2)),
         // 12.0: the new roofs and the skybridge.
         new THREE.Vector3(-20, 3.55, -14.5),
         new THREE.Vector3(18, 5.25, -14),

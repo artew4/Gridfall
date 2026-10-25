@@ -25,6 +25,20 @@ export const BARRIER_Z = 27.55;
  */
 export const CULVERT = { x: 27.6, z: 2.1, top: 27, roof: 21, floor: -3 };
 
+/**
+ * 56.0, the Cistern: the culvert grown into a level under the yard. A hall under the yard's middle
+ * (|x| < `hall.x`, |z| < `hall.z`), the culvert running through it, and an arm from the hall to each
+ * team's gate (south frame: x `arm.x0`…`arm.x1`, roofed from the hall to `arm.roof`, its stair up to
+ * the yard at `arm.top`, open to `arm.end`; the north arm is its rotation). The hall's roof is open
+ * over its middle (`hole`: the sinkhole, where the yard fell in), two slabs of it lying as ramps.
+ * Point-symmetric like the culvert.
+ */
+export const CISTERN = {
+  hall: { x: 9, z: 8 },
+  arm: { x0: -5, x1: -1, roof: 15.5, top: 21.5, end: 22.1 },
+  hole: { x: 4, z: 3.5 },
+};
+
 /** The culvert's floor under (x, z) (its stairs ramp up to the rim), or null outside it. */
 export function culvertFloor(x: number, z: number): number | null {
   const C = CULVERT;
@@ -33,6 +47,34 @@ export function culvertFloor(x: number, z: number): number | null {
   if (ax >= C.top) return 0;
   if (ax <= C.roof) return C.floor;
   return (C.floor * (C.top - ax)) / (C.top - C.roof);
+}
+
+/** 56.0: the floor of the Cistern's arm (south frame) under (x, z), or null outside it. */
+function armFloor(x: number, z: number): number | null {
+  const A = CISTERN.arm, F = CULVERT.floor;
+  if (x <= A.x0 || x >= A.x1 || z <= CISTERN.hall.z - 0.5 || z >= A.end) return null;
+  if (z >= A.top) return 0;
+  if (z <= A.roof) return F;
+  return (F * (A.top - z)) / (A.top - A.roof);
+}
+
+/** 56.0: the floor of anything cut under the yard at (x, z) (the culvert, the hall, the arms), or null. */
+export function underFloor(x: number, z: number): number | null {
+  const H = CISTERN.hall;
+  if (Math.abs(x) < H.x && Math.abs(z) < H.z) return CULVERT.floor;
+  return armFloor(x, z) ?? armFloor(-x, -z) ?? culvertFloor(x, z);
+}
+
+/**
+ * 56.0: is (x, z) open to the sky down to the floor below (the culvert's and the arms' stairs, the
+ * sinkhole)? Elsewhere over the cut the yard's paving is the surface.
+ */
+export function underOpen(x: number, z: number): boolean {
+  const ax = Math.abs(x), C = CULVERT, A = CISTERN.arm, O = CISTERN.hole;
+  if (ax < O.x && Math.abs(z) < O.z) return true;
+  if (Math.abs(z) < C.z && ax > C.roof && ax < C.x) return true;
+  for (const [px, pz] of [[x, z], [-x, -z]]) if (px > A.x0 && px < A.x1 && pz > A.roof && pz < A.end) return true;
+  return false;
 }
 
 /**
@@ -96,7 +138,7 @@ function drift(x: number, z: number) {
  * treat them as continuous ground. The compound inside the barrier is exactly flat.
  */
 export function desertHeight(x: number, z: number): number {
-  if (Math.abs(x) < BARRIER_X && Math.abs(z) < BARRIER_Z) return culvertFloor(x, z) ?? 0;
+  if (Math.abs(x) < BARRIER_X && Math.abs(z) < BARRIER_Z) return underFloor(x, z) ?? 0;
   // 6.0: the arena is point-symmetric (Team Deathmatch: neither base gets better ground): the dunes
   // are the mean of the field and its 180° rotation. A mean of two fields is never steeper than the
   // steeper of them, so every slope bound below still holds.
@@ -227,7 +269,7 @@ export function buildTerrainMesh(map: THREE.Texture, detail: THREE.Texture, size
     let cut = false;
     for (let k = 0; k < 3; k++) {
       const v = idx.getX(t + k);
-      if (culvertFloor(pos.getX(v), pos.getZ(v)) !== null) cut = true;
+      if (underFloor(pos.getX(v), pos.getZ(v)) !== null) cut = true;
     }
     if (!cut) keep.push(idx.getX(t), idx.getX(t + 1), idx.getX(t + 2));
   }

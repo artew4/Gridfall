@@ -7,7 +7,7 @@ import type { Breakable, CabinetSpot } from '../../gameplay/Interactives';
 import { mulberry32 } from '../../core/math';
 import type { Zone } from '../Level';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
-import { CLIFF, CLIFF_RECESS, CULVERT, DESERT_EXTENT, culvertFloor, desertHeight } from './Terrain';
+import { CISTERN, CLIFF, CLIFF_RECESS, CULVERT, DESERT_EXTENT, desertHeight, underFloor, underOpen } from './Terrain';
 import * as T from './textures';
 import { buildArena, type ArenaResult } from './Arena';
 import { arenaKeepOut, inRuins } from './ArenaLayout';
@@ -122,6 +122,16 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     sandstone: std(T.plasterTexture('#ece2d0'), 0xffffff, 0.95, 0, 0.2),
     // 46.0: the flank Block's warm ochre plaster.
     housePlaster: std(T.plasterTexture('#d6b98e'), 0xffffff),
+    // 56.0: the Cistern's concrete: faintly self-lit (no sun reaches it, and a point light more a
+    // slot costs every lit pixel on the map), so its walls read in the dark.
+    cistern: (() => {
+      const map = T.plasterTexture('#9d978b');
+      const mat = std(map, 0xcfc8bb, 0.92);
+      mat.emissive.set(0x5a5246);
+      mat.emissiveMap = map;
+      mat.emissiveIntensity = 0.85;
+      return mat;
+    })(),
   };
 
   /** A box that is both seen and solid, with the same bounds. */
@@ -434,18 +444,18 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   // ======================================================================= Yard
   // Sandbag ring around the flagpole (waist high: cover you can vault).
+  const FLAG = { x: -6.6, z: 10.4 };
   const bags = (x0: number, z0: number, x1: number, z1: number, h = 1.05) => {
     const c = solid(x0, 0, z0, x1, h, z1, m.sandbag, 'sand', 1);
     c.vault = true;
     return c;
   };
-  bags(-3, -4.3, 3, -3.7);
-  bags(-4.3, -3.7, -3.7, 1.5);
-  bags(3.7, -3.7, 4.3, 1.5);
-  cylinder(0, 0, 0.09, 9, m.darkMetal);
+  // (56.0: the ring and the pole stood where the sinkhole is: the flag flies by the south arm's roof.)
+  void bags;
+  cylinder(FLAG.x, FLAG.z, 0.09, 9, m.darkMetal);
   const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.1, 8, 1), new THREE.MeshStandardMaterial({ map: T.canvasTexture('#2f5d7c'), side: THREE.DoubleSide, roughness: 0.9 }));
   flag.geometry.translate(0.9, 0, 0);
-  flag.position.set(0.09, 8.3, 0);
+  flag.position.set(FLAG.x + 0.09, 8.3, FLAG.z);
   flag.castShadow = true;
   scene.add(flag);
   const flagBase = (flag.geometry.attributes.position as THREE.BufferAttribute).array.slice();
@@ -453,7 +463,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // Wrecked car, crates, barrels, barriers, tents, fuel tanks.
   solid(-8.1, 0, -6.9, -3.9, 1.0, -5.1, m.rust, 'metal');
   solid(-6.9, 1.0, -6.8, -4.9, 1.6, -5.2, m.rust, 'metal');
-  crateStack(6.5, -3.5, 2);
+  crateStack(7.4, -5.6, 2);
   crateStack(-9.0, 3.0, 1);
   crateStack(16.0, 2.5, 2);
   crateStack(-14.5, -6.5, 1);
@@ -464,15 +474,15 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     const c = solid(x0, 0, z0, x1, 0.9, z1, m.concrete);
     c.vault = true;
   };
-  jersey(3.2, -24.0, 8.8, -23.4);
-  jersey(-10.4, 23.4, -4.6, 24.0);
+  // (56.0: the barriers inside the north and south gates gave way to the Cistern's stairs.)
+  void jersey;
   // (12.0: the barriers inside the west and east gates gave way to the culvert's stairs and parapets.)
   // Tents: canvas walls with a ridge roof (all within the walls' footprint).
   const tent = (x0: number, z0: number, x1: number, z1: number) => {
     solid(x0, 0, z0, x1, 2.0, z1, m.tent, 'wood');
     solid(x0, 2.0, z0 + 0.7, x1, 2.55, z1 - 0.7, m.tent, 'wood');
   };
-  tent(2.0, -16.5, 6.4, -13.2);
+  tent(5.6, -13.8, 9.0, -10.5);
   tent(-8.6, -16.5, -4.2, -13.2);
   for (const z of [-22.6, -19.4]) cylinder(-8.6, z, 0.9, 2.4, m.whitewash);
 
@@ -529,7 +539,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   crate(-10.0, 0, -17.6, -9.5, 0.45, -16.0, crateMats.case);
   crate(-10.0, 0.45, -17.5, -9.55, 0.9, -16.1, crateMats.case);
   // Generator: scrap pile, a stack of tyres against the barrier, ground cables to the buildings.
-  scrap(1.6, -20.0);
+  scrap(8.0, -19.0);
   tyres(-6.8, -26.03, 3);
   // Trading post: sacks and crates by the east door; barrels in the back of the south wing.
   crate(-10.0, 0, 13.0, -9.4, 0.5, 14.4, m.tent);
@@ -595,6 +605,66 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   bulb(10, 2.65, 13.5);
   bulb(24.5, 2.7, 12.5);
 
+  // ======================================================================= 56.0: cover on the roofs
+  // The roofs were open to the flank Blocks' windows end to end (from their faces every roof point was
+  // in sight). On the flank side of each walkable roof: a stair head or a shed (2.4 m, over a head), a
+  // water tank, plant (a waist-high box), the low parapets raised to 1 m there; clear of the stairs,
+  // the bridges and the routes across each roof.
+  {
+    const shed = (x0: number, z0: number, x1: number, z1: number, y: number, mat: THREE.Material) => {
+      solid(x0, y, z0, x1, y + 2.4, z1, mat);
+      solid(x0 - 0.12, y + 2.4, z0 - 0.12, x1 + 0.12, y + 2.55, z1 + 0.12, m.roof);
+      // A steel door on its long inner face (drawn only).
+      const alongZ = z1 - z0 > x1 - x0;
+      if (alongZ) b.add(worldBox(0.03, 2.0, 0.9, 1), m.darkMetal, x1 + 0.015, y + 1.0, (z0 + z1) / 2);
+      else b.add(worldBox(0.9, 2.0, 0.03, 1), m.darkMetal, (x0 + x1) / 2, y + 1.0, z1 + 0.015);
+    };
+    const tank = (x: number, z: number, y: number, r: number, h: number) => {
+      b.add(new THREE.CylinderGeometry(r, r, h, 14), m.whitewash, x, y + h / 2, z);
+      b.add(new THREE.CylinderGeometry(r * 0.3, r * 0.3, 0.2, 10), m.darkMetal, x, y + h + 0.1, z);
+      col.addCylinder(x, z, r, y, y + h, 'metal');
+    };
+    const plant = (x0: number, z0: number, x1: number, z1: number, y: number, h: number) => {
+      solid(x0, y, z0, x1, y + h, z1, m.darkMetal, 'metal');
+      b.add(worldBox((x1 - x0) * 0.7, 0.05, (z1 - z0) * 0.7, 1), m.metal, (x0 + x1) / 2, y + h + 0.025, (z0 + z1) / 2);
+    };
+    // Barracks (3.55): a shed on its west end, a tank, plant; its west parapet to 1 m.
+    shed(-25.75, -17.75, -23.0, -13.0, 3.55, m.plaster);
+    tank(-19.6, -16.9, 3.55, 0.8, 1.8);
+    plant(-21.0, -12.35, -19.4, -11.25, 3.55, 1.0);
+    solid(-26, 4.05, -18, -25.75, 4.55, -11, m.plaster);
+    // Trading post (3.55): a stair head on each wing's west end, a tank between them.
+    shed(-23.75, 18.5, -21.6, 23.75, 3.55, m.mud);
+    shed(-23.75, 12.0, -22.0, 14.75, 3.55, m.mud);
+    tank(-21.8, 10.2, 3.55, 0.8, 1.8);
+    // Motor pool (5.25): a shed in its north-east corner, plant on the east edge, a tank on the west.
+    shed(23.0, -19.75, 25.75, -15.6, 5.25, m.metal);
+    plant(24.6, -13.2, 25.75, -11.6, 5.25, 1.3);
+    tank(13.5, -10.5, 5.25, 0.8, 1.8);
+    // Shades: corrugated sheets on posts (or off a shed's top), 2.4 m over the roof: from a Block's top
+    // floor the roof below a parapet or behind a shed was still in sight; under a shade it is not.
+    const shade = (x0: number, z0: number, x1: number, z1: number, y: number, posts: [number, number][]) => {
+      b.add(worldBox(x1 - x0, 0.06, z1 - z0, 2), m.metal, (x0 + x1) / 2, y + 0.03, (z0 + z1) / 2);
+      const c = col.add(x0, y, z0, x1, y + 0.06, z1, 'metal');
+      c.solid = false;
+      c.floor = false;
+      for (const [px, pz] of posts) solid(px - 0.08, y - 2.4, pz - 0.08, px + 0.08, y, pz + 0.08, m.darkMetal, 'metal');
+    };
+    // (Most of each roof: the Blocks' top-floor slits, 9.5 m up, saw 86% of the roofs on their side
+    // even to a body crouched behind the parapet; the strip along the yard side stays open.)
+    // Each reaches 2 m out past the flank-side edge (a slit's line ran in under a shade's edge).
+    shade(-28, -17.75, -11.5, -11.25, 5.95, [[-11.6, -17.6], [-11.6, -11.4]]);
+    shade(-26, 15.25, -17.25, 23.75, 5.95, [[-17.5, 23.5]]);
+    shade(-26, 8.25, -12, 14.75, 5.95, [[-12.1, 8.4], [-12.1, 14.6]]);
+    shade(12, -19.75, 28, -8.25, 7.65, [[12.1, -19.6], [12.1, -8.4]]);
+    shade(6.25, 10.25, 16, 16.75, 5.75, [[6.4, 10.4], [6.4, 16.2]]);
+    // Clinic (3.35): a tank and plant; its east parapet to 1 m.
+    tank(12.4, 15.4, 3.35, 0.7, 1.6);
+    plant(6.25, 14.2, 7.5, 15.2, 3.35, 1.0);
+    solid(13.75, 3.85, 10, 14, 4.35, 11.5, m.whitewash);
+    solid(13.75, 3.85, 13, 14, 4.35, 17, m.whitewash);
+  }
+
   // ======================================================================= 12.0: Desert 2.0
   // The compound in three levels instead of one open yard, and open on every side:
   //  - OMEGA's side (north): stairs to the barracks roof and to the motor pool's high roof (5.25 m),
@@ -655,52 +725,207 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     for (let i = 0; i <= k; i++) crate(x0, i * 0.6, 17.0, x0 + 1.2, (i + 1) * 0.6, 18.2, i % 2 ? crateMats.ammo : crateMats.gear);
   }
 
-  // The culvert: walls the whole length (parapets above ground over its open ends), the roof slab over
-  // the middle, stairs down at each end, paving round the open ends. Roof and paving reach 1.45 m past
-  // the cut on every side (the terrain mesh's hole is at most a cell, 1.3 m, beyond it).
+  // 56.0, the Cistern (Terrain.ts CISTERN): the culvert runs into a hall under the yard's middle, an
+  // arm from the hall up to the yard inside each team's gate, and the sinkhole over the hall: the
+  // middle is fought on two levels. Walls the whole length below ground (parapets above it round
+  // every opening), the yard's paving as the roof, stairs down at every end, paving round every
+  // opening (1.45 m past the cut: the terrain mesh's hole is at most a cell, 1.3 m, beyond it).
   {
     const C = CULVERT, F = C.floor, W = 0.5, inner = C.z - W, PAVE = 1.45;
+    const H = CISTERN.hall, A = CISTERN.arm, O = CISTERN.hole;
+    /** A box in the south frame and its rotation (the Cistern is point-symmetric). */
+    const twin = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material, surface: Collider['surface'] = 'concrete') => {
+      const c = solid(x0, y0, z0, x1, y1, z1, mat, surface);
+      return [c, solid(-x1, y0, -z1, -x0, y1, -z0, mat, surface)];
+    };
+    // ---- The culvert, outside the hall: walls, parapets over its open ends, paving, the roof.
     for (const sz of [-1, 1]) {
       const z0 = sz < 0 ? -C.z : inner, z1 = sz < 0 ? -inner : C.z;
-      solid(-C.x, F, z0, C.x, 0, z1, m.concrete);
       for (const sx of [-1, 1]) {
-        const xa = sx < 0 ? -C.x : C.roof, xb = sx < 0 ? -C.roof : C.x;
-        solid(xa, 0, z0, xb, 1.0, z1, m.concrete);
-        // Paving along the open trench and round its rim.
+        const xa = sx < 0 ? -C.x : H.x, xb = sx < 0 ? -H.x : C.x;
+        solid(xa, F, z0, xb, 0, z1, m.cistern);
+        const pa = sx < 0 ? -C.x : C.roof, pb = sx < 0 ? -C.roof : C.x;
+        solid(pa, 0, z0, pb, 1.0, z1, m.concrete);
         const pz0 = sz < 0 ? -C.z - PAVE : C.z, pz1 = sz < 0 ? -C.z : C.z + PAVE;
-        solid(xa, -0.3, pz0, xb, 0.04, pz1, m.concrete);
+        solid(pa, -0.3, pz0, pb, 0.04, pz1, m.concrete);
       }
     }
-    // Paving past each end, and the landing at the top of each stair (between the walls).
     for (const sx of [-1, 1]) {
       solid(sx < 0 ? -C.x - PAVE : C.x, -0.3, -C.z - PAVE, sx < 0 ? -C.x : C.x + PAVE, 0.04, C.z + PAVE, m.concrete);
       solid(sx < 0 ? -C.x : C.top, -0.3, -inner, sx < 0 ? -C.top : C.x, 0.04, inner, m.concrete);
+      // Its roof between the hall and its stair (the yard's paving there).
+      solid(sx < 0 ? -C.roof : H.x + PAVE, -0.3, -C.z - PAVE, sx < 0 ? -H.x - PAVE : C.roof, 0.04, C.z + PAVE, m.concrete);
+      // The floor you see (the terrain is the floor you stand on; its mesh has a hole here).
+      solid(sx < 0 ? -C.x : H.x, F - 0.3, -inner, sx < 0 ? -H.x : C.x, F, inner, m.cistern);
     }
-    // The roof: flush with the yard (it is the yard's paving there).
-    solid(-C.roof, -0.3, -C.z - PAVE, C.roof, 0.04, C.z + PAVE, m.concrete);
-    // The floor you see (the terrain is the floor you stand on, but its mesh has a hole here), flush
-    // with it, under the stairs too.
-    solid(-C.x, F - 0.3, -inner, C.x, F, inner, m.concrete);
-    // Stairs: treads you see over the terrain's own ramp (the walking surface), inset from the walls.
-    const steps = Math.round(-F / 0.25), run = (C.top - C.roof) / steps;
-    for (const sx of [-1, 1]) {
-      for (let i = 0; i < steps; i++) {
+    const steps = Math.round(-F / 0.25);
+    {
+      const run = (C.top - C.roof) / steps;
+      for (const sx of [-1, 1]) for (let i = 0; i < steps; i++) {
         const top = F + ((i + 1) * -F) / steps;
-        const a = C.roof + i * run;
-        const cx = sx * (a + run / 2);
-        b.add(worldBox(run, top - F, 2 * (inner - STAIR_GAP), 1), m.concrete, cx, (top + F) / 2, 0);
+        b.add(worldBox(run, top - F, 2 * (inner - STAIR_GAP), 1), m.cistern, sx * (C.roof + i * run + run / 2), (top + F) / 2, 0);
       }
     }
-    // Cover down there: a crate stack against each wall, staggered (point-symmetric).
-    // (0.8 m: on top of one a body still fits under the roof; at 1.0 m its head went into the slab.)
-    crate(-8, F, -inner, -6.8, F + 0.8, -inner + 1.1, crateMats.case);
-    crate(6.8, F, inner - 1.1, 8, F + 0.8, inner, crateMats.case);
+    // Down the culvert: a crate against each wall, staggered (0.8 m: on top of one a body fits under the roof).
+    crate(-15, F, -inner, -13.8, F + 0.8, -inner + 1.1, crateMats.case);
+    crate(13.8, F, inner - 1.1, 15, F + 0.8, inner, crateMats.case);
+
+    // ---- The hall: its floor, its walls (open where the culvert and the arms come in), pillars.
+    solid(-H.x, F - 0.3, -H.z, H.x, F, H.z, m.cistern);
+    for (const sx of [-1, 1]) {
+      const x0 = sx < 0 ? -H.x : H.x - W, x1 = x0 + W;
+      solid(x0, F, -H.z, x1, 0, -inner, m.cistern);
+      solid(x0, F, inner, x1, 0, H.z, m.cistern);
+    }
+    // The north wall (and its rotation, the south one): open where the arm comes in.
+    twin(-H.x + W, F, -H.z, -A.x1 + W, 0, -H.z + W, m.cistern);
+    twin(-A.x0 - W, F, -H.z, H.x - W, 0, -H.z + W, m.cistern);
+    for (const [x, z] of [[-6, 4.6], [6, -4.6], [6, 4.6], [-6, -4.6]]) solid(x - 0.4, F, z - 0.4, x + 0.4, -0.3, z + 0.4, m.cistern);
+    // Cover down there: crates by the culvert's mouths, the pumps by the arms (point-symmetric).
+    twin(5.0, F, 1.4, 6.2, F + 1.2, 2.6, m.wood, 'wood');
+    twin(-1.0, F, -7.5, 1.0, F + 1.8, -6.6, m.darkMetal, 'metal');
+    // The roof: the yard's paving, open over the sinkhole.
+    const R = { x: H.x + PAVE, z: H.z + PAVE };
+    solid(-R.x, -0.3, -R.z, R.x, 0.04, -O.z, m.concrete);
+    solid(-R.x, -0.3, O.z, R.x, 0.04, R.z, m.concrete);
+    solid(-R.x, -0.3, -O.z, -O.x, 0.04, O.z, m.concrete);
+    solid(O.x, -0.3, -O.z, R.x, 0.04, O.z, m.concrete);
+
+    // ---- The arms (south frame, built again rotated): walls, the roof, the stair, its parapets.
+    {
+      const x0 = A.x0, x1 = A.x1;
+      twin(x0, F, H.z - W, x0 + W, 0, A.end, m.cistern);
+      twin(x1 - W, F, H.z - W, x1, 0, A.end, m.cistern);
+      twin(x0, 0, A.roof, x0 + W, 1.0, A.end, m.concrete);
+      twin(x1 - W, 0, A.roof, x1, 1.0, A.end, m.concrete);
+      // Across the far end of the opening (no walking off the roof into the stairwell).
+      twin(x0 + W, 0, A.roof - W, x1 - W, 1.0, A.roof, m.concrete);
+      twin(x0 - PAVE, -0.3, R.z, x1 + PAVE, 0.04, A.roof, m.concrete);
+      twin(x0 - PAVE, -0.3, A.roof, x0, 0.04, A.end + PAVE, m.concrete);
+      twin(x1, -0.3, A.roof, x1 + PAVE, 0.04, A.end + PAVE, m.concrete);
+      twin(x0, -0.3, A.top, x1, 0.04, A.end + PAVE, m.concrete);
+      twin(x0 + W, F - 0.3, H.z, x1 - W, F, A.top, m.cistern);
+      const run = (A.top - A.roof) / steps;
+      for (let i = 0; i < steps; i++) {
+        const top = F + ((i + 1) * -F) / steps;
+        const zc = A.roof + i * run + run / 2, w = x1 - x0 - 2 * (W + STAIR_GAP);
+        b.add(worldBox(w, top - F, run, 1), m.cistern, (x0 + x1) / 2, (top + F) / 2, zc);
+        b.add(worldBox(w, top - F, run, 1), m.cistern, -(x0 + x1) / 2, (top + F) / 2, -zc);
+      }
+    }
+
+    // ---- The sinkhole: where the yard fell into the hall, two slabs of it lying as ramps (one from
+    // each side, point-symmetric), the rest a 3 m drop. A ramp's underside is filled (nobody walks
+    // under it; rounds stop at it).
+    const slab = (xTop: number, xLow: number, z0: number, z1: number) => {
+      const L = Math.abs(xTop - xLow), T = 0.3, ang = Math.atan2(-F, xTop - xLow);
+      b.add(worldBox(Math.hypot(L, F), T, z1 - z0, 1.5), m.concrete, (xTop + xLow) / 2, F / 2 - T / 2, (z0 + z1) / 2, 0, 0, ang);
+      const xa = Math.min(xTop, xLow), xb = Math.max(xTop, xLow);
+      col.addRamp(xa, z0, xb, z1, 'x', xTop > xLow ? F : 0, xTop > xLow ? 0 : F);
+      const seg = 6;
+      for (let i = 0; i < seg; i++) {
+        const a0 = xa + (L * i) / seg, a1 = xa + (L * (i + 1)) / seg;
+        const under = xTop > xLow ? F + (-F * (a0 - xa)) / L : F + (-F * (xb - a1)) / L;
+        // Its open side, the hall's side, is a face for rounds, sight and the graph's links (a link ran
+        // in under its low end, where no body fits)...
+        // (a plate on each side, thin across the slab, so a body that jumps at its side is put back out
+        // the way it came, not along the slab into the fill: the stairs' side plates, the same rule)...
+        for (const zs of [z0, z1 - 0.08]) {
+          if (under - F < 0.1) continue;
+          b.add(worldBox(a1 - a0, under - 0.05 - F, 0.08, 1), m.cistern, (a0 + a1) / 2, (under - 0.05 + F) / 2, zs + 0.04);
+          const r = col.add(a0, F, zs, a1, under - 0.05, zs + 0.08, 'concrete');
+          r.floor = false;
+        }
+        // ...and bodies stop at a fill 0.3 m under it (a body on the slab over its edge stays clear of it).
+        const h = under - 0.3;
+        if (h - F < 0.15) continue;
+        const c = col.add(a0, F, z0 + 0.08, a1, h, z1 - 0.08, 'concrete');
+        c.floor = false;
+      }
+    };
+    // Each slab 0.5 m short of the hole's side (a body on its rim keeps its head out from under the
+    // hall's roof), a crack between them down to the floor (no stepping off one onto the other's
+    // underside: a broken beam there wedged the bots against it).
+    slab(O.x, -2, -O.z + 0.5, -0.6);
+    slab(-O.x, 2, 0.6, O.z - 0.5);
+    // Broken edges round the drop: a lip of rubble you can vault, sandbags where the yard's ring was.
+    const rubble = (x0: number, z0: number, x1: number, z1: number, h: number) => {
+      for (const [a0, b0, a1, b1] of [[x0, z0, x1, z1], [-x1, -z1, -x0, -z0]]) {
+        const c = solid(a0, 0, b0, a1, h, b1, m.concrete);
+        c.vault = true;
+      }
+    };
+    rubble(-O.x - 0.9, -3.0, -O.x, -0.4, 0.6);
+    for (const [x0, z0, x1, z1] of [[-2.4, -5.1, 1.4, -4.5], [-6.2, 0.6, -5.6, 3.6]]) {
+      const c = solid(x0, 0, z0, x1, 1.05, z1, m.sandbag, 'sand', 1);
+      c.vault = true;
+      const d = solid(-x1, 0, -z1, -x0, 1.05, -z0, m.sandbag, 'sand', 1);
+      d.vault = true;
+    }
+    // Rebar out of the broken edges (drawn only).
+    for (const [x, z, a] of [[-1.5, -3.5, 0.5], [0.8, -3.5, -0.4], [-4, 1.6, 0.6], [4, -1.2, -0.5], [1.5, 3.5, 0.4], [-0.8, 3.5, -0.6]]) b.add(worldBox(0.04, 1.4, 0.04, 1), m.rust, x, -0.2, z, a, 0, a * 0.7);
+
+    // The roofs' undersides, seen from below (drawn only, in the Cistern's self-lit concrete).
+    const ceil = (x0: number, z0: number, x1: number, z1: number) => b.add(worldBox(x1 - x0, 0.02, z1 - z0, 1.5), m.cistern, (x0 + x1) / 2, -0.315, (z0 + z1) / 2);
+    ceil(-H.x, -H.z, H.x, -O.z);
+    ceil(-H.x, O.z, H.x, H.z);
+    ceil(-H.x, -O.z, -O.x, O.z);
+    ceil(O.x, -O.z, H.x, O.z);
+    for (const sx of [-1, 1]) ceil(sx < 0 ? -C.roof : H.x, -inner, sx < 0 ? -H.x : C.roof, inner);
+    ceil(A.x0 + W, H.z, A.x1 - W, A.roof);
+    ceil(-A.x1 + W, -A.roof, -A.x0 - W, -H.z);
+    // Strip lamps along the hall's walls and down each arm (drawn; the bulbs are what you shoot out).
+    const strip = (x: number, z: number, alongX: boolean, len: number) => b.add(alongX ? worldBox(len, 0.08, 0.08, 1) : worldBox(0.08, 0.08, len, 1), m.bulb, x, -0.6, z);
+    for (const sz of [-1, 1]) {
+      strip(-6, sz * (H.z - W - 0.05), true, 3);
+      strip(6, sz * (H.z - W - 0.05), true, 3);
+    }
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) strip(sx * (H.x - W - 0.05), sz * 5, false, 3);
+    strip(A.x0 + W + 0.05, 12, false, 4);
+    strip(-A.x0 - W - 0.05, -12, false, 4);
+
+    // ---- Over the sinkhole: the salvage crew's hoist (three steel legs, a chain, a pallet of the
+    // pump's parts hung high over the drop) and a work light on it: the middle's landmark, seen from
+    // every roof and gate.
+    {
+      const apex = new THREE.Vector3(0, 7.2, 0);
+      const feet: [number, number][] = [[-5.6, -3.9], [5.2, -4.6], [1.0, 6.6]];
+      for (const [fx, fz] of feet) {
+        const foot = new THREE.Vector3(fx, 0, fz);
+        const len = foot.distanceTo(apex);
+        const g = new THREE.CylinderGeometry(0.09, 0.12, len, 8);
+        g.translate(0, len / 2, 0);
+        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), apex.clone().sub(foot).normalize());
+        const e = new THREE.Euler().setFromQuaternion(q);
+        b.add(g, m.rust, fx, 0, fz, e.x, e.y, e.z);
+        col.addCylinder(fx, fz, 0.16, 0, 1.6, 'metal');
+        b.add(worldBox(0.7, 0.12, 0.7, 1), m.darkMetal, fx, 0.06, fz);
+      }
+      b.add(new THREE.CylinderGeometry(0.04, 0.04, 3.4, 6), m.darkMetal, 0, 5.5, 0);
+      solid(-0.75, 3.2, -0.6, 0.75, 3.8, 0.6, crateMats.case, 'wood');
+      b.add(worldBox(1.6, 0.08, 1.3, 1), m.wood, 0, 3.16, 0);
+      // The work light under the apex, aimed down the hole.
+      b.add(worldBox(0.5, 0.25, 0.35, 1), m.darkMetal, 0, 6.85, 0);
+      b.add(worldBox(0.42, 0.02, 0.28, 1), m.bulb, 0, 6.72, 0);
+      glows.add({ pos: new THREE.Vector3(0, 6.6, 0), color: new THREE.Color(1, 0.86, 0.6), radius: 9, base: 1, haloSize: 1.6, haloStrength: 0.3, mode: 'steady' });
+    }
     interiors.push({ name: 'CULVERT', jp: 'العبّارة', x0: -C.x, z0: -inner, x1: C.x, z1: inner, h: -0.3 });
-    for (const x of [-14, 0, 14]) bulb(x, -0.75, 0);
+    interiors.push({ name: 'CISTERN', jp: 'الصهريج', x0: -H.x, z0: -H.z, x1: H.x, z1: H.z, h: -0.3 });
+    interiors.push({ name: 'CISTERN STAIRS', jp: 'درج الصهريج', x0: A.x0, z0: H.z, x1: A.x1, z1: A.top, h: -0.3 });
+    interiors.push({ name: 'CISTERN STAIRS', jp: 'درج الصهريج', x0: -A.x1, z0: -A.top, x1: -A.x0, z1: -H.z, h: -0.3 });
+    for (const x of [-14, 14]) bulb(x, -0.75, 0);
+    for (const [x, z] of [[-6.5, -6.6], [6.5, 6.6], [-6.5, 2.4], [6.5, -2.4], [-3, 12], [3, -12]]) bulb(x, -0.75, z);
   }
 
   // ======================================================================= Perimeter (HESCO, four gates)
-  const hesco = (x0: number, z0: number, x1: number, z1: number) => solid(x0, 0, z0, x1, 1.5, z1, m.hesco, 'sand', 1.2);
+  // 56.0: two baskets high (2.5 m, was one, 1.5): from the dunes a body no longer sees, or is seen,
+  // over it into the yard (the playtest: "waist-high boxes between the middle and the flanks, boring,
+  // and a long field of fire"); the yard is seen through its gates, breaches and slumps.
+  const hesco = (x0: number, z0: number, x1: number, z1: number) => {
+    solid(x0, 0, z0, x1, 1.5, z1, m.hesco, 'sand', 1.2);
+    const ix = x1 - x0 > z1 - z0 ? 0 : 0.08, iz = ix ? 0 : 0.08;
+    solid(x0 + ix, 1.5, z0 + iz, x1 - ix, 2.5, z1 - iz, m.hesco, 'sand', 1.2);
+  };
   const H = 0.55;
   const lineX = (z: number, gaps: [number, number][]) => {
     let cur = -30 - H;
@@ -861,6 +1086,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   // ======================================================================= Gameplay data
   const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  /** 56.0: the surface at (x, z): the yard's paving over the Cistern's roofed parts, else the ground. */
+  const yardY = (x: number, z: number) => (underFloor(x, z) !== null && !underOpen(x, z) ? 0 : desertHeight(x, z));
   const medkits = [v(-12.0, SLAB, -13.6), v(9.0, SLAB, 15.6)];
   const perches = [v(24.5, 3.25, 12.5), v(-20.5, 3.55, 20.5), v(-12.0, 3.55, 11.5), v(-20, 3.55, -14.5), v(18, 5.25, -14), v(10, 3.35, 13.5)];
   const coverPoints: THREE.Vector3[] = [];
@@ -872,13 +1099,14 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     // 3.5 clutter.
     [24.2, -6.6], [12.9, -3.9], [-17, -9.6], [-8.8, -16.8], [1.6, -18.6], [-8.6, 13.7], [17.6, 7], [13.4, 7], [22.7, 16.6],
   ]) {
-    // (12.0: the yard's cover over the culvert's line is the culvert's now.)
-    if (culvertFloor(x, z) !== null) continue;
-    const p = v(x, desertHeight(x, z), z);
+    // (12.0: the yard's cover over the culvert's line is the culvert's now. 56.0: on the Cistern's
+    // roof the cover stands on the paving; over its openings there is none.)
+    if (underOpen(x, z)) continue;
+    const p = v(x, yardY(x, z), z);
     if (!col.blocked(p, 0.45)) coverPoints.push(p);
   }
-  // 12.0: down in the culvert (behind its crates) and behind the parapets on the new roofs.
-  for (const [x, y, z] of [[-7.4, -3, 0.2], [7.4, -3, -0.2], [-12.6, 3.55, -17.3], [-25.3, 3.55, -11.7], [12, 5.25, -19.3], [24.3, 5.25, -8.8], [6.8, 3.35, 16.3], [13.3, 3.35, 10.7]]) {
+  // 12.0: down in the culvert (behind its crates) and behind the parapets on the new roofs. 56.0: and in the Cistern.
+  for (const [x, y, z] of [[-13.2, -3, -0.9], [13.2, -3, 0.9], [6.8, -3, 1.6], [-6.8, -3, -1.6], [-6.8, -3, -5.4], [6.8, -3, 5.4], [-4.6, -3, 4.6], [4.6, -3, -4.6], [6.4, -3, -6.1], [-6.4, -3, 6.1], [-12.6, 3.55, -17.3], [-25.3, 3.55, -11.7], [12, 5.25, -19.3], [24.3, 5.25, -8.8], [6.8, 3.35, 16.3], [13.3, 3.35, 10.7]]) {
     const p = v(x, y, z);
     if (!col.blocked(p, 0.45)) coverPoints.push(p);
   }
@@ -899,7 +1127,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   const links: [number, number][] = [];
   const N = (x: number, y: number, z: number) => nodes.push(v(x, y, z)) - 1;
   const insideBuilding = (x: number, z: number, pad: number) =>
-    interiors.some((r) => r.name !== 'CULVERT' && x > r.x0 - pad - WALL_T && x < r.x1 + pad + WALL_T && z > r.z0 - pad - WALL_T && z < r.z1 + pad + WALL_T) ||
+    interiors.some((r) => r.h > 0 && x > r.x0 - pad - WALL_T && x < r.x1 + pad + WALL_T && z > r.z0 - pad - WALL_T && z < r.z1 + pad + WALL_T) ||
     (x > 26.5 && x < 29 && z > 9.5 && z < 17.2) || (x > -17.5 && x < -15 && z > 14.5 && z < 24.2) ||
     // 12.0: the barracks and motor pool stairs, the clinic's crates.
     (x > -14.5 && x < -12.1 && z > -24.7 && z < -17.5) || (x > 10.5 && x < 22.5 && z > -22 && z < -19.5) || (x > 6.3 && x < 13.3 && z > 16.5 && z < 18.7);
@@ -912,12 +1140,14 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
       N(x, y, z);
     }
   }
-  // Gates (both sides) and the yard between the buildings.
+  // Gates (both sides) and the yard between the buildings. (56.0: not (-12, -22) by the barracks stair: no link reached it.)
   for (const [x, z] of [[6, -29.5], [6, -24.5], [-7, 29.5], [-7, 24.5], [-32.5, -3], [-27.5, -3], [32.5, -1], [27.5, -1],
-    [0, -8], [-7, -9], [7, -6], [12, -5], [20, -4], [-6, 5], [3, 6], [-12, 1], [-20, 1], [-27, 5], [-27, -20], [-20, -22], [-12, -22], [-6, -26],
+    [0, -8], [-7, -9], [7, -6], [12, -5], [20, -4], [-6, 5], [3, 6], [-12, 1], [-20, 1], [-27, 5], [-27, -20], [-20, -22], [-6, -26],
     [5, -18], [9, -24], [16, -24], [27, -22], [28, -8], [28, 7], [20, 8], [15, 7.5], [3, 9], [-3, 13], [-6, 20], [-12, 25], [-26, 25.5], [-27, 12],
-    [16, 13], [19, 18.5], [10, 19], [3, 18], [28.5, 19], [-8, 9]]) {
-    const y = desertHeight(x, z);
+    [16, 13], [19, 18.5], [10, 19], [3, 18], [28.5, 19], [-8, 9],
+    // 56.0: the yard over the Cistern (on its roof), round the sinkhole.
+    [-7, -6.5], [7, 6.5], [-7, 6.5], [7, -6.5], [0, -6.2], [0, 6.2], [-6.5, 0], [6.5, 0], [5.5, -2], [-5.5, 2], [-3, 18], [3, -18]]) {
+    const y = yardY(x, z);
     if (!col.blocked(probe.set(x, y, z), 0.5)) N(x, y, z);
   }
   // Inside: room centres and both sides of every door, linked by hand through the doorway.
@@ -974,7 +1204,24 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     const C = CULVERT;
     const west = [N(-C.x - 0.6, 0, 0), N(-(C.top + C.roof) / 2, C.floor / 2, 0), N(-C.roof + 1, C.floor, 0)];
     const east = [N(C.x + 0.6, 0, 0), N((C.top + C.roof) / 2, C.floor / 2, 0), N(C.roof - 1, C.floor, 0)];
-    chain(...west, N(-10, C.floor, 0.6), N(0, C.floor, 0), N(10, C.floor, -0.6), east[2], east[1], east[0]);
+    // 56.0: through the hall round the sinkhole's slabs (they fill its middle), either side.
+    const wIn = N(-10, C.floor, 0.6), eIn = N(10, C.floor, -0.6);
+    chain(...west, wIn);
+    chain(eIn, east[2], east[1], east[0]);
+    const wIn2 = N(-7.6, C.floor, 0), eIn2 = N(7.6, C.floor, 0);
+    chain(wIn, wIn2);
+    chain(eIn2, eIn);
+    for (const k of [1, -1]) chain(wIn2, N(-7.6, C.floor, k * 3.2), N(-4.6, C.floor, k * 3.8), N(-3, C.floor, k * 5.8), N(3, C.floor, k * 5.8), N(4.6, C.floor, k * 3.8), N(7.6, C.floor, k * 3.2), eIn2);
+    // 56.0: the Cistern: the hall's floor, each arm from the yard by its gate down to the hall, each
+    // slab of the sinkhole from the yard down (south frame, then rotated).
+    const F = C.floor, A = CISTERN.arm;
+    for (const [x, z] of [[-6.8, -6.6], [6.8, 6.6], [-6.8, 6.6], [6.8, -6.6], [-2.4, -6.4], [2.4, 6.4], [-3, 5.4], [3, -5.4], [-7.6, -3.2], [7.6, 3.2]]) N(x, F, z);
+    for (const k of [1, -1]) {
+      const ax = k * (A.x0 + A.x1) / 2;
+      chain(N(ax, 0, k * (A.end + 1)), N(ax, 0, k * (A.top + 0.2)), N(ax, F / 2, k * (A.top + A.roof) / 2), N(ax, F, k * (A.roof - 0.6)), N(ax, F, k * 11.5), N(ax, F, k * 8.6), N(k * -3, F, k * 5.4));
+      // Walked node by node (a bot halfway down, between two far ends, turned back and forth).
+      chain(N(k * 5.2, 0, k * -1.8), N(k * 3, -0.5, k * -1.8), N(k * 0.6, -1.7, k * -1.8), N(k * -1.4, -2.7, k * -1.8), N(k * -3.2, F, k * -1.8));
+    }
   }
   // The arena: bases, chicanes, hamlet doorways, pump houses, lanes (hand links where auto ones can't
   // see round a corner). A node a wall swallowed is dropped (and its links with it).

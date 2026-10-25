@@ -78,8 +78,11 @@ export type Way3 = [number, number, number];
  * under the yard, up at the west gate and on up the west flank: a crossing nobody on a roof sees.
  * Floor heights given (the culvert's stairs and floor; the dunes are filled in from the terrain).
  */
+// 56.0: down the Cistern's arm inside the south gate instead (the culvert's east end is the other
+// team's way in now: its lane is this one rotated), through the hall, out along the culvert west.
 export const CULVERT_LANE_SOUTH: (Way3 | [number, number])[] = [
-  [17, 53], [27, 44], [35, 30], [35, 12], [33.5, -1], [28.6, 0, 0], [24, 0, -1.5], [18, 0, -3], [0, 0, -3], [-18, 0, -3], [-24, 0, -1.5], [-28.6, 0, 0],
+  [0, 48.5], [-3, 40], [-6.5, 31], [-7, 25.5], [-3, 23.1, 0], [-3, 21.7, 0], [-3, 18.5, -1.5], [-3, 14.9, -3], [-3, 8.6, -3], [-7.2, 6.4, -3], [-7.6, 0.8, -3],
+  [-12, 0, -3], [-18, 0, -3], [-24, 0, -1.5], [-28.6, 0, 0],
   [-33.5, -3], [-40, -20], [-48, -38], [-43, -47], [-30, -50],
 ];
 

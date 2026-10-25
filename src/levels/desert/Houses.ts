@@ -501,7 +501,8 @@ export const BLOCK_SPEC: HouseSpec = {
     { side: 'e', at: 5.6, w: 1.1, y0: 1.0, y1: 2.1, level: 1 },
     { side: 'w', at: 2.6, w: 1.0, y0: 1.0, y1: 2.1, level: 1 },
     { side: 's', at: -2.5, w: 0.7, y0: 1.3, y1: 1.9, level: 2 },
-    { side: 'e', at: 9.3, w: 0.7, y0: 1.3, y1: 1.9, level: 2 },
+    // (56.0: no slit towards the compound on the top floor: from 9.5 m up it looked down on 86% of the
+    // compound's roofs on its side, a body crouched behind a parapet included.)
   ],
   walls: [
     // The end rooms' wall, from the stairwell to the east wall: a door into the hall and one into the east room.

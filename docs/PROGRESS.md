@@ -2769,8 +2769,46 @@ Stuck 0 in all of them (1 in one match with the instincts off, on the Docks). Th
 ### Checks
 - Tests 539 (+9: the chase's roll and its odds, the trail out of sight, tunnel vision, its ends, the per-victim cap, payback, the reload punish, the quick reacquisition, the cover call).
 
+## 56.0: the Desert's middle on two levels
+
+Branch `feature/desert-mid-56.0`, from `feature/combat-55.0` @ `dd6c3ec` (55.0, not merged yet).
+
+The playtest: the waist-high boxes between the middle and the flanks (the HESCO) boring and a long field of fire; a lot of open ground without cover; the middle's roofs open to the flank buildings; the tunnel under the middle dull ("make it a place of its own: a fight on the ground and under it, with ways in from the middle and by both teams' entrances"); the middle of the middle an empty patch.
+
+### The Cistern (Terrain.ts `CISTERN`, `underFloor`, `underOpen`)
+- A hall under the yard's middle (18 × 16 m, 2.7 m high, four pillars, crates, pumps), the culvert running through it from the west gate to the east gate.
+- An arm from the hall to each team's gate: roofed from the hall, a stair up to the yard just inside the gate (south: x −5…−1, z 15.5…22; the north arm is its rotation), parapets round its opening. The jersey barriers inside the north and south gates went; a tent and a scrap pile moved off the north arm.
+- The sinkhole: the hall's roof is open over its middle (8 × 7 m, where the yard fell in), two slabs of it lying as ramps from the yard down into the hall from opposite sides (point-symmetric), a crack between them, the rest a 3 m drop. Rubble lips and sandbags round the edge; the sandbag ring and the flagpole that stood there went (the flag flies by the south arm's roof).
+- Over the sinkhole: a salvage hoist (three steel legs, a chain, a pallet hung 3.2 m up, a work light), the middle's landmark from every roof and gate.
+- Its concrete faintly self-lit (`m.cistern`: no point light added; a pooled light slot costs every lit pixel on the map), the roofs' undersides drawn, strip lamps, bulbs to shoot out.
+- The graph: the hall's floor, each arm from the yard by its gate down to the hall, each slab node by node (a long hand link from the yard to the floor turned bots back and forth half way down), routes round the slabs through the hall; the yard over the Cistern on its roof (`yardY`). Lane 3 (the culvert lane) goes down the arm inside the team's own gate, through the hall and out along the culvert west.
+- A slab's underside is filled for bodies 0.3 m under it (a body on its rim stays clear), with a plate on each side, thin across it (a body that jumped at a slab's side was pushed along it into the fill: the stairs' side-plate rule), each slab 0.5 m short of the hole's side (a bot's head wedged under the hall's roof at its rim).
+- Zones CISTERN and CISTERN STAIRS (interiors: no storm); the objective in the middle (r 10, ±6 m) counts the hall and the yard over it.
+
+### The perimeter, the roofs, the field
+- The HESCO two baskets high (2.5 m, was 1.5): from the dunes nobody sees, or is seen, over it into the yard; the yard is seen through its gates, breaches and slumps.
+- The roofs: a stair head or shed (2.4 m) on the flank side of each walkable roof, water tanks, plant, the low parapets raised to 1 m there, and shades (corrugated sheets 2.4 m over the roof, 2 m out past the flank-side edge). The Blocks' top floor lost its slit towards the compound (from 9.5 m it looked down on 86% of the roofs on its side, a crouched body behind a parapet included).
+- The field: blast walls (3.2 m, a panel every 1.2 m) and shipping containers (2.6 m) between the bases, the compound and the flanks, clear of every lane and of the dune scatter (no keep-out added: the rocks fall as before).
+
+### Measured (`dl.mjs`: the Blocks' compound-side openings; points on every walkable roof, crouched)
+| | 55.0 | 56.0 |
+|---|---|---|
+| roof points with a place 3 m away hidden from their side's Block | 0% | 78% |
+| roof points hidden from their side's Block | 0% | 52.5% |
+| window → roof pairs in sight (standing) | 62.6% | 39.4% |
+| the field: pairs 30 m+ apart in sight | 25.8% | 10.8% |
+| ... 50 m+ | 16.7% | 6% |
+| the yard: pairs 20 m+ in sight | 20.4% | 18.4% |
+
+### Checks
+- `world`: no new cluster (the same coplanar stairs in the Block, the houses and the ruins as 55.0); `stairGaps` clean; `stress` 0/32,000. At 3,000 samples (96,000 runs) 5 a run on either build, all in the flank buildings (a house's upper floor, a hut, the skybridge on 55.0; the ruins, the Block, a wadi house on 56.0): not this version's, left for another.
+- The graph 1193 nodes, every one reachable (55.0: one by the barracks stair was not; dropped); levelAI runners 510/512 (55.0: 485/488, the same two failures: the wadi house, a yard goal by the pickup), gunners 8/8.
+- Self-play (12 matches; 55.0 on the old map 4): kills/min 17.4–32.2 (old 28.1–33.3), kill range median 12.1–14.8 m (old 13.8–18.7), p90 32–38.9 m (old 33–39.3); kills in the culvert and the Cistern 15 in 4 matches (old: 3 in the culvert); ALPHA won 9 of 12 (old 3 of 4); stuck 1 in 12 (a bot at the clinic–watchtower bridge's end).
+- Tests 539.
+
 ## Next
 Human playtest:
+- 56.0 items: the Desert's middle (the Cistern: do you use the arms by the gates, is the hall a good fight or a trap; the sinkhole: dropping in, the slabs; the hoist as a landmark; the head-high HESCO: the middle shut off enough from the flanks, or too shut; the roofs' sheds and shades: enough cover from the Blocks; the blast walls and containers in the dunes; the hall's light: dark enough to feel underground, bright enough to fight in).
 - 55.0 items: the instincts (chased down when hurt: too often, too rare, fair; do you hear "after him!" in time to turn it into an ambush; paybacks after a kill of yours; rushed while reloading close; bots back round a corner on you faster).
 - 54.1 items: the weapon swap at the spawn (no freeze, the first time too); any freeze left on the Docks (where, doing what).
 - 54.0 items: the bots (hard enough now, everywhere, on the Desert; a team on 0 tickets: does it still fight, or fold too easily now; the snipers: do they move often enough, too often); the Docks' racks (shooting through the gaps).
