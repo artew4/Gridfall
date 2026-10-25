@@ -8,7 +8,9 @@ import type { BarkKind } from '../tactics/Barks';
 import { damp, lerp, rand } from '../../core/math';
 import { ARENA } from './ArenaCtx';
 import { DeathmatchBrain, type ArenaBody } from './DeathmatchAI';
-import { newSlip, openAt, startSlip, stepAir, stepSlip, vaultAhead, type Air } from './Locomotion';
+import { newDive, newSlip, openAt, startSlip, stepAir, stepDive, stepSlip, vaultAhead, type Air, type Dive } from './Locomotion';
+import { findWindow } from '../../player/Mantle';
+const _dv = new THREE.Vector3();
 
 /*
   Arena bodies (7.0): the survival Gunner and Runner rigs, hitboxes, looks and death, driven by the
@@ -133,7 +135,7 @@ export class ArenaGunner extends Gunner implements ArenaBody {
   }
 
   get airborne() {
-    return this.air.up;
+    return this.air.up || this.dive.t >= 0;
   }
   get reloading() {
     return this.brain.reloading;
@@ -201,8 +203,31 @@ export class ArenaGunner extends Gunner implements ArenaBody {
   }
 
   protected ground(ctx: EnemyCtx, dt: number) {
+    // 58.0: through a window: the dive moves it (its collision off), then it falls from past the wall.
+    if (this.dive.t >= 0) {
+      if (stepDive(this.dive, this.pos, dt)) {
+        this.air.up = true;
+        this.air.vy = 0;
+        this.air.t = 0;
+        this.vaulting = true;
+      }
+      return;
+    }
     if (this.air.up && stepAir(this.air, this.pos, ctx.col, this.radius, dt)) this.vaulting = false;
     if (!this.air.up) this.followGround(ctx, dt);
+  }
+  /** 58.0: diving through a window (Locomotion.Dive). */
+  dive: Dive = newDive();
+  /** 58.0: a window ahead it can dive through (Mantle.findWindow, from a jump's height): starts the dive. */
+  diveThrough(ctx: EnemyCtx, dx: number, dz: number) {
+    if (this.dive.t >= 0 || this.air.up) return false;
+    _dv.set(this.pos.x, this.pos.y + 0.5, this.pos.z);
+    const w = findWindow(ctx.col, _dv, dx, dz, this.radius);
+    if (!w) return false;
+    this.dive.from.copy(this.pos);
+    this.dive.to.copy(w.to);
+    this.dive.t = 0;
+    return true;
   }
 
   // ---- ArenaBody
@@ -257,8 +282,8 @@ export class ArenaGunner extends Gunner implements ArenaBody {
     return 'fired';
   }
   strike() {}
-  wallAhead(ctx: EnemyCtx, dx: number, dz: number) {
-    return vaultAhead(ctx.col, this.pos, dx, dz, this.radius);
+  wallAhead(ctx: EnemyCtx, dx: number, dz: number, out?: { wall: boolean }) {
+    return vaultAhead(ctx.col, this.pos, dx, dz, this.radius, 0.7, out);
   }
   open(ctx: EnemyCtx, dx: number, dz: number, dist: number) {
     return openAt(ctx.col, this.pos, dx, dz, dist, this.radius);
@@ -286,7 +311,7 @@ export class ArenaRunner extends Runner implements ArenaBody {
   }
 
   get airborne() {
-    return this.air.up;
+    return this.air.up || this.dive.t >= 0;
   }
 
   decide() {}
@@ -345,8 +370,31 @@ export class ArenaRunner extends Runner implements ArenaBody {
   }
 
   protected ground(ctx: EnemyCtx, dt: number) {
+    // 58.0: through a window: the dive moves it (its collision off), then it falls from past the wall.
+    if (this.dive.t >= 0) {
+      if (stepDive(this.dive, this.pos, dt)) {
+        this.air.up = true;
+        this.air.vy = 0;
+        this.air.t = 0;
+        this.vaulting = true;
+      }
+      return;
+    }
     if (this.air.up && stepAir(this.air, this.pos, ctx.col, this.radius, dt)) this.vaulting = false;
     if (!this.air.up) this.followGround(ctx, dt);
+  }
+  /** 58.0: diving through a window (Locomotion.Dive). */
+  dive: Dive = newDive();
+  /** 58.0: a window ahead it can dive through (Mantle.findWindow, from a jump's height): starts the dive. */
+  diveThrough(ctx: EnemyCtx, dx: number, dz: number) {
+    if (this.dive.t >= 0 || this.air.up) return false;
+    _dv.set(this.pos.x, this.pos.y + 0.5, this.pos.z);
+    const w = findWindow(ctx.col, _dv, dx, dz, this.radius);
+    if (!w) return false;
+    this.dive.from.copy(this.pos);
+    this.dive.to.copy(w.to);
+    this.dive.t = 0;
+    return true;
   }
 
   steer(goal: THREE.Vector3, speed: number, ctx: EnemyCtx, dt: number, desired: THREE.Vector3) {
@@ -376,8 +424,8 @@ export class ArenaRunner extends Runner implements ArenaBody {
     victim.hurt(victim.isPlayer ? dmg : dmg * 1.8, this.chest.clone(), this);
     ctx.audio.swipe(this.chest);
   }
-  wallAhead(ctx: EnemyCtx, dx: number, dz: number) {
-    return vaultAhead(ctx.col, this.pos, dx, dz, this.radius);
+  wallAhead(ctx: EnemyCtx, dx: number, dz: number, out?: { wall: boolean }) {
+    return vaultAhead(ctx.col, this.pos, dx, dz, this.radius, 0.7, out);
   }
   open(ctx: EnemyCtx, dx: number, dz: number, dist: number) {
     return openAt(ctx.col, this.pos, dx, dz, dist, this.radius);

@@ -1117,6 +1117,8 @@ export async function tdmSim(
             anchors: { arrived: st.anchorArrive, moved: st.anchorMoves },
             // 55.0: the instincts (chases and how they ended, grudges, reload punishes, cover calls, quick reacquisitions).
             instinct: st.instinct,
+            // 58.0: jumps by why, and in the same spot again.
+            jumpsBy: { why: st.jumpWhy, repeat: st.jumpRepeat, log: st.jumpLog, windows: st.windowDives },
             jumps: st.jumps,
             vaults: st.vaults,
             pushes: st.pushes,

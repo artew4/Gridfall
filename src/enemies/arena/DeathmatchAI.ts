@@ -130,7 +130,9 @@ export interface ArenaBody extends Combatant {
   /** Runner: the blade lands on `victim`. */
   strike(ctx: EnemyCtx, victim: Combatant): void;
   /** Height of a vaultable wall just ahead along (dx, dz), else 0. */
-  wallAhead(ctx: EnemyCtx, dx: number, dz: number): number;
+  wallAhead(ctx: EnemyCtx, dx: number, dz: number, out?: { wall: boolean }): number;
+  /** 58.0: dive through a window ahead, if there is one (true: the dive started). */
+  diveThrough?(ctx: EnemyCtx, dx: number, dz: number): boolean;
   /** Room for the body `dist` m along (dx, dz). */
   open(ctx: EnemyCtx, dx: number, dz: number, dist: number): boolean;
   bark(kind: BarkKind, ctx: EnemyCtx): void;
@@ -158,6 +160,7 @@ const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _xz = new THREE.Vector2();
 const _f = new THREE.Vector2();
+const _wallOut = { wall: false };
 const _miss = new THREE.Vector3();
 
 export class DeathmatchBrain implements Thinker, SenseAgent {
@@ -442,7 +445,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (by) this.snap(ctx, by);
     this.jitter = Math.max(this.jitter, 0.015);
     // Aiming, it flinches (the jitter) and holds its shot rather than jumping out of it.
-    if (!this.aiming && (this.state === 'engage' || this.state === 'push' || this.state === 'hunt') && Math.random() < ARENA.hitJump) this.tryJump(ctx, false);
+    if (!this.aiming && (this.state === 'engage' || this.state === 'push' || this.state === 'hunt') && Math.random() < ARENA.hitJump) this.tryJump(ctx, false, ARENA.jumpV, 'hit');
   }
 
   /**
@@ -487,7 +490,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (by) this.alert.set(by.uid, ctx.time);
     this.notedFire(ctx, by, false);
     this.jitter = Math.max(this.jitter, 0.02);
-    if (this.state === 'engage' && !this.aiming && Math.random() < ARENA.hitJump * 0.5) this.tryJump(ctx, false);
+    if (this.state === 'engage' && !this.aiming && Math.random() < ARENA.hitJump * 0.5) this.tryJump(ctx, false, ARENA.jumpV, 'miss');
   }
 
   /** Its round hit someone. */
@@ -639,9 +642,34 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     }
   }
 
-  private tryJump(ctx: EnemyCtx, vault: boolean, vy = ARENA.jumpV) {
+  /** 58.0: where and when it last left the ground (a jump in the same spot again is counted). */
+  private jumpAt = new THREE.Vector3(0, -1e9, 0);
+  /** 58.0: when it last looked for a window in a wall it walked into. */
+  private diveTry = -Infinity;
+  private jumpT = -Infinity;
+
+  private tryJump(ctx: EnemyCtx, vault: boolean, vy = ARENA.jumpV, why = 'other') {
     if (this.self.airborne || this.self.sliding || (!vault && (this.jumpCd > 0 || this.swing))) return false;
+    // 58.0: no jump on the spot it jumped from a moment ago: whatever it was went nowhere (a vault that
+    // came down where it started, a hop into a wall); it walks for a while, the route picks another way.
+    const me0 = this.self;
+    if (ctx.time - this.jumpT < 2.5 && Math.hypot(me0.pos.x - this.jumpAt.x, me0.pos.z - this.jumpAt.z) < 0.9) {
+      if (vault) this.goal = null;
+      return false;
+    }
     if (!this.self.jump(vy, vault)) return false;
+    const A0 = ctx.arena;
+    if (A0) {
+      const J = A0.stats.jumpWhy;
+      J[why] = (J[why] ?? 0) + 1;
+      const me = this.self;
+      if (ctx.time - this.jumpT < 3 && Math.hypot(me.pos.x - this.jumpAt.x, me.pos.z - this.jumpAt.z) < 1.2) {
+        A0.stats.jumpRepeat[why] = (A0.stats.jumpRepeat[why] ?? 0) + 1;
+        if (A0.stats.jumpLog.length < 60) A0.stats.jumpLog.push([+ctx.time.toFixed(1), why, this.state, +me.pos.x.toFixed(1), +me.pos.y.toFixed(1), +me.pos.z.toFixed(1)]);
+      }
+      this.jumpAt.copy(me.pos);
+      this.jumpT = ctx.time;
+    }
     if (!vault) this.jumpCd = ARENA.jumpCooldown;
     const A = ctx.arena;
     if (A) {
@@ -938,7 +966,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     }
 
     // A runner closing in leaps the last metres now and then.
-    if (!gunner && tv && dT > 4 && dT < 9 && Math.random() < 0.08) this.tryJump(ctx, false);
+    if (!gunner && tv && dT > 4 && dT < 9 && Math.random() < 0.08) this.tryJump(ctx, false, ARENA.jumpV, 'leap');
 
     this.considerSlide(ctx, A, next, T, dT, now);
 
@@ -1812,8 +1840,14 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const hs = Math.hypot(desired.x, desired.z);
     if (this.probeT <= 0 && hs > 1.5 && !me.airborne) {
       this.probeT = 0.1;
-      const h = me.wallAhead(ctx, desired.x / hs, desired.z / hs);
-      if (h > 0) this.tryJump(ctx, true, Math.sqrt(2 * ARENA.gravity * (h + 0.3)));
+      const h = me.wallAhead(ctx, desired.x / hs, desired.z / hs, _wallOut);
+      if (h > 0) this.tryJump(ctx, true, Math.sqrt(2 * ARENA.gravity * (h + 0.3)), 'vault');
+      // 58.0: a wall it walks into: a window in it to dive through (its route may run through one).
+      else if (_wallOut.wall && me.diveThrough && A.sched.canAfford(4) && ctx.time - this.diveTry > 0.6) {
+        this.diveTry = ctx.time;
+        A.sched.spend(4);
+        if (me.diveThrough(ctx, desired.x / hs, desired.z / hs)) A.stats.windowDives++;
+      }
     }
 
     // ---- 30.0: the pool. Sprinting means it chose to and is moving faster than its walk.
@@ -1852,7 +1886,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       const left = me.open(ctx, -tz, tx, 1.5), right = me.open(ctx, tz, -tx, 1.5);
       const prev = this.strafeDir;
       this.strafeDir = left && right ? (Math.random() < 0.5 ? 1 : -1) : left ? 1 : right ? -1 : -this.strafeDir;
-      if (this.strafeDir !== prev && !this.aiming && Math.random() < ARENA.flipJump) this.tryJump(ctx, false);
+      if (this.strafeDir !== prev && !this.aiming && Math.random() < ARENA.flipJump) this.tryJump(ctx, false, ARENA.jumpV, 'flip');
     } else if (this.probeT <= 0 && !me.open(ctx, -tz * this.strafeDir, tx * this.strafeDir, 1)) {
       this.strafeDir = -this.strafeDir;
       this.flipT = rand(ARENA.flip[0], ARENA.flip[1]);

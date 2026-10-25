@@ -287,6 +287,12 @@ kbd { display: inline-block; min-width: 1.25rem; padding: 1px 0.375rem; margin: 
 .tdm-feed .row { background: rgba(0,0,0,0.35); padding: 0.1875rem 0.5625rem; color: #dfe9ee; }
 .tdm-feed .row i { font-style: normal; margin: 0 0.5rem; color: rgba(255,255,255,0.5); }
 .tdm-feed .a { color: var(--alpha); } .tdm-feed .o { color: var(--omega); } .tdm-feed .you { text-decoration: underline; }
+.tdm-capture { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.35rem; font-family: var(--ui); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.3em; color: #f2fbff; text-shadow: 0 0 0.4rem rgba(0,0,0,0.9); }
+.tdm-capture .track { position: relative; width: 15rem; height: 0.4rem; background: rgba(4, 8, 16, 0.7); box-shadow: inset 0 0 0 1px rgba(242, 251, 255, 0.25); }
+.tdm-capture .track i { position: absolute; top: 0; bottom: 0; left: 50%; width: 50%; transform-origin: left; background: var(--alpha); box-shadow: 0 0 0.6rem var(--alpha); }
+.tdm-capture .track i.o { left: auto; right: 50%; transform-origin: right; background: var(--omega); box-shadow: 0 0 0.6rem var(--omega); }
+.tdm-capture .track::after { content: ''; position: absolute; left: 50%; top: -0.15rem; bottom: -0.15rem; width: 1px; background: rgba(242, 251, 255, 0.6); }
+.tdm-capture.taking { color: var(--alpha); } .tdm-capture.losing { color: var(--omega); animation: tdmPulse 0.7s ease-in-out infinite; } .tdm-capture.contested { color: #ffd27a; }
 .tdm-respawn { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); text-align: center; letter-spacing: 0.35em; font-size: 0.75rem; color: #e8fbff; }
 .tdm-respawn .by { color: var(--omega); margin-bottom: 0.625rem; font-size: 0.75rem; }
 .tdm-respawn b { font-size: 1.25rem; font-weight: 300; }
@@ -582,6 +588,13 @@ html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
 .tdm-board .sc { color: #f2fbff; }
 .tdm-board .row.you { z-index: 1; color: #fff6dc; background: linear-gradient(90deg, rgba(255, 196, 80, 0.42), rgba(255, 196, 80, 0.14)); box-shadow: inset 3px 0 0 var(--amber); }
 .tdm-board .row.you .sc { color: var(--amber); }
+/* 58.0: the whole board (he is out, or a team is on its last stand): the other team under his, smaller rows; out of the match struck through. */
+.tdm-board.all { --board-row: 1.3rem; font-size: 0.75rem; }
+.tdm-board .row.foe { color: rgba(255, 196, 186, 0.9); box-shadow: inset 2px 0 0 var(--omega); }
+.tdm-board .row.foe .nm { color: var(--omega); }
+.tdm-board .row.first-foe { border-top: 1px solid rgba(255, 106, 77, 0.55); }
+.tdm-board .row.out { opacity: 0.42; }
+.tdm-board .row.out .nm { text-decoration: line-through; text-decoration-thickness: 2px; }
 .tdm-board .glow { position: absolute; inset: 0; background: rgba(255, 214, 120, 0.5); opacity: 0; pointer-events: none; }
 .tdm-score { position: absolute; left: 50%; top: 1.1rem; transform: translateX(-50%); display: flex; align-items: flex-start; gap: 0.9rem; padding: 0.4rem 1.6rem 0.55rem; font-size: 0.8rem; letter-spacing: 0.22em; background: linear-gradient(90deg, rgba(4, 8, 16, 0), rgba(4, 8, 16, 0.7) 18%, rgba(4, 8, 16, 0.7) 82%, rgba(4, 8, 16, 0)); }
 .tdm-score .side { display: grid; grid-template-columns: auto auto; column-gap: 0.7rem; align-items: baseline; min-width: 0; }
@@ -910,8 +923,9 @@ html .jp[lang="ar"], html .jp[lang="th"] { padding-left: 0 !important; }
 .tdm-notices { top: 10.4rem; }
 .tdm-sudden { top: 10.4rem; }
 
-/* 48.0: he plays OMEGA: the HUD is his side's (his team on the left, the board, the tags), each team in its own colour. */
-.tdm-hud.side-o { --alpha: #ff6a4d; --alpha-dim: rgba(255, 106, 77, 0.35); --omega: #7cc8ff; --omega-dim: rgba(124, 200, 255, 0.35); }
+/* 48.0: he plays OMEGA: the HUD is his side's (his team on the left, the board, the tags). 58.0: his side blue and
+   the other red whichever team he plays (the `a` slots are his: --alpha stays blue; the swap to each team's own colour is gone). */
+.tdm-hud.side-o { --alpha: #7cc8ff; --alpha-dim: rgba(124, 200, 255, 0.35); --omega: #ff6a4d; --omega-dim: rgba(255, 106, 77, 0.35); }
 .callsign span.omega { color: var(--omega); }
 
 /* 51.0, the flank objectives: a flag before each lane's bar (its holder's colour, filling with his team's meter); a point of his being taken pulses red, one being taken by his team glows. */

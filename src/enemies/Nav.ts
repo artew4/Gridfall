@@ -32,6 +32,11 @@ export interface NavLayout {
    * a stair's middle across its side. Default off (the other maps' graphs as they were).
    */
   faces?: boolean;
+  /**
+   * 58.0: one-way links through windows, [from, to]: the arena bots dive through (the vault graph only,
+   * as the drops; survival never does).
+   */
+  windows?: [number, number][];
 }
 
 /** Probe height above the floor for walkability rays, plus a knee-high ray for low obstacles. */
@@ -55,6 +60,8 @@ export class Nav {
   vaultEdges: number[][] | null = null;
   /** 14.0: drop-downs out of each node, and into each node (the reverse search walks these). */
   dropsOut: number[][] = [];
+  /** 58.0: the windows' links (NavLayout.windows). */
+  windowLinks: [number, number][] = [];
   dropsIn: number[][] = [];
   private a = new THREE.Vector3();
   private b = new THREE.Vector3();
@@ -114,6 +121,7 @@ export class Nav {
         this.climbLinks.push([i, j]);
       }
     }
+    this.windowLinks = layout.windows ?? [];
     this.dropsOut = this.nodes.map(() => []);
     this.dropsIn = this.nodes.map(() => []);
     for (const [i, j] of layout.drops ?? []) {
@@ -195,6 +203,8 @@ export class Nav {
         }
       }
     }
+    // 58.0: through the windows (one way each: the scan found each side's own).
+    for (const [i, j] of this.windowLinks) if (!ve[i].includes(j)) ve[i].push(j);
     this.vaultEdges = ve;
     this.onVaultBuilt?.(ve);
     return ve;

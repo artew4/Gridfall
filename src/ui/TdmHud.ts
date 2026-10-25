@@ -20,6 +20,10 @@ export interface BoardLine {
   kills: number;
   deaths: number;
   you: boolean;
+  /** 58.0: on the other team (the whole board shows: he is out, or a team is on its last stand). */
+  foe?: boolean;
+  /** 58.0: out of the match (dead with no respawn): struck through. */
+  out?: boolean;
 }
 
 /** 26.0: the board's order: score, then kills, then fewer deaths, then the name (stable between equal lines). */
@@ -39,6 +43,8 @@ interface BoardRow {
   kills: number;
   deaths: number;
   you: boolean;
+  /** 58.0: struck through (out of the match). */
+  out: boolean;
 }
 
 /**
@@ -158,7 +164,12 @@ export class TdmHud {
     as.appendChild(this.alarmSmall);
     this.alarm.append(ab, as);
     this.root.append(this.alarm);
-    this.root.append(this.tags, this.board, this.score, this.compass, this.sudden, this.feed, this.respawn, this.spec, this.notices);
+    const ct = el('div', 'track');
+    ct.appendChild(this.captureFill);
+    const cl = el('div', 'lbl');
+    cl.appendChild(this.captureLabel);
+    this.capture.append(cl, ct);
+    this.root.append(this.tags, this.board, this.score, this.compass, this.sudden, this.feed, this.respawn, this.spec, this.notices, this.capture);
     parent.appendChild(this.root);
   }
 
@@ -169,7 +180,10 @@ export class TdmHud {
    */
   setBoard(lines: readonly BoardLine[]) {
     if (lines.length !== this.rows.length || lines.some((l, i) => l.name !== this.rows[i].name.data)) this.buildBoard(lines);
-    const order = boardOrder(lines);
+    // 58.0: his team first, then the other's (when it shows), each in score order.
+    const allies = lines.filter((l) => !l.foe), foes = lines.filter((l) => l.foe);
+    const order = [...boardOrder(allies), ...boardOrder(foes)];
+    this.board.classList.toggle('all', foes.length > 0);
     for (let i = 0; i < this.rows.length; i++) {
       const r = this.rows[i], l = lines[i];
       if (l.kills !== r.kills) {
@@ -181,7 +195,12 @@ export class TdmHud {
       if (l.kills !== r.kills || l.deaths !== r.deaths) r.sc.data = String(scoreOf(l));
       r.kills = l.kills;
       r.deaths = l.deaths;
+      if (!!l.out !== r.out) {
+        r.out = !!l.out;
+        r.el.classList.toggle('out', r.out);
+      }
       const at = order.indexOf(l);
+      r.el.classList.toggle('first-foe', !!l.foe && at === allies.length);
       if (at !== r.at) {
         r.at = at;
         r.el.style.transform = `translateY(${at * 100}%)`;
@@ -193,7 +212,7 @@ export class TdmHud {
   private buildBoard(lines: readonly BoardLine[]) {
     for (const r of this.rows) r.el.remove();
     this.rows = lines.map((l) => {
-      const e = el('div', `row${l.you ? ' you' : ''}`);
+      const e = el('div', `row${l.you ? ' you' : ''}${l.foe ? ' foe' : ''}`);
       const cell = (cls: string, v: string) => {
         const c = el('span', cls);
         const t = document.createTextNode(v);
@@ -203,7 +222,7 @@ export class TdmHud {
       };
       const glow = el('i', 'glow');
       e.appendChild(glow);
-      const row: BoardRow = { el: e, name: cell('nm', l.name), k: cell('k', '0'), d: cell('d', '0'), sc: cell('sc', '0'), glow, at: -1, kills: -1, deaths: -1, you: l.you };
+      const row: BoardRow = { el: e, name: cell('nm', l.name), k: cell('k', '0'), d: cell('d', '0'), sc: cell('sc', '0'), glow, at: -1, kills: -1, deaths: -1, you: l.you, out: false };
       this.boardRows.appendChild(e);
       return row;
     });
@@ -500,6 +519,31 @@ export class TdmHud {
     }
   }
 
+  /**
+   * 58.0: the point he stands on, on the screen (it showed on the minimap alone): its name and what is
+   * happening (his team taking it, losing it, contested, held), and its meter from his side (his blue
+   * filling right, theirs red filling left). Null: he is on none.
+   */
+  setCapture(v: { name: string; m: number; state: 'taking' | 'losing' | 'contested' | 'held' | 'theirs' | 'neutral' } | null) {
+    const key = v ? `${v.name}|${v.state}|${Math.round(v.m * 40)}` : '';
+    if (key === this.captureKey) return;
+    this.captureKey = key;
+    this.capture.classList.toggle('hidden', !v);
+    if (!v) {
+      this.capture.className = 'tdm-capture hidden';
+      return;
+    }
+    const words = { taking: 'CAPTURING', losing: 'LOSING', contested: 'CONTESTED', held: 'HOLDING', theirs: 'ENEMY POINT', neutral: 'NEUTRAL' } as const;
+    this.captureLabel.data = `${words[v.state]} · ${v.name}`;
+    this.capture.className = `tdm-capture ${v.state}`;
+    this.captureFill.className = v.m >= 0 ? '' : 'o';
+    this.captureFill.style.transform = `scaleX(${Math.min(1, Math.abs(v.m)).toFixed(3)})`;
+  }
+  private capture = el('div', 'tdm-capture hidden');
+  private captureLabel = document.createTextNode('');
+  private captureFill = document.createElement('i');
+  private captureKey = '';
+
   /** 44.0: a short line under the score (a lane held, pushed back), fading out by itself. */
   notice(text: string) {
     const n = el('div', 'n');
@@ -525,6 +569,7 @@ export class TdmHud {
     this.setSudden(null, null);
     this.setSpectate(null);
     this.setAlarm(null);
+    this.setCapture(null);
     for (const r of this.rows) r.el.remove();
     this.rows = [];
     for (const r of this.feedRows) r.el.remove();

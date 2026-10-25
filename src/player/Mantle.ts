@@ -79,7 +79,7 @@ export interface Ledge {
  * `lintel` m of the sill (over a fence's top there is none: fences stay in the way). Bars (bodies
  * stopped, rounds not) stop it: the body rays are what decide.
  */
-export const WINDOW = { on: true, width: 1.0, height: 0.75, lintel: 2.6, depth: 0.7, drop: 4.5, time: 0.42 };
+export const WINDOW = { on: true, width: 1.0, height: 0.75, lintel: 2.6, depth: 0.7, drop: 4.5, time: 0.42, upShare: 0.4 };
 
 /** The probe's counts (DEV: CPU cost is only paid on the frames that cast). */
 export const mantleStats = { probes: 0, rays: 0, grabs: 0, windows: 0 };
@@ -212,11 +212,14 @@ const ease = (t: number) => t * t * (3 - 2 * t);
  * Where the feet are `t` s into a pull-up from `from` to `to` (T s long): the height eased out over the
  * first `upShare` of it, the step forward eased in-out over the rest (starting as the hands clear the lip).
  */
-export function mantlePos(from: THREE.Vector3, to: THREE.Vector3, t: number, T: number, out: THREE.Vector3) {
+export function mantlePos(from: THREE.Vector3, to: THREE.Vector3, t: number, T: number, out: THREE.Vector3, air = false) {
   const k = Math.min(1, Math.max(0, t / T));
-  const ku = Math.min(1, k / MANTLE.upShare);
+  // 57.0, a window: all the way up to the sill before going through (the forward move starting early
+  // put the feet through the sill's lip).
+  const share = air ? WINDOW.upShare : MANTLE.upShare;
+  const ku = Math.min(1, k / share);
   const up = 1 - (1 - ku) ** 3;
-  const kf = Math.min(1, Math.max(0, (k - MANTLE.upShare * 0.6) / (1 - MANTLE.upShare * 0.6)));
+  const kf = Math.min(1, Math.max(0, (k - share * (air ? 1 : 0.6)) / (1 - share * (air ? 1 : 0.6))));
   const f = ease(kf);
   return out.set(from.x + (to.x - from.x) * f, from.y + (to.y - from.y) * up, from.z + (to.z - from.z) * f);
 }

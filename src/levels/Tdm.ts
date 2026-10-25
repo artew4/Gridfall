@@ -369,6 +369,7 @@ export class TdmRules implements ModeRules {
     this.stopSpectate();
     this.kills = [];
     this.friendlyDamage = 0;
+    this.playerOut = this.boardAll = false;
     this.playerRespawnAt = Infinity;
     this.startT = this.now;
     for (const t of TEAMS) {
@@ -1367,11 +1368,16 @@ export class TdmRules implements ModeRules {
 
   /** 26.0: his team's live board on the HUD (him and every slot of his team: name, kills, deaths). */
   private showStanding() {
-    // (Spectating, he is not on the team: its bots fill it.)
-    const lines: BoardLine[] = this.spectate ? [] : [{ name: this.game.playerUnit.name, kills: this.player.kills, deaths: this.player.deaths, you: true }];
-    for (const s of this.slots) if (s.team === this.side) lines.push({ name: s.name, kills: s.kills, deaths: s.deaths, you: false });
+    // 58.0: everyone, both teams, once he is out or a team is on its last stand (who is still in it,
+    // the rest struck through); else his team. (Spectating from the start, he is not on the board.)
+    const all = this.playerOut || TEAMS.some((t) => this.rules.tickets[t] === 0);
+    const lines: BoardLine[] = this.spectate && !this.playerOut ? [] : [{ name: this.game.playerUnit.name, kills: this.player.kills, deaths: this.player.deaths, you: true, out: this.playerOut }];
+    for (const s of this.slots) if (s.team === this.side || all) lines.push({ name: s.name, kills: s.kills, deaths: s.deaths, you: false, foe: s.team !== this.side, out: !s.bot && s.respawnAt === Infinity });
     this.game.tdmHud.setBoard(lines);
   }
+  /** 58.0: he died with no respawn left (he watches). */
+  private playerOut = false;
+  private boardAll = false;
 
   /** The player died: the mode respawns him (Game shows the countdown instead of the death screen). */
   onPlayerDeath(): boolean {
@@ -1381,7 +1387,11 @@ export class TdmRules implements ModeRules {
     const granted = this.onDeath(g.playerUnit, g.playerAttacker);
     this.playerRespawnAt = granted ? this.now + (this.objectives?.lastLine(this.side) ? ARENA.objectives.lastLine.player : TDM.playerRespawn) : Infinity;
     // 29.0: out of the match: no countdown, he watches the teammates still standing.
-    if (!granted && !this.winner) this.startSpectate();
+    if (!granted && !this.winner) {
+      this.playerOut = true;
+      this.startSpectate();
+      this.showStanding();
+    }
     return true;
   }
 
@@ -1451,6 +1461,11 @@ export class TdmRules implements ModeRules {
       const o = this.rules.update(now, dt, this.standing());
       if (this.directors) {
         const ending = TEAMS.some((t) => this.rules.tickets[t] === 0);
+        // 58.0: the board shows both teams from here (who is still in it).
+        if (ending !== this.boardAll) {
+          this.boardAll = ending;
+          this.showStanding();
+        }
         for (const t of TEAMS) {
           this.directors[t].lastStand = this.rules.tickets[t] === 0;
           this.directors[t].sudden = this.rules.sudden[t];
@@ -1560,7 +1575,8 @@ export class TdmRules implements ModeRules {
           g.hud.bannerShow(`${name(e.k)} CAPTURED`, flank ? 'SPAWN ZONE ONLINE' : 'HOLD IT', 2.2);
           g.audio.flankCue('won');
         } else {
-          g.tdmHud.notice(`${name(e.k)}: ${FOE} TOOK IT${flank ? ' · THEIR SPAWN IS UP' : ''}`);
+          // 58.0: on the screen too (a line under the score was easy to miss).
+          g.hud.bannerShow(`${name(e.k)} · ${FOE} CAPTURED`, flank ? 'THEIR SPAWN ZONE IS UP · TAKE IT BACK' : 'TAKE IT BACK', 2.2);
           g.audio.flankCue('lost');
         }
       } else if (e.what === 'neutral') {
@@ -1663,6 +1679,19 @@ export class TdmRules implements ModeRules {
       this.objStates = O.list.map((o) => ({ owner: o.owner, capturing: o.capturing, meter: o.meter, contested: o.contested }));
       g.tdmHud.setObjectives(this.objStates);
       g.tdmHud.setAlarm(O.double(this.side) ? 'ours' : O.double(this.foe) ? 'theirs' : null);
+      // 58.0: the point he stands on, on the screen.
+      let here: Parameters<typeof g.tdmHud.setCapture>[0] = null;
+      if (!this.spectate && g.player.alive) {
+        const p = g.player.pos;
+        for (const o of O.list) {
+          if ((o.pos.x - p.x) ** 2 + (o.pos.z - p.z) ** 2 > o.r * o.r || Math.abs(o.pos.y - p.y) > ARENA.objectives.dy) continue;
+          const m = this.side === 'alpha' ? o.meter : -o.meter;
+          const state = o.contested ? 'contested' : o.capturing === this.side ? 'taking' : o.capturing === this.foe ? 'losing' : o.owner === this.side ? 'held' : o.owner ? 'theirs' : 'neutral';
+          here = { name: (this.fronts?.names[o.k] ?? o.name ?? '').split(/[\s(]/)[0].toUpperCase(), m, state };
+          break;
+        }
+      }
+      g.tdmHud.setCapture(here);
       this.objectiveEvents();
     }
     this.markFronts();

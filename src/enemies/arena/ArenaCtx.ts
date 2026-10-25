@@ -542,6 +542,13 @@ export function pressureScale(k: number, form = PRESSURE.form) {
 export interface ArenaStats {
   /** 54.0: anchors that moved on from a post. */
   anchorMoves: number;
+  /** 58.0: jumps by why (hit, miss, flip, vault, leap), and those within 1.2 m and 3 s of its last (in place). */
+  jumpWhy: Record<string, number>;
+  jumpRepeat: Record<string, number>;
+  /** 58.0: dives through windows. */
+  windowDives: number;
+  /** DEV: the first jumps in place (time, why, state, where). */
+  jumpLog: [number, string, string, number, number, number][];
   /**
    * 55.0, the instincts: chases started, how they ended (the victim killed by the chaser, killed by
    * another, lost, out of time, the chaser hurt, the victim healed or home, the chaser killed on it);
@@ -671,7 +678,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { anchorMoves: 0, instinct: { chases: 0, chaseEnd: { kill: 0, other: 0, lost: 0, time: 0, hurt: 0, healed: 0, home: 0, died: 0 }, chaseOnPlayer: 0, grudges: 0, grudgeKills: 0, punishes: 0, punishKills: 0, covers: 0, coverKills: 0, reacquired: 0 }, jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0, capSkips: 0, follows: 0, stalks: 0, warnShots: 0, recovers: 0, recoverEnd: { healed: 0, timeout: 0, cornered: 0 }, anchorArrive: 0 };
+  return { anchorMoves: 0, jumpWhy: {}, jumpRepeat: {}, jumpLog: [], windowDives: 0, instinct: { chases: 0, chaseEnd: { kill: 0, other: 0, lost: 0, time: 0, hurt: 0, healed: 0, home: 0, died: 0 }, chaseOnPlayer: 0, grudges: 0, grudgeKills: 0, punishes: 0, punishKills: 0, covers: 0, coverKills: 0, reacquired: 0 }, jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0, capSkips: 0, follows: 0, stalks: 0, warnShots: 0, recovers: 0, recoverEnd: { healed: 0, timeout: 0, cornered: 0 }, anchorArrive: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

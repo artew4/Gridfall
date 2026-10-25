@@ -513,7 +513,9 @@ export const BLOCK_SPEC: HouseSpec = {
   props: [
     { u0: -7, u1: -5.4, v0: -1.2, v1: 1.2, h: 1.05, level: 0, kind: 'counter', mid: true },
     { u0: 7.2, u1: 8.4, v0: 1.4, v1: 2.6, h: 1.3, level: 0, kind: 'crate' },
-    { u0: 1.8, u1: 3.6, v0: 9.4, v1: 10.4, h: 0.95, level: 0, kind: 'counter' },
+    // (58.0: against the end room's south wall, off the door: 1.3 m inside the south door, across the
+    // way in, the bots coming in jumped at it on the spot again and again.)
+    { u0: 4.8, u1: 6.6, v0: 10.7, v1: 11.7, h: 0.95, level: 0, kind: 'counter' },
     { u0: -6.2, u1: -4.6, v0: -0.8, v1: 0.8, h: 0.85, level: 1, kind: 'dark', mid: true },
     // (50.0: against the end rooms' wall: 0.65 m short of it, it was a slot a body stuck in.)
     { u0: 6.4, u1: 7.8, v0: 5.65, v1: 6.85, h: 1.25, level: 1, kind: 'crate' },
@@ -571,7 +573,8 @@ export const HOUSE_SPEC: HouseSpec = {
   walls: [],
   props: [
     { u0: 2.8, u1: 4, v0: -0.6, v1: 0.6, h: 1.2, level: 0, kind: 'crate' },
-    { u0: 3, u1: 4.4, v0: -0.8, v1: 0.6, h: 0.95, level: 1, kind: 'counter' },
+    // (58.0: flush with the wall, as the crate: 0.3 m short of it, a jump over it ended in the wall.)
+    { u0: 3.3, u1: 4.7, v0: -0.8, v1: 0.6, h: 0.95, level: 1, kind: 'counter' },
   ],
   nodes: [
     [[2, 0], [2, -3.2], [2, 3.2], [-1.35, 0], [-1.35, 3.5]],
@@ -613,7 +616,8 @@ export const HUT_SPEC: HouseSpec = {
     { side: 'w', at: 0, w: 1.2, y0: 1.0, y1: 2.0, level: 0 },
   ],
   walls: [],
-  props: [{ u0: 1.4, u1: 2.6, v0: 0.6, v1: 1.8, h: 1.1, level: 0, kind: 'crate' }],
+  // (58.0: flush with the wall: 0.6 m short of it, a body that vaulted the crate came down in the slot.)
+  props: [{ u0: 2.0, u1: 3.2, v0: 0.6, v1: 1.8, h: 1.1, level: 0, kind: 'crate' }],
   nodes: [[[0, 0], [-1.5, 1.6], [1.5, -1.6], [-2, -1.2]]],
   doors: [
     [[-1.5, 4.6], [-1.5, 1.6]],

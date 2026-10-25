@@ -53,7 +53,7 @@ export interface OutpostResult {
   cabinets: CabinetSpot[];
   medkits: THREE.Vector3[];
   breakables: Breakable[];
-  nav: { nodes: THREE.Vector3[]; links: [number, number][]; slope: number };
+  nav: { nodes: THREE.Vector3[]; links: [number, number][]; slope: number; windows: [number, number][] };
   zoneAt(x: number, y: number, z: number): Zone | null;
   /** Everything that moves with the wind (flag, tarps): updated each frame. */
   update(t: number, wind: number): void;
@@ -1229,6 +1229,16 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
       chain(N(k * 5.2, 0, k * -1.8), N(k * 3, -0.5, k * -1.8), N(k * 0.6, -1.7, k * -1.8), N(k * -1.4, -2.7, k * -1.8), N(k * -3.2, F, k * -1.8));
     }
   }
+  // 58.0: through windows (the arena bots dive; each side its own way: Mantle.findWindow found these,
+  // approach and landing on the floor): into the barracks and the trading post from the yard, through
+  // the hamlet's hut (both ways, and the rotated hut's).
+  const windows: [number, number][] = [];
+  for (const [a, b] of [
+    [[-26.6, 0, -14.6], [-25.13, 0.12, -14.6]], [[-24.6, 0, 11.9], [-23.13, 0.12, 11.9]], [[-23.35, 0, -18.6], [-23.35, 0.12, -17.13]],
+    [[-21.1, 0, 7.4], [-21.1, 0.12, 8.87]], [[-20.35, 0, -18.6], [-20.35, 0.12, -17.13]], [[-19.6, 0, -10.35], [-19.6, 0.12, -11.87]], [[-12.1, 0, 7.4], [-12.1, 0.12, 8.87]],
+    [[-52.6, 2.22, 46.4], [-51.05, 2.22, 46.4]], [[-51.1, 2.22, 46.4], [-52.6, 2.22, 46.4]], [[-48.6, 2.27, 48.9], [-48.6, 2.31, 50.6]], [[-48.6, 2.31, 50.65], [-48.6, 2.28, 49.05]],
+    [[48.4, 2.31, -50.6], [48.4, 2.28, -49.05]], [[48.4, 2.28, -49.1], [48.4, 2.31, -50.6]], [[50.9, 2.22, -46.6], [52.6, 2.21, -46.6]], [[52.65, 2.21, -46.6], [51.05, 2.22, -46.6]],
+  ] as [number, number, number][][]) windows.push([N(a[0], a[1], a[2]), N(b[0], b[1], b[2])]);
   // The arena: bases, chicanes, hamlet doorways, pump houses, lanes (hand links where auto ones can't
   // see round a corner). A node a wall swallowed is dropped (and its links with it).
   {
@@ -1280,7 +1290,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     cabinets,
     medkits,
     breakables,
-    nav: { nodes, links, slope: 0.32 },
+    nav: { nodes, links, slope: 0.32, windows },
     zoneAt,
     update(t: number, wind: number) {
       // The flag ripples harder in the storm.

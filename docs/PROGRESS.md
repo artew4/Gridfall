@@ -2828,8 +2828,41 @@ The ask: some metal walls and thin fences shot through, partly, not fully; a way
 - Tests 544 (+5: the pierce rule and the way out of a box; a window dived through, not bars, a slit, a low hole or a sill out of reach, the eyes under the lintel). The 43.0 fence test held: the first version took a 1.4 m fence for a window with no top.
 - Self-play: Desert 2, Neon Docks 2, Maglev 1, Neon Block 1: kills/min 26.1–28.9, 17.4–21.2, 17.6, 17.4; stuck 0.
 
+## 58.0: the bots through windows, the match on screen, the Desert's new score
+
+Branch `feature/bots-hud-music-58.0`, from `feature/wallbang-vault-57.0` @ `5dcf59c` (57.0, not merged yet).
+
+The playtest: teach the bots to climb through windows; no menu on Esc after he died with only the bots left; on the minimap his side blue and the other red whichever team he plays; bots jumping on the spot over and over, more in the endgame; a point's capture shown on the minimap alone; with him dead and the bots fighting on, the whole score top left, the dead struck through; the Desert's music awful: something driving and cyberpunk.
+
+### The bots through windows
+- The graph: one-way links through windows (`NavLayout.windows`, the vault graph only, as the drops): the Desert's barracks and trading post windows from the yard, the hamlet's huts both ways (15 links, found by Mantle.findWindow's scan).
+- The dive: a bot walking into a wall (Locomotion.vaultAhead now says when a solid stops it) looks for a window in it (`diveThrough`: findWindow from a jump's height, at most every 0.6 s, the think budget's rays) and dives as he does (`Dive`, 0.5 s: up to the sill, through, out in the air past the wall; its collision off for the move), then falls. Self-play: 6–12 dives a Desert match, 2–3 on the Docks; stuck 0.
+
+### Jumping on the spot
+- Counted (ArenaStats `jumpWhy`, `jumpRepeat`: a jump within 1.2 m and 3 s of its last): 12–27 a Desert match, nearly all vaults. Three causes:
+  - the Block's ground-floor counter 1.3 m inside its south door (bots coming in jumped at it, came down where they started): against the end room's wall, off the door;
+  - a vault with no room past the obstacle (`vaultAhead` checks a body fits past it now);
+  - any jump where it jumped from a moment ago (2.5 s, 0.9 m): none, and a vault's route is dropped (it picks another way).
+- 4–6 a match left.
+- The stress check, sampling differently after the counter moved, found two old slots (a body that jumped a prop came down in the gap to the wall): the huts' crate and the houses' upstairs counter, both flush with the wall now.
+
+### The match on screen
+- Esc while dead in TDM (the respawn countdown, or out and watching): the pause menu (it opened only in play; with the mouse already free the key itself does it); a click takes the mouse back.
+- Colours: on the minimap and the TDM HUD his side blue, the other red, whichever team he plays (OMEGA's HUD swapped to each team's own: his mates orange, the hostiles blue).
+- The point he stands on (TdmHud `setCapture`): under the crosshair its name and what is happening (CAPTURING, LOSING, CONTESTED, HOLDING, ENEMY POINT, NEUTRAL) and its meter from his side. A point the other team takes: a banner (it was a line under the score).
+- The board: once he is out, or a team is on its last stand, both teams (his first, the other's under a red line, smaller rows), everyone out of the match struck through.
+
+### The Desert's score (Themes.ts `DESERT_THEME`)
+- Darksynth in D minor at 128 (i–VI–III–VII: Dm B♭ F C), driving from the first bar: four on the floor pumping the mix, a rolling sixteenth bass (the octave on the off-sixteenths, a driven filter snapping open), offbeat hats, a dark pad. With the fight: a sixteenth arpeggio through the delay, snare and clap on two and four with fills, a saw lead playing phrases of the scale, and at the top stabs, a riser into every eighth bar and a crash. Level with the Docks' theme (−16 dB RMS against −15…−18). The 25.0 maqam theme is gone (its scales kept as data).
+
+### Checks
+- Tests 546 (+2: the new theme drives from the first bar and stays in D minor, its fight layers; the window dive, the pierce rule as 57.0).
+- Desert: `world` clean, `stress` 0/32,000 (3,000 samples: 2 in 96,000, a hut's window edge and a slab's side in the Cistern, both a sprint jump into a corner), graph all reachable, levelAI 510/512 (the two old failures).
+- Self-play: Desert 3, Docks 2, stuck 0.
+
 ## Next
 Human playtest:
+- 58.0 items: the bots diving through the Desert's windows; any bot still jumping on the spot (where); Esc while dead; the capture line under the crosshair (too big, too small, in the way); the full board when you're out; the Desert's new music (drive, too busy, too loud next to the guns).
 - 57.0 items: wallbangs (do you notice them, are the shares right: 60% through a sheet feels like too much or too little; is it clear what can be shot through); the window dive (does it trigger when you want it and never when you don't; the duck under the lintel; which windows you'd want it on that it misses).
 - 56.0 items: the Desert's middle (the Cistern: do you use the arms by the gates, is the hall a good fight or a trap; the sinkhole: dropping in, the slabs; the hoist as a landmark; the head-high HESCO: the middle shut off enough from the flanks, or too shut; the roofs' sheds and shades: enough cover from the Blocks; the blast walls and containers in the dunes; the hall's light: dark enough to feel underground, bright enough to fight in).
 - 55.0 items: the instincts (chased down when hurt: too often, too rare, fair; do you hear "after him!" in time to turn it into an ambush; paybacks after a kill of yours; rushed while reloading close; bots back round a corner on you faster).

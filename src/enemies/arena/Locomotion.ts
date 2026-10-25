@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import type { CollisionWorld } from '../../world/Collision';
+import type { Collider, CollisionWorld } from '../../world/Collision';
 import { VAULT_MAX } from '../Nav';
 import { ARENA } from './ArenaCtx';
 import { SLIDE, slideStep } from '../../player/Slide';
+import { mantlePos } from '../../player/Mantle';
 
 /*
   Arena movement primitives (7.0): a jump arc, the low-wall probe that turns running into a vault,
@@ -103,10 +104,11 @@ export function vaultSpeed(h: number) {
  * taller than VAULT_MAX above the feet: its height above the feet, else 0. A taller solid in the way
  * first means no vault (it would only jump into a wall).
  */
-export function vaultAhead(col: CollisionWorld, pos: THREE.Vector3, dx: number, dz: number, radius: number, reach = 0.7) {
+export function vaultAhead(col: CollisionWorld, pos: THREE.Vector3, dx: number, dz: number, radius: number, reach = 0.7, out?: { wall: boolean }) {
   const ex = pos.x + dx * (radius + reach), ez = pos.z + dz * (radius + reach);
   const list = col.near(Math.min(pos.x, ex) - 0.2, Math.min(pos.z, ez) - 0.2, Math.max(pos.x, ex) + 0.2, Math.max(pos.z, ez) + 0.2);
   let best = 0, bt = Infinity;
+  let hitC: Collider | null = null;
   for (const c of list) {
     if (!c.solid || c.kind === 'ramp') continue;
     const top = c.max.y - pos.y;
@@ -115,7 +117,23 @@ export function vaultAhead(col: CollisionWorld, pos: THREE.Vector3, dx: number, 
     if (t < 0 || t >= bt) continue;
     bt = t;
     best = c.vault && top <= VAULT_MAX ? top : -1;
+    hitC = c;
   }
+  // 58.0: and room to come down past it (a counter in a room's corner, sandbags against a wall: the bot
+  // jumped at it, landed back where it was, and jumped again, on the spot, for seconds).
+  if (best > 0 && hitC) {
+    const c = hitC;
+    // Through the obstacle along d: from where the probe met it to its far side, then a body's width on.
+    let far = 0;
+    for (const [p, d, lo, hi] of [[pos.x, dx, c.min.x, c.max.x], [pos.z, dz, c.min.z, c.max.z]] as const) if (Math.abs(d) > 1e-6) far = Math.max(far, ((d > 0 ? hi : lo) - p) / d);
+    if (c.kind === 'cyl') far = Math.hypot(c.cx! - pos.x, c.cz! - pos.z) + c.r!;
+    _p.set(pos.x + dx * (far + radius + 0.15), pos.y + 0.35, pos.z + dz * (far + radius + 0.15));
+    if (col.blocked(_p, radius, 1.4)) {
+      if (out) out.wall = true;
+      return 0;
+    }
+  }
+  if (out) out.wall = best < 0;
   return best > 0 ? best : 0;
 }
 
@@ -155,4 +173,26 @@ function segCircle(ax: number, az: number, bx: number, bz: number, cx: number, c
   if (disc < 0 || a < 1e-9) return -1;
   const t = (-b - Math.sqrt(disc)) / (2 * a);
   return t >= 0 && t <= 1 ? t : -1;
+}
+
+/**
+ * 58.0, a bot through a window (Mantle.findWindow's dive): up to the sill, through, out in the air past
+ * the wall; t < 0: not diving.
+ */
+export interface Dive {
+  t: number;
+  T: number;
+  from: THREE.Vector3;
+  to: THREE.Vector3;
+}
+export const newDive = (): Dive => ({ t: -1, T: 0.5, from: new THREE.Vector3(), to: new THREE.Vector3() });
+
+/** Moves `pos` along the dive; true on the frame it ends (then it falls from `to`). */
+export function stepDive(d: Dive, pos: THREE.Vector3, dt: number) {
+  d.t += dt;
+  mantlePos(d.from, d.to, d.t, d.T, pos, true);
+  if (d.t < d.T) return false;
+  pos.copy(d.to);
+  d.t = -1;
+  return true;
 }

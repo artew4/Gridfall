@@ -389,7 +389,7 @@ export class Player {
     }
     const x = this.pos.x, y = this.pos.y, z = this.pos.z;
     this.mantleT += dt;
-    mantlePos(this.mantleFrom, this.mantleTo, this.mantleT, this.mantleDur, this.pos);
+    mantlePos(this.mantleFrom, this.mantleTo, this.mantleT, this.mantleDur, this.pos, this.mantleAir);
     this.mantleK = Math.sin(Math.PI * Math.min(1, this.mantleT / this.mantleDur));
     if (this.mantleT < this.mantleDur) {
       // The real motion (what a bot leads its shot by).
@@ -479,6 +479,8 @@ export class Player {
     // Going down is immediate in height terms (never taller than the room), the rest is smoothed.
     this.crouch = Math.max(damp(this.crouch, target, HANDLING.crouchRate, dt), most);
     this.height = lerp(BODY_H, CROUCH_H, this.crouch);
+    // 57.0: diving through a window the body is folded into the opening (under its lintel).
+    if (this.mantling && this.mantleAir) this.height = Math.min(this.height, this.mantleRoom - 0.04);
   }
 
   damage(amount: number, from: THREE.Vector3, time: number) {

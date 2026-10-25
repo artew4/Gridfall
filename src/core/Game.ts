@@ -283,7 +283,7 @@ export class Game {
   private bindPower() {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
-        if (this.state === 'play' || this.state === 'intro') this.pause();
+        if (this.state === 'play' || this.state === 'intro' || this.inMatchDead()) this.pause();
         this.renderer.renderer.setAnimationLoop(null);
         this.audio.setSuspended(true);
         this.music.setSuspended(true);
@@ -421,7 +421,7 @@ export class Game {
     // 52.0: the graph's links (and the vault links) from the cache when this geometry was built before
     // (NavCache: a shown load awaits the lookup; `loadLevel` doesn't, and computes them).
     const navKey = `nav:${id}`;
-    const navFp = fingerprint(this.col, (h) => hashLayout(h, d.nav.nodes, [...d.nav.links, ...(d.nav.drops ?? [])], [d.nav.slope ?? 0, d.nav.faces ? 1 : 0]));
+    const navFp = fingerprint(this.col, (h) => hashLayout(h, d.nav.nodes, [...d.nav.links, ...(d.nav.drops ?? []), ...(d.nav.windows ?? [])], [d.nav.slope ?? 0, d.nav.faces ? 1 : 0]));
     const got: { nav?: { edges: number[][]; vaultEdges?: number[][] | null } | null; cover?: number[] | null } = {};
     yield { f: 0.6, what: 'NAVIGATION', creep: 0.6, wait: cacheGet<{ edges: number[][]; vaultEdges?: number[][] | null }>(navKey, navFp).then((v) => (got.nav = v)) };
     const navT = performance.now();
@@ -783,7 +783,7 @@ export class Game {
       this.restart(this.mode === 'story' && !full);
     });
     this.renderer.canvas.addEventListener('click', () => {
-      if (this.state === 'play' || this.state === 'intro') this.input.requestLock();
+      if (this.state === 'play' || this.state === 'intro' || this.inMatchDead()) this.input.requestLock();
     });
     this.menu.onResume = () => {
       this.audio.start();
@@ -811,7 +811,8 @@ export class Game {
     };
     // Esc releases the pointer (browser behaviour): that is the pause. Resume only once the lock is back.
     this.input.onLockChange = (locked) => {
-      if (!locked && (this.state === 'play' || this.state === 'intro')) this.pause();
+      // 58.0: also down in TDM (waiting to respawn, or out of the match and watching): Esc gave no menu.
+      if (!locked && (this.state === 'play' || this.state === 'intro' || this.inMatchDead())) this.pause();
       else if (locked && this.state === 'paused') this.resume();
     };
     // 13.0: 1–3 pick a gun over the intro; they don't skip it.
@@ -819,6 +820,15 @@ export class Game {
       if (!armoryByKey(code)) this.skipIntro();
     };
     window.addEventListener('mousedown', () => this.skipIntro());
+    // 58.0: watching with the mouse already free (no lock to lose), Esc still brings the menu.
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape' && !this.input.locked && this.inMatchDead()) this.pause();
+    });
+  }
+
+  /** 58.0: down in a mode that goes on without him (TDM: the respawn countdown, or watching the bots). */
+  private inMatchDead() {
+    return this.state === 'dead' && this.respawning;
   }
 
   private pause() {

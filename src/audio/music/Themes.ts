@@ -218,7 +218,7 @@ export const MENU_THEME: ThemeDef = {
 };
 
 /*
-  25.0, the desert: maqam Hijaz on E (the Phrygian dominant: E F G♯ A B C D, the augmented second F–G♯
+  (25.0's desert theme, kept as data since 58.0 re-scored the desert below.) The desert: maqam Hijaz on E (the Phrygian dominant: E F G♯ A B C D, the augmented second F–G♯
   that makes it read as Arabic), over a tanpura-like drone of E and B. A darbuka plays the Egyptian
   maqsum (dum tek · tek dum · tek ·); an oud plucks the phrase; a ney (breathy flute) takes it up as
   the fight grows; at the top a bowed string ensemble plays it in the double harmonic (D♯ for D: Hijaz
@@ -259,6 +259,20 @@ export function makePhrase(rnd: () => number, start: number, lo: number, hi: num
   return out;
 }
 
+
+/*
+  58.0, the desert re-scored (the playtest: "the music on the Desert is awful; it needs something
+  dynamic, cyberpunk and pumping that drives the game"): darksynth in D minor at 128, i–VI–III–VII
+  (Dm B♭ F C), and it drives from the first bar: a four-on-the-floor kick pumping the mix, a rolling
+  sixteenth bass (the octave on the off-sixteenths, a driven filter snapping open on each), offbeat
+  hats, a dark pad. As the fight grows: a sixteenth arpeggio of the chord through the tempo delay, a
+  snare and clap on two and four with a fill into every fourth bar, a saw lead playing phrases of the
+  scale (by step, landing on the tonic or the fifth, sliding into notes), and at the top stabs, a
+  riser into every eighth bar and a crash on its downbeat. (The 25.0 maqam theme went with it.)
+*/
+/** D natural minor from D4, two octaves (the lead's phrases walk it). */
+export const D_MINOR = [62, 64, 65, 67, 69, 70, 72, 74, 76, 77, 79, 81, 82, 84, 86];
+
 /** The phrase each melodic layer is playing (made at the start of every second bar). */
 const desertPhrase: Record<string, Phrase> = {};
 function phraseStep(key: string, c: StepCtx, lo: number, hi: number, startDeg: number) {
@@ -267,76 +281,73 @@ function phraseStep(key: string, c: StepCtx, lo: number, hi: number, startDeg: n
   return desertPhrase[key].find(([s]) => s === pos) ?? null;
 }
 
+/** The arpeggio's order over the chord's tones (two octaves): up, and a turn at the top. */
+const ARP = [0, 1, 2, 3, 4, 3, 2, 1, 0, 2, 4, 6, 5, 3, 2, 1];
+
 export const DESERT_THEME: ThemeDef = {
   id: 'desert_theme',
-  bpm: 92,
-  gain: 0.85,
-  barsPerChord: 4,
+  bpm: 128,
+  gain: 0.7,
+  barsPerChord: 2,
   chords: [
-    { root: 40, pad: [52, 59, 64] },
-    { root: 41, pad: [53, 56, 60] },
-    { root: 40, pad: [52, 56, 59, 64] },
-    { root: 38, pad: [50, 57, 62] },
+    { root: 38, pad: [50, 53, 57, 62] },
+    { root: 34, pad: [50, 53, 58, 62] },
+    { root: 41, pad: [53, 57, 60, 65] },
+    { root: 36, pad: [52, 55, 60, 64] },
   ],
-  scale: HIJAZ,
+  scale: D_MINOR,
   layers: [
-    // The tanpura: E and B, breathing, every four bars.
-    { id: 'drone', on: 0, off: 0, level: 0.6, part: 'bass', play: (c) => { if (c.step === 0 && c.bar % 4 === 0) { c.I.drone(c.bus, c.t, 28, c.s16 * 64 - 0.5, 0.8, { cutoff: 260, rate: 0.09 }); c.I.drone(c.bus, c.t, 35, c.s16 * 64 - 0.5, 0.45, { cutoff: 320, rate: 0.13 }); } } },
+    // The engine: four on the floor, pumping everything else.
+    { id: 'kick', on: 0, off: 0, level: 0.85, part: 'drums', play: (c) => { if (c.step % 4 === 0) c.I.kick(c.bus, c.t, c.step === 0 ? 1 : 0.9, { pump: 0.45, release: 0.18, drive: 1.6 }); } },
     {
-      // Maqsum: dum tek · tek dum · tek · (eighths), ka ghosts between.
-      id: 'darbuka', on: 0, off: 0, level: 0.6, part: 'drums',
+      // Rolling sixteenths: root, root, octave, root; accents on the beat; the filter snapping open.
+      id: 'bass', on: 0, off: 0, level: 0.8, part: 'bass',
       play: (c) => {
-        const hit: Record<number, 'dum' | 'tek' | 'ka'> = { 0: 'dum', 2: 'tek', 6: 'tek', 8: 'dum', 12: 'tek' };
-        const k = hit[c.step];
-        if (k) c.I.darbuka(c.bus, c.t, k, k === 'dum' ? 0.85 : 0.6);
-        else if (c.step % 2 && c.rnd() < 0.25 + c.intensity * 0.3) c.I.darbuka(c.bus, c.t, 'ka', 0.35);
+        const up = c.step % 4 === 2;
+        const note = c.chord.root + 12 + (up ? 12 : 0);
+        c.I.bass(c.bus, c.t, note, c.s16 * 0.85, c.step % 4 === 0 ? 0.95 : up ? 0.75 : 0.6, { cutoff: 260 + c.intensity * 260, env: 1500 + c.intensity * 1800, drive: 2.2, detune: 7 });
+      },
+    },
+    { id: 'hats', on: 0, off: 0, level: 0.45, part: 'drums', play: (c) => { if (c.step % 4 === 2) c.I.hat(c.bus, c.t, 0.55, c.step === 14 && c.bar % 2 === 1); else if (c.step % 2 === 1 && c.intensity > 0.3) c.I.hat(c.bus, c.t, 0.22); } },
+    { id: 'pad', on: 0, off: 0, level: 0.4, part: 'synth', play: (c) => { if (c.step === 0 && c.bar % 2 === 0) c.I.pad(c.bus, c.t, c.chord.pad, c.s16 * 32 - 0.2, 0.75, 1100); } },
+    {
+      // The arpeggio: the chord's tones over two octaves in sixteenths, through the delay.
+      id: 'arp', on: 0.18, off: 0.1, level: 0.5, part: 'synth',
+      play: (c) => {
+        const tones = [...c.chord.pad.slice(0, 3).map((n) => n + 12), ...c.chord.pad.slice(0, 3).map((n) => n + 24)].sort((a, b) => a - b);
+        const n = tones[ARP[c.step] % tones.length];
+        c.I.pluck(c.bus, c.t, n, c.step % 4 === 0 ? 0.85 : 0.6, { type: 'sawtooth', cutoff: 2600 + c.intensity * 2400, decay: 0.16, delay: 0.45 });
       },
     },
     {
-      // The oud: the phrase plucked, low register.
-      id: 'oud', on: 0, off: 0, level: 0.55, part: 'lead',
+      // Two and four, a clap doubling the snare; a fill of sixteenths into every fourth bar.
+      id: 'snare', on: 0.32, off: 0.22, level: 0.7, part: 'drums',
       play: (c) => {
-        const n = phraseStep('oud', c, 0, 9, 4);
-        if (n) c.I.pluck(c.bus, c.t, HIJAZ[n[1]], 0.6, { type: 'sawtooth', cutoff: 1500, decay: 0.32, delay: 0.3 });
+        if (c.step === 4 || c.step === 12) {
+          c.I.snare(c.bus, c.t, 0.85, 200, 0.3);
+          c.I.clap(c.bus, c.t, 0.55);
+        }
+        if (c.bar % 4 === 3 && c.step >= 13) c.I.snare(c.bus, c.t, 0.35 + (c.step - 13) * 0.15, 220, 0.2);
       },
     },
     {
-      // The ney, an octave up, long notes sliding in from the note below.
-      id: 'ney', on: 0.3, off: 0.2, level: 0.6, part: 'lead',
+      // The lead: a saw phrase on the scale, an octave over the arp, sliding into its long notes.
+      id: 'lead', on: 0.55, off: 0.42, level: 0.55, part: 'lead',
       play: (c) => {
-        const n = phraseStep('ney', c, 4, 12, 7);
-        if (!n || n[2] < 2) return;
-        const note = HIJAZ[n[1]] + 12;
-        c.I.flute(c.bus, c.t, note, c.s16 * n[2] * 0.95, 0.75, c.rnd() < 0.4 ? { from: note - 1, glide: 0.1 } : {});
-      },
-    },
-    { id: 'riq', on: 0.45, off: 0.35, level: 0.45, part: 'drums', play: (c) => { if (c.step % 2 === 0) c.I.shaker(c.bus, c.t, c.step % 4 === 0 ? 0.5 : 0.3); if (c.step === 4 || c.step === 12) c.I.hat(c.bus, c.t, 0.35); } },
-    {
-      id: 'bass', on: 0.45, off: 0.35, level: 0.8, part: 'bass',
-      play: (c) => {
-        const motif: [number, number][] = [[0, 0], [3, 0], [6, 1], [8, 0], [11, 4], [14, 3]];
-        for (const [s, iv] of motif) if (s === c.step) c.I.bass(c.bus, c.t, 40 + iv, c.s16 * 1.6, s === 0 ? 0.9 : 0.7, { cutoff: 380, env: 700 });
+        const n = phraseStep('lead', c, 0, 11, 4);
+        if (!n) return;
+        const note = D_MINOR[n[1]];
+        const from = n[2] >= 4 && c.rnd() < 0.5 ? note - 2 : undefined;
+        c.I.lead(c.bus, c.t, note, c.s16 * n[2] * 0.92, 0.8, { type: 'sawtooth', cutoff: 3400, vibrato: 0.6, ...(from ? { from, glide: 0.07 } : {}) });
       },
     },
     {
-      // Baladi on the big drums: dum dum · tek dum · tek ·, a roll into every fourth bar.
-      id: 'drums', on: 0.65, off: 0.52, level: 0.8, part: 'drums',
+      // The top: stabs on the off-beats, a riser into every eighth bar, a crash on its downbeat.
+      id: 'peak', on: 0.78, off: 0.64, level: 0.55, part: 'synth',
       play: (c) => {
-        if (c.step === 0 || c.step === 2 || c.step === 8) c.I.kick(c.bus, c.t, c.step === 0 ? 0.9 : 0.7, { pump: 0.2 });
-        if (c.step === 6 || c.step === 12) c.I.darbuka(c.bus, c.t, 'tek', 0.8);
-        if (c.bar % 4 === 3 && c.step >= 12) c.I.darbuka(c.bus, c.t, c.step % 2 ? 'ka' : 'tek', 0.7);
-      },
-    },
-    {
-      // The string ensemble in the double harmonic, doubled at the octave.
-      id: 'strings', on: 0.8, off: 0.66, level: 0.55, part: 'lead',
-      play: (c) => {
-        const n = phraseStep('strings', c, 4, 11, 7);
-        if (!n || n[2] < 2) return;
-        const note = HIJAZ_KAR[n[1]] + 12;
-        const slide = c.rnd() < 0.5 ? { from: HIJAZ_KAR[Math.max(0, n[1] - 1)] + 12, glide: 0.14 } : {};
-        c.I.bowed(c.bus, c.t, note, c.s16 * n[2] * 0.95, 0.7, slide);
-        c.I.bowed(c.bus, c.t, note - 12, c.s16 * n[2] * 0.95, 0.45, { ...slide, ...(slide.from ? { from: slide.from - 12 } : {}), voices: 2 });
+        if (c.step === 3 || c.step === 6 || c.step === 11) c.I.stab(c.bus, c.t, c.chord.pad.map((p) => p + 12), 0.55);
+        if (c.bar % 8 === 6 && c.step === 0) c.I.riser(c.bus, c.t, c.t + c.s16 * 32, 0.6);
+        if (c.bar % 8 === 0 && c.step === 0) c.I.crash(c.bus, c.t, 0.5);
       },
     },
   ],

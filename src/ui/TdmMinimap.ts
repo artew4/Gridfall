@@ -27,10 +27,15 @@ const LEVEL_GAP = 2.5;
  * frame is one rotated blit plus the team's markers: allies in blue, and the hostiles the team has
  * spotted (anyone's line of sight, the human's or a bot's) in red, fading out after it is lost.
  */
+/** 58.0: his side and the other, on the map, whichever team he plays. */
+const ALLY = '#7cc8ff';
+const HOSTILE = '#ff3344';
+const HOSTILE_SOFT = '#ff5a5a';
+
 export class TdmMinimap {
   root = document.createElement('div');
   /** 48.0: his team's colour (his teammates' dots) and the other's (the spotted): ALPHA blue, OMEGA red. */
-  private allyColor = '#7cc8ff';
+  private allyColor = ALLY;
   private hostileColor = '#ff3344';
   private canvas = document.createElement('canvas');
   private g: CanvasRenderingContext2D;
@@ -121,9 +126,16 @@ export class TdmMinimap {
   private zones: { x: number; z: number; id: string; team: 'alpha' | 'omega'; open: boolean }[] = [];
   /** 48.0: his team this match. */
   setSide(team: TeamId) {
-    this.allyColor = team === 'alpha' ? '#7cc8ff' : '#ff6a4d';
-    // (Spotted hostiles in the other team's colour: red for OMEGA, blue for ALPHA.)
-    this.hostileColor = team === 'alpha' ? '#ff3344' : '#5fb8ff';
+    // 58.0: his own side blue and the other red, whichever team he is on (they were the teams' colours:
+    // on OMEGA his mates showed orange and the hostiles blue).
+    this.side = team;
+    this.allyColor = ALLY;
+    this.hostileColor = HOSTILE;
+  }
+  private side: TeamId = 'alpha';
+  /** 58.0: a team's colour as he sees it (his blue, theirs red; nobody's white). */
+  private tc(t: TeamId | null, ally = ALLY, hostile = HOSTILE_SOFT) {
+    return t === null ? 'rgba(242,251,255,0.85)' : t === this.side ? ally : hostile;
   }
 
   drawZones(zones: readonly { x: number; z: number; id: string; team: 'alpha' | 'omega' }[]) {
@@ -138,7 +150,7 @@ export class TdmMinimap {
   /** A zone's hexagon and letter at screen (x, y), `r` px. */
   private zoneMark(g: CanvasRenderingContext2D, zn: { id: string; team: 'alpha' | 'omega'; open: boolean }, x: number, z: number, r: number) {
     g.globalAlpha = zn.open ? 1 : 0.25;
-    g.strokeStyle = zn.team === 'alpha' ? 'rgba(95,227,255,0.95)' : 'rgba(255,138,42,0.95)';
+    g.strokeStyle = this.tc(zn.team, 'rgba(95,227,255,0.95)', 'rgba(255,80,80,0.95)');
     g.lineWidth = 1.5;
     g.beginPath();
     for (let i = 0; i <= 6; i++) g[i ? 'lineTo' : 'moveTo'](x + Math.sin((i * Math.PI) / 3) * r, z + Math.cos((i * Math.PI) / 3) * r);
@@ -214,7 +226,7 @@ export class TdmMinimap {
       const [x, y] = at(f.x, f.z);
       const r = Math.max(6, f.obj.r * SCALE);
       if (Math.hypot(x - SIZE / 2, y - SIZE / 2) > R + r) continue;
-      const col = (t: 'alpha' | 'omega' | null) => (t === 'alpha' ? '#7cc8ff' : t === 'omega' ? '#ff6a4d' : 'rgba(242,251,255,0.85)');
+      const col = (t: 'alpha' | 'omega' | null) => this.tc(t);
       const pulse = f.obj.capturing ? 0.5 + 0.5 * Math.sin(now / 120) : 1;
       g.globalAlpha = 0.22 * pulse + 0.08;
       g.fillStyle = col(f.obj.owner);
@@ -256,7 +268,7 @@ export class TdmMinimap {
       g.moveTo(x - ux * L, y - uy * L);
       g.lineTo(x + ux * L, y + uy * L);
       g.stroke();
-      g.strokeStyle = f.push === 'alpha' ? '#7cc8ff' : f.push === 'omega' ? '#ff6a4d' : 'rgba(242,251,255,0.85)';
+      g.strokeStyle = this.tc(f.push);
       g.lineWidth = 2.5;
       g.stroke();
       // 46.0: the lane's letter by its line (which flank is which, at a glance).
