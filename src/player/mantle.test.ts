@@ -230,3 +230,47 @@ describe('43.0 the probe and the motion (pure)', () => {
     expect(mantleTime(0.4)).toBeLessThan(mantleTime(1));
   });
 });
+
+describe('57.0: through a window (parkour)', () => {
+  /** A wall across his way (its face 0.8 m ahead, 0.3 m deep) with a window: sill `sill`, `w` wide, `h` tall; bars if asked. */
+  const wall = (sill: number, w: number, h: number, bars = false) => (col: CollisionWorld) => {
+    const z0 = -1.1, z1 = -0.8, hw = w / 2;
+    col.add(-4, 0, z0, -hw, 3, z1);
+    col.add(hw, 0, z0, 4, 3, z1);
+    col.add(-hw, 0, z0, hw, sill, z1);
+    col.add(-hw, sill + h, z0, hw, 3, z1);
+    if (bars) col.add(-hw, sill, z0 + 0.12, hw, sill + h, z0 + 0.18).ray = false;
+  };
+
+  it('a wide window he can reach: he dives through and lands past the wall', () => {
+    const { p, input, keys, pressed } = setup(0, wall(1.0, 1.2, 1.0));
+    const before = mantleStats.windows;
+    jumpAt(p, input, keys, pressed, 1.6);
+    expect(mantleStats.windows).toBe(before + 1);
+    expect(p.pos.z).toBeLessThan(-1.6);
+    expect(p.pos.y).toBeCloseTo(0, 1);
+  });
+
+  it('not through bars, a narrow slit, a low hole, or a sill out of reach', () => {
+    for (const [sill, w, h, bars] of [[1.0, 1.2, 1.0, true], [1.0, 0.8, 1.0, false], [1.0, 1.2, 0.6, false], [1.9, 1.2, 1.0, false]] as const) {
+      const { p, input, keys, pressed } = setup(0, wall(sill, w, h, bars));
+      const before = mantleStats.windows;
+      jumpAt(p, input, keys, pressed, 1.6);
+      expect(mantleStats.windows).toBe(before);
+      expect(p.pos.z).toBeGreaterThan(-0.8);
+    }
+  });
+
+  it('the eyes pass under the lintel on the way through', () => {
+    const { p, input, keys, pressed } = setup(0, wall(1.0, 1.2, 0.9));
+    keys.add('KeyW');
+    pressed.add('Space');
+    let worst = -Infinity;
+    for (let i = 0; i < 90; i++) {
+      p.update(1 / 60, input, true, i / 60);
+      pressed.clear();
+      if (p.mantling && p.pos.z < -0.75 && p.pos.z > -1.15) worst = Math.max(worst, p.eyeY - 1.9);
+    }
+    expect(worst).toBeLessThan(0);
+  });
+});

@@ -8,7 +8,7 @@ import { SLIDE, slideStep } from './Slide';
 import { Stamina } from '../combat/Stamina';
 import { Recoil, viewPitch } from './Recoil';
 import type { GunHandling } from '../entities/types';
-import { findLedge, MANTLE, mantlePos, mantleStats, mantleTime } from './Mantle';
+import { findLedge, findWindow, MANTLE, mantlePos, mantleStats, mantleTime, WINDOW } from './Mantle';
 
 const WALK = 5.0;
 const SPRINT = 7.8;
@@ -117,6 +117,9 @@ export class Player {
   private mantleRoom = BODY_H;
   private mantleSide = 1;
   private mantleCd = 0;
+  /** 57.0: this one goes through a window (ends in the air); the eyes kept under its lintel meanwhile. */
+  private mantleAir = false;
+  private mantleCap = Infinity;
 
   constructor(private col: CollisionWorld, private audio: AudioEngine) {}
 
@@ -263,6 +266,8 @@ export class Player {
     this.landDip.update(dt);
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     this.eyeY = damp(this.eyeY, this.pos.y + this.eyeHeight, 18, dt);
+    // 57.0: diving through a window, the eyes pass under its lintel.
+    if (this.mantling && this.eyeY > this.mantleCap) this.eyeY = this.mantleCap;
   }
 
   /** The body's step: the jump, gravity, the sub-stepped collision, the landing. */
@@ -355,12 +360,17 @@ export class Player {
 
   /** 43.0: a ledge ahead (Mantle.findLedge)? Then the pull-up starts. */
   private tryMantle() {
-    const l = findLedge(this.col, this.pos, -Math.sin(this.yaw), -Math.cos(this.yaw), this.radius, CROUCH_H, this.mantleOk);
+    const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+    // 57.0: a ledge to pull up onto, else a window to dive through.
+    const l = findLedge(this.col, this.pos, fx, fz, this.radius, CROUCH_H, this.mantleOk) ?? findWindow(this.col, this.pos, fx, fz, this.radius, this.mantleOk);
     if (!l) return;
     mantleStats.grabs++;
+    if (l.air) mantleStats.windows++;
+    this.mantleAir = !!l.air;
+    this.mantleCap = l.cap ?? Infinity;
     this.mantleFrom.copy(this.pos);
     this.mantleTo.copy(l.to);
-    this.mantleDur = mantleTime(l.rise);
+    this.mantleDur = l.air ? WINDOW.time : mantleTime(l.rise);
     this.mantleRoom = Math.min(BODY_H, l.room);
     this.mantleT = 0;
     // Out onto the ledge at least at `exit` (a sprint's jump keeps most of its pace).
@@ -392,6 +402,15 @@ export class Player {
     this.mantleCd = MANTLE.cooldown;
     const dx = this.mantleTo.x - this.mantleFrom.x, dz = this.mantleTo.z - this.mantleFrom.z, d = Math.hypot(dx, dz) || 1;
     this.vel.set((dx / d) * this.mantleExit, 0, (dz / d) * this.mantleExit);
+    // 57.0: through a window he comes out in the air, and falls from there.
+    this.mantleCap = Infinity;
+    if (this.mantleAir) {
+      this.onGround = this.wasOnGround = false;
+      this.peakY = this.pos.y;
+      this.fallSpeed = 0;
+      this.audio.footstep(0.6);
+      return;
+    }
     this.onGround = this.wasOnGround = true;
     this.peakY = this.pos.y;
     this.fallSpeed = 0;

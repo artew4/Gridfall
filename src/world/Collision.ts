@@ -34,6 +34,11 @@ export interface Collider {
   r?: number;
   /** A railing the player can jump over mid-jump (survival NPCs never vault; 7.0 arena bots do). */
   vault?: boolean;
+  /**
+   * 57.0: the share of a round's damage that gets through it (0: it stops rounds). Unset: `pierceOf`'s
+   * rule (thin sheet metal and boards let part through).
+   */
+  pierce?: number;
   /** Called when a player bullet hits this collider. */
   onHit?: (hit: RayHit) => void;
   /** Moves at runtime (e.g. the metro train): kept out of the static grid, always queried. */
@@ -539,4 +544,33 @@ class TerrainBound {
     this.tiles.set(key, a);
     return a;
   }
+}
+
+/**
+ * 57.0, wallbangs: thin upright sheet metal and boards let part of a round through, nothing thicker
+ * does (the playtest: "some metal walls and thin fences should be shot through, not fully but partly").
+ * A collider's own `pierce` wins; else by what it is: sheet metal up to `metal[0]` m thick lets `metal[1]`
+ * of the damage through, up to `metal2[0]` m `metal2[1]`; boards up to `wood[0]` m `wood[1]`. Upright
+ * only (`minH` m tall): floors, decks and roofs stop rounds.
+ */
+export const PIERCE = { on: true, metal: [0.12, 0.6], metal2: [0.25, 0.4], wood: [0.2, 0.65], minH: 0.6, maxThrough: 0.6, max: 2, deflect: 0.025 } as const;
+
+export function pierceOf(c: Collider | null | undefined): number {
+  if (!PIERCE.on || !c || !c.ray || c.kind !== 'box') return 0;
+  if (c.pierce !== undefined) return c.pierce;
+  const t = Math.min(c.max.x - c.min.x, c.max.z - c.min.z);
+  if (c.max.y - c.min.y < PIERCE.minH) return 0;
+  if (c.surface === 'metal') return t <= PIERCE.metal[0] ? PIERCE.metal[1] : t <= PIERCE.metal2[0] ? PIERCE.metal2[1] : 0;
+  if (c.surface === 'wood') return t <= PIERCE.wood[0] ? PIERCE.wood[1] : 0;
+  return 0;
+}
+
+/** 57.0: how far a ray from `p` (on or in box `c`) along `dir` runs until it leaves the box (m). */
+export function exitDist(c: Collider, p: THREE.Vector3, dir: THREE.Vector3): number {
+  let t = Infinity;
+  for (const [o, d, lo, hi] of [[p.x, dir.x, c.min.x, c.max.x], [p.y, dir.y, c.min.y, c.max.y], [p.z, dir.z, c.min.z, c.max.z]] as const) {
+    if (Math.abs(d) < 1e-9) continue;
+    t = Math.min(t, ((d > 0 ? hi : lo) - o) / d);
+  }
+  return Math.max(0, t);
 }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { CollisionWorld, RayHit } from '../world/Collision';
+import { exitDist, PIERCE, pierceOf, type CollisionWorld, type RayHit } from '../world/Collision';
 import type { Effects } from '../combat/Effects';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { Player } from '../player/Player';
@@ -44,6 +44,8 @@ interface Bolt {
   /** 13.0: how it looks in flight (the gun's, else the shooter's look's) and its damage share (1 = a rifle round). */
   bolt: EnemyLook['bolt'];
   dmg: number;
+  /** 57.0: walls it went through. */
+  pierced: number;
   /** 21.0: the gun's round (falloff, head bonus, knock), or null. */
   round: RoundSpec | null;
 }
@@ -150,7 +152,7 @@ export class Projectiles {
     this.light.userData.unpooled = true;
     scene.add(this.light);
     for (let i = 0; i < N; i++) {
-      this.bolts.push({ i, look, color: new THREE.Color(), travel: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, whizzed: false, active: false, team: 'omega', by: null, dosed: new Set(), aimed: false, range: NaN, bolt: look.bolt, dmg: 1, round: null });
+      this.bolts.push({ i, look, color: new THREE.Color(), travel: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(), life: 0, whizzed: false, active: false, team: 'omega', by: null, dosed: new Set(), aimed: false, range: NaN, bolt: look.bolt, dmg: 1, pierced: 0, round: null });
       this.free.push(N - 1 - i);
     }
     this.setLook(look);
@@ -180,6 +182,7 @@ export class Projectiles {
     const round = opts.round;
     b.bolt = round?.bolt ?? look.bolt;
     b.dmg = round?.damage ?? 1;
+    b.pierced = 0;
     b.round = round ?? null;
     b.color.setRGB(...b.bolt.core);
     b.travel = 0;
@@ -244,6 +247,23 @@ export class Projectiles {
       const dir = this.dirN.copy(seg).normalize();
       const hit = this.col.raycast(this.prev, dir, step, this.hitTmp);
       if (this.targets && this.botStep(b, dir, step, hit ? hit.dist : step)) continue;
+      // 57.0: through thin sheet metal and boards (pierceOf): a hole each side, part of its damage, a
+      // little bent and slowed; at most PIERCE.max walls a round.
+      if (hit && b.life > 0 && b.pierced < PIERCE.max) {
+        const p = pierceOf(hit.collider);
+        const out = p > 0 ? exitDist(hit.collider!, this.closest.copy(hit.point).addScaledVector(dir, 0.002), dir) : Infinity;
+        if (out <= PIERCE.maxThrough) {
+          this.fx.impact(hit.point, hit.normal, hit.surface);
+          this.audio.hitSurface(hit.point, hit.surface);
+          b.pos.copy(this.closest).addScaledVector(dir, out + 0.02);
+          this.fx.impact(b.pos, this.seg.copy(dir), hit.surface);
+          b.dmg *= p;
+          b.pierced++;
+          const v = b.vel.length() * 0.9;
+          b.vel.set(dir.x + (Math.random() - 0.5) * PIERCE.deflect, dir.y + (Math.random() - 0.5) * PIERCE.deflect, dir.z + (Math.random() - 0.5) * PIERCE.deflect).setLength(v);
+          continue;
+        }
+      }
       if (hit || b.life <= 0) {
         if (hit) {
           // A bullet: an ordinary impact on whatever it struck.

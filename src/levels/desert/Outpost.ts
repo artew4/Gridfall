@@ -175,13 +175,17 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   const building = (o: {
     name: string; jp: string; x0: number; z0: number; x1: number; z1: number; h: number; mat: THREE.Material;
     openings: Opening[]; parapet?: number; parapetGaps?: Gap[]; roofWalk?: boolean; roofMat?: THREE.Material;
+    /** 57.0: its walls let this share of a round through (sheet metal). */
+    pierce?: number;
   }) => {
     const t = WALL_T;
     const on = (s: Side) => o.openings.filter((p) => p.side === s);
+    const n0 = col.colliders.length;
     wall(true, o.x0, o.x1, o.z0, o.z0 + t, o.h, o.mat, on('n'), m.wood);
     wall(true, o.x0, o.x1, o.z1 - t, o.z1, o.h, o.mat, on('s'), m.wood);
     wall(false, o.z0 + t, o.z1 - t, o.x0, o.x0 + t, o.h, o.mat, on('w'), m.wood);
     wall(false, o.z0 + t, o.z1 - t, o.x1 - t, o.x1, o.h, o.mat, on('e'), m.wood);
+    if (o.pierce) for (let i = n0; i < col.colliders.length; i++) col.colliders[i].pierce = o.pierce;
     solid(o.x0 + t, 0, o.z0 + t, o.x1 - t, SLAB, o.z1 - t, m.concrete);
     const rt = o.h + 0.25;
     solid(o.x0, o.h, o.z0, o.x1, rt, o.z1, o.roofMat ?? m.roof);
@@ -329,6 +333,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // Motor pool: tall hangar, a 7 m door to the yard, a side door, high windows.
   building({
     name: 'MOTOR POOL', jp: 'ورشة المركبات', x0: 10, z0: -20, x1: 26, z1: -8, h: 5, mat: m.metal, roofMat: m.metal,
+    // 57.0: its corrugated walls take a round through at 45% (a wallbang into or out of the hangar).
+    pierce: 0.45,
     openings: [
       { side: 's', at: 16.5, w: 7, y1: 4.2 }, { side: 'e', at: -13.3, w: 1.4 },
       { side: 'w', at: -16, w: 2.4, y0: 2.8, y1: 3.8 }, { side: 'w', at: -12, w: 2.4, y0: 2.8, y1: 3.8 },

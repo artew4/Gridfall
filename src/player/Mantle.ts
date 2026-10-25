@@ -65,10 +65,24 @@ export interface Ledge {
   /** The wall's face (unit, xz: toward him). */
   nx: number;
   nz: number;
+  /** 57.0, a window: he goes through it and comes out in the air past the wall (no ledge to stand on). */
+  air?: boolean;
+  /** 57.0: the eyes kept under this (world y) on the way through (the lintel). */
+  cap?: number;
 }
 
+/**
+ * 57.0, through a window (parkour): airborne at the grab's moment, W held, before a wall whose opening's
+ * sill he can reach (`minUp`…`maxUp` over his feet, as a ledge), at least `width` m wide (a body and a
+ * margin) and `height` m from the sill to the lintel, `depth` m deep at most (a wall, not a corridor);
+ * past it room to come out at the sill's height, with ground no more than `drop` m below. A lintel within
+ * `lintel` m of the sill (over a fence's top there is none: fences stay in the way). Bars (bodies
+ * stopped, rounds not) stop it: the body rays are what decide.
+ */
+export const WINDOW = { on: true, width: 1.0, height: 0.75, lintel: 2.6, depth: 0.7, drop: 4.5, time: 0.42 };
+
 /** The probe's counts (DEV: CPU cost is only paid on the frames that cast). */
-export const mantleStats = { probes: 0, rays: 0, grabs: 0 };
+export const mantleStats = { probes: 0, rays: 0, grabs: 0, windows: 0 };
 
 const _o = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -130,6 +144,67 @@ export function findLedge(col: CollisionWorld, pos: THREE.Vector3, fx: number, f
   if (ok && !ok(_p)) return null;
   return { to: _p.clone(), rise, room: room - 0.02, nx, nz };
 }
+
+/**
+ * 57.0: a window ahead of a body (feet `pos`, facing (fx, fz)) it can dive through, or null (see WINDOW).
+ * The result's `to` is past the wall at the sill's height (in the air); `room` the opening's height.
+ */
+export function findWindow(col: CollisionWorld, pos: THREE.Vector3, fx: number, fz: number, radius: number, ok?: (p: THREE.Vector3) => boolean): Ledge | null {
+  const M = MANTLE, W = WINDOW;
+  if (!W.on) return null;
+  mantleStats.probes++;
+  // The wall under the sill, as for a ledge.
+  mantleStats.rays++;
+  _o.set(pos.x, pos.y + M.hip, pos.z);
+  _d.set(fx, 0, fz);
+  const wall = col.raycast(_o, _d, M.reach, _hit, true);
+  if (!wall || Math.abs(wall.normal.y) > 0.3 || wall.normal.x * fx + wall.normal.z * fz > -M.faceCos) return null;
+  if (wall.collider?.vault) return null;
+  // Head-on through it: along the wall's normal. (The rays below reuse the hit record: copied out first.)
+  const nx = wall.normal.x, nz = wall.normal.z, ax = -nx, az = -nz;
+  const wx = wall.point.x, wy = wall.point.y, wz = wall.point.z, wd = wall.dist;
+  // The sill: straight down just inside the face.
+  mantleStats.rays++;
+  _o.set(wx + ax * 0.06, pos.y + M.maxUp + 0.02, wz + az * 0.06);
+  const sillHit = col.raycast(_o, _down, M.maxUp + 0.02 - M.minUp, _hit, true);
+  if (!sillHit || sillHit.normal.y < 0.9) return null;
+  const sill = sillHit.point.y;
+  const rise = sill - pos.y;
+  if (rise <= M.minUp || rise > M.maxUp || sill < wy) return null;
+  // The opening's height: the lintel over the sill.
+  // (A window has one: over the top of a fence or a low wall there is none, and those stay in the way.)
+  const lintel = col.ceilingAbove(wx + ax * 0.06, wz + az * 0.06, 0.02, sill + 0.02);
+  if (lintel - sill < W.height || lintel - sill > W.lintel) return null;
+  // The wall's depth: where the sill ends (the ground drops away past its far face).
+  let depth = -1;
+  for (let t = 0.12; t <= W.depth + 0.01; t += 0.04) {
+    if (col.groundHeightAt(wx + ax * t, wz + az * t, 0.01, sill + 0.05, 0.08) < sill - 0.05) {
+      depth = t;
+      break;
+    }
+  }
+  if (depth < 0) return null;
+  // Clear through, across its width (the body's edges and the middle) at the sill and below the lintel.
+  const sx = -az, sz = ax, half = W.width / 2 - 0.05;
+  const len = wd + depth + radius + 0.15;
+  for (const off of [-half, 0, half]) {
+    for (const y of [sill + 0.12, Math.min(lintel - 0.08, sill + W.height - 0.08)]) {
+      mantleStats.rays++;
+      _o.set(pos.x + sx * off, y, pos.z + sz * off);
+      _p.set(ax, 0, az);
+      if (col.raycast(_o, _p, len, _hit, true)) return null;
+    }
+  }
+  // Out past the far face at the sill's height, clear of everything, over ground not too far down.
+  const to = new THREE.Vector3(wx + ax * (depth + radius + 0.1), sill + 0.02, wz + az * (depth + radius + 0.1));
+  if (col.blocked(to, radius - 0.02, CROUCH_MIN)) return null;
+  const g = col.groundHeightAt(to.x, to.z, radius * 0.6, sill + 0.05, W.drop + 0.1);
+  if (!(g > sill - W.drop)) return null;
+  if (ok && !ok(to)) return null;
+  return { to, rise, room: lintel - sill, nx, nz, air: true, cap: lintel - 0.12 };
+}
+/** The body's height while it dives through a window (its collision is off for the move). */
+const CROUCH_MIN = 0.7;
 
 const ease = (t: number) => t * t * (3 - 2 * t);
 

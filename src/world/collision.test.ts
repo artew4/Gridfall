@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { CollisionWorld } from './Collision';
+import { CollisionWorld, exitDist, PIERCE, pierceOf } from './Collision';
 import { Player } from '../player/Player';
 import type { Input } from '../core/Input';
 import type { AudioEngine } from '../audio/AudioEngine';
@@ -107,5 +107,33 @@ describe('collision regressions (3.3 world integrity)', () => {
       return -p.pos.z;
     });
     expect(Math.max(...d) - Math.min(...d)).toBeLessThan(0.35);
+  });
+});
+
+describe('57.0: wallbangs (pierceOf, exitDist)', () => {
+  it('thin upright sheet metal and boards let part of a round through; concrete, floors and thick metal do not', () => {
+    const col = new CollisionWorld();
+    const sheet = col.add(0, 0, 0, 4, 2.5, 0.08, 'metal');
+    const plate = col.add(0, 0, 2, 4, 2.5, 2.2, 'metal');
+    const board = col.add(0, 0, 4, 4, 2, 4.15, 'wood');
+    const wall = col.add(0, 0, 6, 4, 3, 6.1, 'concrete');
+    const deck = col.add(0, 3, 8, 4, 3.08, 12, 'metal');
+    const tank = col.add(0, 0, 14, 2, 2, 16, 'metal');
+    const rail = col.add(0, 0, 18, 4, 1.1, 18.06, 'metal');
+    rail.ray = false;
+    expect(pierceOf(sheet)).toBe(PIERCE.metal[1]);
+    expect(pierceOf(plate)).toBe(PIERCE.metal2[1]);
+    expect(pierceOf(board)).toBe(PIERCE.wood[1]);
+    for (const c of [wall, deck, tank, rail]) expect(pierceOf(c)).toBe(0);
+    wall.pierce = 0.3;
+    expect(pierceOf(wall)).toBe(0.3);
+  });
+
+  it('the way out of a box: straight through its thickness, longer at a slant', () => {
+    const col = new CollisionWorld();
+    const c = col.add(0, 0, 0, 4, 2.5, 0.1, 'metal');
+    expect(exitDist(c, new THREE.Vector3(2, 1, 0), new THREE.Vector3(0, 0, 1))).toBeCloseTo(0.1);
+    const d = new THREE.Vector3(1, 0, 1).normalize();
+    expect(exitDist(c, new THREE.Vector3(2, 1, 0), d)).toBeCloseTo(0.1 * Math.SQRT2);
   });
 });

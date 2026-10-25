@@ -2806,8 +2806,31 @@ The playtest: the waist-high boxes between the middle and the flanks (the HESCO)
 - Self-play (12 matches; 55.0 on the old map 4): kills/min 17.4–32.2 (old 28.1–33.3), kill range median 12.1–14.8 m (old 13.8–18.7), p90 32–38.9 m (old 33–39.3); kills in the culvert and the Cistern 15 in 4 matches (old: 3 in the culvert); ALPHA won 9 of 12 (old 3 of 4); stuck 1 in 12 (a bot at the clinic–watchtower bridge's end).
 - Tests 539.
 
+## 57.0: wallbangs and diving through windows
+
+Branch `feature/wallbang-vault-57.0`, from `feature/desert-mid-56.0` @ `0840bd5` (56.0, not merged yet).
+
+The ask: some metal walls and thin fences shot through, partly, not fully; a way to jump through wide windows, as parkour.
+
+### Wallbangs (Collision.ts `PIERCE`, `pierceOf`, `exitDist`)
+- A collider's `pierce` is the share of a round's damage it lets through; unset, the rule: upright (0.6 m tall or more) sheet metal up to 0.12 m thick lets 60% through, up to 0.25 m 40%, boards up to 0.2 m 65%; concrete, floors, decks, roofs, tanks and anything thicker stop rounds. The Desert's motor pool: its corrugated walls 45% (`building({ pierce })`).
+- His shot (Game.shoot, hitscan) and the bots' rounds (Projectiles) both: a hole and a sound at the way in, a hole at the way out, the damage × the share, the round bent (±0.025 rad) and the bots' slowed (×0.9); at most two walls a round, and only through a wall no more than 0.6 m along the round's line (not along a sheet). Sight and the bots' line of fire are unchanged: a wall you can shoot through still hides you.
+- What it covers (thin sheets, rail panels, the trains' and buses' sides, lockers and boards): Desert 75 colliders (the motor pool's walls, the stairs' rail plates, the convoy's bus), Neon Docks 293 (the catwalks' and gantry's rail panels, the racks), Neon Block 195, Old Port 258, Maglev 199 (the train's sides), Favelas 36, Deep Jungle 16.
+- Measured on the Desert (his rifle at a bot 6 m off): in the open 13.6% of its health, through the motor pool's wall 6.6% (×0.48), through the barracks' plaster wall nothing.
+
+### Through windows (Mantle.ts `WINDOW`, `findWindow`)
+- The 43.0 ledge grab's moment (in the air, W held, at or past the apex): no ledge, then a window: its sill within the grab's reach (0.3–1.0 m over his feet), at least 1 m wide and 0.75 m to the lintel (and a lintel within 2.6 m: over a fence's top there is none, fences stay in the way), its wall at most 0.7 m deep, past it room at the sill's height and ground no more than 4.5 m down. Bars stop it (the body rays decide: bars stop bodies).
+- The dive (0.42 s): up to the sill, through, out past the far face in the air, his eyes kept under the lintel; then he falls from there at the speed he went in with.
+- Where it works: the Desert's compound (the barracks, the trading post) and the hamlet's huts (13 spots), Maglev Terminal (7). The other maps' windows are glazed or drawn on: none there (the Desert's flank houses keep their bars).
+- The bots don't dive through windows yet (the graph has no links through them).
+
+### Checks
+- Tests 544 (+5: the pierce rule and the way out of a box; a window dived through, not bars, a slit, a low hole or a sill out of reach, the eyes under the lintel). The 43.0 fence test held: the first version took a 1.4 m fence for a window with no top.
+- Self-play: Desert 2, Neon Docks 2, Maglev 1, Neon Block 1: kills/min 26.1–28.9, 17.4–21.2, 17.6, 17.4; stuck 0.
+
 ## Next
 Human playtest:
+- 57.0 items: wallbangs (do you notice them, are the shares right: 60% through a sheet feels like too much or too little; is it clear what can be shot through); the window dive (does it trigger when you want it and never when you don't; the duck under the lintel; which windows you'd want it on that it misses).
 - 56.0 items: the Desert's middle (the Cistern: do you use the arms by the gates, is the hall a good fight or a trap; the sinkhole: dropping in, the slabs; the hoist as a landmark; the head-high HESCO: the middle shut off enough from the flanks, or too shut; the roofs' sheds and shades: enough cover from the Blocks; the blast walls and containers in the dunes; the hall's light: dark enough to feel underground, bright enough to fight in).
 - 55.0 items: the instincts (chased down when hurt: too often, too rare, fair; do you hear "after him!" in time to turn it into an ambush; paybacks after a kill of yours; rushed while reloading close; bots back round a corner on you faster).
 - 54.1 items: the weapon swap at the spawn (no freeze, the first time too); any freeze left on the Docks (where, doing what).

@@ -13,7 +13,7 @@ import { clamp, damp, lerp, rand } from './math';
 import { disposeScene } from './dispose';
 import { AudioEngine } from '../audio/AudioEngine';
 import { MusicManager } from '../audio/music/MusicManager';
-import { CollisionWorld, type RayHit } from '../world/Collision';
+import { CollisionWorld, exitDist, PIERCE, pierceOf, type RayHit } from '../world/Collision';
 import { Glows } from '../world/Glows';
 import type { Zone } from '../world/Zones';
 import { Effects } from '../combat/Effects';
@@ -70,6 +70,10 @@ const OLD_SETTING_KEY = 'neonrain.setting'; // before 10.0
 const _mantleXZ = new THREE.Vector2();
 /** 44.0: the next frame painted (the loading screen's step shows before the next synchronous one). */
 const paint = () => new Promise<void>((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+// 57.0: a shot's legs through thin walls (scratch).
+const _shotFrom = new THREE.Vector3();
+const _shotIn = new THREE.Vector3();
+const _shotN = new THREE.Vector3();
 
 /** The menu's last chosen setting (per browser; separate from the audio/graphics settings). */
 function savedSetting(): SettingId {
@@ -1029,34 +1033,62 @@ export class Game {
         const pr = Math.sqrt(Math.random()) * w.pellets.spread * (1 - 0.2 * this.player.ads);
         pd.addScaledVector(right, Math.cos(pa) * pr).addScaledVector(up, Math.sin(pa) * pr).normalize();
       }
-      const wh = this.col.raycast(origin, pd, 200, this.tmpHit);
-      let maxDist = wh ? wh.dist : 200;
+      // 57.0: through thin sheet metal and boards (pierceOf), part of the damage, at most PIERCE.max
+      // times; each leg from where the last one left a wall.
+      const from = _shotFrom.copy(origin);
+      let gone = 0, through = 1, pierced = 0;
+      let wh: RayHit | null = null;
+      let maxDist = 200;
       let target: Enemy | null = null;
       let eh: EnemyHit | null = null;
-      for (const e of this.ctx.enemies) {
-        // His rounds pass through his own team's bots (friendly fire is off).
-        if (e.team === this.playerUnit.team) continue;
-        const h = e.raycast(origin, pd);
-        if (h && h.dist < maxDist) {
-          maxDist = h.dist;
-          target = e;
-          eh = h;
+      let ch: ReturnType<NonNullable<ModeRules['bystander']>> = null;
+      for (;;) {
+        wh = this.col.raycast(from, pd, 200 - gone, this.tmpHit);
+        maxDist = wh ? wh.dist : 200 - gone;
+        for (const e of this.ctx.enemies) {
+          // His rounds pass through his own team's bots (friendly fire is off).
+          if (e.team === this.playerUnit.team) continue;
+          const h = e.raycast(from, pd);
+          if (h && h.dist < maxDist) {
+            maxDist = h.dist;
+            target = e;
+            eh = h;
+          }
         }
+        // Whatever else the mode puts in the line of fire (bystanders).
+        ch = this.rules.bystander?.(from, pd, maxDist) ?? null;
+        if (ch && ch.dist < maxDist) {
+          maxDist = ch.dist;
+          target = null;
+          eh = null;
+        }
+        if (target || ch || !wh) break;
+        const p = pierceOf(wh.collider);
+        if (p <= 0 || pierced >= PIERCE.max) break;
+        const out = exitDist(wh.collider!, _shotIn.copy(wh.point).addScaledVector(pd, 0.002), pd);
+        if (out > PIERCE.maxThrough) break;
+        // In and out: a hole each side, the round on a little bent.
+        this.fx.impact(wh.point, wh.normal, wh.surface);
+        if (surfaceSounds++ < 2) this.audio.hitSurface(wh.point, wh.surface);
+        _shotIn.addScaledVector(pd, out + 0.01);
+        this.fx.impact(_shotIn, _shotN.copy(pd), wh.surface);
+        gone += wh.dist + out + 0.01;
+        from.copy(_shotIn);
+        through *= p;
+        pierced++;
+        pd.x += (Math.random() - 0.5) * PIERCE.deflect;
+        pd.y += (Math.random() - 0.5) * PIERCE.deflect;
+        pd.z += (Math.random() - 0.5) * PIERCE.deflect;
+        pd.normalize();
       }
-      // Whatever else the mode puts in the line of fire (bystanders).
-      const ch = this.rules.bystander?.(origin, pd, maxDist) ?? null;
-      if (ch && ch.dist < maxDist) {
-        maxDist = ch.dist;
-        target = null;
-        eh = null;
-      }
-      this.fx.tracer(muzzle, origin.clone().addScaledVector(pd, maxDist), tracer);
-      this.nearMisses(origin, pd, maxDist, target, suppressed);
+      this.fx.tracer(muzzle, from.clone().addScaledVector(pd, maxDist), tracer);
+      this.nearMisses(from, pd, maxDist, target, suppressed);
       if (target && eh) {
-        const k = fall ? (eh.dist <= fall.near ? 1 : eh.dist >= fall.far ? fall.min : 1 - ((eh.dist - fall.near) / (fall.far - fall.near)) * (1 - fall.min)) : 1;
+        const at = gone + eh.dist;
+        const k = fall ? (at <= fall.near ? 1 : at >= fall.far ? fall.min : 1 - ((at - fall.near) / (fall.far - fall.near)) * (1 - fall.min)) : 1;
         // 21.0: the pistol's head hits are worth more than the hitbox's own ×2.
         const head = eh.head && w.headMul ? w.headMul : 1;
-        const dmg = w.damage * eh.mult * head * k * rand(0.95, 1.05);
+        const dmg = w.damage * eh.mult * head * k * through * rand(0.95, 1.05);
         const acc = onEnemy.get(target);
         if (acc) {
           acc.dmg += dmg;
