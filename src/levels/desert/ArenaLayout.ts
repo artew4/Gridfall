@@ -211,7 +211,9 @@ export const DESERT_TEAM_SIZE = 12;
  * without the 23.0 rule: bots that saw a ruin's gallery walked into its stair's side), and the flanks'
  * pull on (ARENA.flankPull: the hamlet, the wadi, the pump houses, the outer flanks).
  */
-export const DESERT_AI: ArenaProfile = { directRise: 1, flankPull: { on: true } };
+// 54.0: the storm cost the bots more than it costs him (they reacted 2.5× slower and shot 0.06 wider at
+// the edge of sight; he sees through the same dust): 1.5 → 0.8, 0.06 → 0.035. The playtest: too easy.
+export const DESERT_AI: ArenaProfile = { directRise: 1, flankPull: { on: true }, fogReact: 0.8, fogSpread: 0.035 };
 
 /**
  * 38.0: the flanks (TdmData.flankOf): everything past the compound's approaches, either side; the outer

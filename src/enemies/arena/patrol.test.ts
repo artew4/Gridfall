@@ -80,12 +80,16 @@ describe('27.0 patrol: searching a map without bases', () => {
 });
 
 describe('29.0 the last stand: hold, then press on the clock', () => {
-  it('holds while the team is on its last stand, until the sudden-death clock is under pressAt', async () => {
+  it('54.0: off by default (it fights on); on (the A/B), it holds until the sudden-death clock is under pressAt', async () => {
     const { holding } = await import('./DeathmatchAI');
+    expect(ARENA.lastStand.on).toBe(false);
+    expect(holding({ lastStand: true, sudden: null })).toBe(false);
+    ARENA.lastStand.on = true;
     expect(holding({ lastStand: false, sudden: null })).toBe(false);
     expect(holding({ lastStand: true, sudden: null })).toBe(true);
     expect(holding({ lastStand: true, sudden: ARENA.lastStand.pressAt + 5 })).toBe(true);
     expect(holding({ lastStand: true, sudden: ARENA.lastStand.pressAt - 5 })).toBe(false);
+    ARENA.lastStand.on = false;
   });
 
   it('the director gathers its last stand on the centre of the living, one bot a cover spot', () => {

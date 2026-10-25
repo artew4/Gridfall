@@ -42,8 +42,8 @@ export const ARENA = {
   /** Yaw snap rate (survival aims at 8–10) and the cone it may fire within (rad). */
   yawRate: 30,
   fireCone: 0.35,
-  /** Snap + spread: base spread, the bloom of a fresh target and how fast it tightens (s). */
-  spread: 0.025,
+  /** Snap + spread: base spread, the bloom of a fresh target and how fast it tightens (s). 54.0: 0.025 → 0.022. */
+  spread: 0.022,
   bloom: 0.09,
   bloomTime: 0.3,
   /** A target switch keeps this share of the current bloom (at least half a fresh one). */
@@ -74,12 +74,13 @@ export const ARENA = {
     enter: 13,
     exit: 11,
     /** Focus time (s): `focus[0]` at `enter`, + `focusPerM` per metre beyond, at most `focus[1]`. */
-    focus: [0.24, 0.45] as [number, number],
+    // (54.0: a little quicker to settle, was 0.24–0.45.)
+    focus: [0.2, 0.4] as [number, number],
     focusPerM: 0.008,
     /** While focusing it all but stops; aiming, it walks (share of its run speed). */
     focusMove: 0.12,
     walk: 0.32,
-    spread: 0.006,
+    spread: 0.0052,
     burst: 3,
     burstRest: 0.3,
     /**
@@ -310,6 +311,15 @@ export const ARENA = {
     anchorRange: 1.4,
     warnCos: Math.cos((90 * Math.PI) / 180), warn: [0.2, 0.4] as [number, number], warnMiss: 1.4,
     finishHp: 0.3, recoverBelow: 0.75, recoverHp: 0.9, recoverMax: 14, corner: 8, recoverCd: 5,
+    /**
+     * 54.0, an anchor moves on (the playtest: snipers that took a post and never left it): after
+     * `anchorStay` s at a post, `anchorIdle` s there with no hostile in its sight, or `anchorKillMove`
+     * s after a kill from it (they know where it is now): the next free post, else it fights on as a
+     * frontliner.
+     */
+    anchorStay: [30, 45] as [number, number],
+    anchorIdle: 15,
+    anchorKillMove: 2.5,
   },
   /**
    * 42.0, health back as the human's comes back (Player: 5 s after the last damage, 5% of it a second):
@@ -393,7 +403,10 @@ export const ARENA = {
    * 20, bots dry a quarter of their time.)
    */
   stamina: { reserve: 50, floor: 30, pushFloor: 10, exposedR: 40, exposedFor: 1.5 },
-  lastStand: { on: true, near: 9, every: 8, drift: 6, radar: 25, pushHp: 0.25, pressAt: 30 },
+  // 54.0: off. The playtest: a team down to its last lives "goes stupid and moves as a crowd" (the
+  // whole team crouched round its centre, never flanking). With the fronts and the objectives a bot has
+  // a lane and a point to fight for: it fights on as it did with tickets.
+  lastStand: { on: false, near: 9, every: 8, drift: 6, radar: 25, pushHp: 0.25, pressAt: 30 },
   retreat: { on: true, unseenDmg: 0.3, window: 2, outnumbered: 2, outSeen: 3, friendR: 18, outHp: 0.6, joinR: 7, maxT: 6, corner: 8, cooldown: 10 },
   /**
    * 12.0, slides (the player's model, Slide.ts): rushing a wounded target `push` m out, diving into a
@@ -407,7 +420,8 @@ export const ARENA = {
    * jittered ±`jitter`; aggression (push thresholds, range band), patience (aimed focus) and a liking
    * for flanks and slides drawn per bot.
    */
-  persona: { react: [0.17, 0.045] as [number, number], reactClamp: [0.09, 0.32] as [number, number], jitter: 0.25, aggro: [0.8, 1.25] as [number, number], patience: [0.85, 1.2] as [number, number], flank: [0.35, 1] as [number, number], slide: [0.4, 1] as [number, number] },
+  // (54.0: a step quicker, 0.17 → 0.15 on average: the playtest wanted the bots harder.)
+  persona: { react: [0.15, 0.04] as [number, number], reactClamp: [0.09, 0.32] as [number, number], jitter: 0.25, aggro: [0.8, 1.25] as [number, number], patience: [0.85, 1.2] as [number, number], flank: [0.35, 1] as [number, number], slide: [0.4, 1] as [number, number] },
   /**
    * 19.0, the cover-hop push (off by default; Crash Site turns it on): a close-range gun (`arms`)
    * pushing a target it can see further than `minDist` m doesn't sprint straight down its sights. It
@@ -492,6 +506,8 @@ export function pressureScale(k: number, form = PRESSURE.form) {
 
 /** DEV counters for the soak and the report (cheap: plain numbers, filled as things happen). */
 export interface ArenaStats {
+  /** 54.0: anchors that moved on from a post. */
+  anchorMoves: number;
   jumps: number;
   vaults: number;
   pushes: number;
@@ -603,7 +619,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0, capSkips: 0, follows: 0, stalks: 0, warnShots: 0, recovers: 0, recoverEnd: { healed: 0, timeout: 0, cornered: 0 }, anchorArrive: 0 };
+  return { anchorMoves: 0, jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0, capSkips: 0, follows: 0, stalks: 0, warnShots: 0, recovers: 0, recoverEnd: { healed: 0, timeout: 0, cornered: 0 }, anchorArrive: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

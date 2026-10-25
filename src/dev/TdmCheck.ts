@@ -1109,6 +1109,8 @@ export async function tdmSim(
     arena:
       tdm.ai === 'arena'
         ? {
+            // 54.0: anchors seated and moved on (time served, no sight, a kill given away).
+            anchors: { arrived: st.anchorArrive, moved: st.anchorMoves },
             jumps: st.jumps,
             vaults: st.vaults,
             pushes: st.pushes,

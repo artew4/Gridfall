@@ -514,6 +514,7 @@ export class ArenaDirector {
     if (a) {
       if (a.arrived) return false;
       a.arrived = true;
+      a.at = now;
       return true;
     }
     const w = this.watchOf(uid);
@@ -537,7 +538,7 @@ export class ArenaDirector {
   roles = new Map<number, ArenaRole>();
   /** The team's anchor posts (Roles.anchorPosts, best first), and which anchor holds each. */
   anchorPostsList: THREE.Vector3[] = [];
-  private seats = new Map<number, { post: number; arrived: boolean }>();
+  private seats = new Map<number, { post: number; arrived: boolean; at: number }>();
   /** The team's bot count (the shares are of it; Tdm sets it). */
   teamBots = 0;
 
@@ -564,7 +565,7 @@ export class ArenaDirector {
     if (role === 'anchor') {
       const i = this.freePost();
       if (i < 0) role = 'frontliner';
-      else this.seats.set(uid, { post: i, arrived: false });
+      else this.seats.set(uid, { post: i, arrived: false, at: -Infinity });
     }
     this.roles.set(uid, role);
     return role;
@@ -572,6 +573,33 @@ export class ArenaDirector {
 
   roleOf(uid: number): ArenaRole {
     return (ARENA.roles.on && this.roles.get(uid)) || 'frontliner';
+  }
+
+  /** 54.0: when `uid` reached the post it holds (-Infinity: not there yet, or no anchor). */
+  seatedAt(uid: number) {
+    const a = this.seats.get(uid);
+    return a?.arrived ? a.at : -Infinity;
+  }
+
+  /**
+   * 54.0, an anchor moves on (ARENA.roles.anchorStay …): to a free post other than its own (one of them
+   * at random), else it gives its post up and fights as a frontliner. Returns its role now.
+   */
+  reseat(uid: number, rand: () => number = Math.random): ArenaRole {
+    const a = this.seats.get(uid);
+    if (!a) return this.roleOf(uid);
+    const taken = new Set([...this.seats.values()].map((x) => x.post));
+    const free: number[] = [];
+    for (let i = 0; i < this.anchorPostsList.length; i++) if (!taken.has(i)) free.push(i);
+    if (free.length) {
+      a.post = free[Math.floor(rand() * free.length)];
+      a.arrived = false;
+      a.at = -Infinity;
+      return 'anchor';
+    }
+    this.seats.delete(uid);
+    this.roles.set(uid, 'frontliner');
+    return 'frontliner';
   }
 
   /** An anchor left its post (to recover): it must reach it again. */

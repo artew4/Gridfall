@@ -2696,8 +2696,33 @@ The playtest: the footbridge over Main Street (straight, 31 m) shot end to end; 
 - The graph 649/649; levelAI runners 312/312, gunners 8/8; `world` 0; `stairGaps` clean; `stress` 32,000 runs: 1 (the skybridge's canopy, as before). Self-play (4): the footbridge 27–31 kills a match (the objective on it), stuck 0 after the fix (1 before).
 - Tests 530.
 
+## 54.0: the bots harder, their endgame and their snipers fixed, the racks shot through
+
+Branch `feature/bots-endgame-54.0`, from `main` @ `876dfd6` (53.0).
+
+The playtest: the Desert too easy, the bots in general not a fight you have to carry; a team on 0 tickets "goes dumb and moves as a crowd"; snipers that take a post and never leave it; on Neon Docks the racks' open space between the boxes doesn't take a round.
+
+### The last stand off
+- The 29.0 last stand (a team on 0 tickets gathers at its centre, crouches, holds, no flanks) is off (`ARENA.lastStand.on: false`): it was the crowd. Such a team now plays as before it ran out: roles, lanes, flanks, the points; the sudden-death clock and the elimination stay. The switch is kept (the tests still A/B it).
+
+### The snipers move
+- An anchor at its post moves on to another free post (`ArenaDirector.reseat`; none free: it turns frontliner) after 30–45 s there (`roles.anchorStay`), after 15 s with nothing in sight (`anchorIdle`), or 2.5 s after a kill from it (`anchorKillMove`: its post is known now). Self-play: 16–29 moves a match on the Docks, 2–5 on the Desert (shorter lives there).
+
+### Harder
+- All maps: reactions 0.17 → 0.15 s (±0.045 → 0.04), hip spread 0.025 → 0.022, aimed spread 0.006 → 0.0052, the time to settle the aim 0.24–0.45 → 0.2–0.4 s; a rifle round to the player 12.5 → 13.5 (`TDM.playerHit`).
+- The Desert: its storm handicapped the bots more than the player (reactions ×1.5, spread +0.06 in the dust): ×0.8 / +0.035 (`DESERT_AI.fogReact`, `fogSpread`).
+
+### Neon Docks' racks
+- A rack's box stops bodies only; rounds and sight are stopped by the uprights, the shelves and each box of goods (their own colliders, as drawn), so the gaps between the goods and over the upper boxes are open. Rays across a rack at 1.3–2.5 m: 22% go through (0 before); a body still can't walk through.
+
+### Checks
+- Neon Docks: graph 811/811, levelAI runners 176/176, gunners 8/8, `world` 0, `stairGaps` clean, `stress` 51/32,000 (the barges' rail, as before).
+- Self-play (3 each): Docks kpm 16.9–19.8 (51.0: 16.1–17.9), Desert 29–30.1, stuck 0 in all six.
+- Tests 530.
+
 ## Next
 Human playtest:
+- 54.0 items: the bots (hard enough now, everywhere, on the Desert; a team on 0 tickets: does it still fight, or fold too easily now; the snipers: do they move often enough, too often); the Docks' racks (shooting through the gaps).
 - 53.0 items: Neon Block (the footbridge's panels: a better fight or just in the way; the roofs' booths and signs; the roofs' light: no glare left, still readable at night?).
 - 52.0 items: the menu (any freeze left on the root menu, a pick, PLAY; the maps screen's pictures: good enough, or worth a better shot of some maps); the first seconds of play (still a hitch? on which map); loads (the first time and again: the second should be much quicker).
 - 51.0 items: the points (does taking a flank feel worth it; the spawn zone opening near it; 10 s to take one: too slow, too fast; the double breakthrough and the last line: a comeback or a stalemate; the beacons, the flags by the bars, "DEFEND WEST": readable; starting from one zone: too long a walk on the Docks?).

@@ -91,6 +91,7 @@ Console helpers for the dev server (`npm run dev`). None of them ship in a produ
   - `STAMINA` and `WEIGHT` (`src/combat/Stamina.ts`) are the knobs; `ARENA.stamina` the bots' reserve and floors.
 - Last stand (29.0):
   - `tdmSim(...)` reports `endgame`: the outcome and how (elimination, sudden death, trade, sudden death draw), when the first team ran out of tickets and who stood then, the endgame's length, a comeback, the final standing, the sudden-death clocks (starts, resets, the longest run), and last-stand bots against the same bots before (nearest teammate, crouched, moving, holding). `lastStand: false` turns the last-stand instincts off (the A/B); the tickets default to the map's (50).
+  - 54.0: the last stand is off by default (`ARENA.lastStand.on`); `tdmSim(...)`'s `arena.anchors` counts anchors seated and moved on (`roles.anchorStay`, `anchorIdle`, `anchorKillMove`).
   - `__game.tdm.rules`: the match rules (tickets, the clocks, the outcome); `__game.tdm.standing()`; `__game.tdm.debug()` includes them.
 - Flanks (28.0):
   - `tdmSim(...)` also reports `edge` (the share of bot time, combat time and kills on the map's outer edges, `TdmData.edgeOf`) and `xBands` (bot time, combat time and kills in 12 bands across the map's width), and takes `sight` (a fixed sight range for the match, the fog density with it: the desert's storm doesn't run in a sim; 24.5 is its peak).

@@ -249,6 +249,15 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
 
   /** 50.0: the time of its last frame (reachOf's default). */
   private nowT = 0;
+  /** 54.0: an anchor's time at a post before it moves on, the last time it saw a hostile, its last kill. */
+  private stayFor = rand(ARENA.roles.anchorStay[0], ARENA.roles.anchorStay[1]);
+  private seenT = -Infinity;
+  private killT = -Infinity;
+
+  /** 54.0: it killed someone (Tdm): an anchor moves on from where it fired. */
+  onKill(now: number) {
+    this.killT = now;
+  }
 
   constructor(readonly self: ArenaBody, persona?: Persona) {
     this.persona = persona ?? drawPersona();
@@ -652,6 +661,22 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // 37.1: posted to the high ground (ArenaDirector.watch), not on the last stand: it goes there with
     // nothing in sight, and once there it fights from the post (no strafing off it, no hunting down).
     this.watchAt = holding(dir) ? null : dir.watchPost(me.uid);
+    // 54.0: an anchor moves on: too long at its post, nothing seen from it lately, or a kill from it.
+    if (this.watchAt && ARENA.roles.on && this.role === 'anchor' && dir.watchHeld(me.uid)) {
+      const R = ARENA.roles;
+      const at = dir.seatedAt(me.uid);
+      if (bestVis) this.seenT = now;
+      const stayed = now - at > this.stayFor;
+      const idle = now - Math.max(this.seenT, at) > R.anchorIdle;
+      const shot = this.killT > at && now - this.killT > R.anchorKillMove;
+      if (stayed || idle || shot) {
+        this.role = dir.reseat(me.uid);
+        this.stayFor = rand(R.anchorStay[0], R.anchorStay[1]);
+        this.watchAt = this.role === 'anchor' ? dir.watchPost(me.uid) : null;
+        this.goal = null;
+        A.stats.anchorMoves++;
+      }
+    }
     // 42.0: recovering until its health is back (ARENA.regen), out of time, or cornered.
     let recoverEnd: 'healed' | 'timeout' | 'cornered' | null = null;
     if (this.state === 'recover') {

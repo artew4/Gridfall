@@ -128,7 +128,8 @@ export const TDM = {
    * bot's 20: ten rifle hits to drop him against his eight on a bot's body (four to the head). 12.5:
    * eight, as his. Survival keeps 10.
    */
-  playerHit: 12.5,
+  // (54.0: 13.5: the playtest still carried his team.)
+  playerHit: 13.5,
 };
 
 /** 19.0: the team size of the loaded map (the player counts on his team). */
@@ -1347,6 +1348,7 @@ export class TdmRules implements ModeRules {
       if (isArenaBot(by)) {
         if (by.brain.state === 'push' && by.brain.target === v) this.arenaStats.pushKills++;
         if (by.brain.flankedOn === v.uid) this.arenaStats.flankKills++;
+        by.brain.onKill(this.now);
         by.bark('kill', this.ctxs[by.team]);
       }
     } else this.squads[otherTeam(v.team)].hostileDied(v, by && !by.isPlayer ? (by as TacticalEnemy) : null);

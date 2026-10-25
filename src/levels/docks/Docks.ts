@@ -184,20 +184,34 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
    * uprights and three shelves with crated goods between them, inset 4 cm inside the box.
    */
   function rack2(x0: number, z0: number, x1: number, z1: number, h: number) {
+    // 54.0: the box stops bodies only; rounds and sight are stopped by what is drawn (the uprights, the
+    // shelves, the goods), so the gaps between the goods are gaps (the playtest: "there's an open space
+    // between the boxes on the racks that should be shot through").
+    const see = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) => {
+      const c = col.add(ax, ay, az, bx, by, bz, 'metal');
+      c.solid = false;
+    };
     for (const flip of [false, true]) {
       const za = flip ? -z1 : z0, zb = flip ? -z0 : z1;
-      col.add(x0, 0, za, x1, h, zb, 'metal');
+      col.add(x0, 0, za, x1, h, zb, 'metal').ray = false;
       const zc = (za + zb) / 2, d = zb - za;
       const bays = Math.max(1, Math.round((x1 - x0) / 2.7));
       for (let i = 0; i <= bays; i++) {
         const x = Math.min(x1 - 0.06, Math.max(x0 + 0.06, x0 + ((x1 - x0) * i) / bays));
         b.add(new THREE.BoxGeometry(0.1, h, d), m.paint, x, h / 2, zc);
+        see(x - 0.05, 0, za, x + 0.05, h, zb);
       }
-      for (const y of [0.12, 1.5, h - 0.06]) b.add(new THREE.BoxGeometry(x1 - x0, 0.1, d - 0.02), m.paint, (x0 + x1) / 2, y, zc);
+      for (const y of [0.12, 1.5, h - 0.06]) {
+        b.add(new THREE.BoxGeometry(x1 - x0, 0.1, d - 0.02), m.paint, (x0 + x1) / 2, y, zc);
+        see(x0, y - 0.05, za + 0.01, x1, y + 0.05, zb - 0.01);
+      }
       for (let i = 0; i < bays; i++) {
         const a = x0 + ((x1 - x0) * i) / bays + 0.14, c = x0 + ((x1 - x0) * (i + 1)) / bays - 0.14;
         b.add(worldBox(c - a, 1.2, d - 0.08, 1.2), i % 2 ? m.crate : m.pallet, (a + c) / 2, 0.17 + 0.6, zc);
-        b.add(worldBox((c - a) * (i % 3 ? 0.9 : 0.6), 1.1, d - 0.08, 1.1), i % 2 ? m.pallet : m.crate, (a + c) / 2, 1.55 + 0.55, zc);
+        see(a, 0.17, za + 0.04, c, 1.37, zb - 0.04);
+        const w = (c - a) * (i % 3 ? 0.9 : 0.6);
+        b.add(worldBox(w, 1.1, d - 0.08, 1.1), i % 2 ? m.pallet : m.crate, (a + c) / 2, 1.55 + 0.55, zc);
+        see((a + c) / 2 - w / 2, 1.55, za + 0.04, (a + c) / 2 + w / 2, 2.65, zb - 0.04);
       }
     }
   }
