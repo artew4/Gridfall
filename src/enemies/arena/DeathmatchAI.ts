@@ -155,6 +155,8 @@ export function focusFor(d: number, arm: BotArm = ARMORY.ar.bot) {
 
 const _aim = new THREE.Vector3();
 const _v = new THREE.Vector3();
+const _v2 = new THREE.Vector3();
+const _xz = new THREE.Vector2();
 const _f = new THREE.Vector2();
 const _miss = new THREE.Vector3();
 
@@ -1305,7 +1307,15 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   private spotNear(ctx: EnemyCtx, p: THREE.Vector3, off: number) {
     const x = p.x + Math.cos(this.seed) * off, z = p.z + Math.sin(this.seed) * off;
     // (And a floor there on `p`'s level: round a point on a gantry, its spot was in the air beside it.)
-    if (off > 0 && (ctx.col.blocked(_v.set(x, p.y + 1, z), 0.5) || Math.abs(ctx.col.groundHeightAt(x, z, 0.3, p.y + 0.6) - p.y) > 0.6)) return new THREE.Vector3(p.x, p.y, p.z);
+    // (53.0: and inside the map, in sight of `p`: by Neon Block's east point the spot fell behind the
+    // boundary's facade, on open ground no route reaches.)
+    const bad =
+      off > 0 &&
+      ((ctx.bounds && !ctx.bounds.containsPoint(_xz.set(x, z))) ||
+        ctx.col.blocked(_v.set(x, p.y + 1, z), 0.5) ||
+        Math.abs(ctx.col.groundHeightAt(x, z, 0.3, p.y + 0.6) - p.y) > 0.6 ||
+        !ctx.col.lineOfSight(_v.set(p.x, p.y + 1, p.z), _v2.set(x, p.y + 1, z)));
+    if (bad) return new THREE.Vector3(p.x, p.y, p.z);
     return new THREE.Vector3(x, p.y, z);
   }
 

@@ -108,7 +108,8 @@ const LANES_ALPHA: [number, number, number?][][] = [
   [[-22, 47.6], [-34.5, 44], [-22, 30, TOP], [-22, 14, TOP], [-22, 0, TOP], [-22, -14, TOP], [-22, -30, TOP], [-34.5, -44], [-22, -47.6]],
   // 47.0: through the pachinko parlour, door to door (the east aisle).
   [[-14, 47.5], [-35.8, 40], [-35.8, 33.4], [-34.7, 29], [-35.8, 24.6], [-35.5, 12], [-35.5, 2.5], [-35.5, -12], [-35.8, -24.6], [-34.7, -29], [-35.8, -33.4], [-35.8, -40], [-14, -47.5]],
-  [[0, 52], [0, 30], [0, 10, MID], [0, 0, MID], [0, -10, MID], [0, -30], [0, -52]],
+  // (53.0: the footbridge's waypoints between its panels, z ±7.6.)
+  [[0, 52], [0, 30], [0, 7.6, MID], [0, 0, MID], [0, -7.6, MID], [0, -30], [0, -52]],
   // East low: the service alley (14.0: was a second street lane; the street drew every fight).
   // 47.0: past the ramen shop (its door) and the konbini (under the rail deck).
   [[24, 50], [33.5, 40.5], [33.5, 31], [34.5, 26], [35.4, 21], [35.4, 16.4], [35.5, 11], [35.5, 2], [35.5, -11], [35.4, -16.4], [35.4, -21], [34.5, -26], [33.5, -31], [33.5, -40.5], [24, -50]],

@@ -72,6 +72,18 @@ export interface WetOptions {
   ripples?: boolean;
   /** Overall wetness for non-puddle areas. */
   wet: number;
+  /**
+   * 53.0: the puddles' least roughness (default: mirrors, 0.02–0.035). A rooftop's lamps stand a metre
+   * or two off the deck: in a mirror puddle each was a blinding point (the playtest: "like the sun in
+   * my face"); a little rough, a soft patch of its colour.
+   */
+  puddleRough?: number;
+  /**
+   * 53.0: a soft ceiling on the direct light it takes (radiance; absent: none). The street's lamps
+   * stand 7 m up at the roofs' edges: a metre or two over a roof, their pool on it was ten times the
+   * street's (the playtest: blinding). Light under the ceiling is untouched; over it, it rolls off.
+   */
+  lightCap?: number;
 }
 
 /** Patches a MeshStandardMaterial into rain-soaked asphalt/concrete with puddles and animated ripples. */
@@ -111,9 +123,9 @@ export function applyWet(mat: THREE.MeshStandardMaterial, time: { value: number 
       .replace(
         '#include <roughnessmap_fragment>',
         `#include <roughnessmap_fragment>
-        float rough37 = mix(roughnessFactor * ${(1 - opts.wet * 0.5).toFixed(3)}, 0.035, puddle);
+        float rough37 = mix(roughnessFactor * ${(1 - opts.wet * 0.5).toFixed(3)}, ${Math.max(0.035, opts.puddleRough ?? 0).toFixed(3)}, puddle);
         float dry4 = 0.6 + (wNoise(vWetPos.xz * 1.7) - 0.5) * 0.14;
-        float rough4 = mix(mix(dry4, 0.32, damp), 0.02, puddle);
+        float rough4 = mix(mix(dry4, 0.32, damp), ${Math.max(0.02, opts.puddleRough ?? 0).toFixed(3)}, puddle);
         roughnessFactor = mix(rough37, rough4, uWet4);
         // Fight specular aliasing far away.
         roughnessFactor = max(roughnessFactor, smoothstep(10.0, 60.0, camDist) * 0.25);`,
@@ -121,6 +133,11 @@ export function applyWet(mat: THREE.MeshStandardMaterial, time: { value: number 
       .replace(
         '#include <lights_fragment_end>',
         `#include <lights_fragment_end>
+        ${opts.lightCap ? `{
+          const float CAP = ${opts.lightCap.toFixed(3)};
+          reflectedLight.directDiffuse = CAP * (1.0 - exp(-reflectedLight.directDiffuse / CAP));
+          reflectedLight.directSpecular = CAP * (1.0 - exp(-reflectedLight.directSpecular / CAP));
+        }` : ''}
         // Reflection catchers: point lights, specular only, on wet ground only (the same GGX lobe and
         // falloff three.js uses for a PointLight with decay 2 and this cutoff). The lobe is widened
         // as for a sphere light (Karis 2013: alpha' = alpha + radius / (2 distance)), without the
@@ -159,7 +176,7 @@ export function applyWet(mat: THREE.MeshStandardMaterial, time: { value: number 
         }`,
       );
   };
-  mat.customProgramCacheKey = () => `wet-${opts.puddles}-${opts.wet}-${opts.ripples !== false}`;
+  mat.customProgramCacheKey = () => `wet-${opts.puddles}-${opts.wet}-${opts.ripples !== false}-${opts.puddleRough ?? 0}-${opts.lightCap ?? 0}`;
 }
 
 /** Stretched, rippling reflection streaks: the Blade Runner smear of neon on wet asphalt. */

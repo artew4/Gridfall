@@ -2673,8 +2673,32 @@ The playtest: freezes on the menu (each map clicked froze it), freezes in the fi
 - `perfprobe` (the Desert, Deep Jungle, Favelas): map picks' longest task 0 ms (51.0: up to 689), PLAY to the intro 0.27–0.76 s, no frame over 25 ms in the intro or play, no program compiled in play. `uicheck` clean at 1440×900 to 3840×2160. `leakcheck` (the Desert, the Docks, Neon Block): 0 of 24 left-level objects alive.
 - Tests 530 (+1: `terrainbound.test.ts`; the menu's and the frame cap's updated).
 
+## 53.0: Neon Block's footbridge broken up, its roofs filled, the glare gone
+
+Branch `feature/neonblock-roofs-53.0`, from `main` @ `64c1c5f` (52.0).
+
+The playtest: the footbridge over Main Street (straight, 31 m) shot end to end; open ground left on the roofs; the roofs' puddles blinding "like the sun in my face".
+
+### The footbridge
+- Two lit ad panels across it each half (2.2 m, from alternate rails: z ±5 from the west rail to x 0.4, z ±10.6 from x -0.4 to the east rail): 1.5 m past each, and no line down its length, straight or corner to corner. Its lane's waypoints and the graph's nodes run between them. The centre's objective stands on it: the fight there is round the panels now.
+- Sight lines on its deck (pairs 10 m+ / 20 m+ apart in sight): 100% / 100% → 9.4% / 0.2%.
+
+### The roofs
+- Block W: a booth (2.2 × 2.2 × 2.6, a sign on top) on each open strip along the parapets (east z ±20, west z ±30), a sign across the east strip (z ±39.5); Block E1: a booth on its east strip (z ±19). Sight lines: Block W's roof 30 m+ 16.4% → 10.3% (end to end 9.7% → 5%), Block E's 24.4% → 19%, roof to roof 24.9% → 22.2%.
+
+### The glare
+- Not a mirror's (the reflection streaks and catchers off, it stayed): the street's lamps stand 7 m up at the roofs' edges, a metre or two over Block E's roofs and level with Block W's, and their pools of light there were about ten times the street's. The roofs' deck now takes direct light under a soft ceiling (`applyWet` `lightCap`: untouched below it, rolled off above; and its puddles a little rough, `puddleRough`): a warm patch, not a blinding one.
+
+### The bots
+- A spot by a point or a lane waypoint is also inside the map and in sight of it (by the east point one fell behind the boundary's facade, on open ground no route reaches: a bot stood in its base).
+
+### Checks
+- The graph 649/649; levelAI runners 312/312, gunners 8/8; `world` 0; `stairGaps` clean; `stress` 32,000 runs: 1 (the skybridge's canopy, as before). Self-play (4): the footbridge 27–31 kills a match (the objective on it), stuck 0 after the fix (1 before).
+- Tests 530.
+
 ## Next
 Human playtest:
+- 53.0 items: Neon Block (the footbridge's panels: a better fight or just in the way; the roofs' booths and signs; the roofs' light: no glare left, still readable at night?).
 - 52.0 items: the menu (any freeze left on the root menu, a pick, PLAY; the maps screen's pictures: good enough, or worth a better shot of some maps); the first seconds of play (still a hitch? on which map); loads (the first time and again: the second should be much quicker).
 - 51.0 items: the points (does taking a flank feel worth it; the spawn zone opening near it; 10 s to take one: too slow, too fast; the double breakthrough and the last line: a comeback or a stalemate; the beacons, the flags by the bars, "DEFEND WEST": readable; starting from one zone: too long a walk on the Docks?).
 - 50.0 items: the bots (do they feel like a match now: too hard, too easy; do you notice them shooting back from far off, and focusing you when you're on a streak); the Block and the houses (still worth going into without the roofs; the barred slits); the huts in the field; the floors (any flicker left).

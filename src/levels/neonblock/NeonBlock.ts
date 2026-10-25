@@ -87,7 +87,9 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   const paving = std(pavingTexture(), 0xffffff, 0.5, 0, 1.2);
   applyWet(paving, time, { puddles: true, wet: 0.85, ripples: false });
   const roofDeck = std(concreteTexture(), 0x55545a, 0.7, 0, 0.8);
-  applyWet(roofDeck, time, { puddles: true, wet: 0.7, ripples: false });
+  // (53.0: the roofs' puddles a little rough, and the light on them capped: the street's lamps stand
+  // a metre or two over the roofs' edges and blinded there.)
+  applyWet(roofDeck, time, { puddles: true, wet: 0.7, ripples: false, puddleRough: 0.2, lightCap: 0.18 });
   // Facades: Tokyo's window tiles, the lit windows dimmer than the story district's (1.6): a bright
   // window wall behind a fighter is a silhouette nobody can read.
   const facade = [0, 1, 2].map((k) => {
@@ -595,6 +597,24 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   billboard2(19.5, 15.6, 25.5, 16.0, MID, 3.2, store[0]);
   billboard2(18.5, 34.6, 24.0, 35.0, MID, 3.2, store[1]);
 
+  // ---------------------------------------------------------------- 53.0: the footbridge broken up, the roofs filled more
+  // The playtest: the footbridge (31 m straight over Main Street, the centre's objective on it) was
+  // shot end to end; the roofs still had open strips along their parapets. Ad panels across the
+  // bridge from alternate rails (1.5 m past each: no line down its length, straight or corner to
+  // corner), rooftop booths (a sign on top) and a sign across Block W's east strip.
+  const FP = { y: MID, h: 2.2 };
+  billboard2(FOOT.x0 + 0.08, 5.0, 0.4, 5.3, FP.y, FP.h, store[2]);
+  billboard2(-0.4, 10.6, FOOT.x1 - 0.08, 10.9, FP.y, FP.h, store[0]);
+  /** A rooftop booth (a stair head's or a water pump's kiosk): solid, its sign on top. */
+  const booth2 = (x0: number, z0: number, x1: number, z1: number, y: number, face: THREE.Material) => {
+    solid2(x0, y, z0, x1, y + 2.6, z1, m.concrete, 'concrete', 2);
+    billboard2(x0, (z0 + z1) / 2 - 0.12, x1, (z0 + z1) / 2 + 0.12, y + 2.6, 0.9, face);
+  };
+  booth2(-17.6, 18.9, -15.4, 21.1, TOP, store[0]);
+  booth2(-29.3, 28.9, -27.1, 31.1, TOP, store[2]);
+  billboard2(-18.5, 39.5, -14.7, 39.9, TOP, 2.8, store[2]);
+  booth2(26.2, 17.9, 28.3, 20.1, MID, store[1]);
+
   // Forecourts: planters (vault), a taxi, crates.
   vault2(-10, 48.6, -6, 49.2, 0.9, m.planter);
   vault2(6, 48.6, 10, 49.2, 0.9, m.planter);
@@ -882,6 +902,12 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
     N(-22, TOP, z);
     N(24, MID, z);
     N(0, MID, z);
+  }
+  // 53.0: round the footbridge's panels (the passage past each, either side of it on the deck).
+  for (const s of [1, -1]) {
+    for (const [x, z] of [[0, 2.8], [1.15, 5.15], [0, 7.6], [-1.15, 10.75], [0, 12.6]]) N(x, MID, z * s);
+    // The booths' sides on the roofs.
+    for (const [x, z] of [[-14.3, 20], [-19.9, 20], [-30, 30], [-25.7, 30], [-16.6, 41.2], [-16.6, 38.2], [29.5, 19], [24.9, 19]]) N(x, x < -13 ? TOP : MID, z * s);
   }
   for (const L of lanesOf('alpha')) for (const p of L) N(p.x, p.y, p.z);
   // Lattices: the street level (4 m in the alleys, 6 m in the open), the roofs (4 m).
