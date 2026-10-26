@@ -3245,8 +3245,30 @@ The ask: make Crash Site's helicopter tail (76.0) easier to see (it hung 9 m int
 - The rotor blade on the ground under the fin.
 - Tests 607 (+2, `heli77.test.ts`); Crash Site's world check clean; in the game: seen from the lab's deck and the clearing. Performance not measured: 240 triangles more, no light.
 
+## 78.0: Night Tokyo, step 1: the storefronts
+
+Branch `feature/tokyo-stores-78.0`, from `main` @ `fc1140f` (64.0–77.0 merged).
+
+The ask: materials and dirt for the models, and on Night Tokyo the standard-looking shops ("kiosks"): make them beautiful, go over the map's details. The plan: [TOKYO_PLAN.md](TOKYO_PLAN.md) (6 steps; materials are step 2). Step 1 here.
+
+### The kit (`tools/blender/props_store.py`, `public/models/props/store.glb`, 4.8k triangles)
+- `sf_shop` (aluminium front: mullions, an automatic door's leaves and sensor, kick plate, fascia, a lightbox, a notice and a poster on the glass), `sf_izakaya` (posts and beam, koshi lattice, a lattice sliding door, noren on its rod, a tiled eave on brackets, a wooden signboard, two paper lanterns, a menu), `sf_shutter` (housing, guide rails, ridged curtain, bottom bar, locks, an unlit sign), `sf_door` (tiled walls, mailboxes, intercom, a glass door, the lit tenant directory, canopy and downlight, the name plate), `sf_awning` (striped canvas, valance, roller box, arms).
+
+### In the game
+- `Interiors.ts`: the rooms behind the glass by interior mapping (a MeshBasicMaterial patched: the view ray cast into a 4 x 3.8 x 3 m box, its back wall, side walls, floor or ceiling drawn from an atlas; fog, ground fog and tone mapping as built in). Nine rooms painted on canvas: konbini, drugstore, electronics, boutique, cafe, books, izakaya, ramen, lobby. A plane's u picks its room.
+- `StoreSigns.ts`: an atlas of 60 made-up signs by trade (their colours and marks), tenant directories, noren (indigo 酒, red らーめん, white めし), three shutter curtains (graffiti, grime, rust), three awning stripes; faces mapped planar into their cells.
+- `Storefronts.ts` (`City.fronts`): every slot of a block face's list (about 120: street and walkway level) laid as its front over its room, its room, sign, curtain and cloth chosen by where it is (the city's seeded stream untouched); shops' awnings where the flat ones were. Without the kit, the flat storefronts as before.
+- Rules: nothing added to the colliders; under 2.25 m within 0.12 m of the wall (handles 0.17), signs, eaves, lanterns, canopies and awnings over 2.2 m.
+
+### Checks
+- Tests 613 (+6, `store78.test.ts`: nodes, roles, budget; the fronts' depth under head height, the slot's bounds; the awning and lanterns overhead; a sign on every front; a room's UVs; a face's UVs in its cell).
+- Tokyo's world check: no clusters, no entries.
+- In the game: Lantern Street, the plaza's konbini and drugstore, the back alley's entrances and shutters, the walkway level's shops.
+- Performance (GPU throttled on battery: ~140 ms a frame either way, so A/B only): with the storefronts switched off in code 144.6 ms GPU p50, 190 draw calls; with them 139.8 ms, 209 calls: no cost. (A/B by taking the GLB out of the folder gave 361–406 calls without it against 169–189 with: something else changes with the file missing, so 75.0's and 76.0's A/Bs, made that way, are suspect; to look into.)
+
 ## Next
 Human playtest:
+- 78.0 items: Night Tokyo's storefronts (the rooms behind the glass: convincing from the street and up close, too bright or dark; the signs; the izakaya fronts, shutters, entrances; anything you bump into that isn't solid); the frame rate on mains power; then the word for step 2 (materials).
 - 76.0 items: Favelas' street (Beetles, Kombi, stalls), tanks, doors, grilles, dishes, tin roofs, rebar; the jungle's burnt car; Crash Site's helicopter tail (77.0: moved to the forest's edge, banded, its beacon); Favelas' frame rate on an unthrottled GPU.
 - 75.0 items: Deep Jungle's and Crash Site's plants and trees, the Desert's boulders; the fight frame rate on mains power.
 - 74.0 items: Maglev's planters, kiosks, ticket machines, gates, benches, trolleys, carts and the train's doors; then the word for step 8 (nature and ruin).

@@ -5,6 +5,7 @@ import { subtractAll, type R } from './Rects';
 import { CollisionWorld } from './Collision';
 import { Glows } from './Glows';
 import { applyWet } from './Ground';
+import { Storefronts } from './Storefronts';
 import {
   asphaltTexture,
   concreteTexture,
@@ -166,10 +167,13 @@ export class City {
       for (let i = 0; i < n; i++) {
         const a = a0 + 2 + i * 4 + (len - n * 4) / 2;
         const kind = stores[i];
-        b.add(plane, m.store[kind], ...at(a, y, 0.02), 0, ry, 0);
+        const awning = kind === 'shop' && y < 3 && rnd() < 0.8;
         b.add(strip(0.35, hgt, 0.3, 1), m.darkConcrete, ...at(a + 2, y, 0.12));
         if (i === 0) b.add(strip(0.35, hgt, 0.3, 1), m.darkConcrete, ...at(a - 2, y, 0.12));
-        if (kind === 'shop' && y < 3 && rnd() < 0.8) {
+        // 78.0: the modelled front over its room (Storefronts.ts), or the flat storefront without the kit.
+        if (this.fronts.lay(kind, new THREE.Vector3(...at(a, y - hgt / 2, 0)), ry, hgt, awning)) continue;
+        b.add(plane, m.store[kind], ...at(a, y, 0.02), 0, ry, 0);
+        if (awning) {
           const aw = alongX ? worldBox(3.8, 0.08, 1.1, 1) : worldBox(1.1, 0.08, 3.8, 1);
           const tilt = 0.12;
           b.add(aw, m.paintedMetal, ...at(a, 3.55, 0.55), alongX ? -sign * tilt : 0, 0, alongX ? 0 : sign * tilt);
@@ -181,6 +185,11 @@ export class City {
   }
 
   private storePlane = new THREE.PlaneGeometry(4, 3.8);
+  /** 78.0: the storefronts' models (made with the city: the kit is loaded before a level builds). */
+  private _fronts: Storefronts | null = null;
+  get fronts() {
+    return (this._fronts ??= new Storefronts(this.ctx.builder));
+  }
   private upperPlane = new THREE.PlaneGeometry(4, 2.9);
 
   /** Asphalt everywhere, granite paving on the plaza, raised sidewalks with kerbs along the streets. */
