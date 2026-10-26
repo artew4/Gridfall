@@ -1,3 +1,4 @@
+import type { Dresser } from './Dress';
 import * as THREE from 'three';
 import { StaticBuilder, worldBox } from './Builder';
 import { subtractAll, type R } from './Rects';
@@ -35,6 +36,8 @@ export interface BuildCtx {
   time: { value: number };
   mats: Mats;
   fog: THREE.FogExp2;
+  /** 72.0: the street kit's dresser (Dress.ts), while the district is built; null without the models. */
+  dress?: Dresser | null;
 }
 
 /** Railway overpass: deck centre line and extent (the train runs along x). */

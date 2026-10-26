@@ -276,6 +276,7 @@ export function mercModel(): Readonly<Record<string, readonly MercPart[]>> | nul
 /** The prop kits (tools/blender/props_*.py) and their nodes (docs/ENVIRONMENT_PLAN.md). */
 const PROP_KITS: Record<string, readonly string[]> = {
   military: ['bag', 'hesco', 'crate', 'case', 'drum', 'pallet', 'jersey', 'tyre', 'spool'],
+  neon: ['vending', 'ac_roof', 'ac_wall', 'garbage', 'dumpster', 'planter', 'lantern_caps', 'ecab', 'bike', 'bench', 'bollard', 'upole', 'yatai'],
   desert: ['jamb', 'head', 'sill', 'shutter', 'door', 'ac', 'roof_tank', 'tower_tank', 'brace', 'antenna', 'dish', 'tent', 'awning', 'palm', 'lamp', 'pole'],
   heavy: ['container', 'container40', 'truck', 'truck_open', 'apc', 'bus', 'generator', 'car', 'jeep', 'bowser', 'semi', 'forklift'],
 };

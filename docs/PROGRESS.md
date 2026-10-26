@@ -3124,8 +3124,29 @@ The ask: step 4 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
 - In the game: the barracks' and the clinic's doors and windows, the trading post's arcade, the water tower, the tents, the roofs, the palms.
 - Performance (the Desert fight, GPU p50): 6.2–6.3 ms (6.2 before the step).
 
+## 72.0: the environment in Blender, step 5: the neon street
+
+Branch `feature/env-neon-72.0`, from `feature/env-desert-arch-71.0` @ `c6559ea` (64.0–71.0, not merged yet).
+
+The ask: step 5 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
+
+### The kit (`tools/blender/props_neon.py`, `public/models/props/neon.glb`, 13.9k triangles)
+- `vending` (a rounded body with side vents, a rain hood with its light strip, chrome edges, the kick plate, feet: its front stays behind the game's lit canvas), `ac_roof` (a condenser: fan behind its guard, fins, the pipes' stubs, feet), `ac_wall` (an outdoor unit: fan guard, louvres, brackets, pipes and drain), `garbage` (a tied bag), `dumpster` (a wheeled bin: lid, lifting pockets, handles, castors), `planter` (a trough with shrubs, kept low), `lantern_caps` (a paper lantern's wooden caps, five hoops, cord and tassel round the game's lit lantern), `ecab` (two doors, vents, handles, hinges, a hazard plate, the conduit), `bike` (a city bike with spokes, basket, saddle, stand), `bench`, `bollard` (its reflective band), `upole` (a concrete pole: crossarms, insulators, a transformer, a street lamp, step bolts, the striped guard), `yatai` (the ramen stall: counter, pots, roof, poles, stools).
+
+### The maps
+- Neon Block: its instancer's machines, AC units and bags are the models (instanced, one mesh a role: 14 machines, 20 roof units, 40 wall units, 10 bags), the lanterns keep their lit paper and gain their frames (38), the bins (2) and the planters (27 troughs) are dressed by their materials.
+- Tokyo (`PropKit`): its vending machines, AC units, bins, bags, bikes, benches, bollards, poles, the ramen stall and the cabinets; the dresser lives on the district's build context and is done with once the city is built.
+- The electrical cabinets on the Desert and in the jungle are the model too (their doors out; the shoot-out behaviour unchanged).
+- `Dress.ts`: planter runs tiled 1.5 m a trough; `instances(…, { raw })` keeps a model about its own origin (the lantern frames); leaf and glow roles.
+
+### Checks
+- Tests 585 (+4, `neon72.test.ts`: the kit's props, roles, budget; the machine's front behind its canvas; a planter run tiled; raw instances about their origin).
+- In the game: Neon Block's machines (the red and the white), the lantern market's frames, the service alley's bin and bags, the main street's planters; Tokyo's ramen stall. Tokyo's poles and cabinets weren't looked at closely in the game.
+- Performance (the Neon Block fight): 60 fps, GPU p50 5.5–5.7 ms.
+
 ## Next
 Human playtest:
+- 72.0 items: Neon Block's machines, AC units, bins, bags, planters and lanterns; Tokyo's street furniture, poles, the ramen stall; the cabinets on every map; then the word for step 6 (the port's industry).
 - 71.0 items: the Desert's doors, windows, shutters, air conditioners, tanks, the water tower, tents, awning, palms, poles and lamp shades (anything that looks solid and isn't, or hides a window you can dive through); then the word for step 5 (the neon street kit).
 - 70.0 items: the containers (Docks' maze, Old Port, the Crash Site, the firebase), the convoy (walk through the bus: does what you see match where you can go), the motor pools, the docks' tractors and forklifts; anything floating, sunk or hiding cover you can't see; then the word for step 4 (the Desert's architecture).
 - 69.0 items: Deep Jungle's, the Crash Site's and Old Port's new cover (the cargo stacks, the barriers, the drums), the Desert's tyres and spools; then the word for step 3 (containers, vehicles, generators).

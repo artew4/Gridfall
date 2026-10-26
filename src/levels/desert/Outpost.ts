@@ -543,6 +543,9 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   const cab = (x: number, z: number, face: CabinetSpot['face']): CabinetSpot => {
     const alongX = face === 'n' || face === 's';
     const w = 1.2, d = 0.5, h = 1.9;
+    // 72.0: the street kit's cabinet (doors, vents, a hazard plate) over its box, its doors out.
+    const ry = { s: 0, n: Math.PI, e: Math.PI / 2, w: -Math.PI / 2 }[face];
+    dress?.replace('ecab', alongX ? [x - w / 2, 0, z - d / 2] : [x - d / 2, 0, z - w / 2], alongX ? [x + w / 2, h + 0.08, z + d / 2] : [x + d / 2, h + 0.08, z + w / 2], { rotY: ry, over: { paint: m.darkMetal }, margin: 0.05 });
     const c = alongX ? solid(x - w / 2, 0, z - d / 2, x + w / 2, h, z + d / 2, m.darkMetal, 'metal') : solid(x - d / 2, 0, z - w / 2, x + d / 2, h, z + w / 2, m.darkMetal, 'metal');
     return { pos: new THREE.Vector3(x, 0, z), face, collider: c };
   };

@@ -135,6 +135,10 @@ export class TokyoLevel implements LevelRuntime {
     this.signs = d.signs;
     this.fountain = new Fountain(this.city.ctx, game.glows);
     this.city.ctx.builder.build(s);
+    // 72.0: the street kit's dresser done with (its unused materials freed).
+    this.city.ctx.dress?.afterBuild(s);
+    this.city.ctx.dress?.dispose();
+    this.city.ctx.dress = null;
     this.city.buildSky();
 
     // 4.0: street-level AO from the collision world, into the facades, storefronts and the ground.

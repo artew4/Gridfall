@@ -30,7 +30,9 @@ import { canvasTexture, hescoTexture, rubberTexture, woodTexture } from '../leve
   truck's load stays a crate); the colliders are the map's as before.
 */
 
-export type DressKind = 'crate' | 'case' | 'hesco' | 'sandbag' | 'drum' | 'jersey' | 'stack' | 'tyre' | 'spool' | 'pallet' | 'container';
+export type DressKind = 'crate' | 'case' | 'hesco' | 'sandbag' | 'drum' | 'jersey' | 'stack' | 'tyre' | 'spool' | 'pallet' | 'container' | NeonKind;
+/** 72.0: the neon street kit (props_neon.py). */
+export type NeonKind = 'vending' | 'ac_roof' | 'ac_wall' | 'garbage' | 'dumpster' | 'planter' | 'lantern_caps' | 'ecab' | 'bike' | 'bench' | 'bollard' | 'upole' | 'yatai';
 /** 71.0: the Desert's dressing (props_desert.py). */
 export type DesertKind = 'jamb' | 'head' | 'sill' | 'shutter' | 'door' | 'ac' | 'roof_tank' | 'tower_tank' | 'brace' | 'antenna' | 'dish' | 'tent' | 'awning' | 'palm' | 'lamp' | 'pole';
 /** 70.0: the heavy kit's models (props_heavy.py). */
@@ -244,7 +246,7 @@ export class Dresser {
    * that way) and rolled `roll` about its length (the APC on its side), scaled to fill the box; what
    * the map draws inside the box (grown by `margin`) from now on is hidden. False: no such model.
    */
-  replace(kind: HeavyKind | DesertKind, min: [number, number, number], max: [number, number, number], o: { rotY?: number; roll?: number; over?: Over; margin?: number; fit?: boolean } = {}) {
+  replace(kind: HeavyKind | DesertKind | NeonKind, min: [number, number, number], max: [number, number, number], o: { rotY?: number; roll?: number; over?: Over; margin?: number; fit?: boolean } = {}) {
     const node = this.nodes.get(kind);
     if (!node) return false;
     if (o.fit === false) {
@@ -321,8 +323,10 @@ export class Dresser {
   private one(kind: DressKind, base: THREE.Matrix4, L: number, h: number, D: number, over?: Over) {
     const n = this.nodes.get(kind);
     if (!n) return false;
-    if (kind === 'jersey' && L > 2.8) {
-      const k = Math.round(L / 2.0), cl = L / k;
+    // (Jersey barriers 2 m each, planters 1.5 m: a long run is a row of them.)
+    const unit = kind === 'jersey' ? 2.0 : kind === 'planter' ? 1.5 : 0;
+    if (unit && L > unit * 1.4) {
+      const k = Math.round(L / unit), cl = L / k;
       for (let i = 0; i < k; i++) this.place(kind, base.clone().multiply(new THREE.Matrix4().makeTranslation(-L / 2 + (i + 0.5) * cl, 0, 0)).multiply(_s.makeScale((cl * 0.99) / n.size.x, h / n.size.y, D / n.size.z)), over);
       return true;
     }
@@ -356,11 +360,13 @@ export class Dresser {
    * each matrix puts the model's base centre (`size`: the model scaled to it first; `unit`: the matrix
    * scales a unit box centred on the origin, as the map's own instanced boxes did; the model fills it).
    */
-  instances(kind: DressKind | 'bag', ms: THREE.Matrix4[], parent: THREE.Object3D, over?: Over, fit?: { unit?: boolean; size?: [number, number, number] }) {
+  instances(kind: DressKind | 'bag', ms: THREE.Matrix4[], parent: THREE.Object3D, over?: Over, fit?: { unit?: boolean; size?: [number, number, number]; raw?: boolean }) {
     const node = this.nodes.get(kind);
     if (!node || !ms.length) return false;
     const recentre = new THREE.Matrix4().makeTranslation(-(node.min.x + node.size.x / 2), -node.min.y, -(node.min.z + node.size.z / 2));
     const size = fit?.unit ? [1, 1, 1] : fit?.size;
+    // (`raw`: as authored, about its own origin: a lantern's frame round the lantern's centre.)
+    if (fit?.raw) recentre.identity();
     if (size) recentre.premultiply(new THREE.Matrix4().makeScale(size[0] / node.size.x, size[1] / node.size.y, size[2] / node.size.z));
     if (fit?.unit) recentre.premultiply(new THREE.Matrix4().makeTranslation(0, -0.5, 0));
     for (const p of node.parts) {
@@ -453,6 +459,9 @@ export function militaryMats(tint: Partial<Record<string, number>> = {}, own: Pa
     light: new THREE.MeshStandardMaterial({ color: t('light', 0xe8e0c8), emissive: 0x332e22, roughness: 0.2, metalness: 0.1 }),
     dark: std(null, t('dark', 0x1c1d1f), 0.75, 0.25, 0.3),
     chrome: std(null, t('chrome', 0xb8bcc0), 0.25, 0.9, 1.0),
+    // 72.0: the street kit's.
+    leaf: std(null, t('leaf', 0x2b4a26), 0.7, 0, 0.4),
+    glow: new THREE.MeshBasicMaterial({ color: new THREE.Color(t('glow', 0x80e0ff)).multiplyScalar(2.2) }),
   };
   // (Marked: the dresser frees those of them no prop used.)
   for (const m of Object.values(base)) m.userData.dressOwn = true;

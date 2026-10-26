@@ -7,6 +7,8 @@ import { addSign, type SignSpec } from '../../world/Signs';
 import { applyWet } from '../../world/Ground';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import type { RainAreas } from '../../world/Rain';
+import { Dresser, militaryMats, type NeonKind } from '../../world/Dress';
+import { propKits } from '../../entities/weapons/models';
 import { asphaltTexture, concreteTexture, facadeTexture, grilleTexture, lanternTexture, pavingTexture, perforatedTexture, shutterTexture, storefrontTexture, vendingTexture } from '../../world/Textures';
 import { BASE, BE, BW, COURT, CROSS, FLANKS, FOOT, KONBINI, MACHINE_ROOM, MID, PACHINKO, PLANK, RAMEN, SKY, TOP, X_OUT, Z_END, lanesOf, mz, spawnsOf, zoneAt } from './NeonBlockLayout';
 import type { Zone } from '../Level';
@@ -73,6 +75,20 @@ class Instancer {
 export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: Glows, time: { value: number }, fog: THREE.FogExp2): NeonBlockResult {
   const b = new StaticBuilder();
   const inst = new Instancer();
+  // 72.0: the neon street kit (Dress.ts; docs/ENVIRONMENT_PLAN.md step 5): the machines, the AC units,
+  // the bags, the lanterns' frames as instanced models; the bin and the planters dressed by material.
+  const kits = propKits();
+  const dress = kits ? new Dresser(b, kits, militaryMats({ paint: 0x2c4a3a })) : null;
+  /** Instanced models gathered while the street is authored (kind, its paint, matrices). */
+  const dressed = new Map<string, { kind: NeonKind; over?: Record<string, THREE.Material>; raw?: boolean; ms: THREE.Matrix4[] }>();
+  const put = (key: string, kind: NeonKind, m: THREE.Matrix4, over?: Record<string, THREE.Material>, raw = false) => {
+    if (!dress?.size(kind)) return false;
+    let d = dressed.get(key);
+    if (!d) dressed.set(key, (d = { kind, over, raw, ms: [] }));
+    d.ms.push(m);
+    return true;
+  };
+  const at = (x: number, y: number, z: number, ry = 0) => new THREE.Matrix4().compose(v(x, y, z), new THREE.Quaternion().setFromAxisAngle(v(0, 1, 0), ry), v(1, 1, 1));
   /** Point lights placed (counted by mast() and lamp()). */
   let lights = 0;
   const std = (map: THREE.Texture | null, color: number | string, rough = 0.8, metal = 0, env = 0.6) =>
@@ -120,6 +136,8 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   };
 
   // ---------------------------------------------------------------- helpers
+  dress?.rule(m.dumpster, 'dumpster', { paint: m.dumpster });
+  dress?.rule(m.planter, 'planter', { concrete: m.planter });
   const solid = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material, surface: Collider['surface'] = 'concrete', tile = 2) => {
     b.add(worldBox(x1 - x0, y1 - y0, z1 - z0, tile), mat, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
     return col.add(x0, y0, z0, x1, y1, z1, surface);
@@ -630,7 +648,7 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
       const zz = z * s, fnz = nz * s;
       const cx = x + nx * 0.4, cz = zz + fnz * 0.4;
       const ry = face === 'e' ? Math.PI / 2 : face === 'w' ? -Math.PI / 2 : fnz > 0 ? 0 : Math.PI;
-      inst.add(`vend-${theme}`, VEND_GEO, vendBody[theme], cx, 0.95, cz, along ? 0 : Math.PI / 2);
+      if (!put(`vend-${theme}`, 'vending', at(cx, 0, cz, ry), { paint: vendBody[theme] })) inst.add(`vend-${theme}`, VEND_GEO, vendBody[theme], cx, 0.95, cz, along ? 0 : Math.PI / 2);
       inst.add(`vendFront-${theme}`, VEND_FRONT, vendFront[theme], x + nx * 0.81, 0.98, zz + fnz * 0.81, ry);
       if (along) col.addCentered(cx, 0.95, cz, 1.05, 1.9, 0.8, 'metal');
       else col.addCentered(cx, 0.95, cz, 0.8, 1.9, 1.05, 'metal');
@@ -639,8 +657,12 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   /** A rooftop AC block (1.4 × 1.0 × 1.1, cover you can vault). Instanced body and grille. */
   function acBlock2(x: number, z: number, y: number) {
     for (const s of [1, -1]) {
-      inst.add('acRoof', AC_ROOF, acBody, x, y + 0.5, z * s);
-      inst.add('acRoofGrille', AC_ROOF_FRONT, grille, x, y + 0.5, z * s + 0.56 * s, s > 0 ? 0 : Math.PI);
+      if (!put('acRoof', 'ac_roof', at(x, y, z * s, s > 0 ? 0 : Math.PI), { plastic: acBody })) {
+        if (!put('acRoof', 'ac_roof', at(x, y, z * s, s > 0 ? 0 : Math.PI), { plastic: acBody })) {
+          inst.add('acRoof', AC_ROOF, acBody, x, y + 0.5, z * s);
+          inst.add('acRoofGrille', AC_ROOF_FRONT, grille, x, y + 0.5, z * s + 0.56 * s, s > 0 ? 0 : Math.PI);
+        }
+      }
       const c = col.addCentered(x, y + 0.5, z * s, 1.4, 1.0, 1.1, 'metal');
       c.vault = true;
     }
@@ -658,17 +680,24 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   // Wall AC units, high up the facades (out of reach: decoration, no collision).
   for (const s of [1, -1]) {
     for (let z = 10; z < 46; z += 3.7) {
-      inst.add('acWall', AC_WALL, acBody, -X_OUT + 0.16, 5.2 + ((z * 7) % 3) * 2.4, z * s, Math.PI / 2);
-      inst.add('acWall', AC_WALL, acBody, X_OUT - 0.16, 5.6 + ((z * 5) % 3) * 2.2, z * s, -Math.PI / 2);
+      // (The model's drain pipe hangs 0.6 m under it: placed by its pipe's foot.)
+      if (!put('acWall', 'ac_wall', at(-X_OUT + 0.16, 5.2 + ((z * 7) % 3) * 2.4 - 0.275 - 0.65, z * s, Math.PI / 2), { plastic: acBody })) inst.add('acWall', AC_WALL, acBody, -X_OUT + 0.16, 5.2 + ((z * 7) % 3) * 2.4, z * s, Math.PI / 2);
+      if (!put('acWall', 'ac_wall', at(X_OUT - 0.16, 5.6 + ((z * 5) % 3) * 2.2 - 0.275 - 0.65, z * s, -Math.PI / 2), { plastic: acBody })) inst.add('acWall', AC_WALL, acBody, X_OUT - 0.16, 5.6 + ((z * 5) % 3) * 2.2, z * s, -Math.PI / 2);
     }
   }
   // Lanterns over Lantern Alley and Noodle Gap (instanced per paper).
   for (const s of [1, -1]) {
-    for (let z = 10; z < 44; z += 2.6) inst.add(`lantern${Math.round(z) % 3}`, LANTERN, lanterns[Math.round(z) % 3], -36.4, 3.4 + Math.sin(z) * 0.15, z * s);
-    for (let x = 23; x < 29.5; x += 1.6) inst.add(`lantern${Math.round(x) % 3}`, LANTERN, lanterns[Math.round(x) % 3], x, 3.0, 26 * s);
+    for (let z = 10; z < 44; z += 2.6) {
+      inst.add(`lantern${Math.round(z) % 3}`, LANTERN, lanterns[Math.round(z) % 3], -36.4, 3.4 + Math.sin(z) * 0.15, z * s);
+      put('lanternCaps', 'lantern_caps', at(-36.4, 3.4 + Math.sin(z) * 0.15, z * s), undefined, true);
+    }
+    for (let x = 23; x < 29.5; x += 1.6) {
+      inst.add(`lantern${Math.round(x) % 3}`, LANTERN, lanterns[Math.round(x) % 3], x, 3.0, 26 * s);
+      put('lanternCaps', 'lantern_caps', at(x, 3.0, 26 * s), undefined, true);
+    }
   }
   // Rubbish bags along the alleys' walls (low, decoration).
-  for (const s of [1, -1]) for (const [x, z] of [[-37.5, 20], [-37.4, 33], [37.5, 26], [37.6, 41], [37.4, 9.5]]) inst.add('bag', BAG, bagMat, x, 0.28, z * s, z);
+  for (const s of [1, -1]) for (const [x, z] of [[-37.5, 20], [-37.4, 33], [37.5, 26], [37.6, 41], [37.4, 9.5]]) if (!put('bag', 'garbage', at(x, 0, z * s, z), { plastic: bagMat })) inst.add('bag', BAG, bagMat, x, 0.28, z * s, z);
 
   /**
    * 34.0, a hologram: `text` and `sub` on a scanlined canvas, a double-sided additive plane (seen
@@ -806,7 +835,12 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
     { text: 'OMEGA', color: '#ff3040', style: 'box', vertical: false, mount: 'wall', face: 's', wall: -BASE.z0, x: 0, y: 2.6, z: -BASE.z0 + 0.12, size: 3.2, floorY: 0 },
   ];
   for (const s of signs) addSign(ctx, s);
+  for (const d of dressed.values()) dress?.instances(d.kind, d.ms, scene, d.over, d.raw ? { raw: true } : undefined);
+  dress?.finish(scene);
+  if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.afterBuild(scene);
+  dress?.dispose();
   const instanced = inst.build(scene);
 
   // ---------------------------------------------------------------- navigation

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type { BuildCtx, Face } from './City';
 import { worldBox } from './Builder';
 import { chainLinkTexture, grilleTexture, lanternTexture, vendingTexture } from './Textures';
+import { Dresser, militaryMats } from './Dress';
+import { propKits } from '../entities/weapons/models';
 
 const NORMAL: Record<Face, [number, number]> = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] };
 const ROT: Record<Face, number> = { s: 0, n: Math.PI, e: Math.PI / 2, w: -Math.PI / 2 };
@@ -55,7 +57,19 @@ export class PropKit {
   private acFront = new THREE.PlaneGeometry(0.72, 0.52);
   updaters: Updater[] = [];
 
+  /** 72.0: the street kit's models (Dress.ts), or null: the boxes as before. */
+  readonly dress: Dresser | null;
+
+  /** A model at (x, y, z) turned to `face` (its front, +Z, out along the face's normal). */
+  private put(kind: Parameters<Dresser['place']>[0], x: number, y: number, z: number, ry: number, over?: Record<string, THREE.Material>, sx = 1, sy = 1, sz = 1) {
+    if (!this.dress?.size(kind)) return false;
+    return this.dress.place(kind, new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry), new THREE.Vector3(sx, sy, sz)), over);
+  }
+
   constructor(private ctx: BuildCtx) {
+    const kits = propKits();
+    this.dress = kits ? new Dresser(ctx.builder, kits, militaryMats({}, { concrete: ctx.mats.concrete })) : null;
+    ctx.dress = this.dress;
     const fl = chainLinkTexture();
     fl.repeat.set(1, 1);
     this.fence = new THREE.MeshStandardMaterial({ map: fl, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.4, metalness: 0.7 });
@@ -77,7 +91,7 @@ export class PropKit {
     const { builder: b, col, scene } = this.ctx;
     const [nx, nz] = NORMAL[face];
     const alongX = nz !== 0;
-    b.add(alongX ? worldBox(1.05, 1.9, 0.8, 1) : worldBox(0.8, 1.9, 1.05, 1), this.vendBody[theme], x, y + 0.95, z);
+    if (!this.put('vending', x, y, z, ROT[face], { paint: this.vendBody[theme] })) b.add(alongX ? worldBox(1.05, 1.9, 0.8, 1) : worldBox(0.8, 1.9, 1.05, 1), this.vendBody[theme], x, y + 0.95, z);
     const mesh = new THREE.Mesh(this.front, this.vendFront[theme]);
     mesh.position.set(x + nx * 0.405, y + 0.98, z + nz * 0.405);
     mesh.rotation.y = ROT[face];
@@ -100,8 +114,11 @@ export class PropKit {
       if (y > maxY) continue;
       const px = alongX ? a : wall + nx * 0.16;
       const pz = alongX ? wall + nz * 0.16 : a;
-      b.add(this.acGeo, this.acBody, px, y, pz, 0, ROT[face], 0);
-      b.add(this.acFront, this.grille, px + nx * 0.142, y, pz + nz * 0.142, 0, ROT[face], 0);
+      // 72.0: the kit's outdoor unit (placed by its drain pipe's foot, 0.6 m under it).
+      if (!this.put('ac_wall', px, y - 0.275 - 0.65, pz, ROT[face], { plastic: this.acBody })) {
+        b.add(this.acGeo, this.acBody, px, y, pz, 0, ROT[face], 0);
+        b.add(this.acFront, this.grille, px + nx * 0.142, y, pz + nz * 0.142, 0, ROT[face], 0);
+      }
       if (rnd() < 0.3) b.add(new THREE.CylinderGeometry(0.03, 0.03, y, 5), this.ctx.mats.darkMetal, px + nx * -0.08 + (alongX ? 0.5 : 0), y / 2, pz + nz * -0.08 + (alongX ? 0 : 0.5));
     }
     for (let a = a0 + 1; a < a1; a += 9 + rnd() * 4) {
@@ -112,6 +129,8 @@ export class PropKit {
   /** Concrete utility pole with transformer; returns the three cable attachment points. */
   pole(x: number, z: number, h = 10): THREE.Vector3[] {
     const { builder: b, col, mats: m } = this.ctx;
+    // 72.0: the kit's pole (crossarms, insulators, transformer, a street lamp, step bolts) over its pieces.
+    this.dress?.replace('upole', [x - 0.2, 0, z - 0.2], [x + 0.2, h, z + 0.2], { fit: false, rotY: Math.PI / 2, margin: 0.9 });
     b.add(new THREE.CylinderGeometry(0.13, 0.18, h, 8), m.concrete, x, h / 2, z);
     col.addCentered(x, h / 2, z, 0.36, h, 0.36, 'concrete');
     const arm = worldBox(1.6, 0.1, 0.1, 1);
@@ -130,6 +149,8 @@ export class PropKit {
     const { builder: b, col, mats: m } = this.ctx;
     const sx = rotated ? 1.1 : 1.8;
     const sz = rotated ? 1.8 : 1.1;
+    // 72.0: the kit's wheeled bin over its boxes.
+    this.dress?.replace('dumpster', [x - sx / 2, 0, z - sz / 2], [x + sx / 2, 1.34, z + sz / 2], { rotY: rotated ? Math.PI / 2 : 0, over: { paint: this.dumpMat }, margin: 0.1 });
     b.add(worldBox(sx, 1.2, sz, 1), this.dumpMat, x, 0.65, z);
     b.add(worldBox(sx + 0.1, 0.08, sz + 0.1, 1), m.darkMetal, x, 1.3, z, rotated ? 0 : 0.08, 0, rotated ? 0.08 : 0);
     col.addCentered(x, 0.65, z, sx, 1.3, sz, 'metal');
@@ -146,7 +167,8 @@ export class PropKit {
   bags(x: number, z: number, n: number, rnd: () => number) {
     const g = new THREE.SphereGeometry(0.35, 8, 6);
     for (let i = 0; i < n; i++) {
-      this.ctx.builder.add(g, this.bagMat, x + (rnd() - 0.5) * 1.2, 0.25, z + (rnd() - 0.5) * 1.2, 0, rnd() * 3, 0, 1, 0.75 + rnd() * 0.3, 1);
+      const px = x + (rnd() - 0.5) * 1.2, pz = z + (rnd() - 0.5) * 1.2, ry = rnd() * 3, k = 0.75 + rnd() * 0.3;
+      if (!this.put('garbage', px, 0, pz, ry, { plastic: this.bagMat }, 1.1, k * 1.1, 1.1)) this.ctx.builder.add(g, this.bagMat, px, 0.25, pz, 0, ry, 0, 1, k, 1);
     }
   }
 
@@ -157,6 +179,8 @@ export class PropKit {
       const px = alongZ ? x : x + i * 0.7;
       const pz = alongZ ? z - i * 0.7 : z;
       const ry = alongZ ? Math.PI / 2 + 0.2 : 0.2;
+      // 72.0: the kit's city bike (the model runs along its Z).
+      if (this.put('bike', px - 0.1, 0, pz, ry + Math.PI / 2, { paint: this.red })) continue;
       b.add(wheel, m.darkMetal, px, 0.35, pz, 0, ry, 0);
       b.add(wheel, m.darkMetal, px + (alongZ ? -0.2 : 0), 0.35, pz + (alongZ ? 0 : 0.2), 0, ry, 0);
       b.add(alongZ ? worldBox(0.04, 0.04, 1.0, 1) : worldBox(1.0, 0.04, 0.04, 1), m.darkMetal, px - 0.1, 0.62, pz, 0.3, 0.2, 0);
@@ -166,8 +190,10 @@ export class PropKit {
   /** Low bench (not cover, below step height so it never snags movement). */
   bench(x: number, z: number, alongX: boolean, y = 0) {
     const { builder: b, mats: m } = this.ctx;
-    b.add(alongX ? worldBox(1.8, 0.08, 0.5, 1) : worldBox(0.5, 0.08, 1.8, 1), this.wood, x, y + 0.45, z);
-    for (const s of [-0.75, 0.75]) b.add(worldBox(0.08, 0.42, 0.42, 1), m.darkMetal, alongX ? x + s : x, y + 0.21, alongX ? z : z + s);
+    if (!this.put('bench', x, y, z, alongX ? 0 : Math.PI / 2, { wood: this.wood })) {
+      b.add(alongX ? worldBox(1.8, 0.08, 0.5, 1) : worldBox(0.5, 0.08, 1.8, 1), this.wood, x, y + 0.45, z);
+      for (const s of [-0.75, 0.75]) b.add(worldBox(0.08, 0.42, 0.42, 1), m.darkMetal, alongX ? x + s : x, y + 0.21, alongX ? z : z + s);
+    }
     this.ctx.col.add(alongX ? x - 0.9 : x - 0.25, y, alongX ? z - 0.25 : z - 0.9, alongX ? x + 0.9 : x + 0.25, y + 0.49, alongX ? z + 0.25 : z + 0.9, 'wood');
   }
 
@@ -190,8 +216,10 @@ export class PropKit {
     const { builder: b, col, mats: m } = this.ctx;
     const g = new THREE.CylinderGeometry(0.09, 0.11, 0.85, 8);
     for (const [x, z] of points) {
-      b.add(g, m.paintedMetal, x, 0.42, z);
-      b.add(new THREE.CylinderGeometry(0.1, 0.1, 0.06, 8), this.guard, x, 0.7, z);
+      if (!this.put('bollard', x, 0, z, 0, { paint: m.paintedMetal })) {
+        b.add(g, m.paintedMetal, x, 0.42, z);
+        b.add(new THREE.CylinderGeometry(0.1, 0.1, 0.06, 8), this.guard, x, 0.7, z);
+      }
       col.addCentered(x, 0.42, z, 0.2, 0.85, 0.2, 'metal');
     }
   }
@@ -362,6 +390,8 @@ export class PropKit {
   /** Street-side ramen stall: counter, stools, noren curtain and a hanging lantern. Counter is cover. */
   yatai(x: number, z: number) {
     const { builder: b, col, mats: m } = this.ctx;
+    // 72.0: the kit's stall (its counter, roof, stools) over its pieces; the cloth curtains stay.
+    this.dress?.replace('yatai', [x - 1.8, 0, z - 0.8], [x + 1.8, 2.66, z + 1.12], { over: { paint: this.red, wood: this.wood }, margin: 0.05 });
     b.add(worldBox(3.2, 1.05, 1.0, 1), this.wood, x, 0.525, z);
     b.add(worldBox(3.4, 0.06, 1.2, 1), m.darkMetal, x, 1.08, z);
     col.addCentered(x, 0.55, z, 3.2, 1.1, 1.0, 'wood');
@@ -378,6 +408,8 @@ export class PropKit {
     const { builder: b, col, mats: m } = this.ctx;
     const alongX = NORMAL[face][1] !== 0;
     const w = 1.2, d = 0.5, h = 1.9;
+    // 72.0: the kit's cabinet (doors, vents, a hazard plate) over its boxes, its doors out.
+    this.dress?.replace('ecab', alongX ? [x - w / 2, y, z - d / 2] : [x - d / 2, y, z - w / 2], alongX ? [x + w / 2, y + h + 0.08, z + d / 2] : [x + d / 2, y + h + 0.08, z + w / 2], { rotY: ROT[face], over: { paint: m.paintedMetal }, margin: 0.05 });
     b.add(alongX ? worldBox(w, h, d, 1) : worldBox(d, h, w, 1), m.paintedMetal, x, y + h / 2, z);
     b.add(alongX ? worldBox(w + 0.1, 0.08, d + 0.15, 1) : worldBox(d + 0.15, 0.08, w + 0.1, 1), m.darkMetal, x, y + h + 0.04, z);
     return alongX ? col.addCentered(x, y + h / 2, z, w, h, d, 'metal') : col.addCentered(x, y + h / 2, z, d, h, w, 'metal');
