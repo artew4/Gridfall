@@ -35,10 +35,16 @@ export const FADE = 2;
 const DIR = `${import.meta.env.BASE_URL}audio/music/`;
 const EXTENSIONS = ['mp3', 'ogg', 'm4a', 'wav'];
 
-/** Optional public/audio/music/manifest.json: { "<id>": { "file": "name.mp3", "gain": 0.8 } }. */
+/**
+ * Optional public/audio/music/manifest.json: { "<id>": { "file": "name.mp3", "gain": 0.8 } }. 60.0: a
+ * loop window, for a file that fades out or has silence at its ends: `loopStart`/`loopEnd` (s) and a
+ * crossfade `xfade` (s): it plays from the start, and from `loopEnd − xfade` the next pass, from
+ * `loopStart`, fades in over it.
+ */
 export interface MusicManifest {
-  [id: string]: { file: string; gain?: number };
+  [id: string]: { file: string; gain?: number; loopStart?: number; loopEnd?: number; xfade?: number };
 }
+type LoopWindow = { start: number; end: number; xfade: number };
 
 /** A playing source behind a track slot. */
 interface Source {
@@ -70,49 +76,96 @@ export function fadeCurve(up: boolean, n = 32) {
   return c;
 }
 
-/** Streams a looping file: memory stays flat whatever its length. */
+/**
+ * Streams a looping file: memory stays flat whatever its length. 60.0: with a loop window two elements
+ * take turns, crossfaded (equal power) from `end − xfade`, the next starting at `start`.
+ */
 class FileSource implements Source {
   readonly kind = 'file' as const;
-  private el: HTMLAudioElement;
-  private node: MediaElementAudioSourceNode;
+  private els: HTMLAudioElement[] = [];
+  private nodes: MediaElementAudioSourceNode[] = [];
+  private gains: GainNode[] = [];
+  private cur = 0;
+  /** ctx time the running crossfade ends (-1: none). */
+  private xfadeEnd = -1;
   private playing = false;
 
-  constructor(ctx: AudioContext, url: string, out: AudioNode, gain: number) {
-    this.el = new Audio();
-    this.el.src = url;
-    this.el.loop = true;
-    this.el.preload = 'auto';
-    this.node = ctx.createMediaElementSource(this.el);
-    const g = ctx.createGain();
-    g.gain.value = gain;
-    this.node.connect(g).connect(out);
+  constructor(private ctx: AudioContext, url: string, out: AudioNode, gain: number, private loop: LoopWindow | null = null) {
+    const master = ctx.createGain();
+    master.gain.value = gain;
+    master.connect(out);
+    for (let i = 0; i < (loop ? 2 : 1); i++) {
+      const el = new Audio();
+      el.src = url;
+      el.loop = !loop;
+      el.preload = 'auto';
+      const node = ctx.createMediaElementSource(el);
+      const g = ctx.createGain();
+      g.gain.value = i === 0 ? 1 : 0;
+      node.connect(g).connect(master);
+      this.els.push(el);
+      this.nodes.push(node);
+      this.gains.push(g);
+    }
   }
 
   start() {
     this.playing = true;
-    void this.el.play().catch(() => {});
+    void this.els[this.cur].play().catch(() => {});
   }
 
   setIntensity() {}
-  update() {}
+
+  update() {
+    const L = this.loop;
+    if (!L || !this.playing) return;
+    const now = this.ctx.currentTime;
+    if (this.xfadeEnd >= 0) {
+      if (now >= this.xfadeEnd) {
+        // The old pass has faded out: stop it, ready for the next turn.
+        this.els[1 - this.cur].pause();
+        this.xfadeEnd = -1;
+      }
+      return;
+    }
+    const a = this.els[this.cur];
+    if (a.currentTime < L.end - L.xfade && !a.ended) return;
+    const nxt = 1 - this.cur, b = this.els[nxt];
+    b.currentTime = L.start;
+    void b.play().catch(() => {});
+    const d = Math.max(0.05, L.xfade);
+    this.gains[this.cur].gain.cancelScheduledValues(now);
+    this.gains[nxt].gain.cancelScheduledValues(now);
+    this.gains[this.cur].gain.setValueCurveAtTime(fadeCurve(false), now, d);
+    this.gains[nxt].gain.setValueCurveAtTime(fadeCurve(true), now, d);
+    this.cur = nxt;
+    this.xfadeEnd = now + d + 0.05;
+  }
 
   setSuspended(on: boolean) {
     if (!this.playing) return;
-    if (on) this.el.pause();
-    else void this.el.play().catch(() => {});
+    for (let i = 0; i < this.els.length; i++) {
+      const live = i === this.cur || this.xfadeEnd >= 0;
+      if (on) this.els[i].pause();
+      else if (live) void this.els[i].play().catch(() => {});
+    }
   }
 
   dispose() {
     this.playing = false;
-    this.el.pause();
-    this.node.disconnect();
-    // Release the stream: an element with no source drops its buffers.
-    this.el.removeAttribute('src');
-    this.el.load();
+    for (let i = 0; i < this.els.length; i++) {
+      const el = this.els[i];
+      el.pause();
+      this.nodes[i].disconnect();
+      // Release the stream: an element with no source drops its buffers.
+      el.removeAttribute('src');
+      el.load();
+    }
   }
 
   debug() {
-    return { file: this.el.currentSrc || '(released)', time: +this.el.currentTime.toFixed(1) };
+    const el = this.els[this.cur];
+    return { file: el.currentSrc || '(released)', time: +el.currentTime.toFixed(1), ...(this.loop ? { loop: this.loop, pass: this.cur, crossfading: this.xfadeEnd >= 0 } : {}) };
   }
 }
 
@@ -148,7 +201,7 @@ export class MusicManager {
   private duckFilter: BiquadFilterNode | null = null;
   private shared: { I: Instruments; reverb: AudioNode } | null = null;
   private slots: Slot[] = [];
-  private files = new Map<TrackId, { url: string; gain: number } | null>();
+  private files = new Map<TrackId, { url: string; gain: number; loop: LoopWindow | null } | null>();
   private probing: Promise<void> | null = null;
   private suspended = false;
   private intensity = 0;
@@ -202,7 +255,9 @@ export class MusicManager {
             const audio = r.ok && (r.headers.get('content-type') ?? '').startsWith('audio/');
             void r.body?.cancel().catch(() => {});
             if (audio) {
-              this.files.set(id, { url: `${DIR}${name}`, gain: manifest[id]?.gain ?? 1 });
+              const m = manifest[id];
+              const loop = m?.loopEnd ? { start: m.loopStart ?? 0, end: m.loopEnd, xfade: m.xfade ?? 1.5 } : null;
+              this.files.set(id, { url: `${DIR}${name}`, gain: m?.gain ?? 1, loop });
               return;
             }
           } catch {
@@ -220,7 +275,7 @@ export class MusicManager {
     this.stats.created++;
     if (file) {
       this.stats.files++;
-      return new FileSource(ctx, file.url, out, file.gain);
+      return new FileSource(ctx, file.url, out, file.gain, file.loop);
     }
     this.stats.procedural++;
     const def = PATTERN_THEMES[id];

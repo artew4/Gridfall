@@ -30,3 +30,7 @@ Gridfall plays one track per place, crossfading over 2 s when the place changes:
 `gain` (0..1, default 1) evens out loudness between tracks. A manifest entry replaces the naming convention for that track.
 
 **Check what's playing:** in `npm run dev`, `__game.debug().music` lists the current track, its source (file or procedural) and which files were found.
+
+A file that fades out or has silence at its ends can loop seamlessly with a loop window in
+`manifest.json` (60.0): `{ "desert_theme": { "file": "desert_theme.mp3", "loopStart": 0.18, "loopEnd": 157.746, "xfade": 1 } }`:
+it plays from the start, and from `loopEnd − xfade` the next pass (from `loopStart`) crossfades in.

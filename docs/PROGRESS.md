@@ -2875,6 +2875,15 @@ The playtest on 58.0's darksynth: the worst yet; make it like the dynamic backgr
 ### Checks
 - Tests 546 (the desert's: the half-time drums, the ticks and the riff from the first bar with nothing else; the fight's layers; the hook and the arp in F♯ Phrygian, the hook the same each time round). The music tests now bring a layer in only from its intensity up, as the game does.
 
+## 60.0: the Desert's music is a track
+
+Branch `feature/desert-track-60.0`, from `main` @ `99d028f` (59.0).
+
+The Desert plays "Steel Perimeter Breach" (generated outside the game, 2:53, MP3 44.1 kHz, −14.5 dB RMS like the procedural themes) as `public/audio/music/desert_theme.mp3`; the 59.0 procedural theme stays behind it (it plays if the file is gone).
+
+- The file fades out over its last 5 s and ends in silence: looped as it was, every pass had a hole. `manifest.json` takes a loop window now (`loopStart`, `loopEnd`, `xfade`): two audio elements take turns, the next pass (from `loopStart`) crossfading in (equal power) over the last `xfade` s. The point picked by matching the onsets: at 156.75 s the rhythm repeats the one at 0.18 s (the best of the last 45 s), so the crossfade lands on the beat: `loopStart` 0.18, `loopEnd` 157.75, `xfade` 1.
+- Checked live: the pass hands over at the loop's end, from 0.18 s.
+
 ## Next
 Human playtest:
 - 59.0 items: the Desert's new score (the drive, the riff, the hook; too busy, too loud over the guns).
