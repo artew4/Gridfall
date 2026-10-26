@@ -5,6 +5,7 @@ import { Architecture, DECK } from './Architecture';
 
 /** Height of the walkable rooftop layer. */
 export const ROOF = 8.5;
+import { StreetKit } from './StreetKit';
 import { PropKit } from './PropKit';
 import { addSign, type SignGlow, type SignSpec } from './Signs';
 import type { Glow } from './Glows';
@@ -76,6 +77,11 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   const rnd = mulberry32(42);
   const arch = new Architecture(ctx);
   const kit = new PropKit(ctx);
+
+  // 82.0: the utility poles' places (made below), known before the blocks: a storefront in front of
+  // one is laid shallow (no eave or lantern through the pole).
+  const POLES: [number, number][] = [[-4.6, 19], [4.6, 27], [-4.6, 35], [4.6, 43], [-5.3, -29], [5.3, -38], [-5.3, -49]];
+  city.fronts.keepOut = POLES;
 
   // ======================================================================= Blocks
   // [x0, x1, z0, z1, height, variant, faces]
@@ -605,6 +611,24 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
     { x: 44, y: 3.0, z: -3, face: 's' },
   ]);
 
+  // 82.0: the street level (StreetKit): signals at the plaza's two crossings (from the Lantern Street
+  // pole's side and the Railway Street corner), traffic mirrors at blind corners, manholes, grates and
+  // tactile strips. Nothing added to the colliders.
+  const street = new StreetKit(ctx, kit.updaters);
+  street.signal(-4.42, 5.3, 19, 0, 0);
+  street.walk(-4.42, 2.65, 19, 0);
+  street.signal(-6, 5.3, -15.5, 0, 1);
+  street.walk(-6, 2.65, -15.5, 0);
+  street.mirror(-24, 2.9, 26.85, Math.PI / 2 - 0.5);
+  street.mirror(6, 2.9, -26.8, -Math.PI / 2 + 0.5);
+  street.mirror(-6, 2.9, -26.8, Math.PI / 2 - 0.5);
+  for (const [x, z] of [[0.3, 23], [-0.6, 35], [0.5, 45], [0, -29], [-0.8, -41], [0.6, -53], [38, -0.5]] as const) street.manhole(x, z);
+  for (const z of [20, 28, 36, 44]) for (const x of [-3.37, 3.37]) street.grate(x, z);
+  for (const z of [-20, -28, -36, -44, -52]) for (const x of [-4.37, 4.37]) street.grate(x, z);
+  for (const x of [-3.75, 3.75]) street.tactile(x, 16.6, true);
+  for (const x of [-4.75, 4.75]) street.tactile(x, -16.6, true);
+  (globalThis as unknown as { __street?: unknown }).__street = street.stats;
+
   // AC units and gutter pipes on every street-facing facade.
   const ac: [Parameters<PropKit['acUnits']>[0], number, number, number, number?][] = [
     ['e', -5, 29, 48], ['w', 5, 24, 48], ['e', -5, 15, 24, ROOF - 0.6],
@@ -618,7 +642,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   for (const [f, w, a0, a1, max] of ac) kit.acUnits(f, w, a0, a1, rnd, 7.6, max);
 
   // Utility poles and the cable mess overhead.
-  const poles = [kit.pole(-4.6, 19), kit.pole(4.6, 27), kit.pole(-4.6, 35), kit.pole(4.6, 43), kit.pole(-5.3, -29), kit.pole(5.3, -38), kit.pole(-5.3, -49)];
+  const poles = POLES.map(([x, z]) => kit.pole(x, z));
   const chain = (ids: number[]) => {
     for (let i = 0; i < ids.length - 1; i++) for (let k = 0; k < 3; k++) kit.cableLine(poles[ids[i]][k], poles[ids[i + 1]][k], 0.8 + rnd() * 0.6);
   };

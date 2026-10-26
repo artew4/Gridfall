@@ -3309,8 +3309,21 @@ The ask: on the Desert the arm and the rifle in khaki looked right, the teams (c
 - Tuned on screenshots: the camo first too spotty (dark spots dense), ALPHA first too dark and grey in the shade, the bots' FDE rifles black at range.
 - Tests 628 (+5, `desert81.test.ts`; the 21.0 theme map updated: the Desert's guns are `desert` now).
 
+## 82.0: Night Tokyo, step 4: the street level
+
+Branch `feature/tokyo-street-82.0`, from `feature/desert-teams-81.0` @ `d7936fc` (78.0–81.0 not merged yet). (The plan's versions after 81.0, the Desert's teams, move up one.)
+
+The ask: step 4 of [TOKYO_PLAN.md](TOKYO_PLAN.md).
+
+- `tools/blender/props_street.py` (`public/models/props/street.glb`, 3.0k triangles): `sigarm` (a signal arm for a mount: clamp, brace, the horizontal three-lamp head under visors, the street's name plate), `walk` (the pedestrian signal on its bracket, the push button's box), `mirror` (a convex traffic mirror on a wall bracket, its hood), `manhole` (a decorated cast-iron lid), `grate` (a kerb's drain grate), `tactile` (yellow tactile blocks; the domes a texture).
+- `StreetKit.ts`: the signals at the plaza's two crossings hung from what stands there (the Lantern Street utility pole's side; the Railway Street corner's wall) so no collider is added; their lamps cycle (`SIGNAL_CYCLE`: go 14 s, amber 3, stop 16, the walk signal green while the cars stop, blinking for its last 4 s: shared lamp materials, one update); the blue name plates (仲見世通り, 線路通り); three mirrors at the alleys' blind corners (2.5 m up and more); 7 manholes, 18 grates along the kerbs, 4 tactile strips at the crossings, iron and tiles wet (`applyWet`), all flush (under 2.5 cm).
+- 78.0's storefronts by a utility pole: the Lantern Street pole went through an izakaya's eave and one of its lanterns hung on it. `Storefronts.keepOut` (the poles' places, known before the blocks): a slot with one in front of it is laid shallow (no triangle reaching past 0.26 m, no awning).
+- Tests 633 (+5, `street82.test.ts`: the kit, flush pieces, the overhead pieces' heights; the signal cycle; a slot by a pole laid shallow, the same slot with none).
+- Tokyo's world check: no clusters, no entries.
+
 ## Next
 Human playtest:
+- 82.0 items: Tokyo's crossings (the signals cycling, the walk signals), the mirrors, the manholes and grates (wet, flush), the izakaya by the Lantern Street pole; then the word for step 5 (landmarks).
 - 81.0 items: the Desert in TDM: your arms and rifle, the two teams (told apart at a glance, at range, in the shade; still sand?), their rifles; arcade's player finish.
 - 80.0 items: the windows' rooms (from the street and the roofs: convincing, too bright, anything swimming), the balconies (seen at all at night?), the roof tanks, Railway Street's sign stacks; then the word for step 4 (street level).
 - 79.0 items: the wear on every map's props (too much, too little, anything that flickers or crawls at the edges as you move), the Favelas' render, the cars; the frame rate unthrottled; then the word for step 3 (Tokyo's facades).

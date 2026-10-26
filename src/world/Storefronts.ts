@@ -48,7 +48,7 @@ export class Storefronts {
   private canvas: THREE.MeshStandardMaterial;
   private handed: Partial<Record<SignTrade, number>> = {};
   /** DEV: what was laid (tests, screenshots). */
-  stats = { slots: 0, rooms: {} as Record<string, number> };
+  stats = { slots: 0, rooms: {} as Record<string, number>, shallow: 0 };
 
   constructor(private b: StaticBuilder) {
     const k = propKits();
@@ -89,10 +89,47 @@ export class Storefronts {
    * One slot: its base centre on the wall at `base`, turned by `ry` (its front out along the face's
    * normal), `h` tall (3.8 on the street, 2.9 on the walkway level); `awning` over a shop.
    */
+  /**
+   * 82.0: what stands in front of the fronts (the utility poles: x, z): a slot with one within its
+   * width and 1.2 m of its wall is laid shallow (nothing past 0.25 m: no eave, no lanterns, no awning
+   * through the pole).
+   */
+  keepOut: [number, number][] = [];
+  private shallowGeo = new Map<THREE.BufferGeometry, THREE.BufferGeometry>();
+
+  /** A part without the triangles reaching more than 0.26 m out from the wall (cached). */
+  private shallow(geo: THREE.BufferGeometry) {
+    let g = this.shallowGeo.get(geo);
+    if (g) return g;
+    const src = geo.index ? geo.toNonIndexed() : geo;
+    const p = src.attributes.position;
+    const keep: number[] = [];
+    for (let t = 0; t < p.count; t += 3) if (Math.max(p.getZ(t), p.getZ(t + 1), p.getZ(t + 2)) <= 0.26) keep.push(t, t + 1, t + 2);
+    g = new THREE.BufferGeometry();
+    for (const [name, a] of Object.entries(src.attributes)) {
+      const at = a as THREE.BufferAttribute, out = new Float32Array(keep.length * at.itemSize);
+      keep.forEach((v, i) => { for (let k = 0; k < at.itemSize; k++) out[i * at.itemSize + k] = at.array[v * at.itemSize + k]; });
+      g.setAttribute(name, new THREE.BufferAttribute(out, at.itemSize));
+    }
+    if (src !== geo) src.dispose();
+    this.shallowGeo.set(geo, g);
+    return g;
+  }
+
   lay(kind: StoreKind, base: THREE.Vector3, ry: number, h: number, awning: boolean) {
     if (!this.kit) return false;
     const key = hash(base.x, base.y, base.z);
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry);
+    // Something standing in front of it (on the street level): the front laid shallow, no awning.
+    const out = new THREE.Vector3(0, 0, 1).applyQuaternion(q), side = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+    const flat = base.y < 1 && this.keepOut.some(([x, z]) => {
+      const d = new THREE.Vector3(x - base.x, 0, z - base.z);
+      return d.dot(out) > -0.1 && d.dot(out) < 1.2 && Math.abs(d.dot(side)) < 2.1;
+    });
+    if (flat) {
+      awning = false;
+      this.stats.shallow++;
+    }
     const sy = h / 3.8;
     const M = new THREE.Matrix4().compose(base, q, new THREE.Vector3(1, sy, 1));
     // The room behind the glass (a shutter has none: its curtain covers the slot).
@@ -109,7 +146,8 @@ export class Storefronts {
     }
     const trade: SignTrade = kind === 'shutter' ? 'closed' : kind === 'door' ? 'building' : room!;
     const n = (this.handed[trade] = (this.handed[trade] ?? -1) + 1) + (key % 3);
-    for (const p of this.kit[NODE[kind]]) {
+    for (const p0 of this.kit[NODE[kind]]) {
+      const p = flat ? { geo: this.shallow(p0.geo), role: p0.role } : p0;
       let geo = p.geo, mat: THREE.Material | undefined = this.mats[p.role];
       if (p.role === 'signface') {
         geo = planarInto(p.geo, signCell(trade, n));
@@ -128,7 +166,7 @@ export class Storefronts {
         geo = planarInto(p.geo, [c / 3, 0, (c + 1) / 3, 1]);
         mat = this.shutter;
       }
-      if (!mat) continue;
+      if (!mat || !geo.attributes.position.count) continue;
       this.b.addMatrix(geo, mat, M);
       if (geo !== p.geo) geo.dispose();
     }
