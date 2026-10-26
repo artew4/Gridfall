@@ -3232,9 +3232,22 @@ The ask: finish the Favelas and the wreckage (left out of 75.0).
 - In the game: the street's Beetle and Kombi, the stall, a roof tank, doors and grilles, a dish, the tin roofs and rebar, the jungle's burnt car. Crash Site's tail is hard to make out in the screenshots (mist and vines).
 - Performance: the GPU still throttled (Favelas ~100–130 ms a frame either way, ±25% between runs), so A/B only: without the kit 130.1/130.0 ms, with 141.2/115.5 ms (grilles cut from 60% of windows and out of the shadow pass after an earlier +11%): within the noise.
 
+## 77.0: the helicopter's tail, made out from the clearing
+
+Branch `feature/env-heli-77.0`, from `feature/env-ruin-76.0` @ `9dd8a64` (64.0–76.0, not merged yet).
+
+The ask: make Crash Site's helicopter tail (76.0) easier to see (it hung 9 m into the forest, 15–24 m up, olive, behind the vines).
+
+- The tree: the lowest of the four slim trees nearest the clearing (south), on the forest's edge; the tail at 1.35 (a heavy helicopter's 8.4 m boom), its torn root at the trunk under the crown, hanging steeply (0.95 rad) out over the clearing, its fin's top 7 m over the ground at the least (out of any reach).
+- `props_ruin.py`: five red and white bands round the boom by the fin, the fin striped both sides, a beacon housing on its top (role `red`); painted pale grey.
+- A blinking red beacon on the fin: the lens and its halo, no light (the map's lights stay as they were). `beacon(x, y, z, lit)`.
+- `Dresser.local(kind, p)`: where `place` puts a model's own point (its base centre goes to the origin): the root and the fin's top placed by them (the beacon had floated 1.5 m off the fin).
+- The rotor blade on the ground under the fin.
+- Tests 607 (+2, `heli77.test.ts`); Crash Site's world check clean; in the game: seen from the lab's deck and the clearing. Performance not measured: 240 triangles more, no light.
+
 ## Next
 Human playtest:
-- 76.0 items: Favelas' street (Beetles, Kombi, stalls), tanks, doors, grilles, dishes, tin roofs, rebar; the jungle's burnt car; Crash Site's helicopter tail (visible enough?); Favelas' frame rate on an unthrottled GPU.
+- 76.0 items: Favelas' street (Beetles, Kombi, stalls), tanks, doors, grilles, dishes, tin roofs, rebar; the jungle's burnt car; Crash Site's helicopter tail (77.0: moved to the forest's edge, banded, its beacon); Favelas' frame rate on an unthrottled GPU.
 - 75.0 items: Deep Jungle's and Crash Site's plants and trees, the Desert's boulders; the fight frame rate on mains power.
 - 74.0 items: Maglev's planters, kiosks, ticket machines, gates, benches, trolleys, carts and the train's doors; then the word for step 8 (nature and ruin).
 - 73.0 items: the cranes on Neon Docks and Old Port, the handrails (do they still read as a wall you can't shoot through), the racks, the bitts; then the word for step 7 (Maglev's corporate kit).

@@ -29,7 +29,7 @@ const bounds = (name: string) => {
 describe('76.0: the ruin kit', () => {
   it('its pieces, in roles the maps paint, in budget', () => {
     expect(Object.keys(g.nodes).sort()).toEqual(['fdish', 'fdoor', 'fgrille', 'fstall', 'ftank', 'fusca', 'heli_blade', 'heli_tail', 'kombi', 'panel', 'rebar', 'zinc']);
-    const roles = ['plastic', 'paint', 'metal', 'rust', 'glass', 'chrome', 'rubber', 'dark', 'light', 'white', 'wood', 'canvas', 'fruit'];
+    const roles = ['plastic', 'paint', 'metal', 'rust', 'glass', 'chrome', 'rubber', 'dark', 'light', 'white', 'wood', 'canvas', 'fruit', 'red'];
     for (const parts of Object.values(g.nodes)) for (const p of parts) expect(roles).toContain(p.role);
     expect(g.tris).toBeLessThan(20000);
   });

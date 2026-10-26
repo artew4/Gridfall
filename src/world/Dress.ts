@@ -354,6 +354,13 @@ export class Dresser {
     return ok;
   }
 
+  /** 77.0: where `place` puts a point of the model as authored (its base centre goes to the origin). */
+  local(kind: string, p: THREE.Vector3) {
+    const n = this.nodes.get(kind);
+    if (!n) return null;
+    return p.clone().sub(new THREE.Vector3(n.min.x + n.size.x / 2, n.min.y, ON_WALL.has(kind) ? n.min.z : n.min.z + n.size.z / 2));
+  }
+
   /** 71.0: a model's size as authored (frames are stretched to their openings by it). */
   size(kind: string) {
     return this.nodes.get(kind)?.size ?? null;

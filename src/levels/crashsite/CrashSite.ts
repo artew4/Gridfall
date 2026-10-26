@@ -472,15 +472,17 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     g0.dispose();
     glows.add({ pos: v(0, R0 - 0.1, 3), color: new THREE.Color(0.8, 0.92, 1), radius: 5, base: 1, light, lightBase: 20, haloSize: 1, haloStrength: 0.2, mode: 'steady' });
   }
-  const beacon = (x: number, y: number, z: number) => {
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), m.red);
+  /** A blinking red beacon (77.0: `lit` false: its lens and halo only, no light: the helicopter's tail). */
+  const beacon = (x: number, y: number, z: number, lit = true) => {
+    const mat = lit ? m.red : m.red.clone();
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), mat);
     mesh.position.set(x, y, z);
     scene.add(mesh);
-    const light = new THREE.PointLight(0xff3020, 6, 9, 2);
-    light.position.set(x, y + 0.2, z);
-    scene.add(light);
-    const g = glows.add({ pos: v(x, y, z), color: new THREE.Color(1, 0.15, 0.1), radius: 4, base: 1, light, lightBase: 6, haloSize: 0.9, haloStrength: 0.4, mode: 'blink' });
-    g.materials.push({ mat: m.red, base: m.red.color.clone() });
+    const light = lit ? new THREE.PointLight(0xff3020, 6, 9, 2) : undefined;
+    light?.position.set(x, y + 0.2, z);
+    if (light) scene.add(light);
+    const g = glows.add({ pos: v(x, y, z), color: new THREE.Color(1, 0.15, 0.1), radius: 4, base: 1, light, lightBase: 6, haloSize: lit ? 0.9 : 1.3, haloStrength: lit ? 0.4 : 0.6, mode: 'blink' });
+    g.materials.push({ mat, base: mat.color.clone() });
   };
   beacon(O.mast.x, O.mast.top + 0.2, O.mast.z);
   // Under the deck (its ground floor lies in the deck's static shadow): strips on the deck's underside.
@@ -642,25 +644,39 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
   });
 
   // 76.0: what came down (props_ruin.py), seen only: a helicopter's tail boom caught in a slim tree's
-  // crown (its fin 10 m up and more: out of any reach), a rotor blade and torn skin lying on the ground
-  // under it and about the forest (under 0.2 m: walked over). Its own seed: the map's stream unchanged.
+  // crown (out of any reach), a rotor blade and torn skin lying on the ground under it and about the
+  // forest (under 0.2 m: walked over). Its own seed: the map's stream unchanged.
+  // 77.0: seen from the clearing: the tree on the forest's edge, the boom hanging lower and steeper over
+  // the clearing, pale paint with red and white bands, its anti-collision beacon still blinking.
   if (dress) {
     const wr = mulberry32(76);
-    const olive = std(null, 0x6b7360, 0.55, 0.35, 0.5);
-    const over = { paint: olive, rust: m.scorch, white: std(null, 0xd8d6cc, 0.6), metal: m.steel, dark: m.hullDark };
-    // The lowest of the six slim trees nearest the clearing's south edge: the tail in its crown's underside.
-    const slims = trees.filter((t) => !t.giant && t.z > 0).sort((a, b) => Math.hypot(a.x, a.z - 30) - Math.hypot(b.x, b.z - 30));
-    const t = slims.slice(0, 6).sort((a, b) => a.h - b.h)[0];
+    const pale = std(null, 0xb4b8ae, 0.5, 0.3, 0.6);
+    const over = { paint: pale, rust: m.scorch, white: std(null, 0xe8e6de, 0.55), red: std(null, 0xb3241c, 0.5, 0.1, 0.5), metal: m.steel, dark: m.hullDark };
+    // The lowest of the four slim trees nearest the clearing (south): the tail in its crown's underside.
+    const edge = (t: TreeInfo) => Math.hypot(t.x / 1.3, t.z);
+    const slims = trees.filter((t) => !t.giant && t.z > 0).sort((a, b) => edge(a) - edge(b));
+    const t = slims.slice(0, 4).sort((a, b) => a.h - b.h)[0];
     if (t) {
-      const top = t.y + t.h - 3;
-      const yaw = Math.atan2(-t.x, -t.z), pitch = 0.6;
-      // Its torn root in the crown, the boom hanging out towards the clearing.
-      const at = new THREE.Matrix4().compose(new THREE.Vector3(t.x, top, t.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(-pitch, yaw + Math.PI, 0.3, 'YXZ')), new THREE.Vector3(1, 1, 1));
+      // A heavy helicopter's (the model at 1.35: an 8.4 m boom). Its torn root under the crown, the boom
+      // hanging steeply out towards the clearing, its fin 7 m over the ground at the least.
+      const K = 1.35, yaw = Math.atan2(-t.x, -t.z), pitch = 0.95;
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-pitch, yaw + Math.PI, 0.3, 'YXZ'));
+      // (The model as placed: its torn root and its fin's top, from its base centre.)
+      const root = dress.local('heli_tail', new THREE.Vector3(0, 0, 0))!.multiplyScalar(K);
+      const finTop = dress.local('heli_tail', new THREE.Vector3(0, 2.0, -6.28))!.multiplyScalar(K);
+      const reach = finTop.clone().sub(root).applyQuaternion(q);
+      const finX = t.x + reach.x, finZ = t.z + reach.z;
+      const top = Math.max(t.y + t.h - 6, crashSurface(finX, finZ) + 7 - reach.y);
+      // The root at the tree's axis under its crown: the origin where it puts the root there.
+      const pos = new THREE.Vector3(t.x, top, t.z).sub(root.clone().applyQuaternion(q));
+      const at = new THREE.Matrix4().compose(pos, q, new THREE.Vector3(K, K, K));
       dress.place('heli_tail', at, over);
-      dress.stats.at.heli_tail = [[+t.x.toFixed(1), +top.toFixed(1), +t.z.toFixed(1)]];
+      const fin = new THREE.Vector3(t.x, top, t.z).add(reach);
+      beacon(fin.x, fin.y + 0.05, fin.z, false);
+      dress.stats.at.heli_tail = [[+t.x.toFixed(1), +top.toFixed(1), +t.z.toFixed(1)], [+fin.x.toFixed(1), +fin.y.toFixed(1), +fin.z.toFixed(1)]];
       const ground = (x: number, z: number, a: number) => new THREE.Matrix4().compose(new THREE.Vector3(x, crashSurface(x, z) - 0.02, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a), new THREE.Vector3(1, 1, 1));
       // The blade where the boom points, under its fin.
-      dress.place('heli_blade', ground(t.x + Math.sin(yaw) * 4.5, t.z + Math.cos(yaw) * 4.5, yaw + 0.8), over);
+      dress.place('heli_blade', ground(finX + Math.sin(yaw) * 1.5, finZ + Math.cos(yaw) * 1.5, yaw + 0.8), over);
     }
     for (let i = 0, made = 0; i < 200 && made < 14; i++) {
       const x = (wr() * 2 - 1) * (X_OUT - 4), z = (wr() * 2 - 1) * (COURT - 2);

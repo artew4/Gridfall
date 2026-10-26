@@ -45,7 +45,7 @@ The main menu (redesigned in 45.0) is big type and one word a button: **PLAY**, 
 
 ## Gunplay
 
-- **Favelas and wreckage modelled (76.0):** Fortlev water tanks on the roofs, stamped steel doors, white iron window grilles with their sunbursts, corrugated tin over the towers, rebar waiting on the bare-block houses, satellite dishes, Beetles and a Kombi in the street, fruit stalls under striped awnings; a burnt car at the jungle's checkpoint, and at Crash Site a helicopter's tail caught in a crown, its rotor blade and torn skin on the forest floor.
+- **Favelas and wreckage modelled (76.0):** Fortlev water tanks on the roofs, stamped steel doors, white iron window grilles with their sunbursts, corrugated tin over the towers, rebar waiting on the bare-block houses, satellite dishes, Beetles and a Kombi in the street, fruit stalls under striped awnings; a burnt car at the jungle's checkpoint, and at Crash Site a helicopter's tail caught in a crown at the forest's edge (77.0: red and white bands, its beacon blinking over the clearing), its rotor blade and torn skin on the forest floor.
 - **Nature modelled (75.0):** the jungle's bushes, ferns, elephant-ear plants and tree crowns, giant trunks on winding buttress roots and slim trunks (Deep Jungle, Crash Site), and the Desert's boulders as layered sandstone, each inside the collider it dresses.
 - **Maglev Terminal furnished (74.0):** gloss planters with ferns and shrubs, kiosk pods with their canopies and screens, rows of ticket machines, ticket gates on the apron lines, moulded benches, luggage trolleys stacked with cases, maintenance carts in the guideway beds, and the train's doors in steel surrounds with their status strips.
 - **The ports' industry, modelled (73.0):** the ship-to-shore cranes on Neon Docks and Old Port are box-section legs on their wheel bogies, box girders with walkways and handrails, a machinery house and a trolley; the catwalks' handrails are steel panels with posts and top tubes; the warehouse racks have their upright frames and step beams; mooring bitts line Old Port's quay.
@@ -142,7 +142,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **605 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **607 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;

@@ -33,7 +33,7 @@ import gunlib as L  # noqa: E402
 from gunlib import box_raw, cut_many, cyl_raw, front_raw, prism_raw, seg_raw, sphere_raw, tube_between  # noqa: E402
 from mathutils import Matrix, Vector  # noqa: E402
 
-ROLES = ("plastic", "paint", "metal", "rust", "glass", "chrome", "rubber", "dark", "light", "white", "wood", "canvas", "fruit")
+ROLES = ("plastic", "paint", "metal", "rust", "glass", "chrome", "rubber", "dark", "light", "white", "wood", "canvas", "fruit", "red")
 NODES = ("ftank", "fdoor", "fgrille", "zinc", "rebar", "fdish", "fusca", "kombi", "fstall", "heli_tail", "heli_blade", "panel")
 L.PREVIEW["ruin"] = {
     "plastic": ((0.12, 0.3, 0.6), 0.0, 0.5),
@@ -49,6 +49,7 @@ L.PREVIEW["ruin"] = {
     "wood": ((0.45, 0.3, 0.18), 0.0, 0.85),
     "canvas": ((0.15, 0.45, 0.25), 0.0, 0.9),
     "fruit": ((0.85, 0.45, 0.05), 0.0, 0.6),
+    "red": ((0.7, 0.06, 0.04), 0.1, 0.5),
 }
 
 
@@ -305,9 +306,26 @@ def heli_tail(g):
         bl = box_raw(0.03, 1.4, 0.16, 0.36, 1.55, -6.25)
         xform(bl, Matrix.Translation((0.36, 1.55, -6.25)) @ Matrix.Rotation(a, 4, "X") @ Matrix.Translation((-0.36, -1.55, 6.25)) @ Matrix.Translation((0, 0.7, 0)))
         g.add(bl, "dark", n, bev=0)
-    # Stencils' panels: a white band and a red tip.
-    g.add(L.torus_raw(0.37, 0.012, 0, 0.19, -3.0, seg=16, ring=4), "white", n, bev=0)
-    xform(g.parts[-1][0], Matrix.Translation((0, 0.19, -3.0)) @ Matrix.Rotation(0.056, 4, "X") @ Matrix.Translation((0, -0.19, 3.0)))
+    # 77.0: seen from the clearing: red and white bands round the boom by the fin, the fin striped both
+    # sides, the anti-collision beacon's housing on its top (the map lights it).
+    def boom(z):
+        u = -z / 6.2
+        return (0, 0.35 * u, z), 0.5 + (0.2 - 0.5) * u + 0.012
+
+    for i in range(5):
+        z0, z1 = -3.6 - i * 0.4, -4.0 - i * 0.4
+        (p0, r0), (p1, r1) = boom(z0), boom(z1)
+        g.add(tube_between(p0, p1, r0, r1, seg=16), "red" if i % 2 == 0 else "white", n, bev=0)
+    for s in (-1, 1):
+        for i, (y0, y1) in enumerate(((0.45, 0.75), (0.75, 1.05), (1.05, 1.35), (1.35, 1.65))):
+            # The fin's outline between those heights (its leading edge leans aft), a skin thick.
+            def edge(y, a, b):
+                t = (y - a[1]) / (b[1] - a[1])
+                return a[0] + (b[0] - a[0]) * t
+            zf0, zf1 = edge(y0, (-5.6, 0.35), (-6.0, 1.8)), edge(y1, (-5.6, 0.35), (-6.0, 1.8))
+            zb0, zb1 = edge(y0, (-6.45, 0.3), (-6.55, 1.85)), edge(y1, (-6.45, 0.3), (-6.55, 1.85))
+            g.add(prism_raw([(zf0 - 0.02, y0), (zf1 - 0.02, y1), (zb1 + 0.02, y1), (zb0 + 0.02, y0)], s * 0.04, s * 0.05), "red" if i % 2 == 0 else "white", n, bev=0)
+    g.add(cyl_raw(0.07, 0.1, 0, 1.9, -6.28, seg=10, axis="y"), "dark", n, bev=0)
 
 
 def heli_blade(g):
