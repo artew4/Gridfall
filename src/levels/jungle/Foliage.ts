@@ -4,6 +4,7 @@ import { mulberry32 } from '../../core/math';
 import { JUNGLE_EXTENT, STRIP, baseDist, jungleHeight, noise } from './Terrain';
 import type { Interior, TreeInfo } from './Base';
 import { mistTexture } from './textures';
+import { plant } from '../../world/Nature';
 
 /*
   The undergrowth, canopy and mist. Every plant is opaque, low-poly geometry drawn with
@@ -306,13 +307,20 @@ export function buildFoliage(
       bushPts.push({ p: new THREE.Vector3(x, H(x, z), z), s: 1.3 + rnd() * 1.1, yaw: rnd() * 6.28, color: tint(0.24 + rnd() * 0.06, 0.5, 0.16 + rnd() * 0.08) });
     }
   }
-  const bushGeo = bushGeometry(rnd);
+  // 75.0: the Blender plants (props_nature.py), fitted to the bounds of the primitives they replace.
+  const model = (name: 'bush' | 'fern' | 'bigleaf' | 'crown', like: THREE.BufferGeometry) => {
+    const g = plant(name, like);
+    if (!g) return like;
+    like.dispose();
+    return g;
+  };
+  const bushGeo = model('bush', bushGeometry(rnd));
   instanced('bushes', bushGeo, leafMat(0.05), bushPts, true);
 
   // ------------------------------------------------------------------ ferns
   const fernPts = scatter(Math.round(1500 * q), STRIP - 3, (x, z) => rnd() < 0.25 + density(x, z) * 0.75 && !blockedSpot(x, z, 0.2))
     .map((p) => ({ p, s: 0.7 + rnd() * 0.9, yaw: rnd() * 6.28, color: tint(0.25 + rnd() * 0.06, 0.55, 0.22 + rnd() * 0.1) }));
-  instanced('ferns', fernGeometry(), leafMat(0.12, THREE.DoubleSide), fernPts, false);
+  instanced('ferns', model('fern', fernGeometry()), leafMat(0.12, THREE.DoubleSide), fernPts, false);
 
   // ------------------------------------------------------------------ sedge
   const grassPts = scatter(Math.round(2600 * q), STRIP - 4, (x, z) => rnd() < 0.5 + density(x, z) * 0.5 && !blockedSpot(x, z, 0.1))
@@ -322,7 +330,7 @@ export function buildFoliage(
   // ------------------------------------------------------------------ big-leaf plants
   const bigPts = scatter(Math.round(380 * q * P.bigleafN), STRIP, (x, z) => rnd() < density(x, z) && !blockedSpot(x, z, 0.5))
     .map((p) => ({ p, s: span(P.bigleaf), yaw: rnd() * 6.28, color: tint(0.27 + rnd() * 0.05, 0.5, 0.2 + rnd() * 0.08) }));
-  instanced('bigleaf', bigLeafGeometry(), leafMat(0.08, THREE.DoubleSide), bigPts, true);
+  instanced('bigleaf', model('bigleaf', bigLeafGeometry()), leafMat(0.08, THREE.DoubleSide), bigPts, true);
 
   // ------------------------------------------------------------------ crowns of the slim trees
   const crownGeo = new THREE.IcosahedronGeometry(1, 1);
@@ -334,8 +342,9 @@ export function buildFoliage(
     }
     crownGeo.computeVertexNormals();
   }
+  const crownModel = model('crown', crownGeo);
   const crownPts = trees.filter((t) => !t.giant).map((t) => ({ p: new THREE.Vector3(t.x, t.y + t.h - 0.5, t.z), s: 3 + rnd() * 2.5, yaw: rnd() * 6.28, color: tint(0.25, 0.45, 0.14 + rnd() * 0.06) }));
-  instanced('crowns', crownGeo, leafMat(0.02), crownPts, false);
+  instanced('crowns', crownModel, leafMat(0.02), crownPts, false);
 
   // ------------------------------------------------------------------ high canopy
   // A roof of dark foliage masses high above (30–44 m), fading into the mist. Not a shadow caster:
@@ -347,7 +356,7 @@ export function buildFoliage(
     if (!site.canopyOk(x, z)) continue;
     canopyPts.push({ p: new THREE.Vector3(x, 34 + rnd() * 10, z), s: 8 + rnd() * 8, yaw: rnd() * 6.28, color: tint(0.26, 0.4, 0.08 + rnd() * 0.05) });
   }
-  instanced('canopy', crownGeo, leafMat(0.006), canopyPts, false);
+  instanced('canopy', crownModel, leafMat(0.006), canopyPts, false);
 
   // ------------------------------------------------------------------ vines
   const vineGeo = new THREE.CylinderGeometry(0.035, 0.05, 1, 5, 1, true);

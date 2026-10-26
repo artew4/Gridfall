@@ -7,6 +7,7 @@ import { fitStairWidth } from '../../world/StairFit';
 import * as T from '../jungle/textures';
 import { Dresser, militaryMats } from '../../world/Dress';
 import { propKits } from '../../entities/weapons/models';
+import { trunk } from '../../world/Nature';
 import { hescoTexture, sandbagTexture } from '../desert/textures';
 import type { TreeInfo } from '../jungle/Base';
 import type { FoliageSite } from '../jungle/Foliage';
@@ -593,9 +594,14 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     const gMin = Math.min(...ys), gMax = Math.max(...ys);
     const y0 = gMin - 0.4;
     const h = 42 + rnd() * 10;
-    b.add(new THREE.CylinderGeometry(r * 0.62, r, h, 12), rnd() < 0.3 ? m.barkPale : m.bark, x, y0 + h / 2, z, 0, rnd() * Math.PI, 0);
-    // A flared base (the buttresses, simplified to a cone inside the flare collider).
-    b.add(new THREE.CylinderGeometry(r * 1.05, R * 0.98, gMax - y0 + 1.4, 10), m.bark, x, y0 + (gMax - y0 + 1.4) / 2, z);
+    // 75.0: the Blender trunk and buttress roots (props_nature.py) inside the same cylinders, if loaded.
+    const bole = trunk('trunk', r, h);
+    const pale = rnd() < 0.3, turn = rnd() * Math.PI;
+    b.add(bole ?? new THREE.CylinderGeometry(r * 0.62, r, h, 12), pale ? m.barkPale : m.bark, x, bole ? y0 : y0 + h / 2, z, 0, turn, 0);
+    // A flared base (the buttresses; without the kit, a cone inside the flare collider).
+    const flare = trunk('buttress', R * 0.98, gMax - y0 + 1.4);
+    if (flare) b.add(flare, m.bark, x, y0, z, 0, turn * 2.3, 0);
+    else b.add(new THREE.CylinderGeometry(r * 1.05, R * 0.98, gMax - y0 + 1.4, 10), m.bark, x, y0 + (gMax - y0 + 1.4) / 2, z);
     col.addCylinder(x, z, R, y0, gMax + 1.1, 'wood');
     col.addCylinder(x, z, r, y0, y0 + h, 'wood');
     taken.push([x, z, R]);
@@ -604,7 +610,8 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
   const slim = (x: number, z: number, r: number) => {
     const y0 = crashSurface(x, z) - 0.3;
     const h = 16 + rnd() * 10;
-    b.add(new THREE.CylinderGeometry(r * 0.7, r * 1.08, h, 8), m.barkPale, x, y0 + h / 2, z, 0, rnd() * Math.PI, 0);
+    const bole = trunk('slim', r * 1.08, h);
+    b.add(bole ?? new THREE.CylinderGeometry(r * 0.7, r * 1.08, h, 8), m.barkPale, x, bole ? y0 : y0 + h / 2, z, 0, rnd() * Math.PI, 0);
     col.addCylinder(x, z, r * 1.08, y0, y0 + h, 'wood');
     taken.push([x, z, r * 1.08]);
     trees.push({ x, z, r, flare: r * 1.08, y: y0 + 0.3, h, giant: false });

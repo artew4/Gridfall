@@ -10,6 +10,7 @@ import { BASE, CLIFF, CLIFF_RECESS, JUNGLE_EXTENT, ROAD, STRIP, TDM_YARD, baseDi
 import * as T from './textures';
 import { Dresser, militaryMats } from '../../world/Dress';
 import { propKits } from '../../entities/weapons/models';
+import { trunk } from '../../world/Nature';
 import { crateTexture, hescoTexture, rubberTexture, sandbagTexture, stencilTexture } from '../desert/textures';
 
 /*
@@ -820,12 +821,17 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     const gMin = Math.min(...ys), gMax = Math.max(...ys);
     const y0 = gMin - 0.4;
     const h = 46 + rnd() * 10;
-    b.add(new THREE.CylinderGeometry(r * 0.62, r, h, 12), rnd() < 0.3 ? m.barkPale : m.bark, x, y0 + h / 2, z, 0, rnd() * Math.PI, 0);
+    // 75.0: the Blender trunk and root flare (props_nature.py) inside the same cylinders, if loaded.
+    const bole = trunk('trunk', r, h);
+    b.add(bole ?? new THREE.CylinderGeometry(r * 0.62, r, h, 12), rnd() < 0.3 ? m.barkPale : m.bark, x, bole ? y0 : y0 + h / 2, z, 0, rnd() * Math.PI, 0);
     const n = 6 + Math.floor(rnd() * 3);
     const a0 = rnd() * Math.PI * 2;
     const Hr = gMax - y0 + 1.2 + r * 1.6;
+    const flare = trunk('buttress', R - (gMax - gMin) * 0.2, Hr + 0.4);
+    if (flare) b.add(flare, m.bark, x, gMin - 0.4, z, 0, a0, 0);
     for (let k = 0; k < n; k++) {
       const a = a0 + (k / n) * Math.PI * 2 + (rnd() - 0.5) * 0.3;
+      if (flare) continue;
       const g = rootShape(r, R - (gMax - gMin) * 0.2, Hr);
       b.add(g, m.bark, x, gMin, z, 0, -a, 0);
       g.dispose();
@@ -846,7 +852,8 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   const slim = (x: number, z: number, r: number) => {
     const y0 = jungleHeight(x, z) - 0.3;
     const h = 16 + rnd() * 10;
-    b.add(new THREE.CylinderGeometry(r * 0.7, r * 1.08, h, 8), m.barkPale, x, y0 + h / 2, z, 0, rnd() * Math.PI, 0);
+    const bole = trunk('slim', r * 1.08, h);
+    b.add(bole ?? new THREE.CylinderGeometry(r * 0.7, r * 1.08, h, 8), m.barkPale, x, bole ? y0 : y0 + h / 2, z, 0, rnd() * Math.PI, 0);
     col.addCylinder(x, z, r * 1.08, y0, y0 + h, 'wood');
     taken.push([x, z, r * 1.08]);
     trees.push({ x, z, r, flare: r * 1.08, y: y0 + 0.3, h, giant: false });

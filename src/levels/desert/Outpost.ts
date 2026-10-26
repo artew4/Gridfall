@@ -12,6 +12,7 @@ import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import { CISTERN, CLIFF, CLIFF_RECESS, CULVERT, DESERT_EXTENT, desertHeight, underFloor, underOpen } from './Terrain';
 import * as T from './textures';
 import { buildArena, type ArenaResult } from './Arena';
+import { rock } from '../../world/Nature';
 import { arenaKeepOut, inRuins } from './ArenaLayout';
 
 /*
@@ -412,8 +413,14 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
       p.setXYZ(i, x * k, y - (top ? rnd() * h * 0.18 + (x / r) * h * 0.08 : 0), z * k);
     }
     g.computeVertexNormals();
-    return g;
+    // 75.0: a sandstone boulder (props_nature.py) in the same cylinder, if the kit is loaded (the
+    // prism is still made: the seed stream the rest of the map is laid out from stays the same).
+    const model = rock(r, h, boulders++);
+    if (!model) return g;
+    g.dispose();
+    return model;
   };
+  let boulders = 0;
 
   // ======================================================================= Buildings
   // Barracks: two rooms (partition at x = -18 with a doorway), three outside doors, windows.

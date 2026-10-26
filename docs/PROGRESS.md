@@ -3185,8 +3185,32 @@ The ask: step 7 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
 - In the game: the mid-field kiosk, the gates, a train door, the café kiosk, a luggage trolley, a planter.
 - Performance (the Maglev fight): 60 fps, GPU p50 4.4–5.2 ms.
 
+## 75.0: the environment in Blender, step 8: nature
+
+Branch `feature/env-nature-75.0`, from `feature/env-maglev-74.0` @ `9f569a8` (64.0–74.0, not merged yet).
+
+The ask: step 8 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
+
+### The kit (`tools/blender/props_nature.py`, `public/models/props/nature.glb`, 4.1k triangles)
+- Plants (role `leaf`, coloured per instance as before): `bush` (ten small leaf masses in a mound, leaf tips breaking its outline), `fern` (seven arching fronds, each one serrated strip: thousands are drawn), `bigleaf` (an elephant ear: curved blades with a midrib fold on stalks), `crown` (clumped leaf masses: the slim trees' crowns and the high canopy).
+- Trunks (role `bark`): `trunk` (a giant's bole: bark ridges, tapering), `buttress` (seven plank roots winding out round the trunk's foot), `slim` (rings, knots, a lean).
+- Rocks (role `rock`): `rock_a/b/c`, sandstone boulders in strata (each a ledge in from the one under it), cracks, a tilted, weathered top.
+
+### In the maps (`src/world/Nature.ts`)
+- `plant(node, like)`: the model fitted to the bounds of the primitive it replaces: `Foliage.ts`'s bushes, ferns, big-leaf plants, crowns and canopy keep their counts, scales, colours and sway (Deep Jungle, Crash Site).
+- `trunk(node, r, h)`: inside the collider's cylinder (its widest ring scaled to r), UVs round and up it as the cylinder's were, normals smoothed under 60°. Deep Jungle: giant boles and their root flares (were extruded plates), slim trunks; Crash Site: the same (its flare was a cone).
+- `rock(r, h, seed)`: the Desert's `boulder()` (the ruins, the cliff talus, the arena's rocks and outcrops), box-mapped UVs; the prism is still made so the map's seed stream is unchanged.
+- No kit loaded: every map draws its primitives as before. Colliders unchanged.
+- Not done from the plan's row: Favelas (shacks, tanks), wreckage and palms beyond the Desert's (71.0).
+
+### Checks
+- Tests 598 (+6, `nature75.test.ts`: the kit's nodes, roles, budget; the undergrowth light; trunks, flares and rocks never past their cylinders; a trunk fills its collider; a plant takes the bounds it replaces; trunk UVs without seam smear).
+- In the game: Deep Jungle's undergrowth and giants, Crash Site's ferns, the Desert's boulders by the dune field.
+- Performance: measured on battery with the GPU throttled (every map ~50× its usual times), so only as A/B: Desert GPU p50 350.6 ms without the kit, 329.0 with; Deep Jungle 147.1 without, 146.4 with: no cost.
+
 ## Next
 Human playtest:
+- 75.0 items: Deep Jungle's and Crash Site's plants and trees, the Desert's boulders; the fight frame rate on mains power.
 - 74.0 items: Maglev's planters, kiosks, ticket machines, gates, benches, trolleys, carts and the train's doors; then the word for step 8 (nature and ruin).
 - 73.0 items: the cranes on Neon Docks and Old Port, the handrails (do they still read as a wall you can't shoot through), the racks, the bitts; then the word for step 7 (Maglev's corporate kit).
 - 72.0 items: Neon Block's machines, AC units, bins, bags, planters and lanterns; Tokyo's street furniture, poles, the ramen stall; the cabinets on every map; then the word for step 6 (the port's industry).
