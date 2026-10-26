@@ -11,6 +11,7 @@ import {
 import { Dresser, militaryMats } from '../../world/Dress';
 import { propKits } from '../../entities/weapons/models';
 import { fitted } from '../../world/Nature';
+import { applyWear } from '../../world/Wear';
 import { blockTexture, earthTexture, lajeTexture, plasterTexture, worldUv, zincTexture } from './textures';
 
 /*
@@ -103,6 +104,18 @@ export function buildFavela(scene: THREE.Scene, col: CollisionWorld): FavelaResu
     crate: std(null, 0x8a6a48, 0.9),
     facade: PASTELS.slice(0, 6).map((p) => worldUv(std(plasterTexture(), p, 0.93), 4)),
   };
+  // 79.0: worn (Wear.ts): the render streaked by the rain and patched, the doors and cars chipped,
+  // the tin rusting, the tanks faded.
+  for (const mat of [m.plaster, ...m.facade]) applyWear(mat, 'plaster');
+  applyWear(m.block, 'concrete');
+  applyWear(m.cement, 'concrete');
+  applyWear(m.door, 'paint');
+  applyWear(m.zinc, 'paint');
+  applyWear(m.tank, 'plastic');
+  applyWear(m.rail, 'metal');
+  applyWear(m.crate, 'wood');
+  applyWear(m.plank, 'wood');
+  for (const mat of m.car) applyWear(mat, 'paint', 0.7);
   const pastel = PASTELS.map((p) => new THREE.Color(p));
   const unit = () => new THREE.BoxGeometry(1, 1, 1);
   // 76.0: the Blender models (props_ruin.py) in the unit boxes and cylinders, if the kit is loaded.
@@ -112,6 +125,9 @@ export function buildFavela(scene: THREE.Scene, col: CollisionWorld): FavelaResu
     rebar: std(null, 0x6b4430, 0.85, 0.4, 0.3),
     dish: std(null, 0xd9d7cf, 0.45, 0.1, 0.6),
   };
+  applyWear(own.grille, 'paint');
+  applyWear(own.rebar, 'rust');
+  applyWear(own.dish, 'plastic');
   const B = {
     houses: new Batch('favelaHouses', unit(), m.plaster),
     bricks: new Batch('favelaBlockHouses', unit(), m.block),

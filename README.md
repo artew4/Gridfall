@@ -45,6 +45,7 @@ The main menu (redesigned in 45.0) is big type and one word a button: **PLAY**, 
 
 ## Gunplay
 
+- **Worn materials (79.0):** the models' flat colours weathered by role in world space: rust spots and chipped edges on paint, rain streaks down the sides, dust on the tops, faded plastic, scuffed wood; the Favelas' render streaked, patched and green at the foot, the tin and grilles rusting, the Beetles and Kombi chipped.
 - **Night Tokyo's storefronts (78.0):** every shop slot a modelled front over a room you see into through the glass (konbini fridges, drugstore and bookshop shelves, a wall of screens, a boutique, a cafe, an izakaya's menu strips, a ramen kitchen, building lobbies), its own lit sign, noren and paper lanterns on the izakaya, roll shutters with graffiti, entrances with mailboxes and lit tenant directories, striped awnings.
 - **Favelas and wreckage modelled (76.0):** Fortlev water tanks on the roofs, stamped steel doors, white iron window grilles with their sunbursts, corrugated tin over the towers, rebar waiting on the bare-block houses, satellite dishes, Beetles and a Kombi in the street, fruit stalls under striped awnings; a burnt car at the jungle's checkpoint, and at Crash Site a helicopter's tail caught in a crown at the forest's edge (77.0: red and white bands, its beacon blinking over the clearing), its rotor blade and torn skin on the forest floor.
 - **Nature modelled (75.0):** the jungle's bushes, ferns, elephant-ear plants and tree crowns, giant trunks on winding buttress roots and slim trunks (Deep Jungle, Crash Site), and the Desert's boulders as layered sandstone, each inside the collider it dresses.
@@ -143,7 +144,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **613 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **617 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;

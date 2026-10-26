@@ -4,6 +4,7 @@ import { propKits, type MercPart } from '../entities/weapons/models';
 import { ROOMS, interiorMaterial, roomUV, type Room } from './Interiors';
 import { awningTexture, directoryTexture, norenTexture, planarInto, shutterTexture, signCell, signs, type SignTrade } from './StoreSigns';
 import { woodTexture } from '../levels/desert/textures';
+import { applyWear, wearRoles } from './Wear';
 
 /*
   78.0, Night Tokyo's storefronts (docs/TOKYO_PLAN.md, step 1): every 4 m slot a block's face lists is
@@ -74,6 +75,10 @@ export class Storefronts {
     this.noren = std({ map: norenTexture(), roughness: 0.95, side: THREE.DoubleSide });
     this.shutter = std({ map: shutterTexture(), metalness: 0.55, roughness: 0.5, envMapIntensity: 0.9 });
     this.canvas = std({ map: awningTexture(), roughness: 0.9, side: THREE.DoubleSide });
+    // 79.0: worn (Wear.ts): the frames grimy, the wood scuffed, the shutters rusting at the edges.
+    wearRoles(this.mats);
+    applyWear(this.shutter, 'paint', 0.6);
+    applyWear(this.canvas, 'cloth', 0.7);
   }
 
   get ready() {

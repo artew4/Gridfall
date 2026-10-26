@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { StaticBuilder } from './Builder';
 import type { MercPart } from '../entities/weapons/models';
 import { canvasTexture, hescoTexture, rubberTexture, woodTexture } from '../levels/desert/textures';
+import { ROLE_WEAR, applyWear, wearRoles } from './Wear';
 
 /*
   68.0, the dresser (docs/ENVIRONMENT_PLAN.md): a map's prop boxes drawn as Blender models.
@@ -151,6 +152,9 @@ export class Dresser {
     for (const p of node.parts) {
       const mat = over?.[p.role] ?? this.mats[p.role];
       if (mat) {
+        // 79.0: worn by its role (a map's own material too, the first time a model is drawn in it).
+        const w = ROLE_WEAR[p.role];
+        if (w) applyWear(mat, w);
         this.used.add(mat);
         this.b.addMatrix(p.geo, mat, world);
       }
@@ -512,5 +516,7 @@ export function militaryMats(tint: Partial<Record<string, number>> = {}, own: Pa
   };
   // (Marked: the dresser frees those of them no prop used.)
   for (const m of Object.values(base)) m.userData.dressOwn = true;
+  // 79.0: worn by role (Wear.ts).
+  wearRoles(base);
   return { ...base, ...own } as Record<string, THREE.Material>;
 }

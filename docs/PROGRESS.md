@@ -3266,8 +3266,21 @@ The ask: materials and dirt for the models, and on Night Tokyo the standard-look
 - In the game: Lantern Street, the plaza's konbini and drugstore, the back alley's entrances and shutters, the walkway level's shops.
 - Performance (GPU throttled on battery: ~140 ms a frame either way, so A/B only): with the storefronts switched off in code 144.6 ms GPU p50, 190 draw calls; with them 139.8 ms, 209 calls: no cost. (A/B by taking the GLB out of the folder gave 361–406 calls without it against 169–189 with: something else changes with the file missing, so 75.0's and 76.0's A/Bs, made that way, are suspect; to look into.)
 
+## 79.0: Night Tokyo plan, step 2: materials for every kit
+
+Branch `feature/materials-79.0`, from `feature/tokyo-stores-78.0` @ `9a9dda6` (not merged yet).
+
+The ask: step 2 of [TOKYO_PLAN.md](TOKYO_PLAN.md): textures and dirt instead of flat colours (rust on containers, streaks on the Favelas' plaster, chipped paint on cars).
+
+- `Wear.ts`: `applyWear(material, wear, amount)` patches a standard material (once, chained after its own patches, its program keyed by the wear): a tiling noise (256², four channels: patches, fine, streaks, blotches) read triplanar in world space (no UVs needed, instancing included), and the surface's curvature (the normal's turn per metre: the Blender bevels) for the edges. Presets: paint (rust spots and edge rust, chips to bare metal, streaks down the sides, dust on tops, grime), metal, rust, plastic, wood, cloth, concrete, plaster (streaks, repainted patches, grey render on edges, algae at the foot), rubber.
+- Where: every kit's role materials (`militaryMats`: `wearRoles`), a map's own material the first time a model is drawn in it by a role (`Dresser.place`: containers' paint, the vehicles', the trucks' canvas…), Favelas (render, block, doors, tin, tanks, rails, crates, cars, grilles, rebar, dishes), the storefronts (frames, wood, signs' casings, tiles, shutters, awnings). Glass, chrome, lights, labels, leaves as they were.
+- Tuned twice on screenshots: first too strong (camouflage blotches on the cars and containers: 1.7 m noise, low curvature threshold), then too faint; now 0.9 m noise, rust in spots and on edges, edges from 10–30 /m.
+- Tests 617 (+4, `wear79.test.ts`: patched once, its shaders and key; chained after an existing patch; other materials and roles left alone; the noise tiles and spans its range).
+- Performance: the GPU throttled again (Desert 336–359 ms a frame, normally ~6), A/B by switching the wear off in code: Desert 335.9 → 358.6 ms (+7%), Favelas 143.8 → 131.6 ms (−8%): within the noise; to measure unthrottled.
+
 ## Next
 Human playtest:
+- 79.0 items: the wear on every map's props (too much, too little, anything that flickers or crawls at the edges as you move), the Favelas' render, the cars; the frame rate unthrottled; then the word for step 3 (Tokyo's facades).
 - 78.0 items: Night Tokyo's storefronts (the rooms behind the glass: convincing from the street and up close, too bright or dark; the signs; the izakaya fronts, shutters, entrances; anything you bump into that isn't solid); the frame rate on mains power; then the word for step 2 (materials).
 - 76.0 items: Favelas' street (Beetles, Kombi, stalls), tanks, doors, grilles, dishes, tin roofs, rebar; the jungle's burnt car; Crash Site's helicopter tail (77.0: moved to the forest's edge, banded, its beacon); Favelas' frame rate on an unthrottled GPU.
 - 75.0 items: Deep Jungle's and Crash Site's plants and trees, the Desert's boulders; the fight frame rate on mains power.
