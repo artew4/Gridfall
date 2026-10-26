@@ -109,9 +109,14 @@ export const ARENA = {
    * rifles against plasma unfair). Survival keeps its dodgeable rounds.
    */
   boltSpeed: 70,
-  /** Movement: sprint and run multipliers of the body's base speed, strafe share of the run. */
-  sprint: 1.5,
-  run: 1.2,
+  /**
+   * Movement: sprint and run multipliers of the body's base speed, strafe share of the run. 65.0: 1.5
+   * and 1.2 made a rifleman's sprint (3.3 m/s × 1.5 × 0.97 = 4.8) the human's walk (5 × 0.95 = 4.75)
+   * and its run 3.8: the human sprinting got to the middle first every match. Now 7.0 and 4.2 against
+   * his 7.4 and 4.75 (a pistol 8.1 against 8.4).
+   */
+  sprint: 2.2,
+  run: 1.3,
   strafe: 0.8,
   /** A strafe holds a direction this long (s) before it may flip. */
   flip: [0.35, 0.8] as [number, number],
@@ -403,6 +408,37 @@ export const ARENA = {
    * 20, bots dry a quarter of their time.)
    */
   stamina: { reserve: 50, floor: 30, pushFloor: 10, exposedR: 40, exposedFor: 1.5 },
+  /**
+   * 65.0: a bot whose goal has had no route for `noRoute` s, or that has stood `still` s with a goal
+   * more than 2.5 m off and nothing in sight, drops the goal and thinks again (DeathmatchAI.act).
+   */
+  watchdog: { on: true, noRoute: 1.5, still: 4 },
+  /**
+   * 65.0: on its way somewhere more than `far` m off (its lane's next waypoint, a patrol area, a contact out of sight) a
+   * bot sprints as the human does, on the breath it has over the reserve (Stamina: a rifle's pool is
+   * a 3.5 s sprint, so it runs in bursts); for the first `opening` s of a match down to the push's floor:
+   * both teams run for the middle.
+   */
+  rotate: { on: true, far: 8, opening: 25 },
+  /**
+   * 65.0, game plans: each team leans its bodies for a stretch of the match (`every` s, then another
+   * plan, never the same twice running): its sectors' weights (Tdm.sectorWeights, the fronts' fair
+   * share) × the plan's (three sectors; a map with another count plays balanced). The playtest: every
+   * match the crowd came the same way and he knew where from. `laneJitter`: a body's lane in its
+   * sector is the least crowded give or take this (in bodies per lane weight), not always the same one.
+   */
+  plans: {
+    on: true,
+    every: [80, 140] as [number, number],
+    laneJitter: 0.8,
+    list: [
+      { id: 'balanced', w: 0.6, mul: [1, 1, 1] },
+      { id: 'left', w: 1, mul: [1.8, 1, 0.55] },
+      { id: 'right', w: 1, mul: [0.55, 1, 1.8] },
+      { id: 'middle', w: 1, mul: [0.65, 2, 0.65] },
+      { id: 'flanks', w: 1, mul: [1.6, 0.45, 1.6] },
+    ] as { id: string; w: number; mul: number[] }[],
+  },
   // 54.0: off. The playtest: a team down to its last lives "goes stupid and moves as a crowd" (the
   // whole team crouched round its centre, never flanking). With the fronts and the objectives a bot has
   // a lane and a point to fight for: it fights on as it did with tickets.
@@ -547,6 +583,16 @@ export interface ArenaStats {
   jumpRepeat: Record<string, number>;
   /** 58.0: dives through windows. */
   windowDives: number;
+  /**
+   * 65.0: standing still with nothing in sight (s, all bots), and the stretches of it over 6 s (how
+   * long, its state, crouched, its role, where); when each team's first body reached the middle (s
+   * after the start); the sectors the opening dealt each team.
+   */
+  idle: { t: number; long: (number | string | boolean)[][]; replans: { noRoute: number; still: number } };
+  firstMid: { alpha: number | null; omega: number | null };
+  opening: { alpha: number[]; omega: number[] };
+  /** 65.0: the teams' plans as they were drawn: [time, team, plan]. */
+  plans: [number, string, string][];
   /** DEV: the first jumps in place (time, why, state, where). */
   jumpLog: [number, string, string, number, number, number][];
   /**
@@ -613,7 +659,7 @@ export interface ArenaStats {
   approaches: number;
   crowdFlanks: number;
   /** 30.0: seconds sprinting by reason, seconds run dry, times run dry; the pool when a fight starts (engage). */
-  sprintWhy: { cross: number; flank: number; push: number; retreat: number };
+  sprintWhy: { cross: number; flank: number; push: number; retreat: number; rotate: number };
   exhaustedT: number;
   emptied: number;
   staminaAtEngage: number[];
@@ -678,7 +724,7 @@ export function applyProfile(profile: ArenaProfile | undefined): () => void {
 }
 
 export function newArenaStats(): ArenaStats {
-  return { anchorMoves: 0, jumpWhy: {}, jumpRepeat: {}, jumpLog: [], windowDives: 0, instinct: { chases: 0, chaseEnd: { kill: 0, other: 0, lost: 0, time: 0, hurt: 0, healed: 0, home: 0, died: 0 }, chaseOnPlayer: 0, grudges: 0, grudgeKills: 0, punishes: 0, punishKills: 0, covers: 0, coverKills: 0, reacquired: 0 }, jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0, capSkips: 0, follows: 0, stalks: 0, warnShots: 0, recovers: 0, recoverEnd: { healed: 0, timeout: 0, cornered: 0 }, anchorArrive: 0 };
+  return { anchorMoves: 0, jumpWhy: {}, jumpRepeat: {}, jumpLog: [], windowDives: 0, idle: { t: 0, long: [], replans: { noRoute: 0, still: 0 } }, firstMid: { alpha: null, omega: null }, opening: { alpha: [0, 0, 0], omega: [0, 0, 0] }, plans: [], instinct: { chases: 0, chaseEnd: { kill: 0, other: 0, lost: 0, time: 0, hurt: 0, healed: 0, home: 0, died: 0 }, chaseOnPlayer: 0, grudges: 0, grudgeKills: 0, punishes: 0, punishKills: 0, covers: 0, coverKills: 0, reacquired: 0 }, jumps: 0, vaults: 0, pushes: 0, pushKills: 0, breaks: 0, switches: 0, switchWhy: { lost: 0, shotAt: 0, threat: 0, flank: 0 }, aware: { heardClose: 0, protectedHits: 0, snaps: 0, scans: 0 }, shots: 0, aimedShots: 0, hipShots: 0, aimT: 0, aimedRange: [], hipRange: [], aimedHitRange: [], hipHitRange: [], fogShots: 0, reactions: [], aliveT: 0, movingT: 0, breakT: 0, crouchT: 0, speedSum: 0, perBot: {}, laneMoves: 0, flanks: 0, flankHigh: 0, flankArrive: 0, patrolArrive: 0, watchHolds: 0, watchT: 0, approaches: 0, crowdFlanks: 0, sprintWhy: { cross: 0, flank: 0, push: 0, retreat: 0, rotate: 0 }, exhaustedT: 0, emptied: 0, staminaAtEngage: [], holdT: 0, holdArrive: 0, flankEngage: 0, flankKills: 0, retreats: 0, retreatWhy: { unseen: 0, outnumbered: 0 }, retreatLived: 0, retreatDeaths: 0, slides: 0, slideWhy: { push: 0, dive: 0, exposed: 0, evade: 0 }, evades: 0, capSkips: 0, follows: 0, stalks: 0, warnShots: 0, recovers: 0, recoverEnd: { healed: 0, timeout: 0, cornered: 0 }, anchorArrive: 0 };
 }
 
 /** What an arena bot reads from its team's context (EnemyCtx.arena). */

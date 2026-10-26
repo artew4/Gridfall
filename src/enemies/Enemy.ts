@@ -1652,10 +1652,10 @@ export class Gunner extends TacticalEnemy {
     // Pitch the torso to aim at what it shoots at.
     const dy = this.aimAt.y - (this.pos.y + 1.6);
     const dd = Math.hypot(this.aimAt.x - this.pos.x, this.aimAt.z - this.pos.z);
-    const pitch = aiming ? -Math.atan2(dy, dd) : 0.15;
+    // 65.0: at the ready the chest stays up when it's down on its heels (0.15 leaned it over its knees).
+    const pitch = aiming ? -Math.atan2(dy, dd) : 0.15 * (1 - 0.8 * this.crouch);
     r.torso.rotation.x = damp(r.torso.rotation.x, pitch * 0.8 + breathe, 10, dt);
     r.body.rotation.set(0.05 * k, 0, 0);
-    r.head.rotation.x = aiming ? 0.1 : Math.sin(ctx.time * 0.7 + this.seed) * 0.1;
     r.head.rotation.y = aiming ? 0 : Math.sin(ctx.time * 0.5 + this.seed) * 0.3;
     // Crouch: thighs forward, knees bent, hips down by the same drop the hitboxes use.
     const c = this.crouch;
@@ -1668,6 +1668,9 @@ export class Gunner extends TacticalEnemy {
       r.body.position.y -= this.crouchDrop * c;
       r.body.rotation.x += 0.12 * c;
     }
+    // 65.0: the eyes on the horizon (the head takes back the body's and the chest's lean): crouched with
+    // nothing to aim at, the lean added up to 15° down and a bot behind cover stared at the floor.
+    r.head.rotation.x = aiming ? 0.1 : -(r.body.rotation.x + r.torso.rotation.x) * 0.9 + Math.sin(ctx.time * 0.7 + this.seed) * 0.06;
     if (this.state === 'emerge') r.body.rotation.x = 0.5 - this.stateT * 0.6;
     // 11.0: raise or lower the rifle (≈0.15 s to 90%).
     if (!this.isArena) this.isAiming = aiming;

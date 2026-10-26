@@ -351,6 +351,7 @@ export class TdmRules implements ModeRules {
     // The clock and every spawn protection count from here, not from the setup.
     this.startT = now;
     this.rules.begin(now);
+    if (this.directors) for (const t of TEAMS) this.directors[t].startT = now;
     g.playerInvulnUntil = now + TDM.protect;
     for (const b of this.bots) b.invulnUntil = now + TDM.protect;
     // His spawn area (the weapon swap) opens now: the countdown's seconds don't use it up.
@@ -402,6 +403,7 @@ export class TdmRules implements ModeRules {
     this.playerOut = this.boardAll = false;
     this.playerRespawnAt = Infinity;
     this.startT = this.now;
+    this.plans = {};
     for (const t of TEAMS) {
       this.squads[t].reset();
       this.squads[t].barks.enabled = TDM.barks;
@@ -575,13 +577,18 @@ export class TdmRules implements ModeRules {
     // (An anchor with no free post fights as a frontliner.)
     if (dir && isArenaBot(e)) e.brain.role = s.role = dir.setRole(e.uid, s.role);
     // 44.0: the fronts' sector its respawn was sent to (its lane there).
-    if (dir && pad?.sector !== undefined && s.role !== 'wolf') dir.dealSector(e.uid, pad.sector);
+    if (dir && pad?.sector !== undefined && s.role !== 'wolf') {
+      dir.dealSector(e.uid, pad.sector);
+      if (!respawn && pad.sector < 3) this.arenaStats.opening[s.team][pad.sector]++;
+    }
     // 51.0: the opening too, by the fronts' need (it opened with the whole team in the centre lanes:
-    // the flanks' points went untouched for a minute).
-    else if (dir && !respawn && this.fronts && this.objectives && s.role !== 'wolf') {
+    // the flanks' points went untouched for a minute). 65.0: in a deathmatch too (its opening went by
+    // the nearest lane alone: the same lanes every match), with the team's plan (sectorWeights).
+    else if (dir && !respawn && this.fronts && s.role !== 'wolf') {
       const k = this.fronts.neediest(s.team, this.sectorWeights(s.team));
       this.fronts.sent(s.team, k);
       dir.dealSector(e.uid, k);
+      if (k >= 0 && k < 3) this.arenaStats.opening[s.team][k]++;
     }
     e.invulnUntil = this.now + TDM.protect;
     // Facing the other base (enemy yaw: forward = (sin, cos); ALPHA's base is in the south). 27.0: the pad's way.
@@ -1137,7 +1144,29 @@ export class TdmRules implements ModeRules {
       w[D.sectorOfLane(l)] += W?.[l] ?? 1;
       c[D.sectorOfLane(l)]++;
     }
-    return w.map((v, k) => (c[k] ? v / c[k] : 1));
+    const mul = this.planOf(team)?.mul;
+    return w.map((v, k) => (c[k] ? v / c[k] : 1) * (mul && mul.length === n ? mul[k] : 1));
+  }
+
+  /** 65.0: each team's game plan (ARENA.plans) and when it is drawn again. */
+  private plans: Partial<Record<TeamId, { plan: (typeof ARENA.plans.list)[number]; until: number }>> = {};
+
+  /** 65.0: `team`'s plan now (a new one drawn when its time is up), or null (plans off). */
+  private planOf(team: TeamId) {
+    const P = ARENA.plans;
+    if (!P.on || !P.list.length) return null;
+    const cur = this.plans[team];
+    if (cur && this.now < cur.until) return cur.plan;
+    const pool = P.list.filter((x) => x !== cur?.plan);
+    let r = Math.random() * pool.reduce((a, x) => a + x.w, 0);
+    let plan = pool[pool.length - 1];
+    for (const x of pool) if ((r -= x.w) <= 0) {
+      plan = x;
+      break;
+    }
+    this.plans[team] = { plan, until: this.now + rand(P.every[0], P.every[1]) };
+    this.arenaStats.plans.push([+(this.now - this.startT).toFixed(1), team, plan.id]);
+    return plan;
   }
 
   /**

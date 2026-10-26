@@ -104,6 +104,8 @@ export class ArenaDirector {
   /** 15.0 (DEV): bots moved off a hot lane. */
   laneMoves = 0;
   private trades: [number, number][] = [];
+  /** 65.0: when the match went live (its clock: the openings, the stats). */
+  startT = 0;
   private pushes = new Map<number, { bots: number[]; until: number }>();
   private flanks = new Map<number, { bots: number[]; sides: number[]; until: number }>();
   private nextT = 0;
@@ -194,8 +196,16 @@ export class ArenaDirector {
     if (!lanes.length) return;
     const count = new Array(this.lanes.length).fill(0);
     for (const [u, l] of this.laneOf) if (u !== uid) count[l]++;
-    let best = lanes[0];
-    for (const l of lanes) if (count[l] / this.w(l) < count[best] / this.w(best)) best = l;
+    // 65.0: the least crowded give or take ARENA.plans.laneJitter (it was always the same lane).
+    const J = ARENA.plans.on ? ARENA.plans.laneJitter : 0;
+    let best = lanes[0], bs = Infinity;
+    for (const l of lanes) {
+      const sc = count[l] / this.w(l) + Math.random() * J;
+      if (sc < bs) {
+        bs = sc;
+        best = l;
+      }
+    }
     this.laneOf.set(uid, best);
   }
 

@@ -54,6 +54,8 @@ import type { ArenaRole } from './Roles';
 
 /** 37.1: how far a bot holding a high-ground post strafes from it (m: a bridge roof is 3 × 5 m). */
 const WATCH_LEASH = 1.2;
+/** 65.0: the states that walk to a goal (the watchdog's). */
+const MOVERS = new Set<ArenaState>(['patrol', 'advance', 'hunt', 'flank', 'retreat', 'chase']);
 
 export type ArenaState = 'emerge' | 'advance' | 'patrol' | 'hold' | 'hunt' | 'engage' | 'push' | 'break' | 'flank' | 'retreat' | 'stalk' | 'recover' | 'chase';
 
@@ -107,6 +109,8 @@ export function flankPoint(c: { x: number; z: number }, from: { x: number; z: nu
 export interface ArenaBody extends Combatant {
   readonly kind: 'gunner' | 'runner';
   readonly speed: number;
+  /** The last route request for its goal found no path. */
+  readonly noRoute?: boolean;
   /** 13.0: the armory gun it carries this life: fire rates, magazine, and the ranges it fights at. */
   readonly arm: BotArm;
   readonly look: { voice: Voice };
@@ -642,6 +646,11 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     }
   }
 
+  /** 65.0: how long it has stood still with nothing in sight (s). */
+  private idleT = 0;
+  /** 65.0: how long its goal has had no route, how long it has stood with a goal (the watchdog). */
+  private noRouteT = 0;
+  private stillT = 0;
   /** 58.0: where and when it last left the ground (a jump in the same spot again is counted). */
   private jumpAt = new THREE.Vector3(0, -1e9, 0);
   /** 58.0: when it last looked for a window in a wall it walked into. */
@@ -1326,6 +1335,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
 
   /** 37.1: the high-ground post it is sent to (ArenaDirector.watchPost), or null. */
   private watchAt: THREE.Vector3 | null = null;
+  /** 65.0: the spot on its post it steps to, and when it picks another. */
+  private shuffleAt: THREE.Vector3 | null = null;
+  private shuffleT = 0;
 
   /**
    * 37.1: to the post, then hold it standing (a crouch hides it behind the bridge's rails), facing the
@@ -1341,6 +1353,17 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const there = Math.hypot(P.x - me.pos.x, P.z - me.pos.z) < 2 && Math.abs(P.y - me.pos.y) < 0.4;
     this.goal = there ? null : new THREE.Vector3(P.x + Math.cos(this.seed) * 0.3, P.y, P.z + Math.sin(this.seed) * 0.3);
     if (there && A.director.watchArrived(me.uid, now)) A.stats[ARENA.roles.on && this.role === 'anchor' ? 'anchorArrive' : 'watchHolds']++;
+    // 65.0: on the post it shifts its feet now and then (a step or so off the post's spot): stock-still
+    // for 10-15 s it read as stuck, and a head that never moves is easy to pre-aim.
+    if (!there) this.shuffleAt = null;
+    else if (now > this.shuffleT) {
+      this.shuffleT = now + rand(2.5, 5);
+      const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 0.5;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      // (Only where the post's floor goes on half a metre past it: never off a roof's edge.)
+      const floor = (k: number) => ctx.col.groundHeightAt(P.x + ca * k, P.z + sa * k, 0.05, P.y) > P.y - 0.25;
+      if (floor(r) && floor(r + 0.5) && !ctx.col.blocked(_v.set(P.x + ca * r, P.y, P.z + sa * r), me.radius)) (this.shuffleAt ??= new THREE.Vector3()).set(P.x + ca * r, P.y, P.z + sa * r);
+    }
     const c = A.director.freshest(me.pos, now);
     this.scanA += (this.seed > Math.PI ? 1 : -1) * 0.45;
     const s = (this.scan ??= new THREE.Vector3());
@@ -1624,7 +1647,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
    * pushing with a close gun (SMG, shotgun, pistol), or closing to range with one; moving across
    * ground a hostile can see (in its own view, or seen by the team just now, near).
    */
-  private sprintReason(A: ArenaCtx, T: Combatant | null, tv: boolean, gunner: boolean, now: number): 'cross' | 'flank' | 'push' | 'retreat' | null {
+  private sprintReason(A: ArenaCtx, T: Combatant | null, tv: boolean, gunner: boolean, now: number): keyof ArenaCtx['stats']['sprintWhy'] | null {
     const st = this.state;
     if (st === 'retreat' || st === 'break' || st === 'recover') return 'retreat';
     if (st === 'stalk') return 'flank';
@@ -1646,6 +1669,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     for (const c of A.director.contacts.values()) {
       if (now - c.seenT < S.exposedFor && Math.hypot(c.pos.x - me.pos.x, c.pos.z - me.pos.z) < S.exposedR) return 'cross';
     }
+    // 65.0: somewhere far to be (ARENA.rotate).
+    const R = ARENA.rotate;
+    if (R.on && this.goal && st !== 'hold' && Math.hypot(this.goal.x - me.pos.x, this.goal.z - me.pos.z) > R.far) return 'rotate';
     return null;
   }
 
@@ -1683,7 +1709,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const S = ARENA.stamina;
     // Optional sprints start with `reserve`, keep `floor` for the fight; a push keeps `pushFloor`.
     const v = this.stamina.value;
-    const room = why === 'retreat' ? true : why === 'push' ? v > S.pushFloor : this.sprintNow ? v > S.floor : v >= S.reserve;
+    // 65.0: the opening's run for the middle goes down to the push's floor.
+    const floor = why === 'rotate' && now - A.director.startT < ARENA.rotate.opening ? S.pushFloor : S.floor;
+    const room = why === 'retreat' ? true : why === 'push' ? v > S.pushFloor : this.sprintNow ? v > floor : v >= S.reserve;
     const ok = !STAMINA.on || (why !== null && this.stamina.canSprint && room);
     const sprint = ok ? full : run;
     if (this.swing) {
@@ -1786,7 +1814,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
             desired.x -= (ox / o) * along - (ox / o) * run * 0.5;
             desired.z -= (oz / o) * along - (oz / o) * run * 0.5;
           }
-        }
+        } else if (this.shuffleAt && Math.hypot(this.shuffleAt.x - me.pos.x, this.shuffleAt.z - me.pos.z) > 0.15) me.steer(this.shuffleAt, run * 0.35, ctx, dt, desired);
       } else crouch = 1;
     } else if ((this.state === 'hunt' || this.state === 'advance' || this.state === 'patrol' || this.state === 'flank' || this.state === 'retreat') && this.goal) {
       // 29.0: on the last stand a hunt is walked, not sprinted (a retreat still runs flat out).
@@ -1863,9 +1891,41 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
       }
     }
 
+    // ---- 65.0: the watchdog. A goal with no route from here walks it to the graph's nearest node and
+    // stands it there until the goal changes (self-play: wolves 10-14 s on a patrol area up on a roof,
+    // flankers 7-9 s); and anything else that leaves it standing with somewhere to go. The goal is dropped
+    // (a patrol area counted as looked at) and it thinks again now.
+    const sp = Math.hypot(me.vel.x, me.vel.z);
+    const W = ARENA.watchdog;
+    if (W.on && this.goal && !tv && MOVERS.has(this.state)) {
+      this.noRouteT = me.noRoute ? this.noRouteT + dt : 0;
+      this.stillT = sp < 0.3 && Math.hypot(this.goal.x - me.pos.x, this.goal.z - me.pos.z) > 2.5 ? this.stillT + dt : 0;
+      if (this.noRouteT > W.noRoute || this.stillT > W.still) {
+        A.stats.idle.replans[this.noRouteT > W.noRoute ? 'noRoute' : 'still']++;
+        if (this.state === 'patrol' && this.hva >= 0) {
+          A.director.visited(this.hva, now);
+          this.hva = -1;
+        }
+        if (this.state === 'hunt' && T) A.director.cleared(T.uid, now);
+        if (this.state === 'chase') this.trailDone = true;
+        this.goal = null;
+        this.noRouteT = this.stillT = 0;
+        this.urgent = true;
+      }
+    } else this.noRouteT = this.stillT = 0;
+
     // ---- Stats.
     const st = A.stats;
-    const sp = Math.hypot(me.vel.x, me.vel.z);
+    // 65.0: standing still with nothing in sight (a stretch over 6 s is logged when it ends: how long,
+    // state, crouched, role, where, its goal's distance and rise, no route, the move it ends with, airborne).
+    if (sp < 0.3 && !tv) {
+      st.idle.t += dt;
+      this.idleT += dt;
+    } else if (this.idleT > 0) {
+      if (this.idleT > 6 && st.idle.long.length < 80) st.idle.long.push([+this.idleT.toFixed(1), this.state, crouch > 0.5, this.role, +me.pos.x.toFixed(1), +me.pos.y.toFixed(1), +me.pos.z.toFixed(1), this.goal ? +Math.hypot(this.goal.x - me.pos.x, this.goal.z - me.pos.z).toFixed(1) : -1, this.goal ? +(this.goal.y - me.pos.y).toFixed(1) : 0, me.noRoute ? 1 : 0, +Math.hypot(desired.x, desired.z).toFixed(2), me.airborne ? 1 : 0]);
+      this.idleT = 0;
+    }
+    if (st.firstMid[me.team] === null && Math.hypot(me.pos.x, me.pos.z) < 15 && A.director.startT !== undefined) st.firstMid[me.team] = +(now - A.director.startT).toFixed(1);
     st.aliveT += dt;
     st.speedSum += sp * dt;
     if (sp > 1.5) st.movingT += dt;

@@ -36,7 +36,9 @@ describe('30.0: bots sprint for a reason', () => {
   });
 
   it('optional sprints keep a reserve; only a retreat may run the pool dry; a slide needs the sprint', () => {
-    expect(ai).toMatch(/why === 'retreat' \? true : why === 'push' \? v > S\.pushFloor : this\.sprintNow \? v > S\.floor : v >= S\.reserve/);
+    // (65.0: the floor is the push's for the opening's run for the middle.)
+    expect(ai).toMatch(/why === 'retreat' \? true : why === 'push' \? v > S\.pushFloor : this\.sprintNow \? v > floor : v >= S\.reserve/);
+    expect(ai).toMatch(/const floor = why === 'rotate' && now - A\.director\.startT < ARENA\.rotate\.opening \? S\.pushFloor : S\.floor;/);
     expect(ai).toMatch(/if \(!this\.sprintNow \|\| !this\.stamina\.slide\(\)\) return;/);
   });
 });

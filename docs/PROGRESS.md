@@ -2944,8 +2944,43 @@ Stuck 0 but one (Neon Block). ALPHA won all five on the Desert (the map's old le
 - Tests 550 (+3: the deathmatch's score, match point, clock and overtime; the breakthrough's tickets, decisive assault and free respawns).
 - In play: the match point's banner and clock, the radar, the respawn panel with the killer and the zone pick (screenshots).
 
+## 65.0: the bots vary their game, run, and don't stall
+
+Branch `feature/bots-variety-65.0`, from `feature/modes-64.0` @ `3ca44b9` (64.0, not merged yet).
+
+The playtest: every match the bots behave the same, the crowd comes the same way and he knows where from; he wants it random but still tactical. Some bots stall on a spot, or crouch in one place looking at the floor. Only he seems to sprint: he runs for the middle and gets there first every time.
+
+### Measured first (Desert deathmatch, 2 matches; ArenaStats `idle`, `firstMid`, `opening`)
+- A rifleman's sprint was 3.3 m/s × 1.5 × 0.97 = 4.8 m/s: his walk (5 × 0.95). Its run 3.8. His sprint 7.4.
+- A deathmatch's opening dealt no sectors: each bot took its nearest lane, the same lanes every match (the 51.0 opening deal was the points' alone).
+- A sector's lane was always its least crowded one: the same one for the same count.
+- Standing still with nothing in sight 5–6% of the bots' time; stretches over 6 s: anchors on their posts (8–15 s, their job, stock-still), wolves on patrol 10–14 s and flankers 7–9 s with a goal 16–130 m off, recovering bots.
+- The patrol and flank stalls: a goal with no route from where it stood (a patrol area up a roof, a flank spot): the move takes it to the graph's nearest node and stands it there until the goal changes.
+- The floor: a bot at the ready leaned its chest 0.12 rad and, crouched, its body 0.12 more; the head didn't take it back: 14° down.
+
+### Running (ArenaCtx `sprint`, `run`, `rotate`)
+- Sprint ×2.2, run ×1.3 of the base: a rifleman 7.0 and 4.2 m/s against his 7.4 and 4.75 (a pistol 8.1 against 8.4). The stamina pools are unchanged: a rifle sprints in bursts as his does.
+- A new reason to sprint, `rotate`: on its way to a goal more than 8 m off (its lane's next waypoint, a patrol area, a contact out of sight) with the breath over its reserve; in a match's first 25 s down to the push's floor: both teams run for the middle. Sprinting 26–27% → 30–32% of the bots' time (rotate a quarter of it).
+
+### A game plan (ArenaCtx `plans`; Tdm `planOf`, `sectorWeights`)
+- Each team draws a plan (balanced, left, right, middle, flanks: the sectors' weights × e.g. 1.8 / 1 / 0.55), for 80–140 s, then another, never the same twice running. It weights the fronts' fair share of every deal: the opening and each respawn wave. The fronts' own terms (outnumbered in a sector, a point being lost) still pull bodies where they're needed: tactical, not scripted.
+- A deathmatch's opening is dealt by the fronts and the plan too.
+- A body's lane in its sector: the least crowded give or take 0.8 (`laneJitter`).
+- Openings (bots per sector, Desert): 4/3/4, 3/3/5, 5/3/3, 6/3/2, 2/3/6… (it was one layout). The first bot in the middle: 4–33 s by the plan (it was 11–14 s every match).
+
+### Stalls (ArenaCtx `watchdog`; DeathmatchAI `act`)
+- A bot walking to a goal (patrol, advance, hunt, flank, retreat, chase) with nothing in sight whose goal has had no route for 1.5 s, or which has stood 4 s with its goal over 2.5 m off, drops it (a patrol area counted as looked at, a hunt's contact cleared, a chase's trail ended) and thinks again. 0–2 a Desert match, 26 on Neon Block.
+- An anchor on its post steps 0.4–0.9 m off the spot every 2.5–5 s (only where the floor goes on half a metre past the step).
+- At the ready the chest stays up when crouched, and the head takes back the body's lean: eyes on the horizon.
+- Idle with nothing in sight: Desert 5.1–5.9% → 3.0–3.7%, stretches over 6 s 11–21 → 4–6 a match; Neon Docks 13.9% → 9.5%, 32 → 7–8 (the anchors).
+
+### Checks
+- Tests 555 (+5: the speeds against his, rotate, the plans, a sector's lane drawn, the watchdog).
+- Self-play deathmatch: Desert 5 (kills/min 41.7–49.8), Neon Docks 3 (29.7–34.3), Neon Block 1 (24.6), Maglev 1 (30.9); Desert breakthrough 1 (5:37, 40.7); stuck 0 but one Desert match (1, as before).
+
 ## Next
 Human playtest:
+- 65.0 items: do the bots come from different places match to match (and still make sense); do they keep up with you running for the middle, or now get there too fast; anyone still standing about or staring at the floor (where); the snipers' foot shuffle.
 - 64.0 items: the two modes (Team Deathmatch's length at 6 kills a player, the match point's radar: tense or too easy; Breakthrough's decisive assault and the comeback; the death camera and picking a zone with A/D).
 - 63.0 items: the new sound effects (each gun's report, the reloads, the impacts, the footsteps per surface; anything thin, harsh or too loud next to the music).
 - 59.0 items: the Desert's new score (the drive, the riff, the hook; too busy, too loud over the guns).

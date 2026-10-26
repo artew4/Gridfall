@@ -856,7 +856,7 @@ export async function tdmSim(
     stamina: (() => {
       const alive = Math.max(1, st.aliveT);
       const w = st.sprintWhy;
-      const sp = w.cross + w.flank + w.push + w.retreat;
+      const sp = Object.values(w).reduce((a, x) => a + x, 0);
       const at = st.staminaAtEngage;
       return {
         on: opts.stamina !== false,
@@ -1124,6 +1124,8 @@ export async function tdmSim(
             // 55.0: the instincts (chases and how they ended, grudges, reload punishes, cover calls, quick reacquisitions).
             instinct: st.instinct,
             // 58.0: jumps by why, and in the same spot again.
+            // 65.0: idle stretches, the first to the middle, the opening's sectors; sprint share.
+            idle: { pct: +((100 * st.idle.t) / Math.max(1e-6, st.aliveT)).toFixed(1), long: st.idle.long }, firstMid: st.firstMid, opening: st.opening, plans: st.plans, sprintPct: +((100 * Object.values(st.sprintWhy).reduce((a, x) => a + x, 0)) / Math.max(1e-6, st.aliveT)).toFixed(1), replans: st.idle.replans, sprintWhy: st.sprintWhy,
             jumpsBy: { why: st.jumpWhy, repeat: st.jumpRepeat, log: st.jumpLog, windows: st.windowDives },
             jumps: st.jumps,
             vaults: st.vaults,
