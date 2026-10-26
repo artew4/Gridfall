@@ -51,6 +51,21 @@ function grime(ctx: CanvasRenderingContext2D, w: number, h: number, rnd: () => n
 export interface FacadeTex {
   map: THREE.Texture;
   emissive: THREE.Texture;
+  /** 80.0: the windows as painted (Windows.ts draws rooms behind them): columns across, the window's height in its floor. */
+  windows: { cols: number; hFrac: number; at: FacadeWindow[] };
+}
+
+/** 80.0: a painted window, floor by floor from the tile's top, column by column. */
+export interface FacadeWindow {
+  /** Its width as a part of its column. */
+  wf: number;
+  /** Unlit, or lit warm, cool or pink. */
+  light: 'off' | 'warm' | 'cool' | 'pink';
+  /** How bright (0..1). */
+  intensity: number;
+  blinds: boolean;
+  /** A curtain drawn over its left part. */
+  curtain: boolean;
 }
 
 /** One facade tile = 16m x 16m, five floors of 3.2m. */
@@ -93,6 +108,7 @@ export function facadeTexture(variant: number): FacadeTex {
   const cool = ['#9fd8ff', '#b8c8ff', '#7fe0ff'];
   const cols = variant === 1 ? 4 : 8;
   const colW = S / cols;
+  const windows: FacadeWindow[] = [];
   for (let f = 0; f < 5; f++) {
     const y0 = f * floorH;
     for (let i = 0; i < cols; i++) {
@@ -106,15 +122,20 @@ export function facadeTexture(variant: number): FacadeTex {
       const r = rnd();
       let fill = '#0b0d14';
       let lit = false;
+      const win: FacadeWindow = { wf: winW / colW, light: 'off', intensity: 0, blinds: false, curtain: false };
+      windows.push(win);
       if (r < 0.16) {
         fill = warm[Math.floor(rnd() * warm.length)];
         lit = true;
+        win.light = 'warm';
       } else if (r < 0.22) {
         fill = cool[Math.floor(rnd() * cool.length)];
         lit = true;
+        win.light = 'cool';
       } else if (r < 0.26) {
         fill = '#ff7aa8';
         lit = true;
+        win.light = 'pink';
       }
       // Glass with a subtle reflection gradient.
       const g = ctx.createLinearGradient(x, y, x + winW, y + winH);
@@ -124,11 +145,13 @@ export function facadeTexture(variant: number): FacadeTex {
       ctx.fillRect(x, y, winW, winH);
       if (lit) {
         const intensity = 0.35 + rnd() * 0.65;
+        win.intensity = intensity;
         ectx.globalAlpha = intensity;
         ectx.fillStyle = fill;
         ectx.fillRect(x, y, winW, winH);
         // Blinds / silhouettes inside.
         const blinds = rnd() < 0.5;
+        win.blinds = blinds;
         ectx.globalAlpha = 1;
         if (blinds) {
           ectx.fillStyle = 'rgba(0,0,0,0.45)';
@@ -139,6 +162,7 @@ export function facadeTexture(variant: number): FacadeTex {
         }
       } else if (rnd() < 0.5) {
         // Curtains in dark windows.
+        win.curtain = true;
         ctx.fillStyle = 'rgba(60,50,60,0.5)';
         ctx.fillRect(x, y, winW * 0.3, winH);
       }
@@ -163,7 +187,7 @@ export function facadeTexture(variant: number): FacadeTex {
     }
   }
   grime(ctx, S, S, rnd, 160);
-  return { map: tex(c, true, true), emissive: tex(ec, true, true) };
+  return { map: tex(c, true, true), emissive: tex(ec, true, true), windows: { cols, hFrac: variant === 1 ? 0.42 : 0.5, at: windows } };
 }
 
 export interface StorefrontTex {

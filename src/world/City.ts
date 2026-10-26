@@ -6,6 +6,9 @@ import { CollisionWorld } from './Collision';
 import { Glows } from './Glows';
 import { applyWet } from './Ground';
 import { Storefronts } from './Storefronts';
+import { applyWindows } from './Windows';
+import { FacadeDress } from './FacadeDress';
+import type { FacadeTex } from './Textures';
 import {
   asphaltTexture,
   concreteTexture,
@@ -18,6 +21,8 @@ import {
 
 export interface Mats {
   facade: THREE.MeshStandardMaterial[];
+  /** 80.0: the facade tiles' windows (where balconies go under them). */
+  facadeWin: FacadeTex['windows'][];
   concrete: THREE.MeshStandardMaterial;
   darkConcrete: THREE.MeshStandardMaterial;
   darkMetal: THREE.MeshStandardMaterial;
@@ -58,9 +63,11 @@ export interface FaceSpec {
 }
 
 function makeMats(time: { value: number }): Mats {
+  const facadeWin: FacadeTex['windows'][] = [];
   const facade = [0, 1, 2].map((v) => {
     const t = facadeTexture(v);
-    return new THREE.MeshStandardMaterial({
+    facadeWin.push(t.windows);
+    const mat = new THREE.MeshStandardMaterial({
       map: t.map,
       emissiveMap: t.emissive,
       emissive: new THREE.Color(1, 1, 1),
@@ -69,6 +76,8 @@ function makeMats(time: { value: number }): Mats {
       metalness: 0.0,
       envMapIntensity: 0.35,
     });
+    // 80.0: rooms behind the painted windows (Windows.ts).
+    return applyWindows(mat, t.windows, 0.75);
   });
   const ct = concreteTexture();
   const concrete = new THREE.MeshStandardMaterial({ map: ct, roughness: 0.8, envMapIntensity: 0.35 });
@@ -98,7 +107,7 @@ function makeMats(time: { value: number }): Mats {
   const pt = pavingTexture();
   const paving = new THREE.MeshStandardMaterial({ map: pt, roughness: 0.5, envMapIntensity: 1.2 });
   applyWet(paving, time, { puddles: true, wet: 0.85 });
-  return { facade, concrete, darkConcrete, darkMetal, paintedMetal, black, store, asphalt, sidewalk, paving };
+  return { facade, facadeWin, concrete, darkConcrete, darkMetal, paintedMetal, black, store, asphalt, sidewalk, paving };
 }
 
 export type StoreKind = keyof Mats['store'];
@@ -122,9 +131,17 @@ export class City {
     const w = x1 - x0;
     const d = z1 - z0;
     const y0 = opts.y0 ?? 0;
-    b.add(worldBox(w, h - y0, d, 16, rnd() * 4, 0), m.facade[variant], (x0 + x1) / 2, (h + y0) / 2, (z0 + z1) / 2);
+    const uOff = rnd() * 4;
+    b.add(worldBox(w, h - y0, d, 16, uOff, 0), m.facade[variant], (x0 + x1) / 2, (h + y0) / 2, (z0 + z1) / 2);
     this.col.add(x0, y0, z0, x1, h, z1, 'concrete');
     for (const f of faces) this.facade(x0, x1, z0, z1, h, f, rnd, !!opts.walk);
+    // 80.0: balconies on the street faces of the mid-rise blocks (not the towers that carry the big signs).
+    if (h >= 16 && h <= 26)
+      for (const f of faces) {
+        const alongX = f.face === 'n' || f.face === 's';
+        const wall = f.face === 'n' ? z0 : f.face === 's' ? z1 : f.face === 'w' ? x0 : x1;
+        this.dressing.balconies(f.face, wall, f.from ?? (alongX ? x0 : z0), f.to ?? (alongX ? x1 : z1), { x0, x1, z0, z1, y0, h }, uOff, m.facadeWin[variant]);
+      }
     // Roof cap: tar and concrete, not the facade's windows (walkable roofs get their own wet deck).
     if (!opts.walk && h > 3) {
       const g = new THREE.PlaneGeometry(w, d);
@@ -136,8 +153,11 @@ export class City {
     if (opts.tank !== false && h < 24 && w > 5 && d > 5 && tankRoll < 0.6) {
       const tx = x0 + w * (0.3 + rnd() * 0.4);
       const tz = z0 + d * (0.3 + rnd() * 0.4);
-      b.add(new THREE.CylinderGeometry(1.1, 1.1, 2.2, 10), m.paintedMetal, tx, h + 2.2, tz);
-      b.add(worldBox(2.4, 1.2, 2.4, 1), m.darkMetal, tx, h + 0.6, tz);
+      // 80.0: a panel tank on its stand (FacadeDress), or the cylinder on its box.
+      if (!this.dressing.tank(tx, h, tz)) {
+        b.add(new THREE.CylinderGeometry(1.1, 1.1, 2.2, 10), m.paintedMetal, tx, h + 2.2, tz);
+        b.add(worldBox(2.4, 1.2, 2.4, 1), m.darkMetal, tx, h + 0.6, tz);
+      }
     }
   }
 
@@ -189,6 +209,11 @@ export class City {
   private _fronts: Storefronts | null = null;
   get fronts() {
     return (this._fronts ??= new Storefronts(this.ctx.builder));
+  }
+  /** 80.0: balconies, roof tanks, sign stacks (FacadeDress.ts). */
+  private _dressing: FacadeDress | null = null;
+  get dressing() {
+    return (this._dressing ??= new FacadeDress(this.ctx.builder));
   }
   private upperPlane = new THREE.PlaneGeometry(4, 2.9);
 

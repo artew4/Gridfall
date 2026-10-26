@@ -257,3 +257,75 @@ export function awningTexture() {
     }
   });
 }
+
+// ------------------------------------------------------------------ 80.0: the facades'
+const VNAMES = ['スナック', '居酒屋', '麻雀', '歯科', 'カラオケ', '整骨院', '占い', '寿司', '焼肉', '英会話', '美容室', '漫画', 'ネイル', '質', '雀荘', '中華', 'バー', '喫茶', '鍼灸', '探偵', '貸室', '麺', '酒', '湯', '薬', '眼科', '囲碁', 'ゲーム', '焼鳥', '天ぷら'];
+const VCOLS = 8, VROWS = 4, VW = 128, VH = 192;
+let vAtlas: THREE.CanvasTexture | null = null;
+
+/** Vertical signs (the tate-kanban's panels): a name down a coloured panel, its border. */
+export function verticalSigns() {
+  if (vAtlas) return vAtlas;
+  const rnd = mulberry32(8001);
+  vAtlas = canvasTex(VCOLS * VW, VROWS * VH, (g) => {
+    for (let k = 0; k < VCOLS * VROWS; k++) {
+      const name = VNAMES[k % VNAMES.length];
+      const x = (k % VCOLS) * VW, y = Math.floor(k / VCOLS) * VH;
+      const pal = [['#ffffff', '#c0281e'], ['#f6e12a', '#1a1410'], ['#c0281e', '#ffffff'], ['#1a3f8f', '#ffffff'], ['#ff5fbf', '#2a0018'], ['#1b9a4e', '#ffffff'], ['#101014', '#ffd860']][Math.floor(rnd() * 7)];
+      g.fillStyle = pal[0];
+      g.fillRect(x, y, VW, VH);
+      g.strokeStyle = pal[1];
+      g.lineWidth = 4;
+      g.strokeRect(x + 6, y + 6, VW - 12, VH - 12);
+      const size = Math.min(VW * 0.62, (VH - 30) / name.length);
+      g.font = `bold ${size}px ${JP_FONT}`;
+      g.fillStyle = pal[1];
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      const top = y + VH / 2 - (name.length * size) / 2 + size / 2;
+      for (let i = 0; i < name.length; i++) g.fillText(name[i], x + VW / 2, top + i * size);
+    }
+  });
+  return vAtlas;
+}
+
+/** Vertical sign `n`'s cell (u0, v0, u1, v1). */
+export function verticalCell(n: number): [number, number, number, number] {
+  const k = ((n % (VCOLS * VROWS)) + VCOLS * VROWS) % (VCOLS * VROWS);
+  const x = (k % VCOLS) * VW, y = Math.floor(k / VCOLS) * VH;
+  return [x / (VCOLS * VW), 1 - (y + VH) / (VROWS * VH), (x + VW) / (VCOLS * VW), 1 - y / (VROWS * VH)];
+}
+
+/** Laundry lines (three, u in thirds: shirts, towels, a mix) and futons (three patterns). */
+export function laundryTexture() {
+  const rnd = mulberry32(8002);
+  return canvasTex(768, 256, (g) => {
+    g.fillStyle = '#2a2a30';
+    g.fillRect(0, 0, 768, 256);
+    for (let i = 0; i < 3; i++) {
+      let x = i * 256 + 4;
+      while (x < (i + 1) * 256 - 10) {
+        const w = 28 + rnd() * 40;
+        g.fillStyle = `hsl(${Math.floor(rnd() * 360)},${30 + rnd() * 50}%,${45 + rnd() * 40}%)`;
+        g.fillRect(x, 0, w, 256 * (0.6 + rnd() * 0.4));
+        if (rnd() < 0.4) {
+          g.fillStyle = 'rgba(255,255,255,0.4)';
+          for (let s = 0; s < 5; s++) g.fillRect(x, s * 40 + 10, w, 6);
+        }
+        x += w + 6;
+      }
+    }
+  });
+}
+
+export function futonTexture() {
+  return canvasTex(384, 128, (g) => {
+    const pats = [['#e8e2d4', '#3a5a9a'], ['#f0d8dc', '#b04a5a'], ['#dfe8dc', '#3a7a4a']];
+    pats.forEach(([bg, fg], i) => {
+      g.fillStyle = bg;
+      g.fillRect(i * 128, 0, 128, 128);
+      g.fillStyle = fg;
+      for (let y = 0; y < 128; y += 16) for (let x = (y / 16) % 2 ? 8 : 0; x < 128; x += 16) g.fillRect(i * 128 + x, y, 8, 8);
+    });
+  });
+}

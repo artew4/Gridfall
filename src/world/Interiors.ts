@@ -22,13 +22,13 @@ export const ROOMS = ['konbini', 'drugstore', 'electronics', 'boutique', 'cafe',
 export type Room = (typeof ROOMS)[number];
 const CELL = 384;
 const CW = CELL * 2, CH = CELL * 2;
-const COLS = 3;
+export const COLS = 3;
 const DEPTH = 3.0;
 
 type Ctx = CanvasRenderingContext2D;
 
 /** A face of a room drawn into (x, y, w, h) of the atlas. */
-interface Painter {
+export interface Painter {
   back(g: Ctx, w: number, h: number, r: () => number): void;
   side(g: Ctx, w: number, h: number, r: () => number): void;
   floor: [string, string];
@@ -40,7 +40,7 @@ interface Painter {
 const hsl = (h: number, s: number, l: number) => `hsl(${h},${s}%,${l}%)`;
 
 /** Shelves of goods: `rows` shelf boards from y0 to y1, coloured packets on each. */
-function shelves(g: Ctx, x: number, w: number, y0: number, y1: number, rows: number, r: () => number, board: string, back: string, item: (r: () => number) => string, tall = 0.7) {
+export function shelves(g: Ctx, x: number, w: number, y0: number, y1: number, rows: number, r: () => number, board: string, back: string, item: (r: () => number) => string, tall = 0.7) {
   g.fillStyle = back;
   g.fillRect(x, y0, w, y1 - y0);
   const rh = (y1 - y0) / rows;
@@ -64,7 +64,7 @@ function shelves(g: Ctx, x: number, w: number, y0: number, y1: number, rows: num
 }
 
 /** Text fitted into a box. */
-function label(g: Ctx, text: string, x: number, y: number, w: number, h: number, color: string, weight = 'bold') {
+export function label(g: Ctx, text: string, x: number, y: number, w: number, h: number, color: string, weight = 'bold') {
   let size = h * 0.8;
   g.font = `${weight} ${size}px ${JP_FONT}`;
   const m = g.measureText(text).width;
@@ -76,8 +76,8 @@ function label(g: Ctx, text: string, x: number, y: number, w: number, h: number,
   g.fillText(text, x + w / 2, y + h / 2);
 }
 
-const goods = (r: () => number) => hsl(Math.floor(r() * 360), 55 + r() * 30, 40 + r() * 30);
-const books = (r: () => number) => hsl(Math.floor(r() * 360), 25 + r() * 40, 22 + r() * 35);
+export const goods = (r: () => number) => hsl(Math.floor(r() * 360), 55 + r() * 30, 40 + r() * 30);
+export const books = (r: () => number) => hsl(Math.floor(r() * 360), 25 + r() * 40, 22 + r() * 35);
 
 const PAINTERS: Record<Room, Painter> = {
   konbini: {
@@ -404,15 +404,22 @@ let atlas: THREE.CanvasTexture | null = null;
 
 /** The rooms' atlas (made once). */
 export function interiorAtlas(): THREE.CanvasTexture {
-  if (atlas) return atlas;
+  return (atlas ??= paintAtlas(ROOMS as unknown as string[], PAINTERS as Record<string, Painter>, 780));
+}
+
+/**
+ * 80.0: an atlas of rooms, COLS to a row: each room's block a back wall and a side wall (CELL²) over
+ * its floor and its ceiling (CELL x CELL / 2).
+ */
+export function paintAtlas(rooms: string[], painters: Record<string, Painter>, seed: number): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = COLS * CW;
-  c.height = Math.ceil(ROOMS.length / COLS) * CH;
+  c.height = Math.ceil(rooms.length / COLS) * CH;
   const g = c.getContext('2d')!;
-  ROOMS.forEach((room, k) => {
-    const p = PAINTERS[room];
+  rooms.forEach((room, k) => {
+    const p = painters[room];
     const ox = (k % COLS) * CW, oy = Math.floor(k / COLS) * CH;
-    const r = mulberry32(780 + k);
+    const r = mulberry32(seed + k);
     const face = (x: number, y: number, w: number, h: number, draw: (g: Ctx, w: number, h: number) => void) => {
       g.save();
       g.translate(ox + x, oy + y);
@@ -453,10 +460,10 @@ export function interiorAtlas(): THREE.CanvasTexture {
     g.fillRect(ox + CELL - 1, oy, 2, CH);
     g.fillRect(ox, oy + CELL - 1, CW, 2);
   });
-  atlas = new THREE.CanvasTexture(c);
-  atlas.colorSpace = THREE.SRGBColorSpace;
-  atlas.anisotropy = 8;
-  return atlas;
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
 }
 
 /** The glass material: the room behind each storefront plane (u in [k, k + 1]: room k). */

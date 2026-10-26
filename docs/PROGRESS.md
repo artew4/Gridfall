@@ -3278,8 +3278,28 @@ The ask: step 2 of [TOKYO_PLAN.md](TOKYO_PLAN.md): textures and dirt instead of 
 - Tests 617 (+4, `wear79.test.ts`: patched once, its shaders and key; chained after an existing patch; other materials and roles left alone; the noise tiles and spans its range).
 - Performance: the GPU throttled again (Desert 336–359 ms a frame, normally ~6), A/B by switching the wear off in code: Desert 335.9 → 358.6 ms (+7%), Favelas 143.8 → 131.6 ms (−8%): within the noise; to measure unthrottled.
 
+## 80.0: Night Tokyo, step 3: the facades above the street
+
+Branch `feature/tokyo-facades-80.0`, from `feature/materials-79.0` @ `503bee5` (78.0, 79.0 not merged yet).
+
+The ask: step 3 of [TOKYO_PLAN.md](TOKYO_PLAN.md).
+
+### Windows as rooms (`Windows.ts`)
+- `Textures.facadeTexture` records each painted window (its width in its column, unlit or lit warm, cool or pink, how bright, blinds, a curtain); the facade materials are patched (`applyWindows`): inside a window's rectangle (found from the tile's own UVs: its column and floor, the table by `texelFetch`) the view is cast into a room 3.6 x 2.8 x 3.2 m behind it (interior mapping, the storefronts' way), the window in the middle of its front wall, its sill 0.9 m up. Warm: a living room, kitchen or bedroom; cool: an office; pink: a karaoke box; unlit: any room, barely there (the glass dark and glossy). Blinds and curtains as painted; the mullion and frames the texture's.
+- A second room atlas (`Interiors.paintAtlas`, generalised): living, kitchen, bedroom, office, karaoke, storage. Neon Block's facades get the rooms too, as dim as its windows were.
+
+### The facades' kit (`tools/blender/props_facade.py`, `public/models/props/facade.glb`, 2.2k triangles; `FacadeDress.ts`)
+- `balc_a` (slab, aluminium railing over a frosted panel, laundry pole and washing, the air conditioner's outdoor unit), `balc_b` (a futon over the rail, plant pots, a box), `rtank` (FRP panel tank on a braced stand, ladder, manhole, pipes), `tatekan` (a sign stack out from the wall, five panels facing up and down the street, lit both ways).
+- Balconies on the street faces of the 16–26 m blocks, under the tile's own window columns as they fall on each face (BoxGeometry's faces: -z and +x run the tile backwards), from 12.8 m up (over the 8.5 m roofs and a jump: they stop nothing, hide nobody), about one window in three or four: 15. Roof tanks where the cylinders were (11). Four sign stacks down Railway Street from 3.6 m, their 20 panels each a vertical sign (`StoreSigns.verticalSigns`). Nothing added to the colliders.
+
+### Checks
+- Tests 623 (+6, `facade80.test.ts`: the kit, depths; balconies from 12.8 m on the window columns, south and north faces; the windows' table; the facade patch).
+- World checks Tokyo and Neon Block: no clusters, no entries.
+- Performance (on battery, throttled; A/B by switching the windows and the kit off in code): the fight's draw calls flip between about 170 and 350–400 on their own (a scene state, not these changes: this is what confused 78.0's file-removal A/B); at the same state: with 165.9 ms GPU p50 (343 calls), without 166.1 (407): no cost.
+
 ## Next
 Human playtest:
+- 80.0 items: the windows' rooms (from the street and the roofs: convincing, too bright, anything swimming), the balconies (seen at all at night?), the roof tanks, Railway Street's sign stacks; then the word for step 4 (street level).
 - 79.0 items: the wear on every map's props (too much, too little, anything that flickers or crawls at the edges as you move), the Favelas' render, the cars; the frame rate unthrottled; then the word for step 3 (Tokyo's facades).
 - 78.0 items: Night Tokyo's storefronts (the rooms behind the glass: convincing from the street and up close, too bright or dark; the signs; the izakaya fronts, shutters, entrances; anything you bump into that isn't solid); the frame rate on mains power; then the word for step 2 (materials).
 - 76.0 items: Favelas' street (Beetles, Kombi, stalls), tanks, doors, grilles, dishes, tin roofs, rebar; the jungle's burnt car; Crash Site's helicopter tail (77.0: moved to the forest's edge, banded, its beacon); Favelas' frame rate on an unthrottled GPU.

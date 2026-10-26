@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyWindows } from '../../world/Windows';
 import { StaticBuilder, worldBox } from '../../world/Builder';
 import type { Collider, CollisionWorld } from '../../world/Collision';
 import type { Glow, Glows } from '../../world/Glows';
@@ -110,7 +111,8 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   // window wall behind a fighter is a silhouette nobody can read.
   const facade = [0, 1, 2].map((k) => {
     const t = facadeTexture(k);
-    return new THREE.MeshStandardMaterial({ map: t.map, emissiveMap: t.emissive, emissive: new THREE.Color(1, 1, 1), emissiveIntensity: 0.85, roughness: 0.8, envMapIntensity: 0.5 });
+    // 80.0: rooms behind the windows (Windows.ts), as dim as the painted ones were here.
+    return applyWindows(new THREE.MeshStandardMaterial({ map: t.map, emissiveMap: t.emissive, emissive: new THREE.Color(1, 1, 1), emissiveIntensity: 0.85, roughness: 0.8, envMapIntensity: 0.5 }), t.windows, 0.55);
   });
   const store = (['shop', 'izakaya', 'shutter'] as const).map((k) => {
     const t = storefrontTexture(k);

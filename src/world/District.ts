@@ -413,6 +413,10 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   ];
   const signs = specs.map((s) => addSign(ctx, s));
 
+  // 80.0: sign stacks (tate-kanban) down Railway Street, out over the street from 3.6 m (FacadeDress).
+  for (const [face, wall, z] of [['e', -6, -31], ['e', -6, -47], ['w', 6, -40], ['w', 6, -52]] as const) city.dressing.tatekan(face, wall, z, 3.6);
+  (globalThis as unknown as { __facade?: unknown }).__facade = city.dressing.stats;
+
   // Signs hanging under the overpass rattle when the train passes.
   const trackside: THREE.Object3D[] = [];
   const hang = [
