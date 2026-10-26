@@ -3297,8 +3297,21 @@ The ask: step 3 of [TOKYO_PLAN.md](TOKYO_PLAN.md).
 - World checks Tokyo and Neon Block: no clusters, no entries.
 - Performance (on battery, throttled; A/B by switching the windows and the kit off in code): the fight's draw calls flip between about 170 and 350–400 on their own (a scene state, not these changes: this is what confused 78.0's file-removal A/B); at the same state: with 165.9 ms GPU p50 (343 calls), without 166.1 (407): no cost.
 
+## 81.0: the Desert's sand-khaki teams
+
+Branch `feature/desert-teams-81.0`, from `feature/tokyo-facades-80.0` @ `f507e7a` (78.0–80.0 not merged yet).
+
+The ask: on the Desert the arm and the rifle in khaki looked right, the teams (charcoal operators with neon accents) didn't: both teams and their guns in sand khaki, told apart, matching what the player sees of himself; and the first person in desert khaki too; as stylish as can be.
+
+- `desertCamo.ts`: one palette per team: ALPHA "Rangers" (arid camo with an olive cast, olive-khaki plates and helmet, blue tape), OMEGA "Dunes" (light three-colour desert camo, coyote plates, rust-brown helmet and pouches, orange tape); the sleeves' camo texture painted from it; FDE and coyote for the guns, a desert camo for their furniture.
+- Guns (`theme.ts`): a `desert` finish (`gunThemeFor('desert')`): an FDE receiver, coyote polymer, desert-camo furniture, dark steel, coyote gloves, the sleeves in the player's team's camo (`gunMats(theme, team)`; `Weapon.setSpec(…, team)`, rebuilt when TDM picks his side). The bots' guns coyote (a shade lighter than the viewmodel's FDE: small and in their own shadow they read black).
+- Operators (`operators.ts`): a `desert` kit (Desert's TDM data): the gear's colours by team; the cloth in the team's camo (a `camo` vertex attribute on the cloth layer, the body material's shader laying the same blotches in each pivot's own space: the pattern rides with the limb); the accents tape, not lit (LDR, `MeshBasic`); the visor's band shooting glasses' lens (the team shows in the helmet and the tape).
+- Tuned on screenshots: the camo first too spotty (dark spots dense), ALPHA first too dark and grey in the shade, the bots' FDE rifles black at range.
+- Tests 628 (+5, `desert81.test.ts`; the 21.0 theme map updated: the Desert's guns are `desert` now).
+
 ## Next
 Human playtest:
+- 81.0 items: the Desert in TDM: your arms and rifle, the two teams (told apart at a glance, at range, in the shade; still sand?), their rifles; arcade's player finish.
 - 80.0 items: the windows' rooms (from the street and the roofs: convincing, too bright, anything swimming), the balconies (seen at all at night?), the roof tanks, Railway Street's sign stacks; then the word for step 4 (street level).
 - 79.0 items: the wear on every map's props (too much, too little, anything that flickers or crawls at the edges as you move), the Favelas' render, the cars; the frame rate unthrottled; then the word for step 3 (Tokyo's facades).
 - 78.0 items: Night Tokyo's storefronts (the rooms behind the glass: convincing from the street and up close, too bright or dark; the signs; the izakaya fronts, shutters, entrances; anything you bump into that isn't solid); the frame rate on mains power; then the word for step 2 (materials).

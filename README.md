@@ -45,6 +45,7 @@ The main menu (redesigned in 45.0) is big type and one word a button: **PLAY**, 
 
 ## Gunplay
 
+- **The Desert's sand-khaki teams (81.0):** in your hands an FDE rifle with desert-camo furniture, coyote gloves and sleeves in your team's camo; the bots in the same cloth: ALPHA's olive-khaki rangers with blue tape, OMEGA's sand-and-rust with orange tape, their rifles coyote, shooting glasses instead of the lit visor.
 - **Tokyo's facades (80.0):** every painted window is a room you look into (homes lit warm, offices cool, karaoke boxes pink, dark rooms barely there; blinds, curtains), balconies with laundry, futons, plants and air conditioners on the upper floors, panel water tanks on their stands on the roofs, vertical sign stacks down Railway Street.
 - **Worn materials (79.0):** the models' flat colours weathered by role in world space: rust spots and chipped edges on paint, rain streaks down the sides, dust on the tops, faded plastic, scuffed wood; the Favelas' render streaked, patched and green at the foot, the tin and grilles rusting, the Beetles and Kombi chipped.
 - **Night Tokyo's storefronts (78.0):** every shop slot a modelled front over a room you see into through the glass (konbini fridges, drugstore and bookshop shelves, a wall of screens, a boutique, a cafe, an izakaya's menu strips, a ramen kitchen, building lobbies), its own lit sign, noren and paper lanterns on the izakaya, roll shutters with graffiti, entrances with mailboxes and lit tenant directories, striped awnings.
@@ -145,7 +146,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **623 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **628 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;

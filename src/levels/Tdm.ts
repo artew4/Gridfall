@@ -389,6 +389,8 @@ export class TdmRules implements ModeRules {
     // 48.0: his team for this match; his rounds, the bots' and his HUD follow it.
     this.side = this.spectate ? 'alpha' : TDM.side === 'random' ? (Math.random() < 0.5 ? 'alpha' : 'omega') : TDM.side;
     g.playerUnit.team = this.side;
+    // 81.0: his sleeves in his team's camo (on the Desert): the gun in hand built again if it changed.
+    if (g.weapon.spec) g.weapon.setSpec(g.weapon.spec, g.weapon.theme, this.side);
     g.projectiles.playerTeam = this.side;
     g.projectiles.playerHit = TDM.playerHit;
     g.barkView.allyTeam = this.side;

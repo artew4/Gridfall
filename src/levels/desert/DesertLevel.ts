@@ -174,6 +174,8 @@ export class DesertLevel implements LevelRuntime {
         ...o.arena.testGoals,
       ],
       tdm: {
+        // 81.0: the sand-khaki teams (operators' desert kit, desertCamo.ts).
+        kit: 'desert',
         // ALPHA (the player's team) holds the south base, OMEGA the north.
         spawns: { alpha: o.arena.spawns.south, omega: o.arena.spawns.north },
         lanes: { alpha: o.arena.lanes.south, omega: o.arena.lanes.north },

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { Ballistic } from '../types';
 import { RIG_GUNS, rigGunGlow } from '../enemies/rigGuns';
+import { DESERT_GUN, desertCamoTexture, desertGunCamo } from '../desertCamo';
+import type { TeamId } from '../../combat/Team';
 
 /*
   21.0, weapon themes: every gun is built from the same parts, its materials picked by the map's look.
@@ -12,6 +14,8 @@ import { RIG_GUNS, rigGunGlow } from '../enemies/rigGuns';
    - 'military' (Desert, Firebase Viper, Crash Site, Old Port): matte black and parkerized steel, olive
      drab and coyote polymer, wood and woodland camo furniture, nothing that glows; every gun kinetic
      (tracers, brass).
+   - 'desert' (81.0, Desert Outpost): the sand-khaki teams' (desertCamo.ts): an FDE receiver, coyote
+     polymer, desert-camo furniture, coyote gloves, the sleeves in the player's team's camo.
    - 'corporate' (Maglev Terminal): white gloss polymer, carbon-fibre panels, satin aluminium, small
      cyan indicator lights (dim: a status LED, not a neon tube).
   46.0: a finish is only a look: every gun fires bullets on every map (tracers, brass, a firearm's report).
@@ -21,7 +25,7 @@ import { RIG_GUNS, rigGunGlow } from '../enemies/rigGuns';
   The bots carry the same finish: their rig gun takes the theme's frame, furniture and glow (Tdm).
 */
 
-export type GunTheme = 'blaster' | 'military' | 'corporate';
+export type GunTheme = 'blaster' | 'military' | 'corporate' | 'desert';
 
 /** Material roles a gun model asks for. */
 export interface GunMats {
@@ -87,6 +91,18 @@ const PALETTES: Record<GunTheme, Palette> = {
     furnitureMap: () => woodlandCamo(),
     sleeveMap: true,
   },
+  desert: {
+    frame: [DESERT_GUN.fde, 0.35, 0.6, 0.6],
+    steel: [DESERT_GUN.dark, 0.7, 0.45, 0.8],
+    polymer: [DESERT_GUN.coyote, 0.05, 0.75, 0.45],
+    furniture: [0xffffff, 0.05, 0.8, 0.45],
+    trim: [0x4c4436, 0.6, 0.5, 0.8],
+    glow: null,
+    glove: 0x7a6448,
+    sleeve: 0xffffff,
+    furnitureMap: () => desertGunCamo(),
+    sleeveMap: true,
+  },
   corporate: {
     frame: [0xc4c9cd, 0.15, 0.3, 0.9],
     steel: [0xa9b0b6, 0.85, 0.25, 1.4],
@@ -113,8 +129,8 @@ function furnitureMap(theme: GunTheme) {
   return maps[theme]!;
 }
 
-/** Fresh materials for one build of a gun in `theme`. */
-export function gunMats(theme: GunTheme): GunMats {
+/** Fresh materials for one build of a gun in `theme` (81.0: `team`: whose sleeves, on the Desert). */
+export function gunMats(theme: GunTheme, team: TeamId = 'alpha'): GunMats {
   const p = PALETTES[theme];
   const std = ([color, metalness, roughness, env]: [number, number, number, number], map: THREE.Texture | null = null) =>
     new THREE.MeshStandardMaterial({ color, metalness, roughness, envMapIntensity: env, map });
@@ -129,7 +145,7 @@ export function gunMats(theme: GunTheme): GunMats {
     glow,
     glows: !!p.glow,
     glove: new THREE.MeshStandardMaterial({ color: p.glove, roughness: 0.8, metalness: 0.05 }),
-    sleeve: new THREE.MeshStandardMaterial({ color: p.sleeve, roughness: 0.88, map: p.sleeveMap ? fm : null }),
+    sleeve: new THREE.MeshStandardMaterial({ color: p.sleeve, roughness: 0.88, map: p.sleeveMap ? (theme === 'desert' ? desertCamoTexture(team) : fm) : null }),
     cuff: p.glow ? glow : std([0x2b2c2a, 0.3, 0.7, 0.5]),
   };
 }
@@ -144,6 +160,7 @@ export function stripColour(theme: GunTheme): THREE.Color | null {
 export function gunThemeFor(setting: string): GunTheme {
   if (setting === 'maglev') return 'corporate';
   if (setting === 'tokyo' || setting === 'neonblock' || setting === 'docks') return 'blaster';
+  if (setting === 'desert') return 'desert';
   return 'military';
 }
 
@@ -156,6 +173,8 @@ const BOT_GUN: Record<GunTheme, { color: number; metalness: number; roughness: n
   blaster: { color: 0x3a3e48, metalness: 0.7, roughness: 0.35, env: 0.6 },
   military: { color: 0x2a2b27, metalness: 0.4, roughness: 0.7, env: 0.3 },
   corporate: { color: 0xdfe3e6, metalness: 0.15, roughness: 0.35, env: 0.6 },
+  // (A shade lighter than the viewmodel's FDE: a bot's gun is small and mostly in its own shadow.)
+  desert: { color: 0xa48d6a, metalness: 0.1, roughness: 0.7, env: 0.45 },
 };
 const botMats: Partial<Record<GunTheme, { body: THREE.Material; model: THREE.Material; accent: THREE.Material | null }>> = {};
 let accentGeo: THREE.BufferGeometry | null = null;

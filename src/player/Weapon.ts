@@ -7,6 +7,7 @@ import type { Player } from './Player';
 import type { WeaponSpec } from '../entities/types';
 import { KITSUNE_9 } from '../entities/weapons/kitsune9';
 import { gunMats, stripColour, type GunTheme } from '../entities/weapons/theme';
+import type { TeamId } from '../combat/Team';
 import { gunModelsGen } from '../entities/weapons/models';
 
 /** 54.1: a gun built and put aside: its parts by parent, the magazine's rest, its flash. */
@@ -96,6 +97,8 @@ export class Weapon {
   private stripMat: THREE.MeshBasicMaterial;
   /** 21.0: the finish the gun was built in (the map's), and the strips' full-ammo colour in it (null: no glow). */
   theme: GunTheme = 'blaster';
+  /** 81.0: whose team he plays (his sleeves' camo on the Desert). */
+  team: TeamId = 'alpha';
   /** 66.0: the models' generation the kept builds were made with (models.ts). */
   private modelGen = -1;
   private stripBase: THREE.Color | null = null;
@@ -135,11 +138,14 @@ export class Weapon {
     return reloadKind(this.spec.sound);
   }
 
-  setSpec(spec: WeaponSpec, theme: GunTheme = this.theme) {
+  setSpec(spec: WeaponSpec, theme: GunTheme = this.theme, team: TeamId = this.team) {
     // 66.0: the guns' models arrived after these were built (boxes): build them again.
     const stale = this.modelGen !== gunModelsGen();
-    if (this.spec === spec && this.theme === theme && this.gun.children.length && !stale) return;
-    if (theme !== this.theme || stale) {
+    // (81.0: a team only changes the build where the sleeves wear it.)
+    const reteam = team !== this.team && theme === 'desert';
+    this.team = team;
+    if (this.spec === spec && this.theme === theme && !reteam && this.gun.children.length && !stale) return;
+    if (theme !== this.theme || stale || reteam) {
       this.disposeModels();
       this.modelGen = gunModelsGen();
     }
@@ -160,7 +166,7 @@ export class Weapon {
       this.dress(spec);
       return;
     }
-    const mats = gunMats(theme);
+    const mats = gunMats(theme, team);
     spec.build({ gun: this.gun, slide: this.slide, mag: this.mag, display: this.ammoDisplay.texture, mats });
     this.magRest.copy(this.mag.position);
     // Muzzle flash: two crossed additive cards with a hot core, at the weapon's muzzle.

@@ -23,7 +23,7 @@ export function installDevTools(game: Game) {
       return game.state;
     },
     /** 21.0: put a gun in his hands, in a finish (default: the map's). */
-    async gun(id: 'pistol' | 'smg' | 'ar' | 'shotgun', theme?: 'blaster' | 'military' | 'corporate') {
+    async gun(id: 'pistol' | 'smg' | 'ar' | 'shotgun', theme?: 'blaster' | 'military' | 'corporate' | 'desert') {
       const { ARMORY } = await import('../entities/weapons/armory');
       const { gunThemeFor } = await import('../entities/weapons/theme');
       const spec = ARMORY[id].spec;
@@ -58,7 +58,7 @@ export function installDevTools(game: Game) {
      * (`raise` 0 the hip, 1 aimed; `pitch` the gun's; `yaw` turns them, 0 facing him). Returns a
      * function that removes them. For screenshots of the grips.
      */
-    async rigs(opts: { raise?: number; pitch?: number; yaw?: number; kit?: 'night' | 'corporate'; team?: 'alpha' | 'omega'; dist?: number } = {}) {
+    async rigs(opts: { raise?: number; pitch?: number; yaw?: number; kit?: 'night' | 'corporate' | 'desert'; team?: 'alpha' | 'omega'; dist?: number } = {}) {
       const { OPERATOR_KITS, ARM, setRigGun } = await import('../entities/enemies/operators');
       const { holdPose, gripTargets } = await import('../entities/enemies/rigGuns');
       const { solveArm } = await import('../enemies/RigIK');
@@ -284,7 +284,7 @@ export function installDevTools(game: Game) {
      * 20.0: camouflage contrast of the operators on the loaded TDM map: a match with `kit` (default the
      * map's), one OMEGA bot posed in fixed views at each distance, rendered with and without it.
      */
-    async camo(opts: { kit?: 'night' | 'corporate'; distances?: number[]; setting?: SettingId } = {}) {
+    async camo(opts: { kit?: 'night' | 'corporate' | 'desert'; distances?: number[]; setting?: SettingId } = {}) {
       const { TDM } = await import('../levels/Tdm');
       TDM.force.kit = opts.kit ?? null;
       try {

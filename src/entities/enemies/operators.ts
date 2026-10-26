@@ -6,6 +6,7 @@ import { RIG_GUNS, rigGunGeo, rigMuzzle } from './rigGuns';
 import { gunModelsGen, mercModel } from '../weapons/models';
 import type { EnemyLook } from '../types';
 import type { TeamId } from '../../combat/Team';
+import { DESERT_CAMO, DESERT_GEAR, DESERT_GUN, DESERT_TAPE } from '../desertCamo';
 
 /*
   14.0, Team Deathmatch operators: the "cyberpunk mercenary" skin both teams wear on every TDM map.
@@ -40,8 +41,13 @@ import type { TeamId } from '../../combat/Team';
  * owner couldn't tell the teams apart). The secondary gear (chest rig, shoulder pads, helmet) is now a
  * solid block of pale team colour: ice blue for ALPHA, pale sand-orange for OMEGA, the base armour
  * still white. On the night kit the same blocks are deep and muted (the dark-alley rule holds).
+ *
+ * 81.0: 'desert' (Desert Outpost): the sand-khaki teams (desertCamo.ts): the cloth in its team's desert
+ * camo (the same palette as the player's sleeves: blotches in object space, a shader on the body
+ * material), plates, helmet and pouches in the team's khaki (ALPHA's greener, OMEGA's browner), the
+ * accents not lit but tape in the HUD's colours, amber shooting glasses for the visor.
  */
-export type OperatorKit = 'night' | 'corporate';
+export type OperatorKit = 'night' | 'corporate' | 'desert';
 
 interface KitSpec {
   armor: number;
@@ -80,12 +86,31 @@ const KITS: Record<OperatorKit, KitSpec> = {
     surface: { roughness: 0.55, metalness: 0.08, env: 0.6 },
     glow: 0.8,
   },
+  // 81.0: the colours by team come from desertCamo.ts (these are ALPHA's, for the fallbacks).
+  desert: {
+    armor: DESERT_GEAR.alpha.armor,
+    cloth: DESERT_CAMO.alpha.base,
+    webbing: DESERT_GEAR.alpha.webbing,
+    boots: DESERT_GEAR.alpha.boots,
+    team: { alpha: DESERT_GEAR.alpha.team, omega: DESERT_GEAR.omega.team },
+    gun: DESERT_GUN.fde,
+    visor: 0x3a2a14,
+    surface: { roughness: 0.86, metalness: 0.04, env: 0.35 },
+    glow: 1,
+  },
 };
+
+/** 81.0: a kit's colour of a layer for a team (the desert kit's differ by team). */
+function layerColour(kitId: OperatorKit, team: TeamId, layer: 'armor' | 'cloth' | 'webbing' | 'boots' | 'team'): number {
+  const k = KITS[kitId];
+  if (kitId === 'desert') return layer === 'cloth' ? DESERT_CAMO[team].base : DESERT_GEAR[team][layer];
+  return layer === 'team' ? k.team[team] : k[layer];
+}
 
 /** 22.0 (tests, docs): a kit's colour blocks (sRGB hex) for a team. */
 export function kitColours(kit: OperatorKit, team: TeamId) {
-  const k = KITS[kit];
-  return { armor: k.armor, cloth: k.cloth, webbing: k.webbing, boots: k.boots, team: k.team[team] };
+  const c = (l: 'armor' | 'cloth' | 'webbing' | 'boots' | 'team') => layerColour(kit, team, l);
+  return { armor: c('armor'), cloth: c('cloth'), webbing: c('webbing'), boots: c('boots'), team: c('team') };
 }
 
 /** The rifle (the gun's base, before the map's finish) and the visor glass: shared per kit. */
@@ -98,7 +123,7 @@ function sharedOf(kit: KitSpec) {
   for (const x of Object.values(m)) x.userData.shared = true;
   return m;
 }
-const SHARED: Record<OperatorKit, ReturnType<typeof sharedOf>> = { night: sharedOf(KITS.night), corporate: sharedOf(KITS.corporate) };
+const SHARED: Record<OperatorKit, ReturnType<typeof sharedOf>> = { night: sharedOf(KITS.night), corporate: sharedOf(KITS.corporate), desert: sharedOf(KITS.desert) };
 
 /** Accent colours (HDR: over the 1.0 bloom threshold, a small halo, not a lamp). */
 export const OPERATOR_ACCENT: Record<TeamId, THREE.Color> = {
@@ -272,8 +297,13 @@ function buildMerc(team: TeamId, kitId: OperatorKit, frame: 'gunner' | 'light'):
   if (!tpl) {
     rigStats.merged++;
     tpl = new Map();
-    const colourOf = (l: Layer) => (l === 'team' ? kit.team[team] : (kit as unknown as Record<string, number>)[l]);
-    for (const [name, list] of parts) {
+    const colourOf = (l: Layer) => layerColour(kitId, team, l as 'armor' | 'cloth' | 'webbing' | 'boots' | 'team');
+    // 81.0: the desert kit marks its cloth for the camo (a vertex attribute: 1 on cloth).
+    const camo = kitId === 'desert';
+    for (const [name, list0] of parts) {
+      // 81.0: the desert kit's head carries no lit strip: the visor's band is shooting glasses' lens
+      // (its team shows in the helmet's khaki and the tape on the shoulders and the back).
+      const list = camo && name === 'head' ? list0.map((p) => (p.layer === 'glow' ? { ...p, layer: 'visor' as Layer } : p)) : list0;
       const out: { body?: THREE.BufferGeometry; glow?: THREE.BufferGeometry; visor?: THREE.BufferGeometry } = {};
       for (const group of ['body', 'glow', 'visor'] as const) {
         const sel = list.filter((p) => (group === 'body' ? BODY_LAYERS.includes(p.layer) : p.layer === group));
@@ -287,6 +317,7 @@ function buildMerc(team: TeamId, kitId: OperatorKit, frame: 'gunner' | 'light'):
             const n = g.attributes.position.count, c = new Float32Array(n * 3);
             for (let i = 0; i < n; i++) c.set([_col.r, _col.g, _col.b], i * 3);
             g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+            if (camo) g.setAttribute('camo', new THREE.BufferAttribute(new Float32Array(n).fill(p.layer === 'cloth' ? 1 : 0), 1));
           }
           return g;
         });
@@ -302,7 +333,9 @@ function buildMerc(team: TeamId, kitId: OperatorKit, frame: 'gunner' | 'light'):
 
   // The per-bot materials: the body (flashes on hits) and the glow (the team accents).
   const bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: kit.surface.roughness, metalness: kit.surface.metalness, envMapIntensity: kit.surface.env });
-  const glowMat = new THREE.MeshBasicMaterial({ color: OPERATOR_ACCENT[team].clone().multiplyScalar(kit.glow) });
+  // 81.0: the desert kit: the cloth's camo, and tape (not a glow) in the team's colour.
+  if (kitId === 'desert') desertCloth(bodyMat, team);
+  const glowMat = new THREE.MeshBasicMaterial({ color: kitId === 'desert' ? DESERT_TAPE[team].clone().multiplyScalar(0.85) : OPERATOR_ACCENT[team].clone().multiplyScalar(kit.glow) });
   const meshes: THREE.Mesh[] = [];
   for (const [name, g] of tpl) {
     const p = pivots.get(name)!;
@@ -343,6 +376,54 @@ function buildMerc(team: TeamId, kitId: OperatorKit, frame: 'gunner' | 'light'):
   return rig;
 }
 
+/**
+ * 81.0: the desert camo on a rig's cloth: where the `camo` attribute is set, the team's blotches over
+ * the cloth's colour from a value noise of the vertex's own position (each pivot's space: the pattern
+ * rides with the limb, no swimming), three blotch sizes, as the sleeves' texture is painted.
+ */
+function desertCloth(mat: THREE.MeshStandardMaterial, team: TeamId) {
+  const p = DESERT_CAMO[team];
+  const c = (n: number) => new THREE.Color(n);
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uCamo = { value: [c(p.spots[0]), c(p.spots[1]), c(p.spots[2])] };
+    sh.uniforms.uCamoSeed = { value: team === 'alpha' ? 3.1 : 7.7 };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float camo;\nvarying float vCamo;\nvarying vec3 vCamoP;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvCamo = camo;\nvCamoP = position;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying float vCamo;
+        varying vec3 vCamoP;
+        uniform vec3 uCamo[3];
+        uniform float uCamoSeed;
+        float camoH(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+        float camoN(vec3 p) {
+          vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(camoH(i), camoH(i + vec3(1,0,0)), f.x), mix(camoH(i + vec3(0,1,0)), camoH(i + vec3(1,1,0)), f.x), f.y),
+                     mix(mix(camoH(i + vec3(0,0,1)), camoH(i + vec3(1,0,1)), f.x), mix(camoH(i + vec3(0,1,1)), camoH(i + vec3(1,1,1)), f.x), f.y), f.z);
+        }`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        if (vCamo > 0.5) {
+          vec3 q = vCamoP + uCamoSeed;
+          float a = camoN(q * 9.0) * 0.7 + camoN(q * 21.0) * 0.3;
+          float b = camoN(q * 13.0 + 5.3) * 0.7 + camoN(q * 29.0) * 0.3;
+          float d = camoN(q * 26.0 + 9.1);
+          vec3 col = diffuseColor.rgb;
+          col = mix(col, uCamo[0], smoothstep(0.55, 0.59, a));
+          col = mix(col, uCamo[1], smoothstep(0.56, 0.6, b));
+          col = mix(col, uCamo[2], smoothstep(0.8, 0.83, d) * smoothstep(0.45, 0.5, b));
+          diffuseColor.rgb = col;
+        }`,
+      );
+  };
+  mat.customProgramCacheKey = () => `desertCloth-${team}`;
+}
+
 /** 22.0: give a merc rig the armory gun it was dealt (its model, its muzzle; the hands follow). */
 export function setRigGun(rig: Rig, id: WeaponId) {
   const w = rig.weapon;
@@ -378,4 +459,5 @@ export const OPERATORS: Record<TeamId, EnemyLook> = { alpha: operators('alpha', 
 export const OPERATOR_KITS: Record<OperatorKit, Record<TeamId, EnemyLook>> = {
   night: OPERATORS,
   corporate: { alpha: operators('alpha', 'corporate'), omega: operators('omega', 'corporate') },
+  desert: { alpha: operators('alpha', 'desert'), omega: operators('omega', 'desert') },
 };

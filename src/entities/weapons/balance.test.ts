@@ -89,10 +89,11 @@ describe('21.0: the bots carry the same shapes', () => {
 });
 
 describe('21.0: weapon themes', () => {
-  it('maps to themes: Maglev corporate, the neon maps blaster, the rest military', () => {
+  it('maps to themes: Maglev corporate, the neon maps blaster, the Desert desert (81.0), the rest military', () => {
     expect(gunThemeFor('maglev')).toBe('corporate');
     for (const s of ['tokyo', 'neonblock', 'docks']) expect(gunThemeFor(s)).toBe('blaster');
-    for (const s of ['desert', 'jungle', 'oldport', 'firebase']) expect(gunThemeFor(s)).toBe('military');
+    expect(gunThemeFor('desert')).toBe('desert');
+    for (const s of ['jungle', 'oldport', 'firebase']) expect(gunThemeFor(s)).toBe('military');
   });
   it('46.0: every gun fires bullets on every map, the player\'s and the bots\'; a themed bot gun is a copy', () => {
     for (const id of ARMORY_ORDER) {

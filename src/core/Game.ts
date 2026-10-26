@@ -643,7 +643,7 @@ export class Game {
     const id = story ?? this.loadout.current;
     const spec = ARMORY[id].spec;
     // 21.0: the gun wears the map's finish, and handles as itself.
-    this.weapon.setSpec(spec, gunThemeFor(this.setting));
+    this.weapon.setSpec(spec, gunThemeFor(this.setting), this.playerUnit?.team ?? 'alpha');
     this.player.gun = spec.handling;
     // 30.0: what it weighs sets the sprint (Stamina.ts).
     this.player.stamina.profile = WEIGHT[weightOf(spec.sound)];
