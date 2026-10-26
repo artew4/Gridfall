@@ -239,7 +239,7 @@ class Gun:
     def cyl(self, role, r, length, x=0.0, y=0.0, z=0.0, seg=24, r2=None, axis="z", group="body", bev=0.0006, rx=0.0):
         return self.add(cyl_raw(r, length, x, y, z, seg, r2, axis, rx=rx), role, group, bev, 2)
 
-    def finish(self, decimate=None):
+    def finish(self, decimate=None, uv=0.12):
         """Join each group into one object (smooth shading, weighted normals, box UVs), in glTF axes.
         `decimate`: a collapse ratio for the bots' low-detail copy."""
         out = {}
@@ -274,7 +274,7 @@ class Gun:
             wn.keep_sharp = True
             wn.weight = 50
             apply_mods(main)
-            box_uv(main, 0.12)
+            box_uv(main, uv)
             # three.js gun space -> Blender (Z up): +90 deg about X; the glTF exporter turns it back.
             main.data.transform(Matrix.Rotation(math.pi / 2, 4, "X"))
             main.data.update()

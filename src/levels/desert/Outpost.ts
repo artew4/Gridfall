@@ -1,3 +1,5 @@
+import { Dresser } from '../../world/Dress';
+import { propKit } from '../../entities/weapons/models';
 import * as THREE from 'three';
 import { StaticBuilder, worldBox } from '../../world/Builder';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -133,6 +135,33 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
       return mat;
     })(),
   };
+
+  // 68.0: the military cover kit (Dress.ts): the sandbags, the HESCO, the crates and cases, the drums,
+  // modelled in Blender, drawn where their boxes were (the boxes stay solid). Without the kit, boxes.
+  const kit = propKit('military');
+  const dress = kit
+    ? new Dresser(b, kit, {
+        wood: m.wood,
+        metal: m.darkMetal,
+        rope: std(T.canvasTexture('#7a6646'), 0xffffff, 0.95),
+        label: m.wood,
+        plastic: std(null, 0x3d3f34, 0.55, 0.05, 0.5),
+        paint: std(null, 0x4a5232, 0.6, 0.3, 0.5),
+        canvas: std(T.canvasTexture('#ad9670'), 0xffffff, 0.97),
+        liner: (() => {
+          const t = (m.hesco.map as THREE.Texture).clone();
+          t.wrapS = t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(1.7, 1.7);
+          t.needsUpdate = true;
+          return std(t, 0xffffff, 0.95);
+        })(),
+        wire: std(null, 0x3a3b38, 0.5, 0.6, 0.5),
+      })
+    : null;
+  dress?.rule(m.sandbag, 'sandbag');
+  dress?.rule(m.hesco, 'hesco');
+  /** The drums' paints (olive, blue, rust red). */
+  const drumPaint = [std(null, 0x4a5232, 0.6, 0.3, 0.5), std(null, 0x2e4560, 0.55, 0.35, 0.5), std(null, 0x7a3b22, 0.65, 0.3, 0.45)];
 
   /** A box that is both seen and solid, with the same bounds. */
   const solid = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material, surface: Collider['surface'] = 'concrete', tile = 1.5) => {
@@ -502,6 +531,10 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     case: new THREE.MeshStandardMaterial({ map: T.crateTexture('', 'CASE · معدات', '#3d3f34', '#bdb79a'), roughness: 0.6, metalness: 0.2 }),
   };
   const rubber = std(T.rubberTexture(), 0xffffff, 0.95);
+  // 68.0: the crates are wooden supply crates with their stencil on the panels, the cases hard cases.
+  for (const k of ['ammo', 'gear', 'med'] as const) dress?.rule(crateMats[k], 'crate', { label: crateMats[k] });
+  dress?.rule(crateMats.case, 'case');
+
   /** A box that shows its texture once per face (crates), seen and solid alike. */
   const crate = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material) => {
     b.add(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), mat, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
@@ -511,8 +544,12 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   const barrels = (x: number, z: number, n: number, alongX = true, y = 0) => {
     for (let i = 0; i < n; i++) {
       const cx = alongX ? x + i * 0.62 : x, cz = alongX ? z : z + i * 0.62;
-      b.add(new THREE.CylinderGeometry(0.3, 0.3, 0.92, 14), m.rust, cx, y + 0.46, cz);
-      b.add(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 14), i % 2 ? m.darkMetal : crateMats.ammo, cx, y + 0.62, cz);
+      // 68.0: oil drums (each turned its own way, a paint of three; no draw on the map's random stream).
+      const at = new THREE.Matrix4().compose(new THREE.Vector3(cx, y, cz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (cx * 7.3 + cz * 3.1) % (Math.PI * 2)), new THREE.Vector3(1, 0.92 / 0.88, 1));
+      if (!dress?.place('drum', at, { paint: drumPaint[(i + Math.round(cx + cz)) % 3] })) {
+        b.add(new THREE.CylinderGeometry(0.3, 0.3, 0.92, 14), m.rust, cx, y + 0.46, cz);
+        b.add(new THREE.CylinderGeometry(0.3, 0.3, 0.06, 14), i % 2 ? m.darkMetal : crateMats.ammo, cx, y + 0.62, cz);
+      }
       col.addCylinder(cx, cz, 0.3, y, y + 0.92, 'metal');
     }
   };
@@ -1082,7 +1119,11 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // 46.0: the flank houses are interiors too (the storm stays out, "indoors", their zone, no grid nodes in them).
   interiors.push(...arena.houses.interiors);
 
+  // DEV: what the dresser laid (__dress in the console).
+  dress?.finish(scene);
+  if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.dispose();
   scene.traverse((o) => {
     if (o.userData.staticMerged) {
       o.castShadow = true;

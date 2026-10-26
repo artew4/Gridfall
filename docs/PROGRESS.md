@@ -3031,8 +3031,31 @@ The ask: a model of the hands and gloves; good models for the characters.
 - In the game: the guns in their hands from the hip on the Desert and Neon Block (the wrist band lit), merc rigs aimed and at the hip in the night and the corporate kits.
 - Performance (12v12 fights): Desert 60 fps, GPU p50 5.6 ms (5.4 with the box operators), CPU p95 3.0 ms; Neon Docks 60 fps, GPU p50 6.1 ms; no long tasks.
 
+## 68.0: the environment in Blender, step 1: the Desert's cover
+
+Branch `feature/env-military-68.0`, from `feature/models-hands-chars-67.0` @ `b462dcc` (64.0–67.0, not merged yet).
+
+The ask: models for the maps and the environment, one after another, each done well; a plan first, then its first step. The plan: [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md) (eight steps: the military cover kit, the same on the other military maps, heavy props, the Desert's architecture, the neon street kit, the port's industry, the corporate kit, nature and ruin).
+
+### The dresser (`src/world/Dress.ts`, `StaticBuilder.dresser`)
+- The maps are boxes seen and solid at once; the bots' graph, the stairs, wallbangs and the tests are built on them, so they stay. A map registers its prop materials (`rule`); the builder offers each box in one to the dresser first, which draws it as models fitted to exactly its bounds: a crate or case stretched (turned so its long side runs the box's), HESCO cells down a run (one a metre), sandbags in courses (every other course offset by half a bag, half bags at its ends; each bag a little turned, shifted and sized from a seed; a thick wall's hidden inner rows left out but on its top course). The collider, added apart, is the same.
+- The pieces merge into the map's static meshes (no draw calls); the bags (12,512 on the Desert) are one instanced mesh, the walls' boxes casting their shadows (an invisible caster: the bags themselves out of the shadow pass).
+- A placement may paint a role its own way: each crate's stencil panel takes its box's texture (`5.56 × 900`, `KESTREL SUPPLY`, `MEDICAL`), its UVs planar over the panel (the far one turned round). Drums are placed by the barrels' helper, each turned its own way, olive, blue or rust red (no draw on the map's random stream).
+- The models load before a map is built (`loadGunModels` awaited in `loadLevelShown`); without them the boxes are drawn as before.
+
+### The kit (`tools/blender/props_military.py`, `public/models/props/military.glb`, 5.2k triangles)
+- `bag` (48: a rounded filled sack), `hesco` (the liner bulging between the posts, its top settled, the wire frame's posts and rims; the map's wire-and-sand texture on the liner), `crate` (boards, edge battens, a diagonal brace each end, iron corners, rope handles, a stencil panel each side), `case` (a rounded shell, the lid's seam, ribs, feet, latches, a handle, a valve), `drum` (rolling hoops, chimes, the lid and its bungs).
+- The Desert: 200 boxes dressed: 508 HESCO cells, 60 crates, 6 cases, 5 drums, 12,512 bags.
+
+### Checks
+- Tests 572 (+4, `dress68.test.ts`: a crate fitted to its box turned along its long side with its own stencil; HESCO cells down a run; a material with no rule stays a box; a wall's courses bond-wise, instanced, its box casting the shadow; the kit's nodes, roles, budget).
+- World check (Desert): no problems, the same clusters.
+- Performance, the Desert fight (12v12, 5 runs each): GPU p50 5.5–5.7 ms with boxes, 6.1–6.3 with the kit; 60 fps; CPU unchanged within the machine's noise.
+- In the game: the yard's sandbag ring and walls, the outer walls, the HESCO perimeter, the barracks' crates (their stencils), the motor pool's drums.
+
 ## Next
 Human playtest:
+- 68.0 items: the Desert's sandbag walls, HESCO, crates, cases and drums (look, scale, anything floating or sunk into the ground, a stencil the wrong way); the frame rate where the long sandbag walls are in view; then the word for step 2.
 - 67.0 items: the gloved hands on each gun (where a finger sinks into the gun or floats; the pistol's two hands), the wrist band; the operators at fighting distance in the dark and on Maglev's white (readable, team colours, silhouette), anything odd when they crouch, slide or die.
 - 66.0 items: the four guns in your hands on each finish (desert camo, neon, Maglev white): detail, too dark or too busy; the sights; the hands on the raked grips; the bots' guns at fighting distance; anything that pops in when a map starts.
 - 65.0 items: do the bots come from different places match to match (and still make sense); do they keep up with you running for the middle, or now get there too fast; anyone still standing about or staring at the floor (where); the snipers' foot shuffle.

@@ -105,9 +105,21 @@ export function loadGunModels(base: string = import.meta.env.BASE_URL): Promise<
       gunModelStats.failed.push('merc');
       console.warn('[models] merc.glb did not load; the operators stay boxes', e);
     });
-  loading = Promise.all([...GUN_MODEL_IDS.flatMap((id) => [one(id, models, id), one(`${id}_lod`, lods, id)]), handsIn, mercIn]).then(() => {
+  const kitsIn = Object.entries(PROP_KITS).map(([name, nodes]) =>
+    loader
+      .loadAsync(`${base}models/props/${name}.glb`)
+      .then((g) => {
+        propKits.set(name, partsOf(g.scene, nodes, true));
+        gunModelStats.loaded.push(`props/${name}`);
+      })
+      .catch((e) => {
+        gunModelStats.failed.push(`props/${name}`);
+        console.warn(`[models] props/${name}.glb did not load; its boxes stay boxes`, e);
+      }),
+  );
+  loading = Promise.all([...GUN_MODEL_IDS.flatMap((id) => [one(id, models, id), one(`${id}_lod`, lods, id)]), handsIn, mercIn, ...kitsIn]).then(() => {
     gunModelStats.ms = performance.now() - t0;
-    if (models.size || lods.size || hands || merc) gen++;
+    if (models.size || lods.size || hands || merc || propKits.size) gen++;
   });
   return loading;
 }
@@ -258,4 +270,16 @@ let merc: Record<(typeof MERC_PIVOTS)[number], MercPart[]> | null = null;
 /** The operator's parts by pivot (tools/blender/merc.py), or null: not loaded (the rig's boxes). */
 export function mercModel(): Readonly<Record<string, readonly MercPart[]>> | null {
   return merc;
+}
+
+// ------------------------------------------------------------------ 68.0: the environment's kits
+/** The prop kits (tools/blender/props_*.py) and their nodes (docs/ENVIRONMENT_PLAN.md). */
+const PROP_KITS: Record<string, readonly string[]> = {
+  military: ['bag', 'hesco', 'crate', 'case', 'drum'],
+};
+const propKits = new Map<string, Record<string, MercPart[]>>();
+
+/** A kit's parts by node (real size, base at y = 0, centred), or null: not loaded (the boxes stay). */
+export function propKit(name: string): Readonly<Record<string, readonly MercPart[]>> | null {
+  return propKits.get(name) ?? null;
 }

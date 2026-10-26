@@ -517,6 +517,8 @@ export class Game {
     this.building = true;
     const span = (to - from) * 0.75;
     try {
+      // 68.0: the models first (the maps' props are dressed while they're built; loading since the start).
+      await loadGunModels();
       const t0 = performance.now();
       for (const p of this.buildLevel(id)) {
         L.set(from + span * p.f, p.what, p.creep);
