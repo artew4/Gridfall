@@ -2890,6 +2890,14 @@ Branch `feature/desert-track-61.0`, from `main` @ `bdf4598` (60.0).
 
 The playtest: the 60.0 track good, its middle too dubstep. "Sector Breach" (generated outside the game with the middle as an industrial-techno section instead, 3:04, 136 BPM, −14.5 dB RMS) replaces it as `desert_theme.mp3`. Its outro drops to −19…−27 dB from 168 s: the loop window keeps to the full-level part, its point matched by onsets as 60.0's: `loopStart` 0.08, `loopEnd` 157.57, `xfade` 0.8 (the next pass comes in at 156.77 s, where the rhythm repeats the start's). Checked live.
 
+## 62.0: Tokyo's music is a track
+
+Branch `feature/tokyo-track-62.0`, from `main` @ `ea78aa0` (61.0).
+
+"Violet Hour Above the Rain" (generated outside the game for the foggy night city: dark, misty, a slow pulse; 3:04, about 105 BPM, −14.6 dB RMS) as `public/audio/music/tokyo_theme.mp3`: Tokyo's story and Neon Block play it in place of the procedural score.
+- Maglev Terminal (a white hall in daylight) played `tokyo_theme` too: it has its own slot now (`maglev_theme`), the procedural Tokyo score as before.
+- The loop: the track winds down from 162 s (−18…−20 dB, its intro's level): the next pass (its foggy intro) comes in at 164.5 s, where the rhythm matches the start's, over 1.5 s (`loopStart` 0.1, `loopEnd` 166, `xfade` 1.5). Checked live on Neon Block.
+
 ## Next
 Human playtest:
 - 59.0 items: the Desert's new score (the drive, the riff, the hook; too busy, too loud over the guns).

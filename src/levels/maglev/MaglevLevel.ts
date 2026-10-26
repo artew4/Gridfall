@@ -19,7 +19,8 @@ export const MAGLEV_INFO: LevelInfo = {
   loading: 'OPENING THE TERMINAL…',
   windowTitle: 'Gridfall — Maglev Terminal',
   enemies: DESERT_MERCS,
-  music: 'tokyo_theme',
+  // 62.0: its own slot (the Tokyo score, procedural): the Tokyo track is a foggy night.
+  music: 'maglev_theme',
   teamSize: MAGLEV_TEAM_SIZE,
   tagline: 'THE TRAIN · THE PLATFORMS · THE MEZZANINE',
   jpLine: 'リニア中央駅 · 1番線 2番線 · 10:05',

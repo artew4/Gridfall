@@ -27,7 +27,8 @@ import { PATTERN_THEMES, PatternTheme } from './Themes';
   bus (quieter, muffled). Counters in `stats` and the DEV `__dev.musicSoak()` check for leaks.
 */
 
-export const TRACKS = ['menu_theme', 'tokyo_theme', 'desert_theme', 'docks_theme', 'jungle_theme', 'favela_theme'] as const;
+// 62.0: Maglev Terminal its own (the Tokyo score procedurally): tokyo_theme is a night-in-the-fog track now.
+export const TRACKS = ['menu_theme', 'tokyo_theme', 'desert_theme', 'docks_theme', 'jungle_theme', 'favela_theme', 'maglev_theme'] as const;
 export type TrackId = (typeof TRACKS)[number];
 
 /** Crossfade length (s). */

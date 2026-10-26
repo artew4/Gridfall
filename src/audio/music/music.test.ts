@@ -10,8 +10,8 @@ describe('music manager', () => {
     for (let i = 0; i < up.length; i++) expect(up[i] ** 2 + down[i] ** 2).toBeCloseTo(1, 6);
   });
 
-  it('every track but Tokyo (its Score) has a procedural placeholder', () => {
-    for (const id of TRACKS) expect(id === 'tokyo_theme' || id in PATTERN_THEMES).toBe(true);
+  it('every track but Tokyo and Maglev (the Score) has a procedural placeholder', () => {
+    for (const id of TRACKS) expect(id === 'tokyo_theme' || id === 'maglev_theme' || id in PATTERN_THEMES).toBe(true);
   });
 });
 
