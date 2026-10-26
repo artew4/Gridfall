@@ -45,6 +45,7 @@ The main menu (redesigned in 45.0) is big type and one word a button: **PLAY**, 
 
 ## Gunplay
 
+- **The Desert's buildings dressed (71.0):** every door and window in the compound has its moulded frame, the windows their sills and louvred shutters folded back, the doors their planked leaves open flat to the wall; air conditioners over the doors, ribbed tanks on the roofs, a riveted water tower with its walkway and braces, a radio mast and dishes, army tents, the trading post's scalloped awning, date palms, power poles with their insulators, enamel shades over the bulbs. None of it is solid and nothing stands off a wall to be mistaken for cover.
 - **Containers and vehicles, modelled (70.0):** every shipping container is a corrugated box with its rails, corner castings and a door end with lock rods and hinges (Neon Docks' maze, Old Port, the Crash Site, the jungle firebase), and the vehicles are models: the Desert convoy's burnt truck, the APC on its side and the burnt bus you can walk through, the army trucks in the motor pools, a jeep with its gun, a fuel bowser, gensets, a burnt-out car, the docks' tractor with a 40 ft container on its trailer and a forklift.
 - **The military maps' cover, modelled (69.0):** the same kit on Deep Jungle's firebase (its crates stencilled in Thai, jersey barriers with their rebar loops, drums), the Crash Site's HESCO and sandbags, and Old Port's cargo, crates on pallets in stacks; the Desert's tyres and cable spools too.
 - **The Desert's cover, modelled (68.0):** the sandbag walls are laid bag by bag (courses offset by half a bag, each bag a little turned), the HESCO barriers are wire-framed cells with their liners bulging, the crates are wooden supply crates with battens, iron corners, rope handles and their stencils, the cases hard cases, the barrels oil drums. Where you can stand, shoot through or take cover is exactly as before. The plan for the rest of the maps: [docs/ENVIRONMENT_PLAN.md](docs/ENVIRONMENT_PLAN.md).
@@ -136,7 +137,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **578 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **581 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;

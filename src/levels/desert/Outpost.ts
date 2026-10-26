@@ -166,6 +166,11 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
         light: new THREE.MeshStandardMaterial({ color: 0xe8e0c8, emissive: 0x332e22, roughness: 0.2, metalness: 0.1 }),
         dark: std(null, 0x1c1d1f, 0.75, 0.25, 0.3),
         chrome: std(null, 0xb8bcc0, 0.25, 0.9, 1.0),
+        // 71.0: the architecture's.
+        trim: std(T.woodTexture(), 0xa08060, 0.85),
+        bark: m.trunk,
+        frond: m.palm,
+        enamel: std(null, 0x3d6a58, 0.35, 0.2, 0.6),
       })
     : null;
   dress?.rule(m.sandbag, 'sandbag');
@@ -179,13 +184,73 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     return col.add(x0, y0, z0, x1, y1, z1, surface);
   };
 
+  // 71.0: the architecture's dressing (props_desert.py): a frame round every opening (both faces),
+  // on the outside the shutters folded back flat to the wall beside a window, a door leaf open flat
+  // beside a door, now and then an air conditioner over the head height. Seen only: nothing is solid,
+  // nothing stands off the wall more than a hand (the AC is over the heads).
+  const seg = (a: THREE.Vector3, c: THREE.Vector3, k = 1) => {
+    const d = c.clone().sub(a);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), d.clone().normalize());
+    return new THREE.Matrix4().compose(a.clone().add(c).multiplyScalar(0.5), q, new THREE.Vector3(d.length() * k, 1, 1));
+  };
+  /** A piece on a wall's face: `p` along the wall, `y` up, `c` the face's plane; its +Z out of the wall. */
+  const onFace = (alongX: boolean, p: number, y: number, c: number, sgn: 1 | -1, sx = 1, sy = 1, sz = 1) => {
+    const rot = alongX ? (sgn > 0 ? 0 : Math.PI) : sgn > 0 ? Math.PI / 2 : -Math.PI / 2;
+    const at = alongX ? new THREE.Vector3(p, y, c) : new THREE.Vector3(c, y, p);
+    return new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot), new THREE.Vector3(sx, sy, sz));
+  };
+  const dressStats = { frames: 0, shutters: 0, doors: 0, acs: 0 };
+  const dressWall = (alongX: boolean, a0: number, a1: number, c0: number, c1: number, h: number, ops: Opening[], out?: 1 | -1) => {
+    if (!dress?.size('jamb')) return;
+    const J = 0.14;
+    const busy: [number, number][] = ops.map((o) => [o.at - o.w / 2 - J, o.at + o.w / 2 + J]);
+    const free = (p0: number, p1: number) => p0 >= a0 + 0.05 && p1 <= a1 - 0.05 && busy.every(([q0, q1]) => p1 <= q0 || p0 >= q1);
+    for (const o of ops) {
+      const o0 = o.at - o.w / 2, o1 = o.at + o.w / 2;
+      const y0 = o.y0 ?? 0, y1 = o.y1 ?? DOOR_H, isDoor = y0 <= 0;
+      for (const [c, sgn] of [[c0, -1], [c1, 1]] as [number, 1 | -1][]) {
+        for (const p of [o0 - J / 2, o1 + J / 2]) dress.place('jamb', onFace(alongX, p, y0, c, sgn, 1, y1 - y0 + (isDoor ? 0 : 0.06), 1));
+        dress.place('head', onFace(alongX, o.at, y1, c, sgn, o.w + 2 * J));
+        if (!isDoor) dress.place('sill', onFace(alongX, o.at, y0 - 0.11, c, sgn, o.w + 0.2));
+        dressStats.frames++;
+      }
+      if (!out) continue;
+      const c = out > 0 ? c1 : c0;
+      if (isDoor) {
+        // The leaf open flat beside the door, on whichever side has the wall for it.
+        const w = o.w, hd = y1 - 0.08;
+        const side = free(o1 + J, o1 + J + w) ? 1 : free(o0 - J - w, o0 - J) ? -1 : 0;
+        if (side) {
+          dress.place('door', onFace(alongX, side > 0 ? o1 + J + w / 2 : o0 - J - w / 2, 0.02, c, out, w, hd / 2.1, 1));
+          busy.push(side > 0 ? [o1 + J, o1 + J + w] : [o0 - J - w, o0 - J]);
+          dressStats.doors++;
+        }
+      } else if (free(o0 - J - o.w / 2, o0 - J) && free(o1 + J, o1 + J + o.w / 2)) {
+        for (const p of [o0 - J - o.w / 4, o1 + J + o.w / 4]) dress.place('shutter', onFace(alongX, p, y0, c, out, o.w, (y1 - y0) / 1.0, 1));
+        busy.push([o0 - J - o.w / 2, o0 - J], [o1 + J, o1 + J + o.w / 2]);
+        dressStats.shutters += 2;
+      }
+    }
+    // An air conditioner on a tall enough outside wall, over a door's head, where the wall is free.
+    if (out && h >= 3.2 && a1 - a0 >= 4 && (Math.round(a0 * 7 + c0 * 3) & 1) === 0) {
+      for (let p = a0 + 1.2; p < a1 - 1.2; p += 0.5) {
+        if (!free(p - 0.5, p + 0.5)) continue;
+        // (Its drain pipe hangs 0.65 m under the box: the box from 2.45 m, under the roof.)
+        dress.place('ac', onFace(alongX, p, Math.min(h - 1.45, 1.8), out > 0 ? c1 : c0, out));
+        dressStats.acs++;
+        break;
+      }
+    }
+  };
+
   /**
    * A straight wall with openings. Along x (n/s sides) it spans [a0, a1] in x at z ∈ [c0, c1];
    * along z it spans [a0, a1] in z at x ∈ [c0, c1]. Each solid stretch and each piece above/below an
    * opening is one box, seen and collided alike.
    */
-  const wall = (alongX: boolean, a0: number, a1: number, c0: number, c1: number, h: number, mat: THREE.Material, openings: Opening[], lintelMat = mat) => {
+  const wall = (alongX: boolean, a0: number, a1: number, c0: number, c1: number, h: number, mat: THREE.Material, openings: Opening[], lintelMat = mat, out?: 1 | -1) => {
     const ops = openings.slice().sort((p, q) => p.at - q.at);
+    dressWall(alongX, a0, a1, c0, c1, h, ops, out);
     const piece = (p0: number, p1: number, y0: number, y1: number, mt: THREE.Material) => {
       if (p1 - p0 < 0.01 || y1 - y0 < 0.01) return;
       if (alongX) solid(p0, y0, c0, p1, y1, c1, mt);
@@ -220,10 +285,10 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     const t = WALL_T;
     const on = (s: Side) => o.openings.filter((p) => p.side === s);
     const n0 = col.colliders.length;
-    wall(true, o.x0, o.x1, o.z0, o.z0 + t, o.h, o.mat, on('n'), m.wood);
-    wall(true, o.x0, o.x1, o.z1 - t, o.z1, o.h, o.mat, on('s'), m.wood);
-    wall(false, o.z0 + t, o.z1 - t, o.x0, o.x0 + t, o.h, o.mat, on('w'), m.wood);
-    wall(false, o.z0 + t, o.z1 - t, o.x1 - t, o.x1, o.h, o.mat, on('e'), m.wood);
+    wall(true, o.x0, o.x1, o.z0, o.z0 + t, o.h, o.mat, on('n'), m.wood, -1);
+    wall(true, o.x0, o.x1, o.z1 - t, o.z1, o.h, o.mat, on('s'), m.wood, 1);
+    wall(false, o.z0 + t, o.z1 - t, o.x0, o.x0 + t, o.h, o.mat, on('w'), m.wood, -1);
+    wall(false, o.z0 + t, o.z1 - t, o.x1 - t, o.x1, o.h, o.mat, on('e'), m.wood, 1);
     if (o.pierce) for (let i = n0; i < col.colliders.length; i++) col.colliders[i].pierce = o.pierce;
     solid(o.x0 + t, 0, o.z0 + t, o.x1 - t, SLAB, o.z1 - t, m.concrete);
     const rt = o.h + 0.25;
@@ -396,12 +461,12 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // Trading post: an L with an arcade along its north side and a walkable roof (stair on the east of the south wing).
   {
     const h = 3.3, mat = m.mud, t = WALL_T;
-    wall(true, -24, -10, 8, 8 + t, h, mat, [{ side: 'n', at: -15.3, w: 1.4 }, { side: 'n', at: -21, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'n', at: -12, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }], m.wood);
-    wall(false, 8 + t, 15 - t, -10 - t, -10, h, mat, [{ side: 'e', at: 11.5, w: 1.4 }], m.wood);
-    wall(true, -17 - t, -10, 15 - t, 15, h, mat, [{ side: 's', at: -13.5, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }]);
+    wall(true, -24, -10, 8, 8 + t, h, mat, [{ side: 'n', at: -15.3, w: 1.4 }, { side: 'n', at: -21, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'n', at: -12, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }], m.wood, -1);
+    wall(false, 8 + t, 15 - t, -10 - t, -10, h, mat, [{ side: 'e', at: 11.5, w: 1.4 }], m.wood, 1);
+    wall(true, -17 - t, -10, 15 - t, 15, h, mat, [{ side: 's', at: -13.5, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }], mat, 1);
     wall(false, 15, 24 - t, -17 - t, -17, h, mat, []); // no window: the outside stair runs along this wall
-    wall(true, -24, -17, 24 - t, 24, h, mat, [{ side: 's', at: -20.7, w: 1.4 }], m.wood);
-    wall(false, 8 + t, 24 - t, -24, -24 + t, h, mat, [{ side: 'w', at: 12, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'w', at: 19.5, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }]);
+    wall(true, -24, -17, 24 - t, 24, h, mat, [{ side: 's', at: -20.7, w: 1.4 }], m.wood, 1);
+    wall(false, 8 + t, 24 - t, -24, -24 + t, h, mat, [{ side: 'w', at: 12, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }, { side: 'w', at: 19.5, w: 1.2, y0: WIN_Y0, y1: WIN_Y1 }], m.wood, -1);
     solid(-24 + t, 0, 8 + t, -10 - t, SLAB, 15 - t, m.concrete);
     solid(-24 + t, 0, 15 - t, -17 - t, SLAB, 24 - t, m.concrete);
     const rt = h + 0.25;
@@ -426,7 +491,9 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     stair(-17, 17.4, -15.6, 23.6, 'z', -1, rt, 'e');
     // Arcade: posts and a canvas awning along the north wall (above any jump).
     for (let x = -23.6; x <= -10.3; x += 3.3) solid(x - 0.13, 0, 5.75, x + 0.13, 2.95, 6.01, m.wood, 'wood');
-    b.add(worldBox(14, 0.06, 2.3, 2), m.awning, -17, 3.0, 6.85);
+    // 71.0: the kit's awning, four bays on their rods (high on the wall).
+    if (dress?.size('awning')) for (let i = 0; i < 4; i++) dress.place('awning', new THREE.Matrix4().makeTranslation(-24 + 1.75 + i * 3.5, 2.86, 6.85), { canvas: m.awning });
+    else b.add(worldBox(14, 0.06, 2.3, 2), m.awning, -17, 3.0, 6.85);
     col.add(-24, 2.97, 5.7, -10, 3.03, 8, 'wood', false).ray = true;
     // Stalls inside.
     solid(-23.7, SLAB, 10.2, -21.3, 0.95, 11.0, m.wood, 'wood');
@@ -484,10 +551,21 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // Water tower (legs collide; the tank is far above anyone's head).
   for (const [x, z] of [[0.6, 20.6], [3.1, 20.6], [0.6, 23.1], [3.1, 23.1]]) solid(x, 0, z, x + 0.3, 6.1, z + 0.3, m.darkMetal, 'metal');
   {
-    const tank = new THREE.CylinderGeometry(2.0, 2.0, 3, 16);
-    b.add(tank, m.rust, 2, 7.6, 22);
+    // 71.0: the kit's riveted tank (its walkway, ladder and roof vent), X braces between the legs over
+    // the heads.
+    if (dress?.place('tower_tank', new THREE.Matrix4().compose(new THREE.Vector3(2, 6.1, 22), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), new THREE.Vector3(1, 1, 1)), { metal: m.rust })) {
+      const legs: [number, number][] = [[0.75, 20.75], [3.25, 20.75], [3.25, 23.25], [0.75, 23.25]];
+      for (let i = 0; i < 4; i++) {
+        const [ax, az] = legs[i], [cx, cz] = legs[(i + 1) % 4];
+        dress.place('brace', seg(new THREE.Vector3(ax, 3.2, az), new THREE.Vector3(cx, 5.95, cz)));
+        dress.place('brace', seg(new THREE.Vector3(ax, 5.95, az), new THREE.Vector3(cx, 3.2, cz)));
+      }
+    } else {
+      const tank = new THREE.CylinderGeometry(2.0, 2.0, 3, 16);
+      b.add(tank, m.rust, 2, 7.6, 22);
+      b.add(new THREE.ConeGeometry(2.1, 0.8, 16), m.rust, 2, 9.5, 22);
+    }
     col.addCylinder(2, 22, 2.0, 6.1, 9.1, 'metal');
-    b.add(new THREE.ConeGeometry(2.1, 0.8, 16), m.rust, 2, 9.5, 22);
   }
 
   // ======================================================================= Yard
@@ -528,6 +606,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // (12.0: the barriers inside the west and east gates gave way to the culvert's stairs and parapets.)
   // Tents: canvas walls with a ridge roof (all within the walls' footprint).
   const tent = (x0: number, z0: number, x1: number, z1: number) => {
+    // 71.0: the kit's tent over its boxes (its door east).
+    dress?.replace('tent', [x0, 0, z0], [x1, 2.55, z1], { over: { canvas: m.tent }, margin: 0.05 });
     solid(x0, 0, z0, x1, 2.0, z1, m.tent, 'wood');
     solid(x0, 2.0, z0 + 0.7, x1, 2.55, z1 - 0.7, m.tent, 'wood');
   };
@@ -631,6 +711,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   // Power poles with wires sagging between them (wires far overhead), cables along the ground.
   const poles: [number, number][] = [[-6.5, -9.5], [4.5, -9.5], [26.8, 3.2]];
   for (const [x, z] of poles) {
+    // 71.0: the kit's pole (crossarm, insulators, a transformer can) over the trunk and its bar.
+    dress?.replace('pole', [x - 0.15, 0, z - 0.15], [x + 0.15, 7.3, z + 0.15], { fit: false, margin: 0.3 });
     cylinder(x, z, 0.13, 7.2, m.trunk);
     b.add(worldBox(1.4, 0.1, 0.1, 1), m.trunk, x, 6.8, z);
   }
@@ -655,6 +737,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 6), m.bulb.clone());
     mesh.position.set(x, y, z);
     scene.add(mesh);
+    // 71.0: an enamel shade over it, its cord up to the ceiling.
+    dress?.place('lamp', new THREE.Matrix4().makeTranslation(x, y - 0.02, z));
     b.add(worldBox(0.02, 0.4, 0.02, 1), m.darkMetal, x, y + 0.25, z);
     const glow = glows.add({ pos: new THREE.Vector3(x, y, z), color: new THREE.Color(1, 0.72, 0.4), radius: 5, base: 0.9, haloSize: 1.1, haloStrength: 0.35, mode: 'steady' });
     const c = col.add(x - 0.12, y - 0.12, z - 0.12, x + 0.12, y + 0.12, z + 0.12, 'glass', false);
@@ -684,14 +768,22 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
       else b.add(worldBox(0.9, 2.0, 0.03, 1), m.darkMetal, (x0 + x1) / 2, y + 1.0, z1 + 0.015);
     };
     const tank = (x: number, z: number, y: number, r: number, h: number) => {
-      b.add(new THREE.CylinderGeometry(r, r, h, 14), m.whitewash, x, y + h / 2, z);
-      b.add(new THREE.CylinderGeometry(r * 0.3, r * 0.3, 0.2, 10), m.darkMetal, x, y + h + 0.1, z);
+      // 71.0: the kit's ribbed tank on its stand (the collider as it was).
+      const at = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), x + z), new THREE.Vector3(r / 0.8, h / 1.86, r / 0.8));
+      if (!dress?.place('roof_tank', at, { plastic: m.whitewash })) {
+        b.add(new THREE.CylinderGeometry(r, r, h, 14), m.whitewash, x, y + h / 2, z);
+        b.add(new THREE.CylinderGeometry(r * 0.3, r * 0.3, 0.2, 10), m.darkMetal, x, y + h + 0.1, z);
+      }
       col.addCylinder(x, z, r, y, y + h, 'metal');
     };
     const plant = (x0: number, z0: number, x1: number, z1: number, y: number, h: number) => {
       solid(x0, y, z0, x1, y + h, z1, m.darkMetal, 'metal');
       b.add(worldBox((x1 - x0) * 0.7, 0.05, (z1 - z0) * 0.7, 1), m.metal, (x0 + x1) / 2, y + h + 0.025, (z0 + z1) / 2);
     };
+    // 71.0: a radio mast on the motor pool's shed, dishes on the barracks' and the trading post's.
+    dress?.place('antenna', new THREE.Matrix4().makeTranslation(24.3, 5.25 + 2.55, -18.6));
+    dress?.place('dish', new THREE.Matrix4().compose(new THREE.Vector3(-24.4, 3.55 + 2.55, -16.6), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 2.4), new THREE.Vector3(1, 1, 1)));
+    dress?.place('dish', new THREE.Matrix4().compose(new THREE.Vector3(-22.7, 3.55 + 2.55, 22.6), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0.9), new THREE.Vector3(1, 1, 1)));
     // Barracks (3.55): a shed on its west end, a tank, plant; its west parapet to 1 m.
     shed(-25.75, -17.75, -23.0, -13.0, 3.55, m.plaster);
     tank(-19.6, -16.9, 3.55, 0.8, 1.8);
@@ -1080,8 +1172,10 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   }
   // Palms by the clinic and the trading post (trunks collide; fronds far above).
   for (const [x, z] of [[16.4, 18.6], [4.2, 16.5], [-8.6, 18.0]]) {
+    // 71.0: the kit's date palm (a ringed trunk leaning a little, arching fronds) over the trunk and leaves.
+    dress?.replace('palm', [x - 0.25, 0, z - 0.25], [x + 0.25, 6.6, z + 0.25], { fit: false, rotY: x * 1.7, margin: 0.3 });
     cylinder(x, z, 0.22, 6.5, m.trunk);
-    for (let k = 0; k < 7; k++) {
+    for (let k = 0; k < 7 && !dress?.size('palm'); k++) {
       const leaf = new THREE.PlaneGeometry(0.7, 3.2);
       leaf.translate(0, 1.6, 0);
       const a = (k / 7) * Math.PI * 2;
@@ -1143,7 +1237,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   // DEV: what the dresser laid (__dress in the console).
   dress?.finish(scene);
-  if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
+  if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = { ...dress.stats, walls: dressStats };
   b.build(scene);
   dress?.afterBuild(scene);
   dress?.dispose();

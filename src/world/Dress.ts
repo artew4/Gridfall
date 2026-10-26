@@ -31,6 +31,8 @@ import { canvasTexture, hescoTexture, rubberTexture, woodTexture } from '../leve
 */
 
 export type DressKind = 'crate' | 'case' | 'hesco' | 'sandbag' | 'drum' | 'jersey' | 'stack' | 'tyre' | 'spool' | 'pallet' | 'container';
+/** 71.0: the Desert's dressing (props_desert.py). */
+export type DesertKind = 'jamb' | 'head' | 'sill' | 'shutter' | 'door' | 'ac' | 'roof_tank' | 'tower_tank' | 'brace' | 'antenna' | 'dish' | 'tent' | 'awning' | 'palm' | 'lamp' | 'pole';
 /** 70.0: the heavy kit's models (props_heavy.py). */
 export type HeavyKind = 'container' | 'container40' | 'truck' | 'truck_open' | 'apc' | 'bus' | 'generator' | 'car' | 'jeep' | 'bowser' | 'semi' | 'forklift';
 type Over = Partial<Record<string, THREE.Material>>;
@@ -82,6 +84,8 @@ function scaleUV(geo: THREE.BufferGeometry, k: number) {
 }
 
 const _c = new THREE.Vector3();
+/** 71.0: pieces that sit on a wall's face: placed by their back, not their middle. */
+const ON_WALL = new Set(['jamb', 'head', 'sill', 'shutter', 'door', 'ac']);
 
 export class Dresser {
   /** DEV: the boxes it took and the models it laid. */
@@ -125,11 +129,11 @@ export class Dresser {
   }
 
   /** A model at `m` (world), scaled from its real size by (sx, sy, sz), its base centre at the origin. */
-  place(kind: DressKind | 'bag', m: THREE.Matrix4, over?: Over) {
+  place(kind: DressKind | DesertKind | 'bag', m: THREE.Matrix4, over?: Over) {
     const node = this.nodes.get(kind);
     if (!node) return false;
-    // Recentre: the model's base centre to the origin.
-    _t.makeTranslation(-(node.min.x + node.size.x / 2), -node.min.y, -(node.min.z + node.size.z / 2));
+    // Recentre: the model's base centre to the origin (a piece for a wall's face: its back to it).
+    _t.makeTranslation(-(node.min.x + node.size.x / 2), -node.min.y, ON_WALL.has(kind) ? -node.min.z : -(node.min.z + node.size.z / 2));
     const world = _m.multiplyMatrices(m, _t);
     for (const p of node.parts) {
       const mat = over?.[p.role] ?? this.mats[p.role];
@@ -240,9 +244,16 @@ export class Dresser {
    * that way) and rolled `roll` about its length (the APC on its side), scaled to fill the box; what
    * the map draws inside the box (grown by `margin`) from now on is hidden. False: no such model.
    */
-  replace(kind: HeavyKind, min: [number, number, number], max: [number, number, number], o: { rotY?: number; roll?: number; over?: Over; margin?: number } = {}) {
+  replace(kind: HeavyKind | DesertKind, min: [number, number, number], max: [number, number, number], o: { rotY?: number; roll?: number; over?: Over; margin?: number; fit?: boolean } = {}) {
     const node = this.nodes.get(kind);
     if (!node) return false;
+    if (o.fit === false) {
+      // At its own size on the region's base centre (a palm, a pole: what it hides is its trunk).
+      const g = o.margin ?? 0.1;
+      this.place(kind as DressKind, new THREE.Matrix4().makeTranslation((min[0] + max[0]) / 2, min[1], (min[2] + max[2]) / 2).multiply(new THREE.Matrix4().makeRotationY(o.rotY ?? 0)), o.over);
+      this.regions.push(new THREE.Box3(new THREE.Vector3(min[0] - g, min[1] - g, min[2] - g), new THREE.Vector3(max[0] + g, max[1] + g, max[2] + g)));
+      return true;
+    }
     const size = new THREE.Vector3(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
     const rotY = o.rotY ?? 0, roll = o.roll ?? 0;
     // The model's extents once turned: rolled (X and Y trade), then turned (X and Z trade at a quarter).
@@ -299,6 +310,11 @@ export class Dresser {
       rule.kind === 'sandbag' ? this.bags(base, L, h, D) : rule.kind === 'hesco' ? this.cells(base, L, h, D) : rule.kind === 'stack' ? this.stack(base, L, h, D, rule.over) : this.one(rule.kind, base, L, h, D, rule.over);
     if (ok) this.stats.boxes++;
     return ok;
+  }
+
+  /** 71.0: a model's size as authored (frames are stretched to their openings by it). */
+  size(kind: string) {
+    return this.nodes.get(kind)?.size ?? null;
   }
 
   /** One model stretched to the box (a jersey barrier run longer than one: as many as fit, 2 m each). */

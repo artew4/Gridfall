@@ -3105,8 +3105,28 @@ The ask: step 3 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
 - World checks: Neon Docks clean; the Desert's only the old stair-against-wall notes.
 - Performance (12v12 fights, GPU p50): Old Port 5.7 ms (6.4 before collapsing the crates); the Desert 6.2; Neon Docks 6.2 or 7.6–8.6 by where the fight goes, the same two modes without the kits (6.4–7.3); 60 fps on all.
 
+## 71.0: the environment in Blender, step 4: the Desert's architecture
+
+Branch `feature/env-desert-arch-71.0`, from `feature/env-heavy-70.0` @ `820690c` (64.0–70.0, not merged yet).
+
+The ask: step 4 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
+
+### The kit (`tools/blender/props_desert.py`, `public/models/props/desert.glb`, 13.1k triangles)
+- An opening's frame in profiled pieces (`jamb` 1 m tall, `head` with a cornice lip and a keystone, `sill` with its drip: the game stretches them along their length only, so the moulding keeps its section), a louvred `shutter`, a planked `door` (a Z brace, strap hinges, a ring pull), a wall `ac` (grilled box, fan, fins, bracket, drain pipe), a ribbed `roof_tank` on its stand, the water tower's riveted `tower_tank` (bands, a cone roof and vent, a railed walkway, a ladder) and its `brace`, an `antenna` mast and a `dish`, an army `tent` (sloped canvas walls, ridge roof with eaves, poles, a rolled door flap, windows, guy ropes inside its footprint), 3.5 m of scalloped `awning`, a date `palm` (a ringed trunk leaning a little, fourteen arching fronds), a bulb's enamel `lamp` shade, a power `pole` (crossarm, insulators, a transformer can, step bolts).
+
+### On the Desert (`Outpost.ts`)
+- Every wall's openings (`wall()`): the frame on both faces; on the outside (the buildings and the trading post say which face that is) the shutters folded back flat beside a window and a door's leaf open flat beside it, where the wall has the room (not over another opening, not past its end); an air conditioner over the door heads on some long outside walls. 64 frames, 28 shutters, 9 doors, 7 air conditioners.
+- The roofs' four tanks, the water tower's tank and eight X braces between its legs (from 3.2 m up: over the heads), a mast on the motor pool's shed and dishes on the barracks' and the trading post's, the two tents (over their boxes), the arcade's awning (four bays), three palms and three poles (over their trunks: the colliders as they were), fifteen lamp shades over the bulbs (still shot out as before).
+- The dresser places a wall piece by its back (flush to the face, all of it in front), not its middle; `replace(…, { fit: false })` puts a model at its own size over what it hides.
+
+### Checks
+- Tests 581 (+3, `desert71.test.ts`: the kit's pieces, roles, budget; the frame pieces a hand deep; a wall piece in front of its face).
+- In the game: the barracks' and the clinic's doors and windows, the trading post's arcade, the water tower, the tents, the roofs, the palms.
+- Performance (the Desert fight, GPU p50): 6.2–6.3 ms (6.2 before the step).
+
 ## Next
 Human playtest:
+- 71.0 items: the Desert's doors, windows, shutters, air conditioners, tanks, the water tower, tents, awning, palms, poles and lamp shades (anything that looks solid and isn't, or hides a window you can dive through); then the word for step 5 (the neon street kit).
 - 70.0 items: the containers (Docks' maze, Old Port, the Crash Site, the firebase), the convoy (walk through the bus: does what you see match where you can go), the motor pools, the docks' tractors and forklifts; anything floating, sunk or hiding cover you can't see; then the word for step 4 (the Desert's architecture).
 - 69.0 items: Deep Jungle's, the Crash Site's and Old Port's new cover (the cargo stacks, the barriers, the drums), the Desert's tyres and spools; then the word for step 3 (containers, vehicles, generators).
 - 68.0 items: the Desert's sandbag walls, HESCO, crates, cases and drums (look, scale, anything floating or sunk into the ground, a stencil the wrong way); the frame rate where the long sandbag walls are in view; then the word for step 2.
