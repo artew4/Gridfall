@@ -49,9 +49,10 @@ export class StaticBuilder {
   static registry: VisualPiece[] | null = null;
   /**
    * 68.0: the map's dresser (Dress.ts): a box in a prop's material is offered to it first and, taken,
-   * drawn as the prop's models instead (the collider, added apart, is unchanged).
+   * drawn as the prop's models instead (the collider, added apart, is unchanged). 70.0: every piece is
+   * offered (a region a model replaces hides whatever stood in it).
    */
-  dresser: ((geo: THREE.BoxGeometry, mat: THREE.Material, m: THREE.Matrix4) => boolean) | null = null;
+  dresser: ((geo: THREE.BufferGeometry, mat: THREE.Material, m: THREE.Matrix4) => boolean) | null = null;
 
   add(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
     _q.setFromEuler(_e.set(rx, ry, rz));
@@ -60,7 +61,7 @@ export class StaticBuilder {
   }
 
   addMatrix(geo: THREE.BufferGeometry, mat: THREE.Material, m: THREE.Matrix4) {
-    if (this.dresser && geo instanceof THREE.BoxGeometry && this.dresser(geo, mat, m)) return;
+    if (this.dresser && this.dresser(geo, mat, m)) return;
     let g = geo.index ? geo.toNonIndexed() : geo.clone();
     g.applyMatrix4(m);
     if (StaticBuilder.registry) {

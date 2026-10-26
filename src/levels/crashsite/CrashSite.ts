@@ -6,7 +6,7 @@ import { mulberry32 } from '../../core/math';
 import { fitStairWidth } from '../../world/StairFit';
 import * as T from '../jungle/textures';
 import { Dresser, militaryMats } from '../../world/Dress';
-import { propKit } from '../../entities/weapons/models';
+import { propKits } from '../../entities/weapons/models';
 import { hescoTexture, sandbagTexture } from '../desert/textures';
 import type { TreeInfo } from '../jungle/Base';
 import type { FoliageSite } from '../jungle/Foliage';
@@ -74,7 +74,7 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     amber: hdr(4.2, 2.4, 0.6),
   };
   // 69.0: the military kit (Dress.ts): the sandbags and the HESCO. Without the kit, boxes.
-  const kit = propKit('military');
+  const kit = propKits();
   const dress = kit ? new Dresser(b, kit, militaryMats({ liner: 0xc8cbb0, canvas: 0xc4c4a6 })) : null;
   dress?.rule(m.sandbag, 'sandbag');
   dress?.rule(m.hesco, 'hesco');
@@ -505,6 +505,8 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
   // middle west.
   const paints = [['#6f8f88', 1], ['#a66450', 2], ['#c4a35e', 3], ['#7a8b9c', 4]] as const;
   const contMats = paints.map(([p, sd]) => std(overgrownContainerTexture(p, sd), 0xffffff, 0.8, 0.15, 0.3));
+  // 70.0: the kit's containers in their overgrown paints.
+  for (const c of contMats) dress?.rule(c, 'container', { paint: c });
   const box2 = (x0: number, z0: number, along: 'x' | 'z', k: number) => {
     const w = along === 'x' ? CONT.W : CONT.L;
     const x1 = x0 + (along === 'x' ? CONT.L : CONT.W);
@@ -635,6 +637,7 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
   dress?.finish(scene);
   if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.afterBuild(scene);
   dress?.dispose();
   scene.traverse((o) => {
     if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).userData.staticMerged) {

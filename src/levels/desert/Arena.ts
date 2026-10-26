@@ -1,3 +1,4 @@
+import type { Dresser } from '../../world/Dress';
 import * as THREE from 'three';
 import { worldBox, type StaticBuilder } from '../../world/Builder';
 import type { Collider, CollisionWorld } from '../../world/Collision';
@@ -28,9 +29,14 @@ interface Opening {
 
 export interface ArenaKit {
   b: StaticBuilder;
+  /** 70.0: the map's dresser (the convoy's vehicles are the heavy kit's). */
+  dress?: Dresser | null;
   col: CollisionWorld;
   scene: THREE.Scene;
   mats: {
+    /** 70.0: the convoy's burnt paint, the APC's faded tan. */
+    burnt?: THREE.Material;
+    tan?: THREE.Material;
     mud: THREE.Material;
     hesco: THREE.Material;
     concrete: THREE.Material;
@@ -452,6 +458,21 @@ export function buildArena(k: ArenaKit): ArenaResult {
       const t = OUTER.truck;
       const [cx0, cz0, cx1, cz1] = R(flip, t.x0, t.cab[0], t.x1, t.cab[1]);
       const fc = desertHeight((cx0 + cx1) / 2, (cz0 + cz1) / 2);
+      // 70.0: the kit's burnt truck (its cab south; its load stays the crate it is), the APC on its side
+      // (the turret in the sand to the west), the burnt bus with its doors and windows where the walls'
+      // openings are.
+      {
+        const [x0, z0, x1, z1] = R(flip, t.x0, t.cab[0], t.x1, t.bed[1]);
+        k.dress?.replace('truck_open', [x0, fc, z0], [x1, fc + 2.6, z1], { rotY: flip ? 0 : Math.PI, over: { paint: m.burnt ?? m.rust, rust: m.burnt ?? m.rust } });
+        const a = OUTER.apc;
+        const [ax0, az0, ax1, az1] = R(flip, a.x0, a.z0, a.x1, a.z1);
+        const fa = desertHeight((ax0 + ax1) / 2, (az0 + az1) / 2);
+        k.dress?.replace('apc', [ax0, fa, az0], [ax1, fa + 2.6, az1], { rotY: flip ? Math.PI : 0, roll: Math.PI / 2, over: { paint: m.tan ?? m.darkMetal }, margin: 0.7 });
+        const bus = OUTER.bus;
+        const [bx0, bz0, bx1, bz1] = R(flip, bus.x0, bus.z0, bus.x1, bus.z1);
+        const fb = desertHeight(...P(flip, (bus.x0 + bus.x1) / 2, (bus.z0 + bus.z1) / 2));
+        k.dress?.replace('bus', [bx0, fb, bz0], [bx1, fb + bus.h + 0.15, bz1], { rotY: flip ? Math.PI : 0, over: { rust: m.burnt ?? m.rust }, margin: 0.3 });
+      }
       solid(cx0, cz0, cx1, cz1, fc + 2.6, m.rust, 'metal');
       const [bx0, bz0, bx1, bz1] = R(flip, t.x0, t.bed[0], t.x1, t.bed[1]);
       solid(bx0, bz0, bx1, bz1, fc + 1.4, m.rust, 'metal');

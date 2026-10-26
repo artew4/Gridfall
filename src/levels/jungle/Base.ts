@@ -9,7 +9,7 @@ import type { Zone } from '../Level';
 import { BASE, CLIFF, CLIFF_RECESS, JUNGLE_EXTENT, ROAD, STRIP, TDM_YARD, baseDist, jungleHeight, roadX } from './Terrain';
 import * as T from './textures';
 import { Dresser, militaryMats } from '../../world/Dress';
-import { propKit } from '../../entities/weapons/models';
+import { propKits } from '../../entities/weapons/models';
 import { crateTexture, hescoTexture, rubberTexture, sandbagTexture, stencilTexture } from '../desert/textures';
 
 /*
@@ -156,7 +156,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   };
   // 69.0: the military kit (Dress.ts; docs/ENVIRONMENT_PLAN.md step 2): the sandbags, the HESCO, the
   // crates with their stencils, the jersey barriers, the drums. Without the kit, boxes.
-  const kit = propKit('military');
+  const kit = propKits();
   const dress = kit ? new Dresser(b, kit, militaryMats({ liner: 0xc8cbb0, canvas: 0xc4c4a6, wood: 0xd8d0c0 })) : null;
   dress?.rule(m.sandbag, 'sandbag');
   dress?.rule(m.hesco, 'hesco');
@@ -164,6 +164,8 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   /** The jersey barriers' own material (the concrete is the buildings' too). */
   const jerseyMat = m.concrete.clone();
   dress?.rule(jerseyMat, 'jersey', { concrete: m.concrete });
+  // 70.0: the containers (the moss-grown paint).
+  dress?.rule(m.container, 'container', { paint: m.container });
 
   /** A box with its texture once per face (crates, containers). */
   const crate = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material, surface: Collider['surface'] = 'wood') => {
@@ -553,6 +555,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     const c = alongX ? solid(x - w / 2, 0, z - d / 2, x + w / 2, h, z + d / 2, m.olive, 'metal', 1) : solid(x - d / 2, 0, z - w / 2, x + d / 2, h, z + w / 2, m.olive, 'metal', 1);
     cabinets.push({ pos: new THREE.Vector3(x, 0, z), face, collider: c });
   };
+  dress?.replace('generator', [3.0, 0, BZ0 + WALL_T], [5.6, 1.3, -35.8], { rotY: Math.PI / 2, over: { paint: m.olive }, margin: 0.05 });
   solid(3.0, 0, BZ0 + WALL_T, 5.6, 1.3, -35.8, m.olive, 'metal', 1);
   cab(7.75, -33.8, 'w');
   cab(-7.75, -34.0, 'e');
@@ -591,6 +594,10 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
       }
     };
     // Six-wheel truck: cab, covered bed (canvas over hoops). Wheels inside the footprint.
+    // 70.0: the kit's (the truck, the jeep, the bowser over their boxes; the colliders as they were).
+    dress?.replace('truck', [-23.4, 0, -19.5], [-21.0, 3.0, -12.0], { rotY: Math.PI, over: { paint: m.olive, canvas: m.canvas } });
+    dress?.replace('jeep', [-18.6, 0, -18.5], [-16.8, 1.85, -14.2], { rotY: Math.PI, over: { paint: m.olive } });
+    dress?.replace('bowser', [-14.4, 0, -19.5], [-12.6, 2.33, -13.5], { over: { paint: m.olive } });
     solid(-23.4, 0, -19.5, -21.0, 2.5, -17.3, m.olive, 'metal', 1.5);
     b.add(worldBox(2.2, 0.55, 0.02), m.black, -22.2, 1.95, -19.51);
     solid(-23.4, 0, -17.3, -21.0, 1.3, -12.0, m.olive, 'metal', 1.5);
@@ -954,6 +961,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   dress?.finish(scene);
   if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.afterBuild(scene);
   dress?.dispose();
   scene.traverse((o) => {
     if (o.userData.staticMerged) {

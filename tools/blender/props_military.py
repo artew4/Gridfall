@@ -244,7 +244,8 @@ def main():
     for i in range(0, len(argv), 2):
         opts[argv[i].lstrip("-")] = argv[i + 1]
     g = build()
-    objs = g.finish(uv=1.0)
+    # (The many ones collapsed some: a port is hundreds of crates on pallets.)
+    objs = g.finish(uv=1.0, decimate={"crate": 0.45, "pallet": 0.4, "case": 0.5, "drum": 0.5, "tyre": 0.5, "spool": 0.4})
     os.makedirs(opts["out"], exist_ok=True)
     path = os.path.join(opts["out"], "military.glb")
     L.export_glb(objs, path)

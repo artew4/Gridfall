@@ -7,7 +7,7 @@ import { chainLinkTexture } from '../../world/Textures';
 import { plankTexture } from '../jungle/textures';
 import { crateTexture } from '../desert/textures';
 import { Dresser, militaryMats } from '../../world/Dress';
-import { propKit } from '../../entities/weapons/models';
+import { propKits } from '../../entities/weapons/models';
 import type { Shaft } from '../jungle/GodRays';
 import {
   ATRIUM, BAFFLES, BARRELS, BARRIERS, BASE, BLOCKERS, CONT, COURT, CRADLE, DOCK, FIRE, GATES, LAMP, LAMPS, QUAY_X, SHIP, PASSAGES, STANDS, STAND_R, UNDER_COVER, SPINE, SPINE_SEGMENTS, SPINE_STAIR, STACKS, STACK_B, WALK, WH, WHI, WH_STAIR, X_W, Z_END, lanesOf, spawnsOf, zoneAt,
@@ -108,7 +108,7 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   };
   // 69.0: the military kit (Dress.ts): the cargo (crates on pallets, the stencil the port's), the
   // drums, the jersey barriers. Without the kit, boxes.
-  const kit = propKit('military');
+  const kit = propKits();
   const dress = kit ? new Dresser(b, kit, militaryMats({ wood: 0xcfc0a8 })) : null;
   dress?.rule(m.crate, 'stack', { label: m.crate });
   // The warehouse's own materials carry a faint warm emissive: the bounce light of a sunlit room (the
@@ -123,6 +123,8 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   const wh = { brick: bounce(m.brick, 0x9a8070), boards: bounce(m.boards, 0xa08870), timber: bounce(m.timber, 0x8a7460), pier: bounce(m.brickB, 0x8a7060) };
   for (const x of Object.values(wh)) x.emissiveIntensity = 0.45;
   const boxes = [m.sea, m.rust, m.mustard, m.slate, m.cream, m.umber];
+  // 70.0: the kit's containers in the port's paints (other boxes in them stay boxes).
+  for (const c of [...boxes, m.hull, m.antifoul]) dress?.rule(c, 'container', { paint: c });
   let pick = 0;
   /** The next container paint (a fixed cycle, so both halves get the same colours). */
   const paint = () => boxes[pick++ % boxes.length];
@@ -483,7 +485,9 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
       }
     }
   }
-  // A truck chassis on the dock side of the apron.
+  // A truck chassis on the dock side of the apron. 70.0: the kit's flatbed (its cab south; mirrored north).
+  dress?.replace('truck_open', [13, 0, 38], [15.4, 3.2, 47], { over: { paint: m.cream, rust: m.steelDark } });
+  dress?.replace('truck_open', [13, 0, -47], [15.4, 3.2, -38], { rotY: Math.PI, over: { paint: m.cream, rust: m.steelDark } });
   solid2(13, 0, 38, 15.4, 1.3, 47, m.steelDark, 'metal', 1);
   solid2(13, 1.3, 44.5, 15.4, 3.2, 47, m.cream, 'metal', 1);
 
@@ -779,6 +783,7 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   dress?.finish(scene);
   if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.afterBuild(scene);
   dress?.dispose();
   scene.traverse((o) => {
     if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).userData.staticMerged) {

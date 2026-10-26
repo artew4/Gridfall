@@ -23,7 +23,7 @@ the operators were in 66.0–67.0), one kit a version, each checked in the game 
 |---|---|---|---|
 | 1 ✅ | 68.0 | **Military cover**: sandbag walls laid bag by bag, HESCO cells (liner, wire frame), wooden supply and ammo crates (planks, battens, rope handles, stencilled panel), medical crates, hard equipment cases, oil drums | Desert Outpost (the compound, the arena, the ruins, the houses) |
 | 2 ✅ | 69.0 | The same kit on the other military maps, with pallets, tyres, cable spools | Deep Jungle base, Crash Site, Old Port |
-| 3 | 70.0 | **Heavy props**: shipping containers (doors, ribs, lock bars), trucks, the convoy bus, wrecked cars, generators, fuel tanks | Neon Docks, Old Port, Jungle, Crash Site, the Desert's motor pool |
+| 3 ✅ | 70.0 | **Heavy props**: shipping containers (doors, ribs, lock bars), trucks, the convoy bus, wrecked cars, generators, fuel tanks | Neon Docks, Old Port, Jungle, Crash Site, the Desert's motor pool |
 | 4 | 71.0 | **Desert architecture dressing**: door and window frames, shutters, AC units, roof water tanks, antennas and dishes, rails, tents and awnings, palms, lamps | Desert Outpost |
 | 5 | 72.0 | **Neon street kit**: vending machines, AC units, lanterns, sign frames, bikes, dumpsters, utility poles and transformers, food stalls, bollards | Tokyo, Neon Block, Neon Docks |
 | 6 | 73.0 | **Port industrial**: cranes, mooring bollards, pipe runs, catwalk rails, racks | Neon Docks, Old Port |

@@ -10,6 +10,8 @@ import type { RainAreas } from '../../world/Rain';
 import { chainLinkTexture, concreteTexture as pavedTexture, perforatedTexture } from '../../world/Textures';
 import { concreteTexture, steelTexture } from '../jungle/textures';
 import { corrugatedTexture, crateTexture } from '../desert/textures';
+import { Dresser, militaryMats } from '../../world/Dress';
+import { propKits } from '../../entities/weapons/models';
 import { BARGES, BASE, CAB, CONT, CRANE_STAIR, DECK, DEPOT, END_Z, EXITS, HALL, MAZE, QG, QUAY_WALLS, QUAY_X, TOWER, WEST_X, WH, lanesOf, mz, spawnsOf, stackColor, zoneAt } from './DocksLayout';
 import type { Zone } from '../Level';
 
@@ -82,6 +84,14 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     cyan: hdr(0.6, 1.3, 3.0),
   };
   const stacks = { blue: m.blue, yellow: m.yellow, red: m.red };
+  // 70.0: the kits (Dress.ts): the containers in their paints (20 ft and the trailer's 40 ft), the
+  // crates and pallets as cargo on pallets, the jersey barriers. Without them, boxes.
+  const kit = propKits();
+  const dress = kit ? new Dresser(b, kit, militaryMats({}, { concrete: m.jersey })) : null;
+  for (const c of [m.blue, m.yellow, m.red, m.rust, m.green]) dress?.rule(c, 'container', { paint: c });
+  dress?.rule(m.crate, 'stack', { label: m.crate });
+  dress?.rule(m.pallet, 'stack', { label: m.pallet });
+  dress?.rule(m.jersey, 'jersey', { concrete: m.jersey });
 
   // ---------------------------------------------------------------- helpers
   /** A box that is seen and solid with the same bounds. */
@@ -370,6 +380,9 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     }
     // Yard props: a generator and crates against the side walls (cover from the exits, not traps).
     const [g0, g1] = zr(70, 72.4);
+    // 70.0: the kit's gensets.
+    dress?.replace('generator', [BASE.x0 + 0.6, 0, g0], [BASE.x0 + 2.4, 1.9, g1], { over: { paint: m.darkMetal }, margin: 0.05 });
+    dress?.replace('generator', [BASE.x1 - 2.4, 0, g0], [BASE.x1 - 0.6, 1.9, g1], { rotY: Math.PI, over: { paint: m.darkMetal }, margin: 0.05 });
     solid(BASE.x0 + 0.6, 0, g0, BASE.x0 + 2.4, 1.9, g1, m.darkMetal, 'metal', 1);
     solid(BASE.x1 - 2.4, 0, g0, BASE.x1 - 0.6, 1.9, g1, m.darkMetal, 'metal', 1);
     // A mast against the back wall: team light.
@@ -504,6 +517,13 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     rail2(T.x0, WH.z1, T.x0 + 0.08, T.z1, DECK);
   }
   // Forecourt (centre): a truck with a container on its trailer, a forklift, pallets, a barrier.
+  // 70.0: the kit's tractor and trailer (the container on it dressed as a 40 ft), its forklift.
+  for (const s of [1, -1]) {
+    const zs = (a: number, c: number): [number, number] => (s > 0 ? [a, c] : [-c, -a]);
+    const [t0, t1] = zs(36, 51), [f0, f1] = zs(48, 51);
+    dress?.replace('semi', [-9.4, 0, t0], [-6.6, 3.2, t1], { rotY: s > 0 ? 0 : Math.PI, over: { paint: m.blue } });
+    dress?.replace('forklift', [8, 0, f0], [10, 2.2, f1], { rotY: s > 0 ? 0 : Math.PI, over: { paint: m.paint }, margin: 0.1 });
+  }
   solid2(-9.22, 0, 36, -6.78, 1.3, 48.2, m.darkMetal, 'metal', 1);
   solid2(-9.22, 1.3, 36, -6.78, 3.9, 48.2, m.rust, 'metal', CONT.H);
   solid2(-9.4, 0, 48.2, -6.6, 3.2, 51, m.blue, 'metal', 1.6);
@@ -715,7 +735,11 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     { text: 'OMEGA', color: '#ff3040', style: 'box', vertical: false, mount: 'wall', face: 's', wall: -BASE.z0, x: 0, y: 2.6, z: -BASE.z0 + 0.12, size: 3.2, floorY: 0 },
   ];
   for (const s of signs) addSign(ctx, s);
+  dress?.finish(scene);
+  if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.afterBuild(scene);
+  dress?.dispose();
 
   // ---------------------------------------------------------------- navigation
   const nodes: THREE.Vector3[] = [];

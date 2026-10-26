@@ -1,5 +1,5 @@
 import { Dresser } from '../../world/Dress';
-import { propKit } from '../../entities/weapons/models';
+import { propKits } from '../../entities/weapons/models';
 import * as THREE from 'three';
 import { StaticBuilder, worldBox } from '../../world/Builder';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -122,6 +122,9 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     trunk: std(T.woodTexture(), 0x9c8466, 0.95),
     // 38.0: the ruins' masonry: a pale weathered face each block tints (InstancedMesh colours).
     sandstone: std(T.plasterTexture('#ece2d0'), 0xffffff, 0.95, 0, 0.2),
+    // 70.0: the convoy's burnt paint (mottled, not ribbed) and the APC's faded desert tan.
+    burnt: std(T.plasterTexture('#5e4232'), 0x9a8a80, 0.85, 0.3, 0.35),
+    tan: std(T.plasterTexture('#a08a64'), 0xb8ab90, 0.75, 0.25, 0.4),
     // 46.0: the flank Block's warm ochre plaster.
     housePlaster: std(T.plasterTexture('#d6b98e'), 0xffffff),
     // 56.0: the Cistern's concrete: faintly self-lit (no sun reaches it, and a point light more a
@@ -138,7 +141,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   // 68.0: the military cover kit (Dress.ts): the sandbags, the HESCO, the crates and cases, the drums,
   // modelled in Blender, drawn where their boxes were (the boxes stay solid). Without the kit, boxes.
-  const kit = propKit('military');
+  const kit = propKits();
   const dress = kit
     ? new Dresser(b, kit, {
         wood: m.wood,
@@ -158,6 +161,11 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
         wire: std(null, 0x3a3b38, 0.5, 0.6, 0.5),
         rubber: std(T.rubberTexture(), 0xffffff, 0.9, 0, 0.2),
         cable: std(null, 0x1b1c1e, 0.6, 0.1, 0.3),
+        glass: std(null, 0x101418, 0.15, 0.3, 1.0),
+        rust: m.rust,
+        light: new THREE.MeshStandardMaterial({ color: 0xe8e0c8, emissive: 0x332e22, roughness: 0.2, metalness: 0.1 }),
+        dark: std(null, 0x1c1d1f, 0.75, 0.25, 0.3),
+        chrome: std(null, 0xb8bcc0, 0.25, 0.9, 1.0),
       })
     : null;
   dress?.rule(m.sandbag, 'sandbag');
@@ -376,7 +384,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     parapet: 1.0, roofWalk: true, parapetGaps: [{ side: 'n', a: 20.6, b: 22 }, { side: 'w', a: -16, b: -14.4 }],
   });
   solid(10.3, 0, -8, 25.7, 0.05, -2, m.concrete); // apron
-  // Truck: cab and covered bed (cover inside the hangar).
+  // Truck: cab and covered bed (cover inside the hangar). 70.0: the kit's army truck (its cab north).
+  dress?.replace('truck', [19.6, SLAB, -18.6], [22.0, 2.75, -11.4], { rotY: Math.PI, over: { paint: drumPaint[0], canvas: m.tent } });
   solid(19.6, SLAB, -18.6, 22.0, 2.3, -16.6, m.rust, 'metal');
   solid(19.6, SLAB, -16.6, 22.0, 1.3, -11.4, m.rust, 'metal');
   solid(19.6, 1.3, -16.4, 22.0, 2.75, -11.6, m.tent, 'wood');
@@ -461,6 +470,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
     name: 'GENERATOR SHED', jp: 'غرفة المولّد', x0: -5, z0: -24, x1: -1, z1: -20, h: 2.6, mat: m.concrete,
     openings: [{ side: 's', at: -3, w: 2.0 }], parapet: 0,
   });
+  // 70.0: the kit's genset (its radiator east).
+  dress?.replace('generator', [-4.7, SLAB, -23.7], [-2.9, 1.2, -22.5], { rotY: Math.PI / 2, over: { paint: drumPaint[0] }, margin: 0.05 });
   solid(-4.7, SLAB, -23.7, -2.9, 1.2, -22.5, m.darkMetal, 'metal');
   const cab = (x: number, z: number, face: CabinetSpot['face']): CabinetSpot => {
     const alongX = face === 'n' || face === 's';
@@ -497,7 +508,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   scene.add(flag);
   const flagBase = (flag.geometry.attributes.position as THREE.BufferAttribute).array.slice();
 
-  // Wrecked car, crates, barrels, barriers, tents, fuel tanks.
+  // Wrecked car, crates, barrels, barriers, tents, fuel tanks. 70.0: the kit's burnt-out saloon.
+  dress?.replace('car', [-8.1, 0, -6.9], [-3.9, 1.6, -5.1], { rotY: -Math.PI / 2, margin: 0.05 });
   solid(-8.1, 0, -6.9, -3.9, 1.0, -5.1, m.rust, 'metal');
   solid(-6.9, 1.0, -6.8, -4.9, 1.6, -5.2, m.rust, 'metal');
   crateStack(7.4, -5.6, 2);
@@ -1122,7 +1134,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
 
   const arena = buildArena({
     b, col, scene, rnd, boulder,
-    mats: { mud: m.mud, hesco: m.hesco, concrete: m.concrete, sandbag: m.sandbag, rock: m.rock, rust: m.rust, darkMetal: m.darkMetal, tent: m.tent, wood: m.wood, crate: crateMats.gear, sandstone: m.sandstone, plaster: m.housePlaster, whitewash: m.whitewash, roof: m.roof, bulb: m.bulb },
+    dress,
+    mats: { burnt: m.burnt, tan: m.tan, mud: m.mud, hesco: m.hesco, concrete: m.concrete, sandbag: m.sandbag, rock: m.rock, rust: m.rust, darkMetal: m.darkMetal, tent: m.tent, wood: m.wood, crate: crateMats.gear, sandstone: m.sandstone, plaster: m.housePlaster, whitewash: m.whitewash, roof: m.roof, bulb: m.bulb },
     flag: (c) => T.canvasTexture(c),
   });
   // 46.0: the flank houses are interiors too (the storm stays out, "indoors", their zone, no grid nodes in them).
@@ -1132,6 +1145,7 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   dress?.finish(scene);
   if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.afterBuild(scene);
   dress?.dispose();
   scene.traverse((o) => {
     if (o.userData.staticMerged) {

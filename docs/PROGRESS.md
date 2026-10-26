@@ -3079,8 +3079,35 @@ The ask: step 2 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
 - In the game: the firebase's crates and barriers, its HESCO and bunker bags; the Crash Site's HESCO run; Old Port's cargo stacks.
 - Performance (12v12 fights): Old Port 60 fps, GPU p50 5.8 ms; Crash Site 7.9 (6.2–8.0 without the kit: the fight differs run to run); the Desert 6.1; CPU p95 2.2–3.0 ms.
 
+## 70.0: the environment in Blender, step 3: containers and vehicles
+
+Branch `feature/env-heavy-70.0`, from `feature/env-military2-69.0` @ `cb224a4` (64.0–69.0, not merged yet).
+
+The ask: step 3 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
+
+### The heavy kit (`tools/blender/props_heavy.py`, `public/models/props/heavy.glb`, 30.7k triangles)
+- `container` / `container40`: corrugated sides and front end (trapezoid ribs), roof ribs, rails, corner posts and castings, forklift pockets, the door end's two doors with four lock rods, cams, handles and hinges (collapsed to 1.2k and 1.5k triangles).
+- `truck` (cab-over: windscreen, side windows, grille, lamps, mirrors, step, fuel tank, the bed and its canvas over five hoops, three axles, the spare) and `truck_open` (burnt: no canvas, the bed's sides hanging on their hinges, the glass gone); `apc` (8×8: glacis, sloped side plates, vision blocks, hatches, a turret with its gun and smoke launchers); `bus` (the convoy's: its doors and windows where the Desert's colliders leave them open, the other bays sooted panes, pillars, a rubbing strip broken at the door, bumpers, the roof and its hatch, burnt seat frames, on its rims); `generator` (skid, housing with louvres, radiator, exhaust, control panel, lifting eyes); `car` (a burnt-out saloon on its rims, the roof on its pillars); `jeep` (roll bar, seats, the gun on its pintle, the spare, grille); `bowser` (frame, drawbar, the tank and its end caps and bands, manhole, rails, ladder, hose reel); `semi` (a day cab, tanks, stacks, the trailer's chassis with landing legs and three axles); `forklift` (counterweight, overhead guard, mast, carriage, forks).
+- The military kit's crates, pallets, cases, drums, tyres and spools collapsed too (a port is hundreds of crates on pallets): crate 1,532 → 688 triangles, pallet 968 → 386.
+
+### The dresser (`src/world/Dress.ts`)
+- Containers by their material, like the sandbags: a 20 ft or a 40 ft by the box's length (any other box in the paint stays a box), the map's container canvas on the paint (UVs scaled to its 2.6 m), the doors at one end or the other by where it stands. Its box casts the shadow; the model's paint is a copy of the map's material the build marks not casting.
+- `replace(kind, box, { rotY, roll, over })`: a model over a region, scaled to fill it, turned, rolled (the APC on its side); whatever the map then draws in the region is hidden (a ruled box in it is still dressed: the convoy truck's load stays a crate, the trailer's container is the 40 ft). The builder offers every piece to the dresser now, not only boxes.
+- Jersey runs longer than a barrier are tiled 2 m a barrier.
+
+### The maps
+- Neon Docks: 129 containers and the two 40 ft on the trailers, the two tractors and forklifts, four gensets, the cargo (crates on pallets: `DOCK 7`, `PALLET · EXPORT`) and 42 jersey barriers.
+- Old Port: 42 containers, the flatbed truck (both halves); Crash Site: 9 overgrown containers; Deep Jungle: 4 containers, the motor pool's truck, jeep and bowser, the genset.
+- The Desert: the convoy (both halves): the burnt truck, the APC on its side (faded desert tan, its hatches to the west), the burnt bus (mottled burnt paint); the motor pool's truck (olive, its canvas), the genset, the burnt-out car.
+
+### Checks
+- Tests 578 (+4, `heavy70.test.ts`: a container box by length, another size in the paint a box; a replaced region hides what's drawn in it and keeps dressing ruled boxes; the kit's nodes, roles, budget; the bus open at the colliders' door and windows and closed at a whole bay).
+- World checks: Neon Docks clean; the Desert's only the old stair-against-wall notes.
+- Performance (12v12 fights, GPU p50): Old Port 5.7 ms (6.4 before collapsing the crates); the Desert 6.2; Neon Docks 6.2 or 7.6–8.6 by where the fight goes, the same two modes without the kits (6.4–7.3); 60 fps on all.
+
 ## Next
 Human playtest:
+- 70.0 items: the containers (Docks' maze, Old Port, the Crash Site, the firebase), the convoy (walk through the bus: does what you see match where you can go), the motor pools, the docks' tractors and forklifts; anything floating, sunk or hiding cover you can't see; then the word for step 4 (the Desert's architecture).
 - 69.0 items: Deep Jungle's, the Crash Site's and Old Port's new cover (the cargo stacks, the barriers, the drums), the Desert's tyres and spools; then the word for step 3 (containers, vehicles, generators).
 - 68.0 items: the Desert's sandbag walls, HESCO, crates, cases and drums (look, scale, anything floating or sunk into the ground, a stencil the wrong way); the frame rate where the long sandbag walls are in view; then the word for step 2.
 - 67.0 items: the gloved hands on each gun (where a finger sinks into the gun or floats; the pistol's two hands), the wrist band; the operators at fighting distance in the dark and on Maglev's white (readable, team colours, silhouette), anything odd when they crouch, slide or die.

@@ -262,10 +262,11 @@ class Gun:
             bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
             bm.to_mesh(main.data)
             bm.free()
-            if decimate:
+            ratio = decimate.get(group) if isinstance(decimate, dict) else decimate
+            if ratio:
                 d = main.modifiers.new("lod", "DECIMATE")
                 d.decimate_type = "COLLAPSE"
-                d.ratio = decimate
+                d.ratio = ratio
                 d.use_collapse_triangulate = True
                 apply_mods(main)
             with _override(main):

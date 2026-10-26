@@ -109,7 +109,7 @@ export function loadGunModels(base: string = import.meta.env.BASE_URL): Promise<
     loader
       .loadAsync(`${base}models/props/${name}.glb`)
       .then((g) => {
-        propKits.set(name, partsOf(g.scene, nodes, true));
+        propKits_.set(name, partsOf(g.scene, nodes, true));
         gunModelStats.loaded.push(`props/${name}`);
       })
       .catch((e) => {
@@ -119,7 +119,7 @@ export function loadGunModels(base: string = import.meta.env.BASE_URL): Promise<
   );
   loading = Promise.all([...GUN_MODEL_IDS.flatMap((id) => [one(id, models, id), one(`${id}_lod`, lods, id)]), handsIn, mercIn, ...kitsIn]).then(() => {
     gunModelStats.ms = performance.now() - t0;
-    if (models.size || lods.size || hands || merc || propKits.size) gen++;
+    if (models.size || lods.size || hands || merc || propKits_.size) gen++;
   });
   return loading;
 }
@@ -276,10 +276,17 @@ export function mercModel(): Readonly<Record<string, readonly MercPart[]>> | nul
 /** The prop kits (tools/blender/props_*.py) and their nodes (docs/ENVIRONMENT_PLAN.md). */
 const PROP_KITS: Record<string, readonly string[]> = {
   military: ['bag', 'hesco', 'crate', 'case', 'drum', 'pallet', 'jersey', 'tyre', 'spool'],
+  heavy: ['container', 'container40', 'truck', 'truck_open', 'apc', 'bus', 'generator', 'car', 'jeep', 'bowser', 'semi', 'forklift'],
 };
-const propKits = new Map<string, Record<string, MercPart[]>>();
+const propKits_ = new Map<string, Record<string, MercPart[]>>();
 
 /** A kit's parts by node (real size, base at y = 0, centred), or null: not loaded (the boxes stay). */
 export function propKit(name: string): Readonly<Record<string, readonly MercPart[]>> | null {
-  return propKits.get(name) ?? null;
+  return propKits_.get(name) ?? null;
+}
+
+/** 70.0: every prop kit's nodes in one (the dresser takes them all), or null: none loaded. */
+export function propKits(): Readonly<Record<string, readonly MercPart[]>> | null {
+  if (!propKits_.size) return null;
+  return Object.assign({}, ...propKits_.values());
 }

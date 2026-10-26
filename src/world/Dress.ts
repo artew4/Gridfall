@@ -22,9 +22,17 @@ import { canvasTexture, hescoTexture, rubberTexture, woodTexture } from '../leve
 
   Roles take the map's materials (`mats`); a placement may override one (a crate's `label`: its own
   stencil texture). The label panels' UVs are planar over each panel (the back one unmirrored).
+
+  70.0: containers by their material too (a 20 ft or a 40 ft by the box's length; any other box in the
+  material stays a box), painted in the map's container canvas (its UVs scaled to the 2.6 m it spans).
+  Vehicles and machines are several boxes and cylinders of shared materials: `replace` puts a model
+  over a region and hides whatever the map then draws in it (a ruled box is still dressed: the convoy
+  truck's load stays a crate); the colliders are the map's as before.
 */
 
-export type DressKind = 'crate' | 'case' | 'hesco' | 'sandbag' | 'drum' | 'jersey' | 'stack' | 'tyre' | 'spool' | 'pallet';
+export type DressKind = 'crate' | 'case' | 'hesco' | 'sandbag' | 'drum' | 'jersey' | 'stack' | 'tyre' | 'spool' | 'pallet' | 'container';
+/** 70.0: the heavy kit's models (props_heavy.py). */
+export type HeavyKind = 'container' | 'container40' | 'truck' | 'truck_open' | 'apc' | 'bus' | 'generator' | 'car' | 'jeep' | 'bowser' | 'semi' | 'forklift';
 type Over = Partial<Record<string, THREE.Material>>;
 
 interface Node {
@@ -66,6 +74,15 @@ function labelUV(geo: THREE.BufferGeometry) {
   return g;
 }
 
+function scaleUV(geo: THREE.BufferGeometry, k: number) {
+  const g = geo.clone();
+  const uv = g.getAttribute('uv') as THREE.BufferAttribute | undefined;
+  if (uv) for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * k, uv.getY(i) * k);
+  return g;
+}
+
+const _c = new THREE.Vector3();
+
 export class Dresser {
   /** DEV: the boxes it took and the models it laid. */
   stats = { boxes: 0, pieces: 0, byKind: {} as Record<string, number>, big: [] as number[][], at: {} as Record<string, number[][]> };
@@ -89,7 +106,9 @@ export class Dresser {
     for (const [name, parts] of Object.entries(kit)) {
       const box = new THREE.Box3();
       const list = parts.map((p) => {
-        const geo = p.role === 'label' ? labelUV(p.geo) : p.geo;
+        let geo = p.role === 'label' ? labelUV(p.geo) : p.geo;
+        // A container's paint: the map's canvas spans 2.6 m (one side's height), not a metre.
+        if (p.role === 'paint' && name.startsWith('container')) geo = scaleUV(geo, 1 / 2.6);
         if (geo !== p.geo) this.owned.push(geo);
         geo.computeBoundingBox();
         box.union(geo.boundingBox!);
@@ -128,7 +147,7 @@ export class Dresser {
   finish(parent: THREE.Object3D) {
     this.b.dresser = null;
     const node = this.nodes.get('bag');
-    if (!node || !this.bagAt.length) return;
+    if (!node || !this.bagAt.length) return this.addCasters(parent);
     const recentre = new THREE.Matrix4().makeTranslation(-(node.min.x + node.size.x / 2), -node.min.y, -(node.min.z + node.size.z / 2));
     for (const p of node.parts) {
       const mat = this.mats[p.role];
@@ -146,6 +165,7 @@ export class Dresser {
       parent.add(im);
     }
     // The shadow casters: the walls' boxes, drawn into the shadow map only (no colour, no depth).
+    this.addCasters(parent);
     const walls = mergeGeometries(this.bagWalls.map((g) => g.toNonIndexed()));
     if (walls) {
       const caster = new THREE.Mesh(walls, new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
@@ -161,6 +181,19 @@ export class Dresser {
     this.bagAt = [];
   }
 
+  private addCasters(parent: THREE.Object3D) {
+    if (!this.casters.length) return;
+    const g = mergeGeometries(this.casters.map((c) => c.toNonIndexed()));
+    this.casters.forEach((c) => c.dispose());
+    this.casters = [];
+    if (!g) return;
+    const caster = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
+    caster.castShadow = true;
+    caster.matrixAutoUpdate = false;
+    caster.userData.shadowOnly = true;
+    parent.add(caster);
+  }
+
   /** After the map's builder has merged (it copied what it took): the geometry made here freed. */
   dispose() {
     this.owned.forEach((g) => g.dispose());
@@ -172,10 +205,73 @@ export class Dresser {
       }
   }
 
-  private box(geo: THREE.BoxGeometry, mat: THREE.Material, m: THREE.Matrix4): boolean {
-    const rule = this.rules.get(mat);
-    if (!rule) return false;
-    const { width: w, height: h, depth: d } = geo.parameters;
+  /** 70.0: boxes that cast what their models would (drawn into the shadow map only). */
+  private casters: THREE.BufferGeometry[] = [];
+  private shadowless = new Map<THREE.Material, THREE.Material>();
+  /** The same materials, marked so the built mesh doesn't cast (Dresser.afterBuild). */
+  private noShadow(over?: Over): Over {
+    const out: Over = {};
+    for (const [k, mat] of Object.entries(over ?? {})) {
+      if (!mat) continue;
+      let c = this.shadowless.get(mat);
+      if (!c) {
+        c = mat.clone();
+        c.userData = { ...mat.userData, noShadow: true };
+        this.shadowless.set(mat, c);
+      }
+      out[k] = c;
+    }
+    return out;
+  }
+
+  /** After the map's builder has built: its meshes in the shadowless copies stop casting. */
+  afterBuild(scene: THREE.Object3D) {
+    scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh && (m.material as THREE.Material).userData?.noShadow) m.castShadow = false;
+    });
+  }
+
+  /** 70.0: the regions models replaced (anything the map draws in one after is hidden). */
+  private regions: THREE.Box3[] = [];
+
+  /**
+   * 70.0: model `kind` over the box (min, max: world), turned `rotY` (its front, +Z, turned to face
+   * that way) and rolled `roll` about its length (the APC on its side), scaled to fill the box; what
+   * the map draws inside the box (grown by `margin`) from now on is hidden. False: no such model.
+   */
+  replace(kind: HeavyKind, min: [number, number, number], max: [number, number, number], o: { rotY?: number; roll?: number; over?: Over; margin?: number } = {}) {
+    const node = this.nodes.get(kind);
+    if (!node) return false;
+    const size = new THREE.Vector3(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
+    const rotY = o.rotY ?? 0, roll = o.roll ?? 0;
+    // The model's extents once turned: rolled (X and Y trade), then turned (X and Z trade at a quarter).
+    let mx = node.size.x, my = node.size.y;
+    if (Math.abs(Math.sin(roll)) > 0.5) [mx, my] = [my, mx];
+    const quarter = Math.abs(Math.sin(rotY)) > 0.5;
+    const sx = (quarter ? size.z : size.x) / mx, sz = (quarter ? size.x : size.z) / node.size.z, sy = size.y / my;
+    const M = new THREE.Matrix4()
+      .makeTranslation((min[0] + max[0]) / 2, min[1], (min[2] + max[2]) / 2)
+      .multiply(new THREE.Matrix4().makeRotationY(rotY))
+      .multiply(new THREE.Matrix4().makeScale(sx, sy, sz));
+    // Rolled about its length round its middle, then set back down on its new underside.
+    if (roll) M.multiply(new THREE.Matrix4().makeTranslation(0, my / 2, 0)).multiply(new THREE.Matrix4().makeRotationZ(roll)).multiply(new THREE.Matrix4().makeTranslation(0, -node.size.y / 2, 0));
+    const g = o.margin ?? 0.35;
+    this.place(kind as DressKind, M, o.over);
+    this.regions.push(new THREE.Box3(new THREE.Vector3(min[0] - g, min[1] - g, min[2] - g), new THREE.Vector3(max[0] + g, max[1] + g, max[2] + g)));
+    return true;
+  }
+
+  private box(geo: THREE.BufferGeometry, mat: THREE.Material, m: THREE.Matrix4): boolean {
+    const rule = geo instanceof THREE.BoxGeometry ? this.rules.get(mat) : undefined;
+    if (!rule) {
+      // Hidden in a region a model replaced? (Its centre inside.)
+      if (!this.regions.length) return false;
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      geo.boundingBox!.getCenter(_c).applyMatrix4(m);
+      return this.regions.some((r) => r.containsPoint(_c));
+    }
+    const { width: w, height: h, depth: d } = (geo as THREE.BoxGeometry).parameters;
     // The box's own frame: its base centre, its long side along X.
     const along = w >= d;
     const L = along ? w : d, D = along ? d : w;
@@ -184,16 +280,36 @@ export class Dresser {
     // DEV: where the first few of each kind are (for screenshots).
     const seen = (this.stats.at[rule.kind] ??= []);
     if (seen.length < 4) seen.push([+m.elements[12].toFixed(1), +m.elements[13].toFixed(1), +m.elements[14].toFixed(1)]);
+    if (rule.kind === 'container') {
+      // A 20 ft or a 40 ft (by its length and height); any other box in the paint stays a box.
+      const kind = Math.abs(L - 6.06) < 0.4 ? 'container' : Math.abs(L - 12.19) < 0.6 ? 'container40' : null;
+      if (!kind || Math.abs(h - 2.6) > 0.25 || Math.abs(D - 2.44) > 0.25) return false;
+      const n = this.nodes.get(kind);
+      if (!n) return false;
+      // Its doors at one end or the other (by where it stands).
+      const flip = (Math.round(m.elements[12] * 3.1 + m.elements[14] * 1.7) & 1) === 1;
+      const at = base.clone().multiply(_r.makeRotationY(Math.PI / 2 + (flip ? Math.PI : 0))).multiply(_s.makeScale(D / n.size.x, h / n.size.y, L / n.size.z));
+      this.stats.boxes++;
+      // Its box casts its shadow; the model's thousand faces stay out of the shadow pass (+1 ms on Neon
+      // Docks' 129 containers): the paint in a copy of the map's material the build marks not casting.
+      this.casters.push(new THREE.BoxGeometry(L, h, D).translate(0, h / 2, 0).applyMatrix4(base));
+      return this.place(kind as DressKind, at, { ...rule.over, ...this.noShadow(rule.over), ...this.noShadow({ metal: this.mats.metal, dark: this.mats.dark }) });
+    }
     const ok =
       rule.kind === 'sandbag' ? this.bags(base, L, h, D) : rule.kind === 'hesco' ? this.cells(base, L, h, D) : rule.kind === 'stack' ? this.stack(base, L, h, D, rule.over) : this.one(rule.kind, base, L, h, D, rule.over);
     if (ok) this.stats.boxes++;
     return ok;
   }
 
-  /** One model stretched to the box. */
+  /** One model stretched to the box (a jersey barrier run longer than one: as many as fit, 2 m each). */
   private one(kind: DressKind, base: THREE.Matrix4, L: number, h: number, D: number, over?: Over) {
     const n = this.nodes.get(kind);
     if (!n) return false;
+    if (kind === 'jersey' && L > 2.8) {
+      const k = Math.round(L / 2.0), cl = L / k;
+      for (let i = 0; i < k; i++) this.place(kind, base.clone().multiply(new THREE.Matrix4().makeTranslation(-L / 2 + (i + 0.5) * cl, 0, 0)).multiply(_s.makeScale((cl * 0.99) / n.size.x, h / n.size.y, D / n.size.z)), over);
+      return true;
+    }
     const s = _s.makeScale(L / n.size.x, h / n.size.y, D / n.size.z);
     return this.place(kind, base.clone().multiply(s), over);
   }
@@ -315,6 +431,12 @@ export function militaryMats(tint: Partial<Record<string, number>> = {}, own: Pa
     concrete: std(null, t('concrete', 0xb9b5ac), 0.92, 0, 0.25),
     rubber: std(rubberTexture(), t('rubber', 0xffffff), 0.9, 0, 0.2),
     cable: std(null, t('cable', 0x1b1c1e), 0.6, 0.1, 0.3),
+    // 70.0: the heavy kit's.
+    glass: std(null, t('glass', 0x101418), 0.15, 0.3, 1.0),
+    rust: std(null, t('rust', 0x5e3826), 0.85, 0.35, 0.3),
+    light: new THREE.MeshStandardMaterial({ color: t('light', 0xe8e0c8), emissive: 0x332e22, roughness: 0.2, metalness: 0.1 }),
+    dark: std(null, t('dark', 0x1c1d1f), 0.75, 0.25, 0.3),
+    chrome: std(null, t('chrome', 0xb8bcc0), 0.25, 0.9, 1.0),
   };
   // (Marked: the dresser frees those of them no prop used.)
   for (const m of Object.values(base)) m.userData.dressOwn = true;
