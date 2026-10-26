@@ -8,6 +8,7 @@ import { applyWet } from './Ground';
 import { Storefronts } from './Storefronts';
 import { applyWindows } from './Windows';
 import { FacadeDress } from './FacadeDress';
+import { landmarkKit, overpassMats } from './Landmarks';
 import type { FacadeTex } from './Textures';
 import {
   asphaltTexture,
@@ -298,17 +299,31 @@ export class City {
     const b = this.ctx.builder;
     const m = this.mats;
     const z = RAIL.z;
+    // 83.0: the landmark kit (props_landmark.py): riveted plate girders along the deck's sides, the
+    // piers, the catenary masts (their colliders as they were).
+    const kit = landmarkKit();
+    const put = (node: string, x: number, y: number, zz: number, ry: number, mats: Record<string, THREE.Material>) => {
+      const M = new THREE.Matrix4().compose(new THREE.Vector3(x, y, zz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry), new THREE.Vector3(1, 1, 1));
+      for (const p of kit![node]) if (mats[p.role]) b.addMatrix(p.geo, mats[p.role], M);
+    };
+    const lm = kit ? overpassMats(m) : null;
     b.add(worldBox(160, 1.4, 5, 3), m.concrete, 0, 7.1, z);
     b.add(worldBox(160, 0.9, 0.3, 2), m.darkConcrete, 0, 8.25, z - 2.4);
     b.add(worldBox(160, 0.9, 0.3, 2), m.darkConcrete, 0, 8.25, z + 2.4);
     for (let x = -78; x <= 78; x += 3) b.add(worldBox(0.4, 0.5, 4.6, 1), m.darkMetal, x, 6.15, z);
+    // The girders: 3 m modules on both faces, under the deck's top (the sniper catwalk stands on it).
+    if (lm) for (let x = -78.5; x <= 78.5; x += 3) for (const s of [-1, 1]) put('girder', x, 6.2, z + s * 2.5, s > 0 ? 0 : Math.PI, lm);
     for (const s of [-1, 1]) {
       b.add(worldBox(160, 0.12, 0.12, 1), m.darkMetal, 0, 7.86, z + s * 0.75);
-      for (let x = -72; x <= 72; x += 12) b.add(worldBox(0.2, 3.5, 0.2, 1), m.darkMetal, x, 9.6, z + s * 2.2);
+      for (let x = -72; x <= 72; x += 12) {
+        if (lm) put('cmast', x, 7.85, z + s * 2.2, s > 0 ? Math.PI : 0, lm);
+        else b.add(worldBox(0.2, 3.5, 0.2, 1), m.darkMetal, x, 9.6, z + s * 2.2);
+      }
     }
     b.add(worldBox(160, 0.05, 0.05, 1), m.black, 0, 11.2, z);
     for (const x of pillars) {
-      b.add(worldBox(1.2, 6.4, 1.8, 2), m.concrete, x, 3.2, z);
+      if (lm) put('pier', x, 0, z, 0, lm);
+      else b.add(worldBox(1.2, 6.4, 1.8, 2), m.concrete, x, 3.2, z);
       this.col.addCentered(x, 3.2, z, 1.2, 6.4, 1.8, 'concrete');
     }
     this.col.add(-80, RAIL.deckBottom, z - 2.5, 80, 8.6, z + 2.5, 'concrete');

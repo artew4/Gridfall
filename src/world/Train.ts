@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Glows, Glow } from './Glows';
 import { RAIL } from './City';
 import { clamp, heldNoise, mulberry32, rand } from '../core/math';
+import { trainDetail } from './Landmarks';
 
 const CARS = 8;
 const CAR_L = 19;
@@ -125,15 +126,20 @@ export class Train {
     const gangGeo = new THREE.BoxGeometry(0.7, 2.2, 2.3);
     const skirtGeo = new THREE.BoxGeometry(CAR_L - 2, 0.5, 2.6);
     const panGeo = new THREE.BoxGeometry(1.6, 0.04, 0.04);
+    // 83.0: the landmark kit's roofs, pantographs, bellows and cabs (Landmarks.ts), if loaded.
+    const detail = trainDetail(CARS, PITCH, CAR_L, CAR_Y, { body, dark });
+    if (detail) this.group.add(...detail);
     for (let i = 0; i < CARS; i++) {
       const side = sideMats[i % 2];
       const car = new THREE.Mesh(carGeo, [dark, dark, body, dark, side, side]);
       car.position.set(i * PITCH, CAR_Y, 0);
-      const roof = new THREE.Mesh(roofGeo, body);
-      roof.position.set(i * PITCH, CAR_Y + 1.25, 0);
       const skirt = new THREE.Mesh(skirtGeo, dark);
       skirt.position.set(i * PITCH, CAR_Y - 1.45, 0);
-      this.group.add(car, roof, skirt);
+      this.group.add(car, skirt);
+      if (detail) continue;
+      const roof = new THREE.Mesh(roofGeo, body);
+      roof.position.set(i * PITCH, CAR_Y + 1.25, 0);
+      this.group.add(roof);
       if (i < CARS - 1) {
         const g = new THREE.Mesh(gangGeo, dark);
         g.position.set(i * PITCH + PITCH / 2, CAR_Y, 0);

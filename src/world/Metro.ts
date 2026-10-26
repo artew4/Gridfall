@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { metroCanopy } from './Landmarks';
 import type { BuildCtx } from './City';
 import type { Architecture } from './Architecture';
 import type { PropKit } from './PropKit';
@@ -334,16 +335,19 @@ export function buildMetro(ctx: BuildCtx, arch: Architecture, kit: PropKit): Met
   arch.rail(holeB, 'w', undefined, undefined, 0, false);
 
   // Entrance A canopy and the line sign.
-  const canopyGlass = glassMat.clone();
-  canopyGlass.opacity = 0.35;
-  b.add(worldBox(3.6, 0.06, 10.6, 1), canopyGlass, 9.1, 2.9, 9.9);
-  for (const z of [5, 9.9, 14.8]) for (const x of [7.5, 10.7]) b.add(worldBox(0.08, 2.9, 0.08, 1), frameMat, x, 1.45, z);
   const sign = metroSign('地下鉄 桜線', 'SAKURA LINE  S');
   const signMat = new THREE.MeshBasicMaterial({ map: sign, color: new THREE.Color(1.6, 1.6, 1.6) });
   const signMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), signMat);
   signMesh.position.set(9.1, 3.4, 4.55);
   signMesh.rotation.y = Math.PI;
-  scene.add(signMesh);
+  // 83.0: the landmark kit's canopy (arches, curved glass, the sign box: Landmarks.ts), else the slab.
+  if (!metroCanopy(b, 9.1, 9.9, signMat, ctx.time)) {
+    const canopyGlass = glassMat.clone();
+    canopyGlass.opacity = 0.35;
+    b.add(worldBox(3.6, 0.06, 10.6, 1), canopyGlass, 9.1, 2.9, 9.9);
+    for (const z of [5, 9.9, 14.8]) for (const x of [7.5, 10.7]) b.add(worldBox(0.08, 2.9, 0.08, 1), frameMat, x, 1.45, z);
+    scene.add(signMesh);
+  }
   const signBack = signMesh.clone();
   signBack.rotation.y = 0;
   signBack.position.z = 4.65;

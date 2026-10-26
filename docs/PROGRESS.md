@@ -3321,8 +3321,21 @@ The ask: step 4 of [TOKYO_PLAN.md](TOKYO_PLAN.md).
 - Tests 633 (+5, `street82.test.ts`: the kit, flush pieces, the overhead pieces' heights; the signal cycle; a slot by a pole laid shallow, the same slot with none).
 - Tokyo's world check: no clusters, no entries.
 
+## 83.0: Night Tokyo, step 5: the landmarks
+
+Branch `feature/tokyo-landmarks-83.0`, from `feature/tokyo-street-82.0` @ `c9efc81` (78.0–82.0 not merged yet).
+
+The ask: step 5 of [TOKYO_PLAN.md](TOKYO_PLAN.md).
+
+- `tools/blender/props_landmark.py` (`public/models/props/landmark.glb`, 4.8k triangles): the overpass's `girder` (a 3 m module: web, flanges, stiffeners, rivet rows), `pier` (chamfered shaft in the collider's 1.2 x 1.8, its cap over 5.5 m, bearings, a drain pipe half sunk), `cmast` (an H-beam mast, its cantilever, insulators, the dropper to the wire); the train's `roof` (curved, two air conditioners, vents, a conduit), `panto` (single-arm, its collector on the 11.2 m contact wire), `gangway` (bellows), `cab` (windscreen, destination box, lamp housings where the lamps are, coupler, skirt); the metro's `mcanopy` (steel arches on the six posts' places, curved glass, gutters, the sign box).
+- `Landmarks.ts`: `City.overpass` lays 106 girder modules along the deck's faces (their tops under the deck's 7.8 m: the sniper catwalk), the 9 piers where the boxes were (their colliders as they were), 26 masts; the paint a light grey-green (the first dark one vanished at night). `Train.ts` takes the roofs, pantographs, bellows and cabs merged per material (the boxes' roofs and diamond pantographs gone); `Metro.ts` the canopy over entrance A, its sign face the line's sign.
+- Fixes on the way: the first pantograph stood a metre over the wire; a stray plane in the kit's previews; the pier's plinth and pipe 5–12 cm past the collider (gone; sunk).
+- Tests 639 (+6, `landmark83.test.ts`: the kit; the girders under the deck's top; the pier within its collider; the pantograph on the wire; the canopy's posts and glass; the train's detail).
+- Tokyo's world check: no clusters, no entries. At night the overpass's steel still reads only faintly from the street (no light of its own under the deck).
+
 ## Next
 Human playtest:
+- 83.0 items: the overpass (girders, piers, masts: seen at all at night?), the train passing (cabs, roofs, pantographs on the wire), the metro canopy; then the word for step 6 (light and wet).
 - 82.0 items: Tokyo's crossings (the signals cycling, the walk signals), the mirrors, the manholes and grates (wet, flush), the izakaya by the Lantern Street pole; then the word for step 5 (landmarks).
 - 81.0 items: the Desert in TDM: your arms and rifle, the two teams (told apart at a glance, at range, in the shade; still sand?), their rifles; arcade's player finish.
 - 80.0 items: the windows' rooms (from the street and the roofs: convincing, too bright, anything swimming), the balconies (seen at all at night?), the roof tanks, Railway Street's sign stacks; then the word for step 4 (street level).
