@@ -3167,8 +3167,27 @@ The ask: step 6 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md). (There are no pip
 - In the game: the Docks crane's leg and bogie, the catwalk rails; Old Port's crane and its bitts.
 - Performance (GPU p50): Old Port 5.4–6.3 ms; Neon Docks 6.4–6.6 in its low mode (6.2 before the step), 8.3 in its high one (the fight's place, as before).
 
+## 74.0: the environment in Blender, step 7: Maglev Terminal
+
+Branch `feature/env-maglev-74.0`, from `feature/env-port-73.0` @ `16e94c1` (64.0–73.0, not merged yet).
+
+The ask: step 7 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
+
+### The kit (`tools/blender/props_corp.py`, `public/models/props/corp.glb`, 5.3k triangles)
+- `cplanter` (a rounded gloss shell on a steel plinth, soil, a box shrub and ferns: under a hand over the rim), `kiosk` (a pod with rounded corners, a service window of dark glass: the box is solid, its counter, a menu screen and side screens, the teal canopy and its light strip), `ticket` (a ticket machine: its screen, card slot, keypad, ticket tray, the teal header), `cbench` (a moulded seat on steel cantilevers), `tgate` (a ticket gate: its cabinet, the reader's glow, glass flaps, the arrow lamp), `lcart` (a luggage trolley with its cases), `mcart` (a maintenance cart on bogies: tool chest, cable drums, a beacon), `tdoor` (a train door's steel surround and its status strip, round the 1.6 × 2.1 opening).
+
+### On Maglev (`Maglev.ts`)
+- The planters dressed by their material (12), their flat leaves hidden under the plants (`Dresser.rule(…, 'hide')`); the two mid-field kiosks and the two café kiosks, the vending and ticket rows as 16 machines, eight ticket gates on the apron lines, four benches in the yards, four luggage trolleys, twelve maintenance carts in the guideway beds, the four signal cabinets (the street kit's), 24 door surrounds on the train (outside and in). The colliders as they were.
+- `Dresser.paint(role, material)`: a map's material made after the dresser (the hall's screens and light strips).
+
+### Checks
+- Tests 592 (+4, `corp74.test.ts`: the kit's props, roles, budget; the planters' plants low over the rim; a door surround leaves its opening clear; a material ruled 'hide' drawn no more).
+- In the game: the mid-field kiosk, the gates, a train door, the café kiosk, a luggage trolley, a planter.
+- Performance (the Maglev fight): 60 fps, GPU p50 4.4–5.2 ms.
+
 ## Next
 Human playtest:
+- 74.0 items: Maglev's planters, kiosks, ticket machines, gates, benches, trolleys, carts and the train's doors; then the word for step 8 (nature and ruin).
 - 73.0 items: the cranes on Neon Docks and Old Port, the handrails (do they still read as a wall you can't shoot through), the racks, the bitts; then the word for step 7 (Maglev's corporate kit).
 - 72.0 items: Neon Block's machines, AC units, bins, bags, planters and lanterns; Tokyo's street furniture, poles, the ramen stall; the cabinets on every map; then the word for step 6 (the port's industry).
 - 71.0 items: the Desert's doors, windows, shutters, air conditioners, tanks, the water tower, tents, awning, palms, poles and lamp shades (anything that looks solid and isn't, or hides a window you can dive through); then the word for step 5 (the neon street kit).

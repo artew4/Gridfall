@@ -30,7 +30,9 @@ import { canvasTexture, hescoTexture, rubberTexture, woodTexture } from '../leve
   truck's load stays a crate); the colliders are the map's as before.
 */
 
-export type DressKind = 'crate' | 'case' | 'hesco' | 'sandbag' | 'drum' | 'jersey' | 'stack' | 'tyre' | 'spool' | 'pallet' | 'container' | NeonKind | PortKind;
+export type DressKind = 'crate' | 'case' | 'hesco' | 'sandbag' | 'drum' | 'jersey' | 'stack' | 'tyre' | 'spool' | 'pallet' | 'container' | NeonKind | PortKind | CorpKind | 'hide';
+/** 74.0: Maglev's corporate kit (props_corp.py). */
+export type CorpKind = 'cplanter' | 'kiosk' | 'ticket' | 'cbench' | 'tgate' | 'lcart' | 'mcart' | 'tdoor';
 /** 72.0: the neon street kit (props_neon.py). */
 /** 73.0: the port kit (props_port.py). */
 export type PortKind = 'crane_leg' | 'crane_girder' | 'crane_house' | 'trolley' | 'bogie' | 'rail_panel' | 'rack_frame' | 'rack_beam' | 'bitt';
@@ -89,7 +91,7 @@ function scaleUV(geo: THREE.BufferGeometry, k: number) {
 
 const _c = new THREE.Vector3();
 /** 71.0: pieces that sit on a wall's face: placed by their back, not their middle. */
-const ON_WALL = new Set(['jamb', 'head', 'sill', 'shutter', 'door', 'ac']);
+const ON_WALL = new Set(['jamb', 'head', 'sill', 'shutter', 'door', 'ac', 'tdoor']);
 
 export class Dresser {
   /** DEV: the boxes it took and the models it laid. */
@@ -125,6 +127,11 @@ export class Dresser {
       this.nodes.set(name, { parts: list, size: box.getSize(new THREE.Vector3()), min: box.min.clone() });
     }
     b.dresser = (geo, mat, m) => this.box(geo, mat, m);
+  }
+
+  /** 74.0: role `name` painted in `mat` from now on (a map's material made after the dresser). */
+  paint(name: string, mat: THREE.Material) {
+    this.mats[name] = mat;
   }
 
   /** Boxes in `mat` are drawn as `kind` from now on (`over`: roles it paints its own way). */
@@ -275,7 +282,7 @@ export class Dresser {
    * that way) and rolled `roll` about its length (the APC on its side), scaled to fill the box; what
    * the map draws inside the box (grown by `margin`) from now on is hidden. False: no such model.
    */
-  replace(kind: HeavyKind | DesertKind | NeonKind | PortKind | 'spool', min: [number, number, number], max: [number, number, number], o: { rotY?: number; roll?: number; over?: Over; margin?: number; fit?: boolean } = {}) {
+  replace(kind: HeavyKind | DesertKind | NeonKind | PortKind | CorpKind | 'spool', min: [number, number, number], max: [number, number, number], o: { rotY?: number; roll?: number; over?: Over; margin?: number; fit?: boolean } = {}) {
     const node = this.nodes.get(kind);
     if (!node) return false;
     if (o.fit === false) {
@@ -322,6 +329,8 @@ export class Dresser {
     // DEV: where the first few of each kind are (for screenshots).
     const seen = (this.stats.at[rule.kind] ??= []);
     if (seen.length < 4) seen.push([+m.elements[12].toFixed(1), +m.elements[13].toFixed(1), +m.elements[14].toFixed(1)]);
+    // (74.0: a box a model already covers, drawn no more: a planter's flat leaves under its plants.)
+    if (rule.kind === 'hide') return true;
     if (rule.kind === 'container') {
       // A 20 ft or a 40 ft (by its length and height); any other box in the paint stays a box.
       const kind = Math.abs(L - 6.06) < 0.4 ? 'container' : Math.abs(L - 12.19) < 0.6 ? 'container40' : null;

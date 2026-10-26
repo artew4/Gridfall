@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { Dresser, militaryMats, type CorpKind } from '../../world/Dress';
+import { propKits } from '../../entities/weapons/models';
 import { StaticBuilder, worldBox } from '../../world/Builder';
 import type { Collider, CollisionWorld } from '../../world/Collision';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
@@ -75,9 +77,25 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
     tower1: std(towerTexture(1), 0xffffff, 0.3, 0.3, 1.0),
     plaza: std(floorTileTexture('grey'), 0xd8d8d4, 0.5, 0, 0.4),
   };
+  // 74.0: the corporate kit (Dress.ts; docs/ENVIRONMENT_PLAN.md step 7) in the hall's own materials.
+  const kits = propKits();
+  const dress = kits
+    ? new Dresser(b, kits, militaryMats({}, {
+        white: m.white, offwhite: m.offWhite, steel: m.steel, teal: m.teal, glass: m.tint, dark: m.steelDark, leaf: m.leaves,
+        soil: std(null, 0x3a2e26, 0.95, 0, 0.1),
+        case: std(null, 0x34495e, 0.4, 0.2, 0.6),
+      }))
+    : null;
+  dress?.rule(m.planter, 'cplanter', { white: m.white, steel: m.steel });
+  dress?.rule(m.leaves, 'hide');
+  /** A kit model over a box (min, max), its front turned `rotY`, or the box as before. */
+  const over = (kind: CorpKind | 'ecab', x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, rotY = 0, o: Record<string, THREE.Material> = {}) =>
+    dress?.replace(kind, [x0, y0, z0], [x1, y1, z1], { rotY, over: o, margin: 0.05 });
   // Light strips and the boards light themselves (emissive, no light source).
   const strip = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xf2f8ff, emissiveIntensity: 1.6, roughness: 0.4 });
   const glow = new THREE.MeshStandardMaterial({ color: 0x5fe4f0, emissive: 0x3fd6e6, emissiveIntensity: 2.2, roughness: 0.4 });
+  dress?.paint('screen', glow);
+  dress?.paint('light', strip);
   const cabinStrip = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xf2f8ff, emissiveIntensity: 0.55, roughness: 0.4 });
   // 20.0: the billboards' screens (emissive maps: they light themselves; no light source, no shadow).
   const screens = [0, 1, 2].map((k) => new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: billboardTexture(k), emissiveIntensity: 0.9, roughness: 0.3 }));
@@ -373,6 +391,8 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
   }
   // The yard's inner benches (low; the spawns stand clear of them).
   // (Against the end wall: a bench 0.6 m off it left a slot a body stuck in.)
+  // 74.0: two of the kit's benches on each (their seats along the end wall).
+  for (const s of [1, -1]) for (const [a, c] of [[-1.5, 0], [0, 1.5]]) over('cbench', a, 0, s > 0 ? 59.3 : -Z_END, c, 0.5, s > 0 ? Z_END : -59.3);
   low2(-1.5, 59.3, 1.5, Z_END, 0.5, m.offWhite);
 
   // ---------------------------------------------------------------- the track beds (east and west)
@@ -425,10 +445,16 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
     // the bed onto the wall's top: both the stress test). Beside the guideway beam, which is walked on.
     {
       const [a, c] = X(18.2, 19.9);
-      low2(a, 22, c, 25.2, 1.0, m.steelDark, 'metal', TRACK.floor);
       const [d, e] = X(14.1, 15.6);
-      low2(d, 26, e, 28.6, 1.0, m.offWhite, 'metal', TRACK.floor);
       const [p, q] = X(18.2, 19.9);
+      // 74.0: the kit's maintenance carts (deck on bogies, a tool chest, cable drums, a beacon).
+      for (const s of [1, -1])
+        for (const [x0, z0, x1, z1] of [[a, 22, c, 25.2], [d, 26, e, 28.6], [p, 1.2, q, 4.2]]) {
+          const [za, zb] = s > 0 ? [z0, z1] : [-z1, -z0];
+          over('mcart', x0, TRACK.floor, za, x1, TRACK.floor + 1.0, zb, s > 0 ? 0 : Math.PI);
+        }
+      low2(a, 22, c, 25.2, 1.0, m.steelDark, 'metal', TRACK.floor);
+      low2(d, 26, e, 28.6, 1.0, m.offWhite, 'metal', TRACK.floor);
       low2(p, 1.2, q, 4.2, 1.0, m.offWhite, 'metal', TRACK.floor);
     }
     // 20.0: two maintenance gantries across the bed (z ±18–19 and ±30–31): a crossbeam from 1.0 to
@@ -457,6 +483,8 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
     // The kiosk at mid-field (full height cover: the platform's long sightline breaks here).
     {
       const [x0, x1] = X(6, 9);
+      // 74.0: the kit's kiosk pod (its window to the platform's far end, its canopy and strip).
+      over('kiosk', x0, 0, -1.6, x1, 2.95, 1.6, sx > 0 ? 0 : Math.PI);
       solid(x0, 0, -1.6, x1, 2.6, 1.6, m.white, 'concrete', 2);
       deco(x0 - 0.15, 2.6, -1.8, x1 + 0.15, 2.85, 1.8, m.teal, 1);
       deco(x0 - 0.15, 2.85, -1.8, x1 + 0.15, 2.95, 1.8, strip, 1);
@@ -489,9 +517,11 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
       const [w0, w1] = X(2.6, 4.2);
       low2(w0, 8.6, w1, 9.4, 1.0, m.offWhite);
       const [c0, c1] = X(9.2, 11.2);
+      for (const s of [1, -1]) over('lcart', c0, 0, s > 0 ? 8 : -10.4, c1, 1.0, s > 0 ? 10.4 : -8, s > 0 ? 0 : Math.PI);
       low2(c0, 8, c1, 10.4, 1.0, m.steelDark, 'metal');
       // A signal cabinet on the track wall's edge near the aprons (the strip beside the bed).
       const [s0, s1] = X(11, 12.9);
+      for (const s of [1, -1]) over('ecab', s0, 0, s > 0 ? 39.6 : -41, s1, 2.0, s > 0 ? 41 : -39.6, sx > 0 ? -Math.PI / 2 : Math.PI / 2, { paint: m.steelDark });
       solid2(s0, 0, 39.6, s1, 2.0, 41, m.steelDark, 'metal', 1);
     }
     // Hanging platform signs (out of reach, seen only).
@@ -504,6 +534,8 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
     }
   }
   // The aprons: low barriers at the gate line, benches.
+  // 74.0: the kit's ticket gates along the line (two to a barrier, their cabinets along it).
+  for (const s of [1, -1]) for (const x0 of [-5.6, -4.4, 3.2, 4.4]) over('tgate', x0, 0, s > 0 ? 38 : -38.6, x0 + 1.2, 1.0, s > 0 ? 38.6 : -38, Math.PI / 2);
   low2(-5.6, 38, -3.2, 38.6, 1.0, m.offWhite);
   low2(3.2, 38, 5.6, 38.6, 1.0, m.offWhite);
   low2(-18.6, 47, -15.6, 47.8, 0.95, m.planter);
@@ -555,6 +587,14 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
   stair2(ESC_E.x0, ESC_E.top, ESC_E.x1, ESC_E.foot, 'z', -1, 0, UP, m.escalator, ['lo', 'hi'], true);
   stair2(ESC_MID.x0, ESC_MID.top, ESC_MID.x1, ESC_MID.foot, 'z', -1, 0, UP, m.escalator, ['lo'], true);
   // E' under the mezzanine: a café kiosk, vending machines, benches (cover), a strip light overhead.
+  // 74.0: the café kiosk (its window to the hall), the vending row as three ticket machines.
+  for (const s of [1, -1]) {
+    over('kiosk', 26, 0, s > 0 ? 19.5 : -24, 29, 2.85, s > 0 ? 24 : -19.5, -Math.PI / 2);
+    for (let i = 0; i < 3; i++) over('ticket', 29.1, 0, s > 0 ? 26.5 + i : -27.5 - i, 29.85, 1.9, s > 0 ? 27.5 + i : -26.5 - i, -Math.PI / 2);
+    // W': the machines by the billboard and the ticket machines.
+    for (let i = 0; i < 2; i++) over('ticket', -29.85, 0, s > 0 ? 19 + i : -20 - i, -28.2, 1.9, s > 0 ? 20 + i : -19 - i, Math.PI / 2);
+    for (let i = 0; i < 3; i++) over('ticket', -29.85, 0, s > 0 ? 10 + i : -11 - i, -29.1, 1.9, s > 0 ? 11 + i : -10 - i, Math.PI / 2);
+  }
   solid2(26, 0, 19.5, 29, 2.6, 24, m.white, 'concrete', 2);
   deco2(25.85, 2.6, 19.35, 29.15, 2.85, 24.15, m.teal, 1);
   solid2(29.1, 0, 26.5, 29.85, 1.9, 29.5, m.steelDark, 'metal', 1);
@@ -627,6 +667,11 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
     for (const sx of [1, -1]) {
       const [x0, x1] = sx > 0 ? [T.x - T.wall, T.x] : [-T.x, -T.x + T.wall];
       wall(false, z0, z1, x0, x1, F, T.ceil - F, m.white, [c - 5, c + 5].map((at) => ({ at, w: DOOR_W, y0: F, y1: F + DOOR_H })), 'metal');
+      // 74.0: the kit's door surrounds, outside and in (flush: a frame 3 cm proud, the status strip).
+      for (const at of [c - 5, c + 5]) {
+        dress?.place('tdoor', new THREE.Matrix4().compose(new THREE.Vector3(sx * T.x, F, at), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), sx * Math.PI / 2), new THREE.Vector3(1, 1, 1)));
+        dress?.place('tdoor', new THREE.Matrix4().compose(new THREE.Vector3(sx * (T.x - T.wall), F, at), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -sx * Math.PI / 2), new THREE.Vector3(1, 1, 1)));
+      }
       // Below the floor line the body is its skirt (between the hover gap and the floor).
       deco(x0, HOVER, z0, x1, F, z1, m.white, 2);
       const xo = sx > 0 ? T.x : -T.x - 0.012, xi = sx > 0 ? T.x - T.wall - 0.012 : -T.x + T.wall;
@@ -737,7 +782,11 @@ export function buildMaglev(scene: THREE.Scene, col: CollisionWorld): MaglevResu
     }
   }
 
+  dress?.finish(scene);
+  if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.afterBuild(scene);
+  dress?.dispose();
   // The steel, concrete and the train cast the hall's shadows; the glass doesn't (the sun comes through).
   scene.traverse((o) => {
     const mesh = o as THREE.Mesh;

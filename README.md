@@ -45,6 +45,7 @@ The main menu (redesigned in 45.0) is big type and one word a button: **PLAY**, 
 
 ## Gunplay
 
+- **Maglev Terminal furnished (74.0):** gloss planters with ferns and shrubs, kiosk pods with their canopies and screens, rows of ticket machines, ticket gates on the apron lines, moulded benches, luggage trolleys stacked with cases, maintenance carts in the guideway beds, and the train's doors in steel surrounds with their status strips.
 - **The ports' industry, modelled (73.0):** the ship-to-shore cranes on Neon Docks and Old Port are box-section legs on their wheel bogies, box girders with walkways and handrails, a machinery house and a trolley; the catwalks' handrails are steel panels with posts and top tubes; the warehouse racks have their upright frames and step beams; mooring bitts line Old Port's quay.
 - **The neon street, modelled (72.0):** Neon Block's and Tokyo's drinks machines (a real body round their lit fronts), the air conditioners on the roofs and walls, garbage bags, wheeled bins, planters with shrubs, the paper lanterns' wooden caps, hoops and tassels, city bikes, benches, bollards, concrete utility poles with their transformers and street lamps, the ramen stall, and the electrical cabinets you shoot out (in Tokyo, the Desert and the jungle).
 - **The Desert's buildings dressed (71.0):** every door and window in the compound has its moulded frame, the windows their sills and louvred shutters folded back, the doors their planked leaves open flat to the wall; air conditioners over the doors, ribbed tanks on the roofs, a riveted water tower with its walkway and braces, a radio mast and dishes, army tents, the trading post's scalloped awning, date palms, power poles with their insulators, enamel shades over the bulbs. None of it is solid and nothing stands off a wall to be mistaken for cover.
@@ -139,7 +140,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **588 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **592 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;
