@@ -2884,6 +2884,12 @@ The Desert plays "Steel Perimeter Breach" (generated outside the game, 2:53, MP3
 - The file fades out over its last 5 s and ends in silence: looped as it was, every pass had a hole. `manifest.json` takes a loop window now (`loopStart`, `loopEnd`, `xfade`): two audio elements take turns, the next pass (from `loopStart`) crossfading in (equal power) over the last `xfade` s. The point picked by matching the onsets: at 156.75 s the rhythm repeats the one at 0.18 s (the best of the last 45 s), so the crossfade lands on the beat: `loopStart` 0.18, `loopEnd` 157.75, `xfade` 1.
 - Checked live: the pass hands over at the loop's end, from 0.18 s.
 
+## 61.0: the Desert's track, take two
+
+Branch `feature/desert-track-61.0`, from `main` @ `bdf4598` (60.0).
+
+The playtest: the 60.0 track good, its middle too dubstep. "Sector Breach" (generated outside the game with the middle as an industrial-techno section instead, 3:04, 136 BPM, −14.5 dB RMS) replaces it as `desert_theme.mp3`. Its outro drops to −19…−27 dB from 168 s: the loop window keeps to the full-level part, its point matched by onsets as 60.0's: `loopStart` 0.08, `loopEnd` 157.57, `xfade` 0.8 (the next pass comes in at 156.77 s, where the rhythm repeats the start's). Checked live.
+
 ## Next
 Human playtest:
 - 59.0 items: the Desert's new score (the drive, the riff, the hook; too busy, too loud over the guns).
