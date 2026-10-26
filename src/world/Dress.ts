@@ -37,6 +37,8 @@ export type CorpKind = 'cplanter' | 'kiosk' | 'ticket' | 'cbench' | 'tgate' | 'l
 /** 73.0: the port kit (props_port.py). */
 export type PortKind = 'crane_leg' | 'crane_girder' | 'crane_house' | 'trolley' | 'bogie' | 'rail_panel' | 'rack_frame' | 'rack_beam' | 'bitt';
 export type NeonKind = 'vending' | 'ac_roof' | 'ac_wall' | 'garbage' | 'dumpster' | 'planter' | 'lantern_caps' | 'ecab' | 'bike' | 'bench' | 'bollard' | 'upole' | 'yatai';
+/** 76.0: Favelas' street and the jungle's wreckage (props_ruin.py). */
+export type RuinKind = 'fusca' | 'kombi' | 'fstall' | 'heli_tail' | 'heli_blade' | 'panel';
 /** 71.0: the Desert's dressing (props_desert.py). */
 export type DesertKind = 'jamb' | 'head' | 'sill' | 'shutter' | 'door' | 'ac' | 'roof_tank' | 'tower_tank' | 'brace' | 'antenna' | 'dish' | 'tent' | 'awning' | 'palm' | 'lamp' | 'pole';
 /** 70.0: the heavy kit's models (props_heavy.py). */
@@ -140,7 +142,7 @@ export class Dresser {
   }
 
   /** A model at `m` (world), scaled from its real size by (sx, sy, sz), its base centre at the origin. */
-  place(kind: DressKind | DesertKind | 'bag', m: THREE.Matrix4, over?: Over) {
+  place(kind: DressKind | DesertKind | RuinKind | 'bag', m: THREE.Matrix4, over?: Over) {
     const node = this.nodes.get(kind);
     if (!node) return false;
     // Recentre: the model's base centre to the origin (a piece for a wall's face: its back to it).
@@ -282,7 +284,7 @@ export class Dresser {
    * that way) and rolled `roll` about its length (the APC on its side), scaled to fill the box; what
    * the map draws inside the box (grown by `margin`) from now on is hidden. False: no such model.
    */
-  replace(kind: HeavyKind | DesertKind | NeonKind | PortKind | CorpKind | 'spool', min: [number, number, number], max: [number, number, number], o: { rotY?: number; roll?: number; over?: Over; margin?: number; fit?: boolean } = {}) {
+  replace(kind: HeavyKind | DesertKind | NeonKind | PortKind | CorpKind | RuinKind | 'spool', min: [number, number, number], max: [number, number, number], o: { rotY?: number; roll?: number; over?: Over; margin?: number; fit?: boolean } = {}) {
     const node = this.nodes.get(kind);
     if (!node) return false;
     if (o.fit === false) {

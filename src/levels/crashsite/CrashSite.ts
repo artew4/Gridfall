@@ -641,6 +641,36 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     taken.push([x, z, Math.max(w, d) * 0.75]);
   });
 
+  // 76.0: what came down (props_ruin.py), seen only: a helicopter's tail boom caught in a slim tree's
+  // crown (its fin 10 m up and more: out of any reach), a rotor blade and torn skin lying on the ground
+  // under it and about the forest (under 0.2 m: walked over). Its own seed: the map's stream unchanged.
+  if (dress) {
+    const wr = mulberry32(76);
+    const olive = std(null, 0x6b7360, 0.55, 0.35, 0.5);
+    const over = { paint: olive, rust: m.scorch, white: std(null, 0xd8d6cc, 0.6), metal: m.steel, dark: m.hullDark };
+    // The lowest of the six slim trees nearest the clearing's south edge: the tail in its crown's underside.
+    const slims = trees.filter((t) => !t.giant && t.z > 0).sort((a, b) => Math.hypot(a.x, a.z - 30) - Math.hypot(b.x, b.z - 30));
+    const t = slims.slice(0, 6).sort((a, b) => a.h - b.h)[0];
+    if (t) {
+      const top = t.y + t.h - 3;
+      const yaw = Math.atan2(-t.x, -t.z), pitch = 0.6;
+      // Its torn root in the crown, the boom hanging out towards the clearing.
+      const at = new THREE.Matrix4().compose(new THREE.Vector3(t.x, top, t.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(-pitch, yaw + Math.PI, 0.3, 'YXZ')), new THREE.Vector3(1, 1, 1));
+      dress.place('heli_tail', at, over);
+      dress.stats.at.heli_tail = [[+t.x.toFixed(1), +top.toFixed(1), +t.z.toFixed(1)]];
+      const ground = (x: number, z: number, a: number) => new THREE.Matrix4().compose(new THREE.Vector3(x, crashSurface(x, z) - 0.02, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a), new THREE.Vector3(1, 1, 1));
+      // The blade where the boom points, under its fin.
+      dress.place('heli_blade', ground(t.x + Math.sin(yaw) * 4.5, t.z + Math.cos(yaw) * 4.5, yaw + 0.8), over);
+    }
+    for (let i = 0, made = 0; i < 200 && made < 14; i++) {
+      const x = (wr() * 2 - 1) * (X_OUT - 4), z = (wr() * 2 - 1) * (COURT - 2);
+      // In the forest (off the paths, the trenches, the yards), clear of trunks and boulders.
+      if (forestAt(x, z) < 0.2 || taken.some(([tx, tz, tr]) => Math.hypot(tx - x, tz - z) < tr + 1.2)) continue;
+      made++;
+      dress.place('panel', new THREE.Matrix4().compose(new THREE.Vector3(x, crashSurface(x, z) - 0.03, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, wr() * 6.28, 0)), new THREE.Vector3(0.8 + wr() * 0.5, 1, 0.8 + wr() * 0.5)), over);
+    }
+  }
+
   dress?.finish(scene);
   if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);

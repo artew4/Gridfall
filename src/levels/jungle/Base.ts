@@ -436,6 +436,9 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     jersey(jx - 2.6, 26.0, jx + 0.6, 26.6);
     // Wreck: hull and the burnt cab frame (all inside its collider).
     const wx = roadX(31) + 4.4;
+    // 76.0: drawn as the burnt car (props_heavy.py), its box hidden (the collider as it was).
+    const gy = [jungleHeight(wx, 29), jungleHeight(wx + 1.9, 29), jungleHeight(wx, 33.4), jungleHeight(wx + 1.9, 33.4), jungleHeight(wx + 0.95, 31.2)];
+    dress?.replace('car', [wx, Math.min(...gy), 29], [wx + 1.9, Math.max(...gy) + 1.15, 33.4], { margin: 0.05 });
     onGround(wx, 29, wx + 1.9, 33.4, 1.15, m.rust, 'metal');
     clear(-10, 25, wx + 2.5, 36.5, 0.5);
   }

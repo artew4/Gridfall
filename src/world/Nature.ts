@@ -154,3 +154,41 @@ export function rock(r: number, h: number, seed: number): THREE.BufferGeometry |
   }
   return g;
 }
+
+/**
+ * 76.0: a kit node's parts merged (position, normal, uv) and fitted exactly to the box (min, max): an
+ * instanced map's unit primitive (a box, a cylinder) swapped for the model; without a box, as authored
+ * (its base at y = 0); or null: no kit.
+ */
+export function fitted(name: string, min?: [number, number, number], max?: [number, number, number]): THREE.BufferGeometry | null {
+  const parts = propKits()?.[name];
+  if (!parts?.length) return null;
+  const pos: number[] = [], nor: number[] = [], uv: number[] = [];
+  for (const p of parts) {
+    const g = p.geo.index ? p.geo.toNonIndexed() : p.geo;
+    pos.push(...(g.attributes.position.array as Float32Array));
+    nor.push(...(g.attributes.normal.array as Float32Array));
+    if (g.attributes.uv) uv.push(...(g.attributes.uv.array as Float32Array));
+    else uv.push(...new Array(g.attributes.position.count * 2).fill(0));
+    if (g !== p.geo) g.dispose();
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  // (No box: as authored.)
+  if (!min || !max) return g;
+  g.computeBoundingBox();
+  const b = g.boundingBox!;
+  const s = [0, 1, 2].map((i) => (max[i] - min[i]) / (b.max.getComponent(i) - b.min.getComponent(i)));
+  g.translate(-b.min.x, -b.min.y, -b.min.z);
+  g.scale(s[0], s[1], s[2]);
+  g.translate(min[0], min[1], min[2]);
+  // (Normals by the inverse scale: a stretched model keeps its shading.)
+  const n = g.attributes.normal as THREE.BufferAttribute, v = new THREE.Vector3();
+  for (let i = 0; i < n.count; i++) {
+    v.set(n.getX(i) / s[0], n.getY(i) / s[1], n.getZ(i) / s[2]).normalize();
+    n.setXYZ(i, v.x, v.y, v.z);
+  }
+  return g;
+}

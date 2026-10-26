@@ -28,6 +28,6 @@ the operators were in 66.0–67.0), one kit a version, each checked in the game 
 | 5 ✅ | 72.0 | **Neon street kit**: vending machines, AC units, lanterns, sign frames, bikes, dumpsters, utility poles and transformers, food stalls, bollards | Tokyo, Neon Block, Neon Docks |
 | 6 ✅ | 73.0 | **Port industrial**: cranes, mooring bollards, pipe runs, catwalk rails, racks | Neon Docks, Old Port |
 | 7 ✅ | 74.0 | **Corporate**: benches, kiosks, planters, gates, the train's details | Maglev Terminal |
-| 8 ✅ | 75.0 | **Nature and ruin**: trees, bushes, palms, rocks, wreckage, shack details | Favelas, Deep Jungle, Crash Site, the Desert's mesas |
+| 8 ✅ | 75.0, 76.0 | **Nature and ruin**: trees, bushes, palms, rocks, wreckage, shack details | Favelas, Deep Jungle, Crash Site, the Desert's mesas |
 
 Each step ends with the playtest's word before the next one starts; the order can change with it.

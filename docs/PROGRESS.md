@@ -3208,8 +3208,33 @@ The ask: step 8 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
 - In the game: Deep Jungle's undergrowth and giants, Crash Site's ferns, the Desert's boulders by the dune field.
 - Performance: measured on battery with the GPU throttled (every map ~50× its usual times), so only as A/B: Desert GPU p50 350.6 ms without the kit, 329.0 with; Deep Jungle 147.1 without, 146.4 with: no cost.
 
+## 76.0: the environment in Blender, step 8's rest: Favelas and wreckage
+
+Branch `feature/env-ruin-76.0`, from `feature/env-nature-75.0` @ `0befee4` (64.0–75.0, not merged yet).
+
+The ask: finish the Favelas and the wreckage (left out of 75.0).
+
+### The kit (`tools/blender/props_ruin.py`, `public/models/props/ruin.glb`, 16.5k triangles)
+- Instanced in Favelas (one geometry in the map's material each): `ftank` (a ribbed Fortlev tank, its lid and pipes), `fdoor` (a stamped steel door in its frame, vent, handle: both faces), `fgrille` (a window grille, bars the frame's whole depth, a sunburst), `zinc` (corrugated roofing), `rebar` (a column head's waiting bars, tied, bent over), `fdish` (a satellite dish on its wall bracket).
+- Dressed (roles in the map's materials): `fusca` (a Beetle), `kombi` (a two-tone split-window Kombi), `fstall` (a plank counter with fruit crates, a striped awning on the two posts the map's colliders have).
+- Wreckage: `heli_tail` (a helicopter's tail boom torn off: ribs, fin, stabiliser, tail rotor), `heli_blade` (a bent main rotor blade), `panel` (a torn skin panel).
+
+### In the maps
+- `Nature.fitted(name, min, max)`: a node merged and fitted exactly to the box an instanced map's unit primitive filled (normals by the inverse scale), or as authored.
+- Favelas (`Favela.ts`): doors, tanks and the towers' tin roofs swapped for the models (same bounds); grilles on 45% of the house windows (not shadow casters), a dish on a house in three over head height, rebar at the bare-block houses' roof corners; a Dresser: the cars as Beetles, the vans as Kombis, the stalls (their boxes, tyres, posts and awnings hidden). Without the kit, the boxes as before.
+- Deep Jungle: the checkpoint's wreck drawn as the burnt car (props_heavy.py).
+- Crash Site: the tail in the crown of the lowest of the slim trees by the clearing's south edge (10 m up and more), the blade under it, 12 skin panels in the forest (under 0.2 m: walked over); its own seed.
+- Colliders unchanged everywhere.
+
+### Checks
+- Tests 605 (+7, `ruin76.test.ts`: the kit, roles, budget; a stall clear from its counter to head height but for the map's two posts; the Beetle's cabin over its middle; ground wreckage under 0.2 m; grille bars through the glass; fitted bounds and normals; as authored).
+- World checks (Favelas, Crash Site, Deep Jungle): no clusters, no entries.
+- In the game: the street's Beetle and Kombi, the stall, a roof tank, doors and grilles, a dish, the tin roofs and rebar, the jungle's burnt car. Crash Site's tail is hard to make out in the screenshots (mist and vines).
+- Performance: the GPU still throttled (Favelas ~100–130 ms a frame either way, ±25% between runs), so A/B only: without the kit 130.1/130.0 ms, with 141.2/115.5 ms (grilles cut from 60% of windows and out of the shadow pass after an earlier +11%): within the noise.
+
 ## Next
 Human playtest:
+- 76.0 items: Favelas' street (Beetles, Kombi, stalls), tanks, doors, grilles, dishes, tin roofs, rebar; the jungle's burnt car; Crash Site's helicopter tail (visible enough?); Favelas' frame rate on an unthrottled GPU.
 - 75.0 items: Deep Jungle's and Crash Site's plants and trees, the Desert's boulders; the fight frame rate on mains power.
 - 74.0 items: Maglev's planters, kiosks, ticket machines, gates, benches, trolleys, carts and the train's doors; then the word for step 8 (nature and ruin).
 - 73.0 items: the cranes on Neon Docks and Old Port, the handrails (do they still read as a wall you can't shoot through), the racks, the bitts; then the word for step 7 (Maglev's corporate kit).

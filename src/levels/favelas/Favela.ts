@@ -8,6 +8,9 @@ import {
   BAND, CORE, CROSS_GAP, PASTELS, ROW_END, STREET, X_E, Z_END,
   alleyAt, bandX, bandY, favelaPlan, lanesOf, rowW, spawnsOf, trackOf, zoneAt, type HouseBox, type Plan, type StairPlan,
 } from './FavelaLayout';
+import { Dresser, militaryMats } from '../../world/Dress';
+import { propKits } from '../../entities/weapons/models';
+import { fitted } from '../../world/Nature';
 import { blockTexture, earthTexture, lajeTexture, plasterTexture, worldUv, zincTexture } from './textures';
 
 /*
@@ -102,16 +105,31 @@ export function buildFavela(scene: THREE.Scene, col: CollisionWorld): FavelaResu
   };
   const pastel = PASTELS.map((p) => new THREE.Color(p));
   const unit = () => new THREE.BoxGeometry(1, 1, 1);
+  // 76.0: the Blender models (props_ruin.py) in the unit boxes and cylinders, if the kit is loaded.
+  const model = (name: string, r = 0.5) => fitted(name, [-r, -0.5, -r], [r, 0.5, r]);
+  const own = {
+    grille: std(null, 0xe4e1d6, 0.5, 0.3, 0.5),
+    rebar: std(null, 0x6b4430, 0.85, 0.4, 0.3),
+    dish: std(null, 0xd9d7cf, 0.45, 0.1, 0.6),
+  };
   const B = {
     houses: new Batch('favelaHouses', unit(), m.plaster),
     bricks: new Batch('favelaBlockHouses', unit(), m.block),
     roofs: new Batch('favelaRoofs', unit(), m.roof),
     glass: new Batch('favelaWindows', unit(), m.glass, false),
-    doors: new Batch('favelaDoors', unit(), m.door, false),
-    zinc: new Batch('favelaTinRoofs', unit(), m.zinc),
-    tanks: new Batch('favelaTanks', new THREE.CylinderGeometry(1, 1, 1, 14), m.tank),
+    doors: new Batch('favelaDoors', model('fdoor') ?? unit(), m.door, false),
+    zinc: new Batch('favelaTinRoofs', model('zinc') ?? unit(), m.zinc),
+    tanks: new Batch('favelaTanks', model('ftank', 1) ?? new THREE.CylinderGeometry(1, 1, 1, 14), m.tank),
     cloth: new Batch('favelaLaundry', new THREE.PlaneGeometry(1, 1), m.cloth, false),
+    // (The kit's own: nothing to draw without it.)
+    grilles: new Batch('favelaGrilles', model('fgrille') ?? unit(), own.grille, false),
+    rebar: new Batch('favelaRebar', fitted('rebar') ?? unit(), own.rebar, false),
+    dishes: new Batch('favelaDishes', fitted('fdish') ?? unit(), own.dish, false),
   };
+  const kit = propKits();
+  const dress = kit
+    ? new Dresser(b, kit, militaryMats({ plastic: 0x2f6fb0, canvas: 0xffffff }, { canvas: m.stall, white: std(null, 0xe9e6dc, 0.5, 0.1, 0.6), fruit: std(null, 0xe0761c, 0.6) }))
+    : null;
 
   // ---------------------------------------------------------------- helpers
   const solid = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material, surface: Collider['surface'] = 'concrete', tile = 3) => {
@@ -176,7 +194,10 @@ export function buildFavela(scene: THREE.Scene, col: CollisionWorld): FavelaResu
       const zc = h.z0 + ((i + 0.5) * L) / nWin;
       if (door >= 0 && Math.abs(zc - (door + 0.45)) < 1.1) continue;
       B.glass.add(fx, h.y0 + 1.75, zc, sx, 0.9, 0.85);
+      if (kit && r() < 0.45) B.grilles.add(fx, h.y0 + 1.75, zc, 0.16, 0.9, 0.85);
     }
+    // A satellite dish on one house in three, high on its face (over head height, out of reach).
+    if (kit && h.y1 - h.y0 > 2.9 && r() < 0.35) B.dishes.add(side === 'x0' ? h.x0 - 0.07 : h.x1 + 0.07, h.y1 - 0.8, h.z0 + 0.5 + r() * (L - 1), 1, 1, 1, undefined, 0, side === 'x0' ? -Math.PI / 2 : Math.PI / 2, 0);
   };
   for (const h of plan.houses) {
     const w = h.x1 - h.x0, d = h.z1 - h.z0;
@@ -184,6 +205,8 @@ export function buildFavela(scene: THREE.Scene, col: CollisionWorld): FavelaResu
     (h.brick ? B.bricks : B.houses).add((h.x0 + h.x1) / 2, (h.y0 - 0.1 + top) / 2, (h.z0 + h.z1) / 2, w, top - h.y0 + 0.1, d, h.brick ? new THREE.Color(1, 1, 1) : pastel[h.tone]);
     B.roofs.add((h.x0 + h.x1) / 2, (top + h.y1) / 2, (h.z0 + h.z1) / 2, w, h.y1 - top, d);
     col.add(h.x0, h.y0 - 0.1, h.z0, h.x1, h.y1, h.z1, 'concrete');
+    // Bare block: never finished, its columns' rebar still waiting for the next storey.
+    if (kit && h.brick) for (const [x, z] of [[h.x0 + 0.15, h.z0 + 0.15], [h.x1 - 0.15, h.z0 + 0.15], [h.x0 + 0.15, h.z1 - 0.15], [h.x1 - 0.15, h.z1 - 0.15]]) B.rebar.add(x, h.y1, z, 1, 1, 1, undefined, 0, x + z, 0);
     face(h, h.row === 'W' ? 'x1' : 'x0');
     // The W row's back looks over the roofs below (k ≥ 1): windows there too.
     if (h.row === 'W' && h.band > 0) face(h, 'x0');
@@ -235,6 +258,8 @@ export function buildFavela(scene: THREE.Scene, col: CollisionWorld): FavelaResu
   for (const p of plan.props) {
     if (p.kind === 'car' || p.kind === 'van') {
       const mat = m.car[Math.floor(rnd() * m.car.length)];
+      // 76.0: a Beetle, a Kombi over the boxes (they're hidden; the colliders stay).
+      dress?.replace(p.kind === 'car' ? 'fusca' : 'kombi', [p.x0, 0, p.z0], [p.x1, p.h, p.z1], { over: { paint: mat }, margin: 0.1 });
       const c = solid(p.x0, 0, p.z0, p.x1, p.h * 0.6, p.z1, mat, 'metal', 2);
       c.vault = false;
       // The cabin (the van's the whole length), seen only: inside the collider's footprint, over it.
@@ -242,6 +267,7 @@ export function buildFavela(scene: THREE.Scene, col: CollisionWorld): FavelaResu
       solid(p.x0 + 0.1, p.h * 0.6, cz0, p.x1 - 0.1, p.h, cz1, mat, 'metal', 2);
       for (const zz of [p.z0 + 0.8, p.z1 - 0.8]) for (const xx of [p.x0 + 0.05, p.x1 - 0.05]) b.add(new THREE.CylinderGeometry(0.32, 0.32, 0.22, 12), m.tyre, xx, 0.32, zz, 0, 0, Math.PI / 2);
     } else if (p.kind === 'stall') {
+      dress?.replace('fstall', [p.x0, 0, p.z0], [p.x1, p.h, p.z1], { margin: 0.1 });
       solid(p.x0, 0, p.z0, p.x1, 1.0, p.z1, m.crate, 'wood', 1);
       // Its awning on posts (the posts in the counter's corners; the canopy over the counter only).
       deco(p.x0, p.h - 0.05, p.z0, p.x1, p.h, p.z1, m.stall, 2);
@@ -333,7 +359,11 @@ export function buildFavela(scene: THREE.Scene, col: CollisionWorld): FavelaResu
   scene.add(kites);
 
   for (const batch of Object.values(B)) batch.build(scene);
+  dress?.finish(scene);
+  if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.afterBuild(scene);
+  dress?.dispose();
   scene.traverse((o) => {
     if ((o as THREE.Mesh).isMesh && o.userData.staticMerged) {
       o.castShadow = true;
