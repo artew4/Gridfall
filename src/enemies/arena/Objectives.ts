@@ -62,6 +62,8 @@ export class Objectives {
   /** DEV: captures and neutralisations per team, seconds each held each point, tickets bled. */
   stats = { captures: { alpha: 0, omega: 0 } as Record<TeamId, number>, held: [] as Record<TeamId, number>[], bled: { alpha: 0, omega: 0 } as Record<TeamId, number>, doubleT: { alpha: 0, omega: 0 } as Record<TeamId, number> };
 
+  /** 64.0: the decisive assault takes the points faster (×, from Tdm). */
+  rateMul = 1;
   constructor(points: readonly { pos: THREE.Vector3; name: string; r?: number }[]) {
     this.list = points.map((p, k) => ({ k, name: p.name, pos: p.pos.clone(), r: p.r ?? ARENA.objectives.r, meter: 0, owner: null, capturing: null, contested: false, count: { alpha: 0, omega: 0 } }));
     this.stats.held = this.list.map(() => ({ alpha: 0, omega: 0 }));
@@ -131,7 +133,7 @@ export class Objectives {
         const n = Math.abs(adv);
         const mult = Math.min(O.maxMult, 1 + O.perExtra * (n - 1));
         o.capturing = sign(t) * o.meter < 1 ? t : null;
-        o.meter = THREE.MathUtils.clamp(o.meter + sign(t) * O.rate * mult * dt, -1, 1);
+        o.meter = THREE.MathUtils.clamp(o.meter + sign(t) * O.rate * this.rateMul * mult * dt, -1, 1);
       } else {
         o.capturing = null;
         // Nobody (or level numbers, contested: frozen): back to its owner's, or to neutral, slowly.

@@ -19,7 +19,21 @@ import type { TeamId } from '../combat/Team';
 
 export const LAST_STAND = { sudden: 60, trade: 0.4 };
 
-export type MatchWhy = 'elimination' | 'sudden death' | 'trade' | 'sudden death draw';
+/*
+  64.0, the two modes (the playtest: "the end is hunting the last hidden enemies across the map, then
+  watching bots; the genres are mixed"): no ending asks for anyone to be found. Every death is
+  respawned until the match is decided.
+  - deathmatch: first to `target` kills, or the most after `time` s (level: overtime, the next kill
+    wins); the match point when a team is `matchPoint` kills or fewer from it.
+  - breakthrough: the tickets (respawns, bled by the points the other team holds): a team at 0 loses
+    at once; the decisive assault when a team is under `finalShare` of its tickets; in it, a team
+    holding two points or more respawns free (its comeback).
+  - laststand: 29.0's (elimination and sudden death), kept for the tests and the A/B.
+*/
+export type MatchMode = 'deathmatch' | 'breakthrough' | 'laststand';
+export const MODES = { matchPoint: 10, finalShare: 0.15 };
+
+export type MatchWhy = 'elimination' | 'sudden death' | 'trade' | 'sudden death draw' | 'score' | 'time' | 'overtime' | 'tickets';
 export interface Outcome {
   winner: TeamId | 'draw';
   why: MatchWhy;
@@ -37,13 +51,54 @@ export class MatchRules {
   /** DEV: when each team's tickets ran out (match time), how often a sudden-death clock started and was reset, the longest run of one. */
   stats = { lastStandAt: { alpha: null as number | null, omega: null as number | null }, suddenStarts: 0, suddenResets: 0, longestSudden: 0 };
 
-  constructor(tickets: number, readonly S = LAST_STAND) {
+  /** 64.0, deathmatch: kills per team, the target and the time limit; overtime (level at the limit). */
+  kills: Record<TeamId, number> = { alpha: 0, omega: 0 };
+  overtime = false;
+  private start = 0;
+  readonly ticketMax: number;
+
+  constructor(tickets: number, readonly S = LAST_STAND, readonly mode: MatchMode = 'laststand', readonly target = 60, readonly time = 600) {
     this.tickets = { alpha: tickets, omega: tickets };
+    this.ticketMax = tickets;
   }
 
-  /** Someone of `team` died at `now`: true if a respawn is granted (a ticket spent), false if it's out. */
-  died(team: TeamId, now: number): boolean {
+  /** 64.0: the match's clock starts (the countdown is over). */
+  begin(now: number) {
+    this.start = now;
+  }
+
+  /** 64.0, deathmatch: seconds left on the clock (0 in overtime). */
+  timeLeft(now: number) {
+    return Math.max(0, this.time - (now - this.start));
+  }
+
+  /** 64.0, deathmatch: a team is `matchPoint` kills or fewer from the target. */
+  get matchPoint() {
+    return this.mode === 'deathmatch' && !this.outcome && (Math.max(this.kills.alpha, this.kills.omega) >= this.target - MODES.matchPoint || this.overtime);
+  }
+
+  /** 64.0, breakthrough: a team is under `finalShare` of its tickets (the decisive assault). */
+  get finalAssault() {
+    return this.mode === 'breakthrough' && !this.outcome && Math.min(this.tickets.alpha, this.tickets.omega) < this.ticketMax * MODES.finalShare;
+  }
+
+  /**
+   * Someone of `team` died at `now`: true if a respawn is granted, false if not. 64.0: deathmatch,
+   * always; breakthrough, a ticket each (`free`: none, the comeback), and the last one ends the match.
+   */
+  died(team: TeamId, now: number, free = false): boolean {
     if (this.outcome) return false;
+    if (this.mode === 'deathmatch') return true;
+    if (this.mode === 'breakthrough') {
+      if (free) return true;
+      this.tickets[team] = Math.max(0, this.tickets[team] - 1);
+      if (this.tickets[team] === 0) {
+        this.stats.lastStandAt[team] = now;
+        this.finish(OTHER[team], 'tickets');
+        return false;
+      }
+      return true;
+    }
     if (this.tickets[team] > 0) {
       this.tickets[team]--;
       if (this.tickets[team] === 0) this.stats.lastStandAt[team] = now;
@@ -57,13 +112,24 @@ export class MatchRules {
    * respawn, never under 0 (a bleed alone never puts anyone out; its last stand starts as a death's would).
    */
   bleed(team: TeamId, now: number) {
-    if (this.outcome || this.tickets[team] <= 0) return;
+    if (this.outcome || this.tickets[team] <= 0 || this.mode === 'deathmatch') return;
     this.tickets[team]--;
-    if (this.tickets[team] === 0) this.stats.lastStandAt[team] = now;
+    if (this.tickets[team] === 0) {
+      this.stats.lastStandAt[team] = now;
+      // 64.0: in a breakthrough the last ticket bled is the end too.
+      if (this.mode === 'breakthrough') this.finish(OTHER[team], 'tickets');
+    }
   }
 
   /** `team` scored a kill: its sudden-death clock (if running) starts again from the top. */
   killed(team: TeamId) {
+    if (this.mode === 'deathmatch') {
+      if (this.outcome) return;
+      this.kills[team]++;
+      if (this.overtime) this.finish(team, 'overtime');
+      else if (this.kills[team] >= this.target) this.finish(team, 'score');
+      return;
+    }
     if (this.sudden[team] !== null) {
       this.sudden[team] = this.S.sudden;
       this.stats.suddenResets++;
@@ -81,6 +147,15 @@ export class MatchRules {
    */
   update(now: number, dt: number, standing: Record<TeamId, number>): Outcome | null {
     if (this.outcome) return this.outcome;
+    // 64.0: deathmatch ends on the score (killed) or the clock; breakthrough on the tickets (died, bleed).
+    if (this.mode === 'deathmatch') {
+      if (!this.overtime && now - this.start >= this.time) {
+        if (this.kills.alpha !== this.kills.omega) return this.finish(this.kills.alpha > this.kills.omega ? 'alpha' : 'omega', 'time');
+        this.overtime = true;
+      }
+      return null;
+    }
+    if (this.mode === 'breakthrough') return null;
     // ---- Elimination, with the trade window.
     const outA = standing.alpha <= 0, outO = standing.omega <= 0;
     if (outA && outO) return this.finish('draw', 'trade');

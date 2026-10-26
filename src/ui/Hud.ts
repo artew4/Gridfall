@@ -165,12 +165,17 @@ export class Hud {
     }, 7000);
   }
 
+  /** 64.0: which Team Deathmatch mode the menu has picked (its tab lit). */
+  tdmVariant: 'deathmatch' | 'breakthrough' = 'deathmatch';
+
   /** 13.0: the levels the menu offers (registry order), and the mode buttons with their map counts. */
   setLevels(levels: LevelInfo[]) {
     this.levels = levels;
     this.nameInput = this.title.querySelector<HTMLInputElement>('.mm-name')!;
     this.title.querySelector('.mm-modes')!.innerHTML = MODE_ORDER.filter((m) => mapsFor(m, levels).length)
       .map((m) => {
+        // 64.0: Team Deathmatch's two modes, a tab each (the same maps): the deathmatch and the breakthrough.
+        if (m === 'tdm') return `<button class="gm-tab mm-mode" data-mode="tdm">TEAM DEATHMATCH</button><button class="gm-tab mm-mode" data-mode="breakthrough">BREAKTHROUGH</button>`;
         return `<button class="gm-tab mm-mode" data-mode="${m}">${MENU_MODE[m]}</button>`;
       })
       .join('');
@@ -196,7 +201,9 @@ export class Hud {
     t.querySelector('.controlsPanel')!.classList.toggle('hidden', st.screen !== 'controls');
     t.querySelector('.mainmenu')!.classList.toggle('on-controls', st.screen === 'controls');
     if (st.screen !== 'maps' || !st.mode) return;
-    for (const b of Array.from(t.querySelectorAll<HTMLElement>('.gm-tab'))) b.classList.toggle('on', b.dataset.mode === st.mode);
+    // (64.0: the tdm tab lit is the mode picked: the deathmatch or the breakthrough.)
+    const lit = st.mode === 'tdm' ? (this.tdmVariant === 'breakthrough' ? 'breakthrough' : 'tdm') : st.mode;
+    for (const b of Array.from(t.querySelectorAll<HTMLElement>('.gm-tab'))) b.classList.toggle('on', b.dataset.mode === lit);
     const row = t.querySelector('.settings-row')!;
     const maps = mapsFor(st.mode, this.levels);
     const key = maps.map((m) => m.id).join(',');

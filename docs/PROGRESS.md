@@ -2917,8 +2917,36 @@ The ask: proper sounds for everything (shots, reloads, impacts, footsteps on eac
 - Tests 547 (+1: every design renders finite, starts at once (the cloth rustles swell in), peaks at its level, its variants differ; the whole bank fast). Profiled after a first pass whose shots were 70–92% under 200 Hz: rebalanced (the crack and the tail up, the thump down): 14–71% now, the shotgun the deepest.
 - In play (Docks, GPU): no frame over 25 ms, no long task.
 
+## 64.0: two modes, finales without hide-and-seek
+
+Branch `feature/modes-64.0`, from `main` @ `bf7bf0d` (63.0).
+
+The playtest: the end of a match was a hunt for the last enemies hiding round the map against a sudden-death clock, and dying meant watching the bots; the genres (the points and a plain deathmatch) mixed. Agreed: two modes; no ending asks for anyone to be found; nobody waits out a match.
+
+### The modes (LastStand.ts `MatchRules` modes, `TDM.mode`, the menu's two tabs)
+- **Team Deathmatch** (`deathmatch`): first to `killsPerPlayer` (6) × the team size, or the most after `time` (600 s); level at the bell: overtime, the next kill wins. No tickets, no points (the fronts still lead the bots; a line broken is a notice, it bleeds nothing). The match point (`MODES.matchPoint`: 10 kills from the target, or overtime): a banner, the alarm, every hostile pinged onto both teams' boards (the minimap, the bots' contacts) every `ping` (8) s, respawns `fast` (0.5)× with no waves, the music at its peak. The HUD: kills (the bars to the target), what each still needs, the clock under the score.
+- **Breakthrough** (`breakthrough`): 51.0's fronts and points; tickets `ticketsPerPlayer` (12) × the team size (50 ran out in two minutes once 0 ended it); a death costs one, the points bleed them; a team at 0 loses at once (a death or a bleed). The decisive assault under `MODES.finalShare` (15%) of either team's tickets: a banner, the alarm, points taken `finalRate` (2)× faster (`Objectives.rateMul`), respawns 0.5×, and a team holding two points or more respawns free (the comeback).
+- `laststand` (29.0's elimination and sudden death) stays for the tests and the A/B.
+
+### Dying
+- Every death respawns (`TDM.playerRespawn` 3 s, the bots 3–4 s; 0.5× in a finale): no spectating in either mode. While he waits the camera turns to his killer (who and from where), and A/D pick his zone (his team's open ones; `pickPad` prefers it).
+
+### Self-play (12 a side unless said)
+| | length | finale from | winner, how |
+|---|---|---|---|
+| Desert, deathmatch (3) | 3:02–3:27 | 2:41–3:10 | 72–64…72–68, score |
+| Neon Block, deathmatch (2, 7 a side) | 3:26–3:34 | 2:32–2:56 | 42–39, 42–37, score |
+| Desert, breakthrough (2) | 4:34–5:01 | 3:56–3:58 | 81–0, 78–0 tickets |
+
+Stuck 0 but one (Neon Block). ALPHA won all five on the Desert (the map's old lean: 9 of 12 in 56.0).
+
+### Checks
+- Tests 550 (+3: the deathmatch's score, match point, clock and overtime; the breakthrough's tickets, decisive assault and free respawns).
+- In play: the match point's banner and clock, the radar, the respawn panel with the killer and the zone pick (screenshots).
+
 ## Next
 Human playtest:
+- 64.0 items: the two modes (Team Deathmatch's length at 6 kills a player, the match point's radar: tense or too easy; Breakthrough's decisive assault and the comeback; the death camera and picking a zone with A/D).
 - 63.0 items: the new sound effects (each gun's report, the reloads, the impacts, the footsteps per surface; anything thin, harsh or too loud next to the music).
 - 59.0 items: the Desert's new score (the drive, the riff, the hook; too busy, too loud over the guns).
 - 58.0 items: the bots diving through the Desert's windows; any bot still jumping on the spot (where); Esc while dead; the capture line under the crosshair (too big, too small, in the way); the full board when you're out; the Desert's new music (drive, too busy, too loud next to the guns).

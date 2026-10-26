@@ -30,7 +30,7 @@ import { rand } from '../core/math';
 import type { BoardLine, TdmLine } from '../ui/TdmHud';
 import { SPAWN, SpawnManager, ZoneSpawner, deployZones, laneNeed, sideOf, type DeployZone, type SpawnPad, type SpawnUnit } from './SpawnManager';
 import { SpawnZoneVisual } from '../world/SpawnZoneVisual';
-import { MatchRules, type Outcome } from './LastStand';
+import { LAST_STAND, MatchRules, type MatchMode, type Outcome } from './LastStand';
 import { Pressure } from '../enemies/arena/Pressure';
 import { Objectives, type ObjectiveBody } from '../enemies/arena/Objectives';
 import { ObjectiveVisual } from '../world/ObjectiveVisual';
@@ -67,11 +67,26 @@ const _eye2 = new THREE.Vector3();
 export type MatchPhase = 'PRE_MATCH' | 'LIVE';
 
 export const TDM = {
+  /**
+   * 64.0: the mode (the menu's tab): 'deathmatch' (first to `killsPerPlayer` × the team size, or the
+   * most kills after `time` s; the match point `MODES.matchPoint` kills from it: the enemy pinged on the
+   * map every `ping` s, respawns `fast`×), 'breakthrough' (the tickets and the points; 0 tickets loses;
+   * the decisive assault under `MODES.finalShare` of them: points taken `finalRate`× faster, respawns
+   * `fast`×, two points held: respawns free) or 'laststand' (29.0's, DEV A/B).
+   */
+  mode: 'deathmatch' as MatchMode,
+  killsPerPlayer: 6,
+  ticketsPerPlayer: 12,
+  time: 600,
+  ping: 8,
+  fast: 0.5,
+  finalRate: 2,
   /** 29.0: respawns per team (a death with none left is final): 50, whatever the team size. */
   tickets: 50,
-  respawn: [3, 5] as [number, number],
-  /** The player's respawn delay (inside the 3–5 s window; long enough to read the killer). */
-  playerRespawn: 4,
+  // (64.0: 3–4 s, was 3–5: nobody waits out a match any more, only a respawn.)
+  respawn: [3, 4] as [number, number],
+  /** The player's respawn delay (64.0: 3 s, was 4: long enough to see who it was). */
+  playerRespawn: 3,
   /** Spawn protection (s). */
   protect: 2,
   /**
@@ -234,6 +249,12 @@ export class TdmRules implements ModeRules {
   liveAt = 0;
   private prepared = false;
   playerRespawnAt = Infinity;
+  /** 64.0: the finale's announcements made (the match point, overtime, the decisive assault), the next radar ping. */
+  private modeFlags = { matchPoint: false, overtime: false, final: false, pingAt: 0 };
+  /** 64.0 (DEV): when the finale began (match time, s), or null. */
+  finaleAt: number | null = null;
+  /** 64.0: the zone he picked to come back at (A/D while he waits), or null: the game's pick. */
+  private zoneChoice: DeployZone | null = null;
   private killerName: string | null = null;
   private hostiles: Record<TeamId, Combatant[]> = { alpha: [], omega: [] };
   private friends: Record<TeamId, Combatant[]> = { alpha: [], omega: [] };
@@ -329,11 +350,15 @@ export class TdmRules implements ModeRules {
     this.hold(false);
     // The clock and every spawn protection count from here, not from the setup.
     this.startT = now;
+    this.rules.begin(now);
     g.playerInvulnUntil = now + TDM.protect;
     for (const b of this.bots) b.invulnUntil = now + TDM.protect;
     // His spawn area (the weapon swap) opens now: the countdown's seconds don't use it up.
     if (g.state === 'play') g.markSpawn();
-    g.hud.bannerShow('TEAM DEATHMATCH', fl('tdmBanner'), 2.6);
+    // 64.0: the mode's own banner, its goal under it.
+    if (TDM.mode === 'deathmatch') g.hud.bannerShow('TEAM DEATHMATCH', `FIRST TO ${this.rules.target} KILLS`, 2.6);
+    else if (TDM.mode === 'breakthrough') g.hud.bannerShow('BREAKTHROUGH', 'HOLD THE POINTS · BLEED THEIR TICKETS', 2.6);
+    else g.hud.bannerShow('TEAM DEATHMATCH', fl('tdmBanner'), 2.6);
   }
 
   /** Every body of the match held on its spot (true) or let go. */
@@ -351,9 +376,14 @@ export class TdmRules implements ModeRules {
   private setup() {
     const g = this.game;
     this.clearBots();
-    this.ticketMax = TDM.force.tickets ?? this.data.tickets ?? TDM.tickets;
+    // 64.0: a breakthrough's tickets by the team size (`ticketsPerPlayer` each: 0 now ends it, so 50 a
+    // team ran out in two minutes at 12 a side); the last-stand A/B keeps the map's.
+    this.ticketMax = TDM.force.tickets ?? (TDM.mode === 'breakthrough' ? TDM.ticketsPerPlayer * teamSizeOf(g.level.info) : this.data.tickets ?? TDM.tickets);
     this.forwardStats = { forward: 0, yard: 0 };
-    this.rules = new MatchRules(this.ticketMax);
+    // 64.0: the mode's rules (deathmatch: the target from the team size).
+    this.rules = new MatchRules(this.ticketMax, LAST_STAND, TDM.mode, TDM.killsPerPlayer * teamSizeOf(g.level.info), TDM.time);
+    this.modeFlags = { matchPoint: false, overtime: false, final: false, pingAt: 0 };
+    this.finaleAt = null;
     this.player = { kills: 0, deaths: 0 };
     // 48.0: his team for this match; his rounds, the bots' and his HUD follow it.
     this.side = this.spectate ? 'alpha' : TDM.side === 'random' ? (Math.random() < 0.5 ? 'alpha' : 'omega') : TDM.side;
@@ -445,7 +475,7 @@ export class TdmRules implements ModeRules {
     g.weapon.setHolstered(false, true);
     g.storyHud.show(false);
     g.tdmHud.clear();
-    g.tdmHud.setMax(this.ticketMax);
+    g.tdmHud.setMax(TDM.mode === 'deathmatch' ? this.rules.target : this.ticketMax);
     g.tdmHud.show(true);
     g.hud.root.classList.add('tdm');
     this.slots = [];
@@ -810,7 +840,8 @@ export class TdmRules implements ModeRules {
 
   /** 51.0: and on the flank objectives (ARENA.objectives on, the map's lanes split into sectors)? */
   private objectivesWanted() {
-    return this.frontsWanted() && ARENA.objectives.on && !!this.data.laneOf;
+    // 64.0: the points are the breakthrough's (and the 51.0 match's, DEV); a deathmatch has none.
+    return TDM.mode !== 'deathmatch' && this.frontsWanted() && ARENA.objectives.on && !!this.data.laneOf;
   }
 
   /**
@@ -1049,7 +1080,9 @@ export class TdmRules implements ModeRules {
         sector = player ? this.playerSector() : this.fronts.neediest(team, this.sectorWeights(team));
         this.fronts.sent(team, sector);
         // (51.0: with the objectives only the zones a team has opened: no rally points.)
-        const r = ARENA.fronts.rally && !this.objectives ? this.rallyAt(team, sector, hostiles, occupied) : null;
+        // (64.0: a zone he picked while he waited: that zone, no rally point.)
+        const chosen = player && this.zoneChoice && this.zoneOpen(this.zoneChoice) ? this.zoneChoice : null;
+        const r = ARENA.fronts.rally && !this.objectives && !chosen ? this.rallyAt(team, sector, hostiles, occupied) : null;
         if (r) {
           this.rallyStats.rally++;
           this.directors?.[otherTeam(team)].heardSpawn(r.at, this.now, this.friends[otherTeam(team)]);
@@ -1057,8 +1090,8 @@ export class TdmRules implements ModeRules {
           return { at: r.at, yaw: r.yaw, sector, pick: { pad: { id: -2, pos: r.at, yaw: r.yaw, side: team, lane: sector }, nearest: r.nearest, rays: r.rays, ms: performance.now() - t0, fallback: false } };
         }
         this.rallyStats.zone++;
-        prefer = this.zoneOfSector(team, sector);
-      }
+        prefer = chosen ?? this.zoneOfSector(team, sector);
+      } else if (player && this.zoneChoice && this.zoneOpen(this.zoneChoice)) prefer = this.zoneChoice;
       const zp = this.zoner.pick(team, hostiles, allies, this.now, occupied, prefer);
       this.zoneVisual?.flash(zp.zone);
       this.directors?.[otherTeam(team)].heardSpawn(zp.zone.centre, this.now, this.friends[otherTeam(team)]);
@@ -1286,7 +1319,9 @@ export class TdmRules implements ModeRules {
   private onDeath(v: Combatant, by: Combatant | null): boolean {
     const g = this.game;
     if (this.winner) return false;
-    const granted = this.rules.died(v.team, this.now);
+    // 64.0: the decisive assault's comeback: a team holding two points respawns free.
+    const free = this.rules.finalAssault && (this.objectives?.held(v.team) ?? 0) >= 2;
+    const granted = this.rules.died(v.team, this.now, free);
     if (by && by.team !== v.team) this.rules.killed(by.team);
     this.spawner?.noteDeath(v.pos, this.now);
     this.zoner?.noteDeath(v.pos, this.now);
@@ -1300,7 +1335,8 @@ export class TdmRules implements ModeRules {
       vs.bot = null;
       // 51.0: a team on its last line (two flanks lost) is back at once.
       const last = this.objectives?.lastLine(v.team);
-      vs.respawnAt = !granted ? Infinity : last ? this.now + ARENA.objectives.lastLine.bot : this.waveAt(v.team, this.now + rand(TDM.respawn[0], TDM.respawn[1]));
+      // 64.0: in the finale (the match point, the decisive assault) everyone is back fast, no waves.
+      vs.respawnAt = !granted ? Infinity : last ? this.now + ARENA.objectives.lastLine.bot : this.finale() ? this.now + rand(TDM.respawn[0], TDM.respawn[1]) * TDM.fast : this.waveAt(v.team, this.now + rand(TDM.respawn[0], TDM.respawn[1]));
     }
     // 50.0: his form (ARENA.pressure); in form, a kill of his tells the victim's team where it came from.
     if (by?.isPlayer && by.team !== v.team) {
@@ -1385,9 +1421,11 @@ export class TdmRules implements ModeRules {
     this.player.deaths++;
     this.killerName = g.playerAttacker?.name ?? null;
     const granted = this.onDeath(g.playerUnit, g.playerAttacker);
-    this.playerRespawnAt = granted ? this.now + (this.objectives?.lastLine(this.side) ? ARENA.objectives.lastLine.player : TDM.playerRespawn) : Infinity;
-    // 29.0: out of the match: no countdown, he watches the teammates still standing.
-    if (!granted && !this.winner) {
+    this.playerRespawnAt = granted ? this.now + (this.objectives?.lastLine(this.side) ? ARENA.objectives.lastLine.player : TDM.playerRespawn * (this.finale() ? TDM.fast : 1)) : Infinity;
+    this.zoneChoice = null;
+    // 29.0: out of the match: no countdown, he watches the teammates still standing. (64.0: only in the
+    // last-stand A/B: in a deathmatch or a breakthrough a death with no respawn is the match's end.)
+    if (!granted && !this.winner && !this.rules.outcome) {
       this.playerOut = true;
       this.startSpectate();
       this.showStanding();
@@ -1412,7 +1450,7 @@ export class TdmRules implements ModeRules {
     const won = o.winner === this.side;
     const t = o.winner === 'draw' ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
     const FOE = this.foe.toUpperCase(), MINE = this.side.toUpperCase();
-    const why = o.why === 'sudden death' ? (won ? `${FOE} RAN OUT OF TIME` : 'OUT OF TIME') : o.why === 'sudden death draw' ? 'NOBODY BROKE THE TIE' : o.why === 'trade' ? 'THE LAST TWO TRADED' : won ? `${FOE} ELIMINATED` : `${MINE} ELIMINATED`;
+    const why = o.why === 'score' ? (won ? `${this.rules.target} KILLS` : `${FOE} REACHED ${this.rules.target}`) : o.why === 'time' ? `MOST KILLS AT THE BELL · ${this.rules.kills[this.side]}–${this.rules.kills[this.foe]}` : o.why === 'overtime' ? (won ? 'THE DECIDING KILL' : `${FOE} TOOK THE DECIDING KILL`) : o.why === 'tickets' ? (won ? `${FOE} OUT OF TICKETS` : `${MINE} OUT OF TICKETS`) : o.why === 'sudden death' ? (won ? `${FOE} RAN OUT OF TIME` : 'OUT OF TIME') : o.why === 'sudden death draw' ? 'NOBODY BROKE THE TIE' : o.why === 'trade' ? 'THE LAST TWO TRADED' : won ? `${FOE} ELIMINATED` : `${MINE} ELIMINATED`;
     this.game.hud.bannerShow(t, why, 3);
   }
 
@@ -1459,6 +1497,7 @@ export class TdmRules implements ModeRules {
     if (!this.winner) {
       // 29.0: the frame's deaths are in: who stands, the sudden-death clocks, maybe the end.
       const o = this.rules.update(now, dt, this.standing());
+      if (!o) this.finaleFrame(now);
       if (this.directors) {
         const ending = TEAMS.some((t) => this.rules.tickets[t] === 0);
         // 58.0: the board shows both teams from here (who is still in it).
@@ -1487,11 +1526,23 @@ export class TdmRules implements ModeRules {
     this.objVisual?.update(this.objStates, this.now);
     // 48.0: the HUD's sides are his team's and the other's.
     const me = this.side, them = this.foe;
-    g.tdmHud.setTickets(this.tickets[me], this.tickets[them]);
-    const st = this.standing();
-    g.tdmHud.setStanding(st[me], st[them]);
-    g.tdmHud.setSudden(this.winner ? null : this.rules.sudden[me], this.winner ? null : this.rules.sudden[them]);
-    g.tdmHud.setRespawn(g.state === 'dead' && !this.winner && this.playerRespawnAt < Infinity ? this.playerRespawnAt - now : null, this.killerName);
+    if (this.rules.mode === 'deathmatch') {
+      // 64.0: the kills (the bars fill to the target), what each still needs, the clock.
+      const R = this.rules, k = R.kills;
+      g.tdmHud.setTickets(k[me], k[them], false);
+      g.tdmHud.setNotes(`${Math.max(0, R.target - k[me])} TO WIN`, `${Math.max(0, R.target - k[them])} TO WIN`);
+      const lead = k[me] > k[them] ? me : k[them] > k[me] ? them : null;
+      g.tdmHud.setClock(this.winner ? null : R.overtime ? { label: 'OVERTIME', t: null, who: 'NEXT KILL WINS', alarm: true } : { label: R.matchPoint ? 'MATCH POINT' : 'TIME', t: R.timeLeft(now), who: R.matchPoint ? `ENEMIES ON RADAR · ${lead === me ? 'FINISH IT' : lead ? 'HOLD THEM' : 'LEVEL'}` : `FIRST TO ${R.target}`, alarm: R.matchPoint });
+    } else {
+      g.tdmHud.setTickets(this.tickets[me], this.tickets[them]);
+      const st = this.standing();
+      g.tdmHud.setStanding(st[me], st[them]);
+      if (this.rules.mode === 'breakthrough') g.tdmHud.setClock(this.winner || !this.rules.finalAssault ? null : { label: 'DECISIVE ASSAULT', t: null, who: 'POINTS ×2 · HOLD TWO: RESPAWN FREE', alarm: true });
+      else g.tdmHud.setSudden(this.winner ? null : this.rules.sudden[me], this.winner ? null : this.rules.sudden[them]);
+    }
+    const waiting = g.state === 'dead' && !this.winner && this.playerRespawnAt < Infinity;
+    if (waiting) this.deathFrame(dt);
+    g.tdmHud.setRespawn(waiting ? this.playerRespawnAt - now : null, this.killerName, waiting ? this.zoneLine() : null);
     this.updateSpectate(dt);
     g.tdmHud.update(dt, g.camera, this.friends[this.side]);
     // 46.0: the compass (his heading, the fronts' marks).
@@ -1705,7 +1756,9 @@ export class TdmRules implements ModeRules {
       if (e.what === 'push' || this.objectives) continue;
       const lane = (F.names[e.sector] ?? '').toUpperCase();
       const ours = e.team === this.side;
-      if (e.what === 'break') g.hud.bannerShow(ours ? 'BREAKTHROUGH' : 'LINE BROKEN', `${lane} · ${ours ? `${this.foe.toUpperCase()} BLEEDS TICKETS` : 'DEFEND'}`, 2.2);
+      // (64.0: a deathmatch has no tickets: a line broken is news, not a banner.)
+      if (e.what === 'break' && TDM.mode === 'deathmatch') g.tdmHud.notice(`${lane}: ${ours ? 'LINE BROKEN THROUGH' : 'OUR LINE BROKEN'}`);
+      else if (e.what === 'break') g.hud.bannerShow(ours ? 'BREAKTHROUGH' : 'LINE BROKEN', `${lane} · ${ours ? `${this.foe.toUpperCase()} BLEEDS TICKETS` : 'DEFEND'}`, 2.2);
       else g.tdmHud.notice(`${lane}: ${ours ? 'LINE HELD' : `${this.foe.toUpperCase()} PUSHED BACK`}`);
     }
     if (F.events.length > 48) {
@@ -1890,8 +1943,87 @@ export class TdmRules implements ModeRules {
     this.squads[this.side].humanObs.shot(this.now);
   }
 
+  /**
+   * 64.0, while he waits to respawn: the camera turns to whoever killed him (who and from where), and
+   * A/D pick the zone he comes back at (his team's open ones).
+   */
+  private deathFrame(dt: number) {
+    const g = this.game, p = g.player, k = g.playerAttacker;
+    if (k && k.alive) {
+      const dx = k.pos.x - p.pos.x, dz = k.pos.z - p.pos.z, dy = k.pos.y + k.chestY - (p.pos.y + 1.4);
+      const yaw = Math.atan2(-dx, -dz), pitch = Math.atan2(dy, Math.hypot(dx, dz));
+      let d = yaw - p.yaw;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      const a = 1 - Math.exp(-dt * 6);
+      p.yaw += d * a;
+      p.pitch += (pitch - p.pitch) * a;
+    }
+    const zs = this.myZones();
+    if (!zs.length) return;
+    const step = g.input.pressed.has('KeyD') ? 1 : g.input.pressed.has('KeyA') ? -1 : 0;
+    if (!step) return;
+    const i = this.zoneChoice ? zs.indexOf(this.zoneChoice) : -1;
+    this.zoneChoice = zs[(i + step + zs.length) % zs.length];
+    g.audio.uiBlip();
+  }
+
+  /** 64.0: his team's zones open now (in their order). */
+  private myZones() {
+    return (this.zoner?.zones ?? []).filter((z) => z.team === this.side && this.zoneOpen(z));
+  }
+
+  /** 64.0: the respawn panel's zone line: the pick (or the game's), the keys. */
+  private zoneLine() {
+    if (this.myZones().length < 2) return null;
+    if (this.zoneChoice && !this.zoneOpen(this.zoneChoice)) this.zoneChoice = null;
+    return `${this.zoneChoice ? `ZONE ${this.zoneChoice.id}` : 'ZONE: WHERE THE FIGHT IS'} · A ◂ ▸ D`;
+  }
+
+  /** 64.0: the match's finale: a deathmatch's match point (or overtime), a breakthrough's decisive assault. */
+  private finale() {
+    return this.rules.matchPoint || this.rules.finalAssault;
+  }
+
+  /**
+   * 64.0, once a frame while the match is live: the finale announced as it begins (a banner, the
+   * alarm), the radar ping during a match point (every hostile on both teams' maps), the points
+   * taken faster in the decisive assault.
+   */
+  private finaleFrame(now: number) {
+    const g = this.game, F = this.modeFlags, R = this.rules;
+    if (this.finale() && this.finaleAt === null) this.finaleAt = +(now - this.startT).toFixed(1);
+    if (R.mode === 'deathmatch') {
+      if (R.overtime && !F.overtime) {
+        F.overtime = true;
+        g.hud.bannerShow('OVERTIME', 'NEXT KILL WINS', 3);
+        g.audio.flankCue('alarm');
+      } else if (R.matchPoint && !F.matchPoint) {
+        F.matchPoint = true;
+        const lead: TeamId = R.kills.alpha >= R.kills.omega ? 'alpha' : 'omega';
+        const left = R.target - R.kills[lead];
+        g.hud.bannerShow('MATCH POINT', `${lead === this.side ? 'WE NEED' : `${this.foe.toUpperCase()} NEEDS`} ${left} · ENEMIES ON RADAR`, 3);
+        g.audio.flankCue(lead === this.side ? 'won' : 'alarm');
+        F.pingAt = now;
+      }
+      if (R.matchPoint && now >= F.pingAt) {
+        F.pingAt = now + TDM.ping;
+        // Nobody hides from the finale: each team sees where the other is.
+        if (this.directors) for (const t of TEAMS) for (const h of this.hostiles[t]) if (h.alive) this.directors[t].sighting(h, now, 'callout');
+        g.audio.uiBlip();
+      }
+    } else if (R.mode === 'breakthrough' && R.finalAssault && !F.final) {
+      F.final = true;
+      g.hud.bannerShow('DECISIVE ASSAULT', `POINTS FALL TWICE AS FAST · HOLD TWO: RESPAWN FREE`, 3.2);
+      g.audio.flankCue('alarm');
+      if (this.objectives) this.objectives.rateMul = TDM.finalRate;
+    }
+  }
+
   musicIntensity(): number {
     if (this.winner) return 0.2;
+    // 64.0: the finale is the peak.
+    if (this.finale()) return 1;
     if (this.directors) {
       const now = this.now;
       const hot = TEAMS.some((t) => [...this.directors![t].contacts.values()].some((c) => now - c.seenT < 2));

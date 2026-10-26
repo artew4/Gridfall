@@ -110,3 +110,55 @@ describe('29.0 sudden death', () => {
     expect(LAST_STAND.sudden).toBe(60);
   });
 });
+
+describe('64.0: the deathmatch and the breakthrough', () => {
+  const st = { alpha: 5, omega: 5 };
+  it('deathmatch: every death respawns; first to the target wins; the match point 10 out', () => {
+    const r = new MatchRules(50, LAST_STAND, 'deathmatch', 30, 600);
+    r.begin(0);
+    for (let i = 0; i < 100; i++) expect(r.died('alpha', i)).toBe(true);
+    for (let i = 0; i < 19; i++) r.killed('omega');
+    expect(r.matchPoint).toBe(false);
+    r.killed('omega');
+    expect(r.matchPoint).toBe(true);
+    for (let i = 0; i < 9; i++) r.killed('omega');
+    expect(r.update(10, 0.1, st)).toBeNull();
+    r.killed('omega');
+    expect(r.update(10, 0.1, st)).toEqual({ winner: 'omega', why: 'score' });
+  });
+  it('deathmatch: the clock: the leader wins at the bell; level, overtime and the next kill wins', () => {
+    const a = new MatchRules(50, LAST_STAND, 'deathmatch', 30, 600);
+    a.begin(0);
+    a.killed('alpha');
+    expect(a.update(599, 0.1, st)).toBeNull();
+    expect(a.update(600, 0.1, st)).toEqual({ winner: 'alpha', why: 'time' });
+    const b = new MatchRules(50, LAST_STAND, 'deathmatch', 30, 600);
+    b.begin(0);
+    b.killed('alpha');
+    b.killed('omega');
+    expect(b.update(601, 0.1, st)).toBeNull();
+    expect(b.overtime).toBe(true);
+    expect(b.matchPoint).toBe(true);
+    b.killed('omega');
+    expect(b.update(602, 0.1, st)).toEqual({ winner: 'omega', why: 'overtime' });
+  });
+  it('breakthrough: tickets at 0 lose at once (a death or a bleed); the decisive assault under 15%; free respawns', () => {
+    const r = new MatchRules(20, LAST_STAND, 'breakthrough');
+    expect(r.finalAssault).toBe(false);
+    for (let i = 0; i < 17; i++) r.died('alpha', i);
+    expect(r.tickets.alpha).toBe(3);
+    expect(r.finalAssault).toBe(false);
+    r.died('alpha', 18);
+    expect(r.finalAssault).toBe(true);
+    expect(r.died('alpha', 20, true)).toBe(true);
+    expect(r.tickets.alpha).toBe(2);
+    r.bleed('alpha', 21);
+    expect(r.outcome).toBeNull();
+    expect(r.died('alpha', 23)).toBe(false);
+    expect(r.update(23, 0.1, st)).toEqual({ winner: 'omega', why: 'tickets' });
+    const b = new MatchRules(2, LAST_STAND, 'breakthrough');
+    b.bleed('omega', 1);
+    b.bleed('omega', 2);
+    expect(b.outcome).toEqual({ winner: 'alpha', why: 'tickets' });
+  });
+});

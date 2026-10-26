@@ -258,7 +258,7 @@ function engaged(game: Game) {
  */
 export async function tdmSim(
   game: Game,
-  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean; flankThreat?: boolean; scan?: boolean; flankPull?: boolean; watches?: number; tune?: ArenaProfile; spawnTune?: Partial<typeof SPAWN>; fronts?: boolean; instinct?: boolean } = {},
+  opts: { ai?: Ai; tickets?: number; maxSeconds?: number; dt?: number; chunk?: number; roster?: 'ranged' | 'any'; laneLeave?: number; ads?: boolean; v12?: boolean; arms?: 'random' | WeaponId; vantage?: boolean; pressure?: boolean; size?: number; profile?: boolean; forward?: boolean; directRise?: number; fog?: boolean; spawns?: 'zones' | 'dynamic' | 'bases'; cell?: number; sight?: number; lastStand?: boolean; stamina?: boolean; space?: boolean; corridor?: boolean; flankThreat?: boolean; scan?: boolean; flankPull?: boolean; watches?: number; tune?: ArenaProfile; spawnTune?: Partial<typeof SPAWN>; fronts?: boolean; instinct?: boolean; mode?: 'deathmatch' | 'breakthrough' | 'laststand' } = {},
 ) {
   const ai = opts.ai ?? 'arena';
   // 23.0 A/B: `directRise: Infinity` is the 22.0 bot (steers straight at any goal in sight, however high).
@@ -307,6 +307,9 @@ export async function tdmSim(
   const ls0 = ARENA.lastStand.on;
   if (opts.lastStand !== undefined) ARENA.lastStand.on = opts.lastStand;
   // 55.0 A/B: `instinct: false` is 54.0's bots (no chases, grudges, punishes, cover calls, quick reacquisitions).
+  // 64.0: the mode (the menu's default unless given).
+  const mode0 = TDM.mode;
+  if (opts.mode) TDM.mode = opts.mode;
   const inst0 = ARENA.instinct.on;
   if (opts.instinct !== undefined) ARENA.instinct.on = opts.instinct;
   // 30.0 A/B: `stamina: false` is the endless sprint of 29.0 (the bots sprint as they did).
@@ -771,6 +774,7 @@ export async function tdmSim(
   TDM.spawns = spawns0;
   ARENA.lastStand.on = ls0;
   ARENA.instinct.on = inst0;
+  TDM.mode = mode0;
   STAMINA.on = stam0;
   ARENA.fronts.on = fronts0;
   ARENA.space.on = space0;
@@ -864,6 +868,8 @@ export async function tdmSim(
       };
     })(),
     // 29.0: how the match ended and what its endgame looked like.
+    // 64.0: the mode, how it ended, the kills, when the finale began.
+    mode: { mode: tdm.rules.mode, why: tdm.outcome?.why ?? null, kills: { ...tdm.rules.kills }, target: tdm.rules.target, finaleAt: tdm.finaleAt, overtime: tdm.rules.overtime },
     endgame: (() => {
       const r = tdm.rules;
       const avg = (e: typeof eg.last) => ({ samples: e.n, nearestMateM: +(e.mate / Math.max(1, e.n - e.alone)).toFixed(1), alonePct: +((100 * e.alone) / Math.max(1, e.n)).toFixed(1), crouchedPct: +((100 * e.crouch) / Math.max(1, e.n)).toFixed(1), movingPct: +((100 * e.moving) / Math.max(1, e.n)).toFixed(1), holdPct: +((100 * e.hold) / Math.max(1, e.n)).toFixed(1) });

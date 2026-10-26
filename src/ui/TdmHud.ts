@@ -76,6 +76,8 @@ export class TdmHud {
   private sudden = el('div', 'tdm-sudden hidden');
   private suddenT = document.createTextNode('');
   private suddenWho = document.createTextNode('');
+  /** 64.0: the clock's label (SUDDEN DEATH, or the deathmatch's TIME / MATCH POINT / OVERTIME). */
+  private suddenLbl = document.createTextNode('SUDDEN DEATH');
   private spec = el('div', 'tdm-spec hidden');
   private specName = document.createTextNode('');
   private specHp = el('i');
@@ -133,7 +135,8 @@ export class TdmHud {
     };
     this.score.append(side('a', 'ALPHA', this.aNum, this.aBar, this.aStand), this.vs, side('o', 'OMEGA', this.oNum, this.oBar, this.oStand));
     // 29.0: the sudden-death clock (under the score) and the spectator panel (bottom centre).
-    const sl = el('div', 'lbl', 'SUDDEN DEATH');
+    const sl = el('div', 'lbl');
+    sl.appendChild(this.suddenLbl);
     const st = el('b');
     st.appendChild(this.suddenT);
     const sw = el('div', 'who');
@@ -242,12 +245,39 @@ export class TdmHud {
     this.root.classList.toggle('side-o', team === 'omega');
   }
 
+  /**
+   * 64.0: the deathmatch's clock under the score: its label, the time (null: none, overtime), a line
+   * under it; `alarm` pulses it red (the match point). Null hides it.
+   */
+  setClock(v: { label: string; t: number | null; who: string; alarm: boolean } | null) {
+    const key = v ? `${v.label}|${v.t === null ? '-' : Math.ceil(v.t)}|${v.who}|${v.alarm}` : '';
+    if (key === this.clockKey) return;
+    this.clockKey = key;
+    this.last29.sud = '';
+    this.sudden.classList.toggle('hidden', !v);
+    if (!v) return;
+    this.suddenLbl.data = v.label;
+    const s = v.t === null ? 0 : Math.max(0, Math.ceil(v.t));
+    this.suddenT.data = v.t === null ? '—' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    this.suddenWho.data = v.who;
+    this.sudden.classList.toggle('ours', v.alarm);
+    this.sudden.classList.toggle('both', false);
+    this.sudden.classList.toggle('calm', !v.alarm);
+  }
+  private clockKey = '';
+
+  /** 64.0: the lines under each side's number (a deathmatch: the kills it still needs). */
+  setNotes(a: string, o: string) {
+    if (this.aStand.data !== a) this.aStand.data = a;
+    if (this.oStand.data !== o) this.oStand.data = o;
+  }
+
   setMax(n: number) {
     this.max = n;
   }
 
   /** The tickets each team has left; the score shown is what each took off the other (its kills). */
-  setTickets(a: number, o: number) {
+  setTickets(a: number, o: number, warn = true) {
     if (a === this.last.a && o === this.last.o) return;
     // 29.0: tickets are respawns: the numbers are what each team has left.
     if (a !== this.last.a) this.aNum.data = String(a);
@@ -256,8 +286,9 @@ export class TdmHud {
     this.last.o = o;
     this.aBar.style.transform = `scaleX(${Math.max(0, a / this.max)})`;
     this.oBar.style.transform = `scaleX(${Math.max(0, o / this.max)})`;
-    this.score.classList.toggle('low-a', a <= 5);
-    this.score.classList.toggle('low-o', o <= 5);
+    // (64.0: a deathmatch's numbers are kills: low is no warning there.)
+    this.score.classList.toggle('low-a', warn && a <= 5);
+    this.score.classList.toggle('low-o', warn && o <= 5);
   }
 
   /**
@@ -290,6 +321,7 @@ export class TdmHud {
     if (t === null) return;
     const s = Math.max(0, Math.ceil(t));
     this.suddenT.data = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    this.suddenLbl.data = 'SUDDEN DEATH';
     const kind = key[0];
     if (kind !== was) {
       this.suddenWho.data = kind === 'b' ? 'BOTH TEAMS · A KILL OR A DRAW' : kind === 'a' ? `${this.mine.toUpperCase()} · KILL OR LOSE` : `${this.mine === 'alpha' ? 'OMEGA' : 'ALPHA'} MUST KILL`;
@@ -554,8 +586,8 @@ export class TdmHud {
   }
 
   /** Respawn countdown (seconds left), or null to hide. */
-  setRespawn(left: number | null, killer: string | null = null) {
-    const html = left === null ? '' : `${killer ? `<div class="by">KILLED BY <b>${killer}</b></div>` : ''}<div class="t">RESPAWN IN <b>${Math.max(0, left).toFixed(1)}</b></div>`;
+  setRespawn(left: number | null, killer: string | null = null, zone: string | null = null) {
+    const html = left === null ? '' : `${killer ? `<div class="by">KILLED BY <b>${killer}</b></div>` : ''}<div class="t">RESPAWN IN <b>${Math.max(0, left).toFixed(1)}</b></div>${zone ? `<div class="zone">${zone}</div>` : ''}`;
     if (html === this.last.respawn) return;
     this.last.respawn = html;
     this.respawn.classList.toggle('hidden', left === null);
@@ -668,7 +700,7 @@ export class TdmScreen {
     const res = result === true ? 'win' : result === false ? 'loss' : result;
     const won = res === 'win';
     const title = res === 'draw' ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
-    const how = why === 'sudden death' ? 'SUDDEN DEATH' : why === 'sudden death draw' ? 'SUDDEN DEATH · TIED' : why === 'trade' ? 'THE LAST TWO TRADED' : why === 'elimination' ? 'ELIMINATION' : '';
+    const how = why === 'score' ? 'SCORE LIMIT' : why === 'time' ? 'TIME' : why === 'overtime' ? 'OVERTIME' : why === 'tickets' ? 'TICKETS' : why === 'sudden death' ? 'SUDDEN DEATH' : why === 'sudden death draw' ? 'SUDDEN DEATH · TIED' : why === 'trade' ? 'THE LAST TWO TRADED' : why === 'elimination' ? 'ELIMINATION' : '';
     const mm = Math.floor(time / 60), ss = String(Math.floor(time % 60)).padStart(2, '0');
     const team = (t: TeamId) =>
       lines

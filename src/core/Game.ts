@@ -36,7 +36,7 @@ import { EndScreen } from '../ui/EndScreen';
 import type { IntroLike, LevelRuntime, Mode, ModeRules, SettingId } from '../levels/Level';
 import { LEVELS, LEVEL_ORDER, levelEntry } from '../levels/registry';
 import { ArcadeRules } from '../levels/Arcade';
-import { TdmRules } from '../levels/Tdm';
+import { TDM, TdmRules } from '../levels/Tdm';
 import { TdmHud, TdmScreen, type TdmLine } from '../ui/TdmHud';
 import { Countdown } from '../ui/Countdown';
 import { LoadingScreen } from '../ui/LoadingScreen';
@@ -736,7 +736,15 @@ export class Game {
       this.startLevelAudio();
       this.audio.uiClick();
       if (el.dataset.gun) return this.menuWeapon(el.dataset.gun as WeaponId);
-      if (el.dataset.mode) return this.menuEvent({ type: 'mode', mode: el.dataset.mode as Mode });
+      if (el.dataset.mode) {
+        // 64.0: two tabs for Team Deathmatch: the deathmatch and the breakthrough (TDM.mode).
+        const m = el.dataset.mode;
+        if (m === 'tdm' || m === 'breakthrough') {
+          TDM.mode = m === 'breakthrough' ? 'breakthrough' : 'deathmatch';
+          this.hud.tdmVariant = TDM.mode;
+        }
+        return this.menuEvent({ type: 'mode', mode: (m === 'breakthrough' ? 'tdm' : m) as Mode });
+      }
       if (el.dataset.setting) return this.menuEvent({ type: 'map', id: el.dataset.setting as SettingId });
       const act = el.dataset.act;
       if (act === 'settings') return this.menu.show(true, 'settings');
