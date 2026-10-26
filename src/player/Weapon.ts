@@ -7,6 +7,7 @@ import type { Player } from './Player';
 import type { WeaponSpec } from '../entities/types';
 import { KITSUNE_9 } from '../entities/weapons/kitsune9';
 import { gunMats, stripColour, type GunTheme } from '../entities/weapons/theme';
+import { gunModelsGen } from '../entities/weapons/models';
 
 /** 54.1: a gun built and put aside: its parts by parent, the magazine's rest, its flash. */
 interface BuiltGun {
@@ -95,6 +96,8 @@ export class Weapon {
   private stripMat: THREE.MeshBasicMaterial;
   /** 21.0: the finish the gun was built in (the map's), and the strips' full-ammo colour in it (null: no glow). */
   theme: GunTheme = 'blaster';
+  /** 66.0: the models' generation the kept builds were made with (models.ts). */
+  private modelGen = -1;
   private stripBase: THREE.Color | null = null;
   muzzleWorld = new THREE.Vector3();
   onReloadDone: () => void = () => {};
@@ -133,8 +136,13 @@ export class Weapon {
   }
 
   setSpec(spec: WeaponSpec, theme: GunTheme = this.theme) {
-    if (this.spec === spec && this.theme === theme && this.gun.children.length) return;
-    if (theme !== this.theme) this.disposeModels();
+    // 66.0: the guns' models arrived after these were built (boxes): build them again.
+    const stale = this.modelGen !== gunModelsGen();
+    if (this.spec === spec && this.theme === theme && this.gun.children.length && !stale) return;
+    if (theme !== this.theme || stale) {
+      this.disposeModels();
+      this.modelGen = gunModelsGen();
+    }
     else this.stash();
     this.spec = spec;
     this.theme = theme;
@@ -223,6 +231,8 @@ export class Weapon {
    */
   prewarm(specs: readonly WeaponSpec[], compile: () => void) {
     const hand = this.spec;
+    // (Kept builds from before the models came in are dropped first: they'd be skipped below.)
+    this.setSpec(hand);
     for (const s of specs) {
       if (this.built.has(s)) continue;
       this.setSpec(s);

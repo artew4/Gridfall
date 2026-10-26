@@ -4,6 +4,7 @@ import type { LevelLook } from '../levels/Level';
 import { makeAmmoDisplay } from '../world/Textures';
 import { disposeScene } from '../core/dispose';
 import { gunMats } from '../entities/weapons/theme';
+import { gunModelsGen } from '../entities/weapons/models';
 
 /*
   16.0, the main menu's live background (the brief's option B): the loadout's weapon turning slowly
@@ -165,7 +166,9 @@ export class MenuStage {
     this.swapT = 0;
   }
 
+  private modelGen = -1;
   private buildWeapon(id: WeaponId) {
+    this.modelGen = gunModelsGen();
     disposeScene(this.gun);
     this.gun.clear();
     const spec = ARMORY[id].spec;
@@ -200,6 +203,8 @@ export class MenuStage {
 
   /** One frame: the turntable, the dust, and the camera's slow drift (the weapon framed right of centre). */
   update(dt: number, cam: THREE.PerspectiveCamera) {
+    // 66.0: the guns' models came in after the one on the turntable was built: build it again.
+    if (this.modelGen !== gunModelsGen()) this.buildWeapon(this.weapon);
     this.time.value += dt;
     const t = this.time.value;
     this.spin += dt;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Ballistic } from '../types';
-import { RIG_GUNS } from '../enemies/rigGuns';
+import { RIG_GUNS, rigGunGlow } from '../enemies/rigGuns';
 
 /*
   21.0, weapon themes: every gun is built from the same parts, its materials picked by the map's look.
@@ -157,16 +157,19 @@ const BOT_GUN: Record<GunTheme, { color: number; metalness: number; roughness: n
   military: { color: 0x2a2b27, metalness: 0.4, roughness: 0.7, env: 0.3 },
   corporate: { color: 0xdfe3e6, metalness: 0.15, roughness: 0.35, env: 0.6 },
 };
-const botMats: Partial<Record<GunTheme, { body: THREE.Material; accent: THREE.Material | null }>> = {};
+const botMats: Partial<Record<GunTheme, { body: THREE.Material; model: THREE.Material; accent: THREE.Material | null }>> = {};
 let accentGeo: THREE.BufferGeometry | null = null;
 function botFinish(theme: GunTheme) {
   if (!botMats[theme]) {
     const b = BOT_GUN[theme], g = PALETTES[theme].glow;
     const body = new THREE.MeshStandardMaterial({ color: b.color, metalness: b.metalness, roughness: b.roughness, envMapIntensity: b.env });
+    // 66.0: a model's roles are shades of the colour (its vertex colours, models.ts).
+    const model = body.clone();
+    model.vertexColors = true;
     const accent = g ? new THREE.MeshBasicMaterial({ color: new THREE.Color(...g).multiplyScalar(0.8) }) : null;
-    body.userData.shared = true;
+    body.userData.shared = model.userData.shared = true;
     if (accent) accent.userData.shared = true;
-    botMats[theme] = { body, accent };
+    botMats[theme] = { body, model, accent };
   }
   if (!accentGeo) {
     accentGeo = new THREE.BoxGeometry(0.004, 0.014, 0.4);
@@ -180,11 +183,19 @@ export function themeRigGun(weapon: THREE.Object3D, theme: GunTheme) {
   const f = botFinish(theme);
   for (const o of weapon.children) {
     const m = o as THREE.Mesh;
-    if (m.isMesh && !m.userData.gunAccent && (m.material as THREE.Material).userData.shared) m.material = f.body;
+    if (m.isMesh && !m.userData.gunAccent && (m.material as THREE.Material).userData.shared) m.material = m.geometry.getAttribute('color') ? f.model : f.body;
   }
   if (!f.accent) return;
-  // 22.0: on a merc rig's gun model, where that gun's sides are; else along the old rifle box.
   const id = weapon.userData.gunId as keyof typeof RIG_GUNS | undefined;
+  // 66.0: a model's own glow parts.
+  const lit = id ? rigGunGlow(id) : null;
+  if (lit) {
+    const a = new THREE.Mesh(lit, f.accent);
+    a.userData.gunAccent = true;
+    weapon.add(a);
+    return;
+  }
+  // 22.0: on a merc rig's gun model, where that gun's sides are; else along the old rifle box.
   const [ax, ay, az, len] = id ? RIG_GUNS[id].accent : [0.037, 0.02, 0.02, 0.4];
   for (const s of [-1, 1]) {
     const a = new THREE.Mesh(accentGeo!, f.accent);

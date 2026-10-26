@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Rig } from '../../enemies/Models';
 import type { WeaponId } from '../weapons/armory';
-import { RIG_GUNS, rigGunGeo } from './rigGuns';
+import { RIG_GUNS, rigGunGeo, rigMuzzle } from './rigGuns';
 import type { EnemyLook } from '../types';
 import type { TeamId } from '../../combat/Team';
 
@@ -337,7 +337,7 @@ export function setRigGun(rig: Rig, id: WeaponId) {
   for (const c of [...w.children]) if (c.userData.gunAccent) w.remove(c);
   w.userData.gunId = id;
   w.scale.setScalar(1);
-  rig.muzzle?.position.set(...RIG_GUNS[id].muzzle);
+  rig.muzzle?.position.set(...rigMuzzle(id));
   w.position.set(...RIG_GUNS[id].hip);
   return true;
 }

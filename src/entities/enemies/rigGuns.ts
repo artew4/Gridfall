@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { WeaponId } from '../weapons/armory';
+import { botGun } from '../weapons/models';
 
 /*
   22.0, the guns a bot holds: one low-poly model per armory gun, and where the hands go on it.
@@ -131,6 +132,9 @@ export const RIG_GUNS: Record<WeaponId, RigGun> = {
 const geos = new Map<WeaponId, THREE.BufferGeometry>();
 /** The gun's model, merged once and shared (never disposed with a rig). */
 export function rigGunGeo(id: WeaponId) {
+  // 66.0: the gun's Blender model once it's loaded (models.ts).
+  const model = botGun(id);
+  if (model) return model.body;
   let g = geos.get(id);
   if (!g) {
     const s = RIG_GUNS[id];
@@ -147,10 +151,22 @@ export function rigGunGeo(id: WeaponId) {
     parts.push(c);
     g = mergeGeometries(parts)!;
     for (const p of parts) p.dispose();
+    // (A plain colour: the theme's gun material reads the models' role shades from it.)
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(g.getAttribute('position').count * 3).fill(1), 3));
     g.userData.shared = true;
     geos.set(id, g);
   }
   return g;
+}
+
+/** 66.0: the glow parts of the gun's model (the theme's accent), or null. */
+export function rigGunGlow(id: WeaponId) {
+  return botGun(id)?.glow ?? null;
+}
+
+/** 66.0: where the gun's rounds leave it (its model's muzzle once loaded). */
+export function rigMuzzle(id: WeaponId): readonly [number, number, number] {
+  return botGun(id)?.muzzle ?? RIG_GUNS[id].muzzle;
 }
 
 const _eye = new THREE.Vector3();
@@ -181,7 +197,9 @@ export function gripTargets(id: WeaponId, pos: THREE.Vector3, q: THREE.Quaternio
   const s = RIG_GUNS[id];
   _q.copy(q);
   grip.set(s.grip[0], s.grip[1], s.grip[2]).applyQuaternion(_q).add(pos);
-  fore.set(s.fore[0], s.fore[1], s.fore[2]).applyQuaternion(_q).add(pos);
+  // 66.0: on a model, its fore-end's spot.
+  const f = botGun(id)?.fore ?? s.fore;
+  fore.set(f[0], f[1], f[2]).applyQuaternion(_q).add(pos);
   gripQ.copy(_q).multiply(_r.setFromAxisAngle(X, s.rake));
   foreQ.copy(_q).multiply(_r.setFromAxisAngle(X, s.foreRake));
 }

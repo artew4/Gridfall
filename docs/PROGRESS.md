@@ -2978,8 +2978,41 @@ The playtest: every match the bots behave the same, the crowd comes the same way
 - Tests 555 (+5: the speeds against his, rotate, the plans, a sector's lane drawn, the watchdog).
 - Self-play deathmatch: Desert 5 (kills/min 41.7–49.8), Neon Docks 3 (29.7–34.3), Neon Block 1 (24.6), Maglev 1 (30.9); Desert breakthrough 1 (5:37, 40.7); stuck 0 but one Desert match (1, as before).
 
+## 66.0: the guns modelled in Blender
+
+Branch `feature/gun-models-66.0`, from `feature/bots-variety-65.0` @ `fa68001` (64.0 and 65.0, not merged yet).
+
+The ask: start making models, in Blender: the guns, as good as they can be and in the game's style, in the game.
+
+### The pipeline (`tools/blender/gunlib.py`, `tools/blender/guns.py`)
+- Blender 5.2 headless, from Python (the Blender plugin's tools weren't in the session; the CLI does everything they would): `Blender -b --factory-startup -P tools/blender/guns.py -- [--only ids] [--out dir] [--preview dir] [--finish military|blaster]`.
+- Modelled in the game's gun space (three.js: +Y up, -Z down the barrel, metres), turned +90° about X at export, so the glTF comes out in the same numbers as the old box models: the sights, the muzzle and flash, the grip under the hand, the magazine well stay where Weapon.ts, the ADS and the hands expect them.
+- Parts: side profiles pushed across the gun (`prism_raw`), cross-sections pushed down the barrel (`front_raw`: shrouds, handguards, the pump, the red-dot tube), boxes, cylinders, a torus; cuts by exact booleans (`cut_many`: a collection operand, since joined overlapping cutters made a self-intersecting mesh and the solver lost the whole receiver); a Picatinny rail with its teeth; bevels (angle-limited, 3 segments), smooth shading by angle, weighted normals, box-projected UVs (0.12 m a repeat: the camo and the carbon weave tile on them).
+- Each part has a role material (frame, steel, polymer, furniture, trim, glow) and goes to one of three nodes: `body`, `slide` (what cycles: the slide, the charging handle, the bolt and handle, the pump), `mag` (what drops).
+- Two files a gun: `<id>.glb` for the hands (Kitsune-9 22k triangles, Hornet 26k, Jackal 32k, the shotgun 21k; 0.7–1.0 MB) and `<id>_lod.glb` for the bots (collapse-decimated to about 2,400; 140–150 KB).
+- Previews: Cycles stills (side, three-quarter, the eye's view) in a military or neon palette, looked at while modelling.
+
+### The guns
+- Kitsune-9: a slide with a faceted top, front and rear serrations, ports over the barrel, the ejection port with the barrel's hood in it, grooves for the accent strips, the ammo display's bezel at the back, a notch rear sight and a post with the dot; a threaded compensator with the glow ring; a polymer frame with an undercut, a beavertail, rail slots, a ribbed grip panel and front strap, a squared trigger guard, a curved trigger, the slide stop, magazine releases, pins; the magazine with a flared baseplate.
+- Hornet SMG: a faceted upper with the port and flutes, a full-length rail, a lower with a flared well, an octagonal vented shroud with the strips' grooves and a lower rail, a ported compensator, a vertical foregrip, twin-strut stock, a hooded holo sight on a mount, a stick magazine.
+- Jackal AR: upper and lower receivers, the brass deflector and the port, a free-float octagonal handguard with vents, both rails, a gas block with the front sight, a muzzle brake, a buffer tube with an adjustable stock and cheek riser, the red-dot's octagonal tube on its mount, a curved ribbed magazine.
+- The shotgun: a receiver with the port, the loading port and lifter, a perforated heat shield over the barrel, the vent rib with its accent lines, the tube with its clamp and cap, a ribbed pump on its action bars, a pistol-grip stock with a lightening cut, a side saddle with four shells.
+- The grips now rake back at the bottom, as a real gun's do (the box models' leaned forward); the hands' fists follow them.
+
+### In the game (`src/entities/weapons/models.ts`)
+- `loadGunModels`: the eight GLBs (GLTFLoader), from the start (Game.buildEngine); the level's warm-up waits for them before it builds and compiles the guns (29 ms in dev). Never rejects: a gun whose file fails keeps its boxes.
+- `dressGun`: each part a mesh with the theme's material for its role (theme.ts: the map's finish); the glow parts are the viewmodel's strips (lit where the theme glows). Each build() keeps what's the game's own (the ammo display, the lens and the dot, the shotgun's bead, the hands) and builds its 21.0 boxes only when there's no model.
+- Weapon and MenuStage rebuild when models arrive after a build (`gunModelsGen`); `prewarm` drops stale builds first.
+- The bots (`botGun`): the LOD merged once into one geometry in their gun space (rotated to +Z, ×1.05, the palm at the origin from each gun's bore height and grip), each role a shade of the theme's gun colour in a vertex colour (one material a theme, one draw a bot), the glow parts a second mesh with the theme's accent (where it glows). Its muzzle (the rounds) and the support hand's spot (the SMG's foregrip, the handguard, the pump) come from the model.
+
+### Checks
+- Tests 563 (+8, `models66.test.ts`: per gun, the GLB's nodes untransformed, every part a role, under 40k triangles (the LOD under 3,200), the barrel reaching the flash; the sight line from behind the sight point down the barrel hits nothing but the glow dot, and the same line through the receiver does).
+- In the game: every gun from the hip and aimed on the Desert and Neon Block (the red dot and the holo centred, the pistol's dot in its notch, the bead over the rib), the menu's turntable, four merc rigs holding them (aimed, at the hip).
+- Performance, the Desert fight (12v12): 60 fps, 158 draw calls, CPU p95 3.1 ms, GPU p50 5.4 ms, no long tasks.
+
 ## Next
 Human playtest:
+- 66.0 items: the four guns in your hands on each finish (desert camo, neon, Maglev white): detail, too dark or too busy; the sights; the hands on the raked grips; the bots' guns at fighting distance; anything that pops in when a map starts.
 - 65.0 items: do the bots come from different places match to match (and still make sense); do they keep up with you running for the middle, or now get there too fast; anyone still standing about or staring at the floor (where); the snipers' foot shuffle.
 - 64.0 items: the two modes (Team Deathmatch's length at 6 kills a player, the match point's radar: tense or too easy; Breakthrough's decisive assault and the comeback; the death camera and picking a zone with A/D).
 - 63.0 items: the new sound effects (each gun's report, the reloads, the impacts, the footsteps per surface; anything thin, harsh or too loud next to the music).

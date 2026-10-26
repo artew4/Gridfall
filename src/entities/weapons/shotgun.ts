@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { WeaponBuild, WeaponSpec } from '../types';
+import { dressGun } from './models';
 
 /**
  * "Boar" pump-action shotgun: receiver and barrel, stock and fore-end, a magazine tube under the
@@ -43,7 +44,8 @@ export const BOAR_SHOTGUN: WeaponSpec = {
   cycle: { start: 0.2, back: 0.13, forward: 0.15, travel: 0.1 },
   perRound: { open: 0.38, each: 0.5 },
   ammoGlow: false,
-  build({ gun, slide, mag, mats }: WeaponBuild) {
+  build(b: WeaponBuild) {
+    const { gun, slide, mag, mats } = b;
     const { frame: park, steel, furniture: wood } = mats;
     const bead = new THREE.MeshStandardMaterial({ color: 0xd8c27a, metalness: 0.9, roughness: 0.25 });
     const hull = new THREE.MeshStandardMaterial({ color: 0x8c1d17, roughness: 0.55 });
@@ -63,38 +65,47 @@ export const BOAR_SHOTGUN: WeaponSpec = {
       parent.add(mesh);
       return mesh;
     };
-    // Receiver (bevelled top, a lighter side plate) with the ejection port on the right, a loading port underneath.
-    box(0.05, 0.062, 0.24, park, 0, 0.006, -0.06, gun);
-    box(0.036, 0.012, 0.24, steel, 0, 0.043, -0.06, gun);
-    box(0.052, 0.03, 0.18, steel, 0, -0.008, -0.07, gun);
-    box(0.002, 0.03, 0.07, steel, 0.026, 0.02, -0.05, gun);
-    box(0.03, 0.006, 0.08, steel, 0, -0.026, -0.06, gun);
-    // Barrel with a vent rib and a brass bead; the magazine tube below it, a cap at the end.
-    cyl(0.013, 0.5, park, 0, 0.03, -0.42, gun);
-    box(0.012, 0.006, 0.48, steel, 0, 0.046, -0.42, gun);
-    // 21.0: an accent line down each side of the rib (neon, an LED, or plain steel on a military finish).
-    for (const s of [-1, 1]) box(0.002, 0.003, 0.4, mats.glow, s * 0.0068, 0.045, -0.42, gun);
+    slide.position.set(0, 0, 0);
+    gun.add(slide);
+    mag.position.set(0, -0.04, -0.09);
+    gun.add(mag);
+    // The brass bead the sights line up on (the model leaves it to the build: its own gold).
     const b0 = new THREE.Mesh(new THREE.SphereGeometry(0.0045, 8, 6), bead);
     b0.position.set(0, 0.052, -0.655);
     gun.add(b0);
-    cyl(0.012, 0.42, steel, 0, -0.004, -0.38, gun);
-    cyl(0.014, 0.022, park, 0, -0.004, -0.6, gun);
-    box(0.01, 0.028, 0.012, park, 0, 0.014, -0.585, gun); // barrel clamp
-    // Trigger guard and trigger, pistol-grip stock in camo.
-    box(0.008, 0.005, 0.06, park, 0, -0.045, 0.0, gun);
-    box(0.004, 0.022, 0.004, steel, 0, -0.03, 0.008, gun, 0.3);
-    box(0.034, 0.09, 0.046, wood, 0, -0.06, 0.07, gun, 0.32);
-    box(0.042, 0.06, 0.2, wood, 0, -0.015, 0.2, gun, -0.06);
-    box(0.046, 0.08, 0.02, glove, 0, -0.022, 0.305, gun); // recoil pad
+    // 66.0: the Blender model (models.ts); until it's loaded, the 21.0 boxes.
+    const model = dressGun('shotgun', b);
+    if (!model) boxes();
+    function boxes() {
+      // Receiver (bevelled top, a lighter side plate) with the ejection port on the right, a loading port underneath.
+      box(0.05, 0.062, 0.24, park, 0, 0.006, -0.06, gun);
+      box(0.036, 0.012, 0.24, steel, 0, 0.043, -0.06, gun);
+      box(0.052, 0.03, 0.18, steel, 0, -0.008, -0.07, gun);
+      box(0.002, 0.03, 0.07, steel, 0.026, 0.02, -0.05, gun);
+      box(0.03, 0.006, 0.08, steel, 0, -0.026, -0.06, gun);
+      // Barrel with a vent rib and a brass bead; the magazine tube below it, a cap at the end.
+      cyl(0.013, 0.5, park, 0, 0.03, -0.42, gun);
+      box(0.012, 0.006, 0.48, steel, 0, 0.046, -0.42, gun);
+      // 21.0: an accent line down each side of the rib (neon, an LED, or plain steel on a military finish).
+      for (const s of [-1, 1]) box(0.002, 0.003, 0.4, mats.glow, s * 0.0068, 0.045, -0.42, gun);
+      cyl(0.012, 0.42, steel, 0, -0.004, -0.38, gun);
+      cyl(0.014, 0.022, park, 0, -0.004, -0.6, gun);
+      box(0.01, 0.028, 0.012, park, 0, 0.014, -0.585, gun); // barrel clamp
+      // Trigger guard and trigger, pistol-grip stock in camo.
+      box(0.008, 0.005, 0.06, park, 0, -0.045, 0.0, gun);
+      box(0.004, 0.022, 0.004, steel, 0, -0.03, 0.008, gun, 0.3);
+      box(0.034, 0.09, 0.046, wood, 0, -0.06, 0.07, gun, 0.32);
+      box(0.042, 0.06, 0.2, wood, 0, -0.015, 0.2, gun, -0.06);
+      box(0.046, 0.08, 0.02, glove, 0, -0.022, 0.305, gun); // recoil pad
 
-    // Pump fore-end (the part that cycles), with the support hand on it so the hand racks it too.
-    slide.position.set(0, 0, 0);
-    gun.add(slide);
-    const fe = cyl(0.024, 0.16, wood, 0, -0.004, -0.32, slide, 10);
-    fe.scale.set(1, 1, 1.05);
-    for (let i = 0; i < 5; i++) box(0.05, 0.004, 0.006, park, 0, -0.03, -0.27 - i * 0.025, slide); // grip grooves
-    box(0.008, 0.008, 0.16, steel, 0.018, 0.01, -0.21, slide); // action bars
-    box(0.008, 0.008, 0.16, steel, -0.018, 0.01, -0.21, slide);
+      // Pump fore-end (the part that cycles).
+      const fe = cyl(0.024, 0.16, wood, 0, -0.004, -0.32, slide, 10);
+      fe.scale.set(1, 1, 1.05);
+      for (let i = 0; i < 5; i++) box(0.05, 0.004, 0.006, park, 0, -0.03, -0.27 - i * 0.025, slide); // grip grooves
+      box(0.008, 0.008, 0.16, steel, 0.018, 0.01, -0.21, slide); // action bars
+      box(0.008, 0.008, 0.16, steel, -0.018, 0.01, -0.21, slide);
+    }
+    // The support hand on the pump, so the hand racks it too.
     box(0.052, 0.05, 0.085, glove, -0.008, -0.03, -0.32, slide, 0.1);
     box(0.02, 0.016, 0.06, glove, 0.03, 0.006, -0.32, slide);
     const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.042, 0.34, 10), sleeve);
@@ -104,8 +115,6 @@ export const BOAR_SHOTGUN: WeaponSpec = {
     slide.add(fore);
 
     // The shell being loaded (the reload pushes it up into the loading port, one at a time).
-    mag.position.set(0, -0.04, -0.09);
-    gun.add(mag);
     cyl(0.0105, 0.06, hull, 0, 0, 0, mag, 10);
     cyl(0.011, 0.012, brass, 0, 0, 0.034, mag, 10);
 
@@ -113,7 +122,8 @@ export const BOAR_SHOTGUN: WeaponSpec = {
     const hand = new THREE.Group();
     hand.userData.hands = true;
     gun.add(hand);
-    box(0.044, 0.074, 0.062, glove, 0.006, -0.064, 0.075, hand, 0.3);
+    // (The model's grip rakes back, the boxes' forward: the fist follows it.)
+    box(0.044, 0.074, 0.062, glove, 0.006, -0.064, model ? 0.085 : 0.075, hand, model ? -0.2 : 0.3);
     box(0.016, 0.016, 0.05, glove, 0.022, -0.02, 0.035, hand);
     const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.052, 0.36, 10), sleeve);
     arm.rotation.x = Math.PI / 2 - 0.35;

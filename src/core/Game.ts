@@ -21,6 +21,7 @@ import { Interactives } from '../gameplay/Interactives';
 import { Player } from '../player/Player';
 import { SafetyNet } from '../player/SafetyNet';
 import { Weapon } from '../player/Weapon';
+import { loadGunModels } from '../entities/weapons/models';
 import { Projectiles } from '../enemies/Projectiles';
 import { Nav } from '../enemies/Nav';
 import { cacheGet, cachePut, fingerprint, hashLayout } from './NavCache';
@@ -328,6 +329,8 @@ export class Game {
   /** What lives across levels: the viewmodel and the survival callbacks. */
   private buildEngine() {
     this.weapon = new Weapon(this.weaponScene, this.weaponCamera, this.audio);
+    // 66.0: the guns' Blender models (until they're in, the guns are their boxes).
+    void loadGunModels();
     this.waves.onWaveStart = (n) => {
       this.hud.bannerShow(`WAVE ${String(n).padStart(2, '0')}`, flWave(n));
       this.audio.waveStart();
@@ -539,6 +542,8 @@ export class Game {
     const was = this.building;
     this.building = true;
     singlePass(this.scene);
+    // 66.0: the guns' models in first (loading since the start: they're there by now).
+    await loadGunModels();
     // 54.1: every gun of the armory built and compiled now (a swap at the spawn built one: a freeze).
     if (!(this.mode === 'story' && this.level.info.storyWeapon))
       this.weapon.prewarm(

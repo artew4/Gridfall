@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { WeaponBuild, WeaponSpec } from '../types';
+import { dressGun } from './models';
 
 /**
  * 21.0, the "Hornet" SMG: a short boxy receiver, a shrouded barrel with a compensator, a vertical
@@ -39,7 +40,8 @@ export const HORNET_SMG: WeaponSpec = {
   ballistic: 'kinetic',
   sound: 'smg',
   ammoGlow: true,
-  build({ gun, slide, mag, mats }: WeaponBuild) {
+  build(b: WeaponBuild) {
+    const { gun, slide, mag, mats } = b;
     const { frame, steel, polymer, furniture, trim, glove, sleeve } = mats;
     const glass = new THREE.MeshStandardMaterial({ color: 0x3a6a60, metalness: 0.2, roughness: 0.05, envMapIntensity: 1.6, transparent: true, opacity: 0.18, depthWrite: false });
     const reddot = new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 0.2, 0.15) });
@@ -57,55 +59,62 @@ export const HORNET_SMG: WeaponSpec = {
       parent.add(mesh);
       return mesh;
     };
-    // Receiver, its lower half, the top rail.
-    box(0.044, 0.05, 0.26, frame, 0, 0.015, -0.08, gun);
-    box(0.04, 0.03, 0.22, polymer, 0, -0.022, -0.07, gun);
-    box(0.022, 0.008, 0.24, steel, 0, 0.044, -0.09, gun);
-    for (let i = 0; i < 7; i++) box(0.026, 0.004, 0.008, steel, 0, 0.049, -0.18 + i * 0.026, gun);
-    // Holo sight: an open box round a 26 mm window, a tinted pane at the front and the dot on it.
-    box(0.03, 0.004, 0.05, frame, 0, 0.0925, -0.06, gun);
-    box(0.026, 0.01, 0.05, frame, 0, 0.0565, -0.06, gun);
-    for (const s of [-1, 1]) box(0.003, 0.034, 0.05, frame, s * 0.0145, 0.077, -0.06, gun);
+    gun.add(slide);
+    mag.position.set(0, -0.04, -0.09);
+    gun.add(mag);
+    // Holo sight's tinted pane at the front of its window, the dot on it.
     box(0.026, 0.026, 0.002, glass, 0, 0.078, -0.084, gun);
     const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0006, 10), reddot);
     dot.position.set(0, 0.078, -0.0825);
     gun.add(dot);
-    // Charging handle on top at the back: the part that cycles.
-    gun.add(slide);
-    box(0.014, 0.01, 0.03, trim, 0, 0.032, 0.035, slide);
-    box(0.03, 0.006, 0.01, trim, 0, 0.034, 0.05, slide);
-    // Barrel shroud with the ammo strips down its sides, the barrel, a compensator.
-    box(0.04, 0.046, 0.15, furniture, 0, 0.01, -0.285, gun);
-    for (let i = 0; i < 4; i++) box(0.042, 0.008, 0.016, steel, 0, 0.022, -0.235 - i * 0.03, gun);
-    for (const s of [-1, 1]) {
-      const st = box(0.002, 0.004, 0.12, mats.glow, s * 0.0205, -0.004, -0.285, gun);
-      st.userData.strip = true;
+    // 66.0: the Blender model (models.ts); until it's loaded, the 21.0 boxes.
+    const model = dressGun('hornet', b);
+    if (!model) boxes();
+    function boxes() {
+      // Receiver, its lower half, the top rail.
+      box(0.044, 0.05, 0.26, frame, 0, 0.015, -0.08, gun);
+      box(0.04, 0.03, 0.22, polymer, 0, -0.022, -0.07, gun);
+      box(0.022, 0.008, 0.24, steel, 0, 0.044, -0.09, gun);
+      for (let i = 0; i < 7; i++) box(0.026, 0.004, 0.008, steel, 0, 0.049, -0.18 + i * 0.026, gun);
+      // Holo sight: an open box round a 26 mm window, a tinted pane at the front and the dot on it.
+      box(0.03, 0.004, 0.05, frame, 0, 0.0925, -0.06, gun);
+      box(0.026, 0.01, 0.05, frame, 0, 0.0565, -0.06, gun);
+      for (const s of [-1, 1]) box(0.003, 0.034, 0.05, frame, s * 0.0145, 0.077, -0.06, gun);
+      // Charging handle on top at the back: the part that cycles.
+      box(0.014, 0.01, 0.03, trim, 0, 0.032, 0.035, slide);
+      box(0.03, 0.006, 0.01, trim, 0, 0.034, 0.05, slide);
+      // Barrel shroud with the ammo strips down its sides, the barrel, a compensator.
+      box(0.04, 0.046, 0.15, furniture, 0, 0.01, -0.285, gun);
+      for (let i = 0; i < 4; i++) box(0.042, 0.008, 0.016, steel, 0, 0.022, -0.235 - i * 0.03, gun);
+      for (const s of [-1, 1]) {
+        const st = box(0.002, 0.004, 0.12, mats.glow, s * 0.0205, -0.004, -0.285, gun);
+        st.userData.strip = true;
+      }
+      cyl(0.008, 0.07, steel, 0, 0.012, -0.39, gun);
+      cyl(0.012, 0.04, frame, 0, 0.012, -0.425, gun);
+      for (const s of [-1, 1]) box(0.004, 0.008, 0.016, steel, s * 0.011, 0.016, -0.428, gun);
+      box(0.006, 0.02, 0.006, frame, 0, 0.044, -0.345, gun); // front post
+      // Vertical foregrip.
+      box(0.024, 0.07, 0.028, polymer, 0, -0.05, -0.29, gun, -0.08);
+      // Pistol grip, trigger guard, trigger.
+      box(0.03, 0.085, 0.04, polymer, 0, -0.07, 0.03, gun, 0.3);
+      box(0.008, 0.005, 0.05, frame, 0, -0.045, -0.02, gun);
+      box(0.004, 0.018, 0.004, trim, 0, -0.032, -0.01, gun, 0.3);
+      // Stubby stock: a strut and a butt plate.
+      cyl(0.01, 0.13, steel, 0, 0.0, 0.11, gun);
+      box(0.036, 0.062, 0.03, furniture, 0, -0.01, 0.185, gun);
+      box(0.04, 0.068, 0.012, glove, 0, -0.01, 0.204, gun);
+      // Stick magazine ahead of the grip (drops on reload).
+      box(0.024, 0.13, 0.034, steel, 0, -0.06, 0, mag, 0.06);
+      box(0.028, 0.01, 0.038, trim, 0, -0.128, -0.004, mag, 0.06);
     }
-    cyl(0.008, 0.07, steel, 0, 0.012, -0.39, gun);
-    cyl(0.012, 0.04, frame, 0, 0.012, -0.425, gun);
-    for (const s of [-1, 1]) box(0.004, 0.008, 0.016, steel, s * 0.011, 0.016, -0.428, gun);
-    box(0.006, 0.02, 0.006, frame, 0, 0.044, -0.345, gun); // front post
-    // Vertical foregrip.
-    box(0.024, 0.07, 0.028, polymer, 0, -0.05, -0.29, gun, -0.08);
-    // Pistol grip, trigger guard, trigger.
-    box(0.03, 0.085, 0.04, polymer, 0, -0.07, 0.03, gun, 0.3);
-    box(0.008, 0.005, 0.05, frame, 0, -0.045, -0.02, gun);
-    box(0.004, 0.018, 0.004, trim, 0, -0.032, -0.01, gun, 0.3);
-    // Stubby stock: a strut and a butt plate.
-    cyl(0.01, 0.13, steel, 0, 0.0, 0.11, gun);
-    box(0.036, 0.062, 0.03, furniture, 0, -0.01, 0.185, gun);
-    box(0.04, 0.068, 0.012, glove, 0, -0.01, 0.204, gun);
-    // Stick magazine ahead of the grip (drops on reload).
-    mag.position.set(0, -0.04, -0.09);
-    gun.add(mag);
-    box(0.024, 0.13, 0.034, steel, 0, -0.06, 0, mag, 0.06);
-    box(0.028, 0.01, 0.038, trim, 0, -0.128, -0.004, mag, 0.06);
 
     // Hands: right on the grip, left on the foregrip; sleeves.
     const hand = new THREE.Group();
     hand.userData.hands = true;
     gun.add(hand);
-    box(0.042, 0.072, 0.06, glove, 0.006, -0.07, 0.04, hand, 0.3);
+    // (The model's grip rakes back, the boxes' forward: the fist follows it.)
+    box(0.042, 0.072, 0.06, glove, 0.006, -0.07, 0.04, hand, model ? -0.25 : 0.3);
     box(0.016, 0.016, 0.05, glove, 0.022, -0.024, 0.0, hand);
     box(0.044, 0.06, 0.05, glove, -0.004, -0.06, -0.29, hand, -0.08);
     box(0.02, 0.016, 0.05, glove, 0.024, -0.03, -0.29, hand);
