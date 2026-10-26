@@ -92,6 +92,11 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   dress?.rule(m.crate, 'stack', { label: m.crate });
   dress?.rule(m.pallet, 'stack', { label: m.pallet });
   dress?.rule(m.jersey, 'jersey', { concrete: m.jersey });
+  // 73.0: the handrails (their own copy of the paint, ruled: plates with posts and a top tube) and the
+  // racks' steel (Dress.ts: the port kit).
+  const railMat = m.paint.clone();
+  dress?.rule(railMat, 'rail_panel', { paint: m.paint, mesh: m.darkMetal });
+  const port = { paint: m.paint, mesh: m.darkMetal, dark: m.darkMetal };
 
   // ---------------------------------------------------------------- helpers
   /** A box that is seen and solid with the same bounds. */
@@ -188,7 +193,7 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     stair(x0, -z1, x1, -z0, axis, axis === 'z' ? (-rise as 1 | -1) : rise, base, top, mat, rails);
   };
   /** A handrail plate on a deck (1.05 m, not vaultable: it's a fall). */
-  const rail2 = (x0: number, z0: number, x1: number, z1: number, y: number) => solid2(x0, y, z0, x1, y + 1.05, z1, m.paint, 'metal', 1);
+  const rail2 = (x0: number, z0: number, x1: number, z1: number, y: number) => solid2(x0, y, z0, x1, y + 1.05, z1, railMat, 'metal', 1);
   /**
    * 49.0, a pallet rack (south and mirrored): one solid box (rounds and bodies), drawn as its painted
    * uprights and three shelves with crated goods between them, inset 4 cm inside the box.
@@ -208,11 +213,11 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
       const bays = Math.max(1, Math.round((x1 - x0) / 2.7));
       for (let i = 0; i <= bays; i++) {
         const x = Math.min(x1 - 0.06, Math.max(x0 + 0.06, x0 + ((x1 - x0) * i) / bays));
-        b.add(new THREE.BoxGeometry(0.1, h, d), m.paint, x, h / 2, zc);
+        if (!dress?.place('rack_frame', new THREE.Matrix4().compose(new THREE.Vector3(x, 0, zc), new THREE.Quaternion(), new THREE.Vector3(1, h, d)), port)) b.add(new THREE.BoxGeometry(0.1, h, d), m.paint, x, h / 2, zc);
         see(x - 0.05, 0, za, x + 0.05, h, zb);
       }
       for (const y of [0.12, 1.5, h - 0.06]) {
-        b.add(new THREE.BoxGeometry(x1 - x0, 0.1, d - 0.02), m.paint, (x0 + x1) / 2, y, zc);
+        if (!dress?.place('rack_beam', new THREE.Matrix4().compose(new THREE.Vector3((x0 + x1) / 2, y - 0.05, zc), new THREE.Quaternion(), new THREE.Vector3(x1 - x0, 1, d - 0.02)), port)) b.add(new THREE.BoxGeometry(x1 - x0, 0.1, d - 0.02), m.paint, (x0 + x1) / 2, y, zc);
         see(x0, y - 0.05, za + 0.01, x1, y + 0.05, zb - 0.01);
       }
       for (let i = 0; i < bays; i++) {
@@ -486,8 +491,8 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     rail2(sx0, 11.2, sx1, 11.28, DECK);
   }
   solid(-10.6, DT, -1.5, 10.6, DECK, 1.5, m.deck, 'metal', 1);
-  solid(-10.6, DECK, -1.5, 10.6, DECK + 1.05, -1.42, m.paint, 'metal', 1);
-  solid(-10.6, DECK, 1.42, 10.6, DECK + 1.05, 1.5, m.paint, 'metal', 1);
+  solid(-10.6, DECK, -1.5, 10.6, DECK + 1.05, -1.42, railMat, 'metal', 1);
+  solid(-10.6, DECK, 1.42, 10.6, DECK + 1.05, 1.5, railMat, 'metal', 1);
   for (const x of [-5, 5]) solid(x - 0.15, 0, -0.15, x + 0.15, DT, 0.15, m.darkMetal, 'metal', 1);
   // Floor cover: 15.0, only low cover (a jersey line, pallets): the crate stacks, the container and
   // the stack under the bridge were the fortress that held the match (8.0–14.0: 60–75% of bot time
@@ -542,11 +547,24 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   for (const w of QUAY_WALLS) for (let i = 0; i < w.n; i++) container2(w.x0 + CONT.L * (i + 0.5), w.z, 'x', 2, [m.rust, m.green, stacks.yellow, m.rust][i % 4]);
   container(29 + CONT.L / 2, 0, 'x', 2, m.green);
   solid(TOWER.x0, 0, -2, QG.x1, 3, 2, m.darkMetal, 'metal', 1.5);
+  // 73.0: the kit's cable spools (their flanges the collider's 0.9 m).
+  for (const s of [1, -1]) dress?.replace('spool', [28 - 0.9, 0, 26 * s - 0.9], [28 + 0.9, 1.6, 26 * s + 0.9], { margin: 0.05 });
   for (const s of [1, -1]) cyl(28, 26 * s, 0.9, 0, 1.6, m.rust, 'wood');
   vault2(38, 8, 40, 10, 1.0, m.crate, 'wood');
   // The gantry crane straddling the quay at mid-field: four legs, sill beams, girders over the water,
   // a cab, and a container hanging from the spreader. All of it collides (none of it can be reached).
   const CY = 22;
+  // 73.0: the crane in the port kit's parts (its legs stacked, the bogies at their feet, box girders
+  // with their walkways, the trolley), over its boxes (the colliders as they were).
+  if (dress?.size('crane_leg')) {
+    for (const x of [23, 42]) for (const z of [-6, 6]) {
+      dress.tile('crane_leg', [x - 0.6, 0.9, z - 0.6], [x + 0.6, CY - 2, z + 0.6], 'y', 2, port);
+      dress.place('bogie', new THREE.Matrix4().makeTranslation(x, 0, z), port);
+    }
+    for (const x of [23, 42]) dress.tile('crane_girder', [x - 0.6, CY - 2, -6.6], [x + 0.6, CY, 6.6], 'z', 4, port);
+    for (const z of [-6, 6]) dress.tile('crane_girder', [18, CY, z - 0.6], [74, CY + 2, z + 0.6], 'x', 4, port);
+    dress.replace('trolley', [30, CY - 3.4, -1.6], [33.4, CY, 1.6], { over: port, margin: 0.05 });
+  }
   for (const x of [23, 42]) for (const z of [-6, 6]) solid(x - 0.6, 0, z - 0.6, x + 0.6, CY, z + 0.6, m.paint, 'metal', 2);
   for (const x of [23, 42]) solid(x - 0.6, CY - 2, -6.6, x + 0.6, CY, 6.6, m.paint, 'metal', 2);
   for (const z of [-6, 6]) solid(18, CY, z - 0.6, 74, CY + 2, z + 0.6, m.paint, 'metal', 2);
@@ -590,11 +608,11 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   for (const s of [1, -1]) {
     const zr = (a: number, c: number): [number, number] => (s > 0 ? [a, c] : [-c, -a]);
     let [a, c] = zr(9, QG.z);
-    solid(QG.x1 - 0.08, QG.y, a, QG.x1, QG.y + 1.05, c, m.paint, 'metal', 1);
+    solid(QG.x1 - 0.08, QG.y, a, QG.x1, QG.y + 1.05, c, railMat, 'metal', 1);
     // The nest's stair: a landing joining the nest and the walk (z 4–9), the flight down to the quay.
     [a, c] = zr(QG.nest.z, 9);
     solid(QG.x1, QG.y - 0.25, a, NEST_X1, QG.y, c, m.deck, 'metal', 1);
-    solid(NEST_X1 - 0.08, QG.y, a, NEST_X1, QG.y + 1.05, c, m.paint, 'metal', 1);
+    solid(NEST_X1 - 0.08, QG.y, a, NEST_X1, QG.y + 1.05, c, railMat, 'metal', 1);
     // Posts under the walk.
     for (const z of [6, 14]) solid(QG.x0 + 0.9, 0, s * z - 0.15, QG.x0 + 1.2, QG.y - 0.25, s * z + 0.15, m.darkMetal, 'metal', 1);
   }

@@ -30,8 +30,10 @@ import { canvasTexture, hescoTexture, rubberTexture, woodTexture } from '../leve
   truck's load stays a crate); the colliders are the map's as before.
 */
 
-export type DressKind = 'crate' | 'case' | 'hesco' | 'sandbag' | 'drum' | 'jersey' | 'stack' | 'tyre' | 'spool' | 'pallet' | 'container' | NeonKind;
+export type DressKind = 'crate' | 'case' | 'hesco' | 'sandbag' | 'drum' | 'jersey' | 'stack' | 'tyre' | 'spool' | 'pallet' | 'container' | NeonKind | PortKind;
 /** 72.0: the neon street kit (props_neon.py). */
+/** 73.0: the port kit (props_port.py). */
+export type PortKind = 'crane_leg' | 'crane_girder' | 'crane_house' | 'trolley' | 'bogie' | 'rail_panel' | 'rack_frame' | 'rack_beam' | 'bitt';
 export type NeonKind = 'vending' | 'ac_roof' | 'ac_wall' | 'garbage' | 'dumpster' | 'planter' | 'lantern_caps' | 'ecab' | 'bike' | 'bench' | 'bollard' | 'upole' | 'yatai';
 /** 71.0: the Desert's dressing (props_desert.py). */
 export type DesertKind = 'jamb' | 'head' | 'sill' | 'shutter' | 'door' | 'ac' | 'roof_tank' | 'tower_tank' | 'brace' | 'antenna' | 'dish' | 'tent' | 'awning' | 'palm' | 'lamp' | 'pole';
@@ -238,6 +240,33 @@ export class Dresser {
     });
   }
 
+  /**
+   * 73.0: model `kind` laid end to end through a box (min, max: world) along `axis`, `unit` m a piece
+   * (as many as fit, each stretched to its share), filling the box across; what the map draws in the
+   * box is hidden. The model's own long side: Y for 'y' (a crane's leg), X otherwise (a girder; turned
+   * a quarter for 'z').
+   */
+  tile(kind: PortKind, min: [number, number, number], max: [number, number, number], axis: 'x' | 'y' | 'z', unit: number, over?: Over) {
+    const node = this.nodes.get(kind);
+    if (!node) return false;
+    const ax = { x: 0, y: 1, z: 2 }[axis];
+    const L = max[ax] - min[ax];
+    const k = Math.max(1, Math.round(L / unit)), seg = L / k;
+    const sx = max[0] - min[0], sy = max[1] - min[1], sz = max[2] - min[2];
+    for (let i = 0; i < k; i++) {
+      const c = min[ax] + (i + 0.5) * seg;
+      const x = axis === 'x' ? c : (min[0] + max[0]) / 2, z = axis === 'z' ? c : (min[2] + max[2]) / 2;
+      const y = axis === 'y' ? min[1] + i * seg : min[1];
+      const M = new THREE.Matrix4().makeTranslation(x, y, z);
+      if (axis === 'z') M.multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2)).multiply(new THREE.Matrix4().makeScale(seg / node.size.x, sy / node.size.y, sx / node.size.z));
+      else if (axis === 'x') M.multiply(new THREE.Matrix4().makeScale(seg / node.size.x, sy / node.size.y, sz / node.size.z));
+      else M.multiply(new THREE.Matrix4().makeScale(sx / node.size.x, seg / node.size.y, sz / node.size.z));
+      this.place(kind, M, over);
+    }
+    this.regions.push(new THREE.Box3(new THREE.Vector3(min[0] - 0.05, min[1] - 0.05, min[2] - 0.05), new THREE.Vector3(max[0] + 0.05, max[1] + 0.05, max[2] + 0.05)));
+    return true;
+  }
+
   /** 70.0: the regions models replaced (anything the map draws in one after is hidden). */
   private regions: THREE.Box3[] = [];
 
@@ -246,7 +275,7 @@ export class Dresser {
    * that way) and rolled `roll` about its length (the APC on its side), scaled to fill the box; what
    * the map draws inside the box (grown by `margin`) from now on is hidden. False: no such model.
    */
-  replace(kind: HeavyKind | DesertKind | NeonKind, min: [number, number, number], max: [number, number, number], o: { rotY?: number; roll?: number; over?: Over; margin?: number; fit?: boolean } = {}) {
+  replace(kind: HeavyKind | DesertKind | NeonKind | PortKind | 'spool', min: [number, number, number], max: [number, number, number], o: { rotY?: number; roll?: number; over?: Over; margin?: number; fit?: boolean } = {}) {
     const node = this.nodes.get(kind);
     if (!node) return false;
     if (o.fit === false) {
@@ -324,7 +353,7 @@ export class Dresser {
     const n = this.nodes.get(kind);
     if (!n) return false;
     // (Jersey barriers 2 m each, planters 1.5 m: a long run is a row of them.)
-    const unit = kind === 'jersey' ? 2.0 : kind === 'planter' ? 1.5 : 0;
+    const unit = kind === 'jersey' ? 2.0 : kind === 'planter' ? 1.5 : kind === 'rail_panel' ? 1.6 : 0;
     if (unit && L > unit * 1.4) {
       const k = Math.round(L / unit), cl = L / k;
       for (let i = 0; i < k; i++) this.place(kind, base.clone().multiply(new THREE.Matrix4().makeTranslation(-L / 2 + (i + 0.5) * cl, 0, 0)).multiply(_s.makeScale((cl * 0.99) / n.size.x, h / n.size.y, D / n.size.z)), over);

@@ -3144,8 +3144,32 @@ The ask: step 5 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
 - In the game: Neon Block's machines (the red and the white), the lantern market's frames, the service alley's bin and bags, the main street's planters; Tokyo's ramen stall. Tokyo's poles and cabinets weren't looked at closely in the game.
 - Performance (the Neon Block fight): 60 fps, GPU p50 5.5–5.7 ms.
 
+## 73.0: the environment in Blender, step 6: the ports' industry
+
+Branch `feature/env-port-73.0`, from `feature/env-neon-72.0` @ `e066406` (64.0–72.0, not merged yet).
+
+The ask: step 6 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md). (There are no pipe runs on the ports; the handrails took their place in the step.)
+
+### The kit (`tools/blender/props_port.py`, `public/models/props/port.glb`, 6.2k triangles)
+- The cranes in parts the game assembles to each crane's own measures (Neon Docks': a 19 m gauge, 22 m up; Old Port's: 6 m, 26 m): `crane_leg` (2 m of a box-section leg: stiffener bands, corner angles, a ladder), `crane_girder` (4 m of a box girder: plates and stiffeners, a grating walkway on top with handrails), `crane_house` (ribbed walls, windows, a door, roof vents), `trolley` (frame, wheels, sheaves, the operator's cab under it), `bogie` (a leg's wheel set).
+- `rail_panel` (1.6 m of handrail: a kick plate, a perforated infill closed up to the top tube: the collider is a plate that stops rounds and sight, so nothing looks see-through that isn't), `rack_frame` (two posts, the diagonal lacing, base plates), `rack_beam` (a pair of step beams and the deck between them: the shelf's collider stops rounds too), `bitt` (a cast double bollard on its base).
+
+### The dresser (`src/world/Dress.ts`)
+- `tile(kind, box, axis, unit)`: a part laid end to end through a box (as many as fit, each stretched to its share; turned a quarter for a run down Z), the box's drawing hidden: the legs stacked, the girders and portal beams laid along.
+- Handrail runs tiled 1.6 m a panel (the maps give their rails their own copy of the paint, ruled).
+
+### The maps
+- Neon Docks: the gantry crane (four legs of nine pieces on their bogies, the portal beams and the boom's girders, the trolley; the hanging container is the 20 ft), 150 handrail panels on the catwalks, the gantry and the crane stair, the warehouse racks' 20 frames and 12 beam pairs (their goods the cargo kit's), the quay's two cable spools.
+- Old Port: the crane (52 leg pieces, the low portal beams, 50 girder pieces, the machinery house, the trolley), 104 handrail panels, ten bitts on the quay's edge past the fence (out of reach: nothing to take for cover).
+
+### Checks
+- Tests 588 (+3, `port73.test.ts`: the kit's parts, roles, budget; a handrail panel closed at every height; a leg stacked from 2 m pieces filling its box, the box hidden).
+- In the game: the Docks crane's leg and bogie, the catwalk rails; Old Port's crane and its bitts.
+- Performance (GPU p50): Old Port 5.4–6.3 ms; Neon Docks 6.4–6.6 in its low mode (6.2 before the step), 8.3 in its high one (the fight's place, as before).
+
 ## Next
 Human playtest:
+- 73.0 items: the cranes on Neon Docks and Old Port, the handrails (do they still read as a wall you can't shoot through), the racks, the bitts; then the word for step 7 (Maglev's corporate kit).
 - 72.0 items: Neon Block's machines, AC units, bins, bags, planters and lanterns; Tokyo's street furniture, poles, the ramen stall; the cabinets on every map; then the word for step 6 (the port's industry).
 - 71.0 items: the Desert's doors, windows, shutters, air conditioners, tanks, the water tower, tents, awning, palms, poles and lamp shades (anything that looks solid and isn't, or hides a window you can dive through); then the word for step 5 (the neon street kit).
 - 70.0 items: the containers (Docks' maze, Old Port, the Crash Site, the firebase), the convoy (walk through the bus: does what you see match where you can go), the motor pools, the docks' tractors and forklifts; anything floating, sunk or hiding cover you can't see; then the word for step 4 (the Desert's architecture).

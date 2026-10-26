@@ -111,6 +111,10 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   const kit = propKits();
   const dress = kit ? new Dresser(b, kit, militaryMats({ wood: 0xcfc0a8 })) : null;
   dress?.rule(m.crate, 'stack', { label: m.crate });
+  // 73.0: the handrails (their own copy of the rail paint, ruled: plates with posts and a top tube).
+  const railMat = m.rail.clone();
+  dress?.rule(railMat, 'rail_panel', { paint: m.rail, mesh: m.steelDark });
+  const port = { paint: m.crane, mesh: m.steelDark, dark: m.steelDark };
   // The warehouse's own materials carry a faint warm emissive: the bounce light of a sunlit room (the
   // sky light alone left its inside near black against the sun outside; real rooms are lit by their
   // floors and walls). Outside, in the sun, it is lost in the direct light.
@@ -209,7 +213,7 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
     stair(x0, -z1, x1, -z0, axis, axis === 'z' ? (-rise as 1 | -1) : rise, base, top, mat, rails);
   };
   /** A 1.05 m handrail plate on a floor at `y` (a fall: not vaultable). */
-  const rail = (x0: number, z0: number, x1: number, z1: number, y: number) => solid(x0, y, z0, x1, y + 1.05, z1, m.rail, 'metal', 1);
+  const rail = (x0: number, z0: number, x1: number, z1: number, y: number) => solid(x0, y, z0, x1, y + 1.05, z1, railMat, 'metal', 1);
   const rail2 = (x0: number, z0: number, x1: number, z1: number, y: number) => {
     rail(x0, z0, x1, z1, y);
     rail(x0, -z1, x1, -z0, y);
@@ -691,6 +695,19 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   // The ship-to-shore crane on the sea quay at mid-field: legs (they collide), portal beams and the
   // boom out over the water (out of reach), the trolley and a container hung from it.
   const CR = 26;
+  // 73.0: the crane in the port kit's parts (legs, bogies, the low portal beams, the boom's girders, the
+  // machinery house, the trolley) over its boxes; mooring bitts along the quay's edge past the fence.
+  if (dress?.size('crane_leg')) {
+    for (const x of [37.2, 43.2]) for (const z of [-9, 9]) {
+      dress.tile('crane_leg', [x - 0.5, 0.75, z - 0.5], [x + 0.5, CR, z + 0.5], 'y', 2, port);
+      dress.place('bogie', new THREE.Matrix4().compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion(), new THREE.Vector3(0.85, 0.85, 0.85)), port);
+    }
+    for (const x of [37.2, 43.2]) dress.tile('crane_girder', [x - 0.5, 3.2, -9], [x + 0.5, 4, 9], 'z', 4, port);
+    for (const z of [-9, 9]) dress.tile('crane_girder', [30, CR, z - 0.6], [110, CR + 1.8, z + 0.6], 'x', 4, port);
+    dress.replace('crane_house', [36, CR + 1.8, -9.6], [44.4, CR + 5, 9.6], { over: port, margin: 0.05 });
+    dress.replace('trolley', [52, CR - 2.2, -2], [56, CR, 2], { over: port, margin: 0.05 });
+    for (let z = -Z_END + 6; z <= Z_END - 6; z += 12) dress.place('bitt', new THREE.Matrix4().compose(new THREE.Vector3(QUAY_X + 0.3, 0, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2), new THREE.Vector3(0.6, 0.8, 0.8)));
+  }
   for (const x of [37.2, 43.2]) for (const z of [-9, 9]) solid(x - 0.5, 0, z - 0.5, x + 0.5, CR, z + 0.5, m.crane, 'metal', 2);
   for (const x of [37.2, 43.2]) deco(x - 0.5, 3.2, -9, x + 0.5, 4, 9, m.crane, 2);
   for (const z of [-9, 9]) deco(30, CR, z - 0.6, 110, CR + 1.8, z + 0.6, m.crane, 2);
