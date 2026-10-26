@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { WeaponBuild, WeaponSpec } from '../types';
-import { dressGun } from './models';
+import { dressGun, dressHand } from './models';
 
 /**
  * The "Kitsune-9" pistol (21.0: the arsenal's pistol; 13.0–20.0 it was listed as the SMG): a slide
@@ -102,23 +102,27 @@ export const KITSUNE_9: WeaponSpec = {
     const hand = new THREE.Group();
     hand.userData.hands = true;
     gun.add(hand);
-    // (The model's grip rakes back, the boxes' forward: the fist follows it.)
-    box(0.04, 0.07, 0.06, glove, 0.006, -0.06, 0.06, hand, model ? -0.2 : 0.22);
-    box(0.016, 0.016, 0.05, glove, 0.02, -0.02, 0.03, hand); // thumb
-    box(0.038, 0.06, 0.05, glove, -0.024, -0.07, 0.04, hand, 0.4); // support hand
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.36, 10), sleeve);
-    arm.rotation.x = Math.PI / 2 - 0.35;
-    arm.rotation.z = 0.2;
-    arm.position.set(0.035, -0.12, 0.24);
-    hand.add(arm);
-    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.037, 0.012, 10), mats.cuff);
-    cuff.userData.strip = true;
-    cuff.rotation.copy(arm.rotation);
-    cuff.position.set(0.02, -0.09, 0.105);
-    hand.add(cuff);
-    const arm2 = arm.clone();
-    arm2.rotation.z = -0.6;
-    arm2.position.set(-0.11, -0.13, 0.22);
-    hand.add(arm2);
+    // 67.0: the gloved hands from Blender (models.ts); until they're in, the boxes.
+    if (!model || !(dressHand('kitsune9', 'grip_R', hand, mats) && dressHand('kitsune9', 'grip_L', hand, mats))) handBoxes();
+    function handBoxes() {
+      // (The model's grip rakes back, the boxes' forward: the fist follows it.)
+      box(0.04, 0.07, 0.06, glove, 0.006, -0.06, 0.06, hand, model ? -0.2 : 0.22);
+      box(0.016, 0.016, 0.05, glove, 0.02, -0.02, 0.03, hand); // thumb
+      box(0.038, 0.06, 0.05, glove, -0.024, -0.07, 0.04, hand, 0.4); // support hand
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.36, 10), sleeve);
+      arm.rotation.x = Math.PI / 2 - 0.35;
+      arm.rotation.z = 0.2;
+      arm.position.set(0.035, -0.12, 0.24);
+      hand.add(arm);
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.037, 0.012, 10), mats.cuff);
+      cuff.userData.strip = true;
+      cuff.rotation.copy(arm.rotation);
+      cuff.position.set(0.02, -0.09, 0.105);
+      hand.add(cuff);
+      const arm2 = arm.clone();
+      arm2.rotation.z = -0.6;
+      arm2.position.set(-0.11, -0.13, 0.22);
+      hand.add(arm2);
+    }
   },
 };

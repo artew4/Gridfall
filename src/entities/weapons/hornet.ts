@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { WeaponBuild, WeaponSpec } from '../types';
-import { dressGun } from './models';
+import { dressGun, dressHand } from './models';
 
 /**
  * 21.0, the "Hornet" SMG: a short boxy receiver, a shrouded barrel with a compensator, a vertical
@@ -113,20 +113,24 @@ export const HORNET_SMG: WeaponSpec = {
     const hand = new THREE.Group();
     hand.userData.hands = true;
     gun.add(hand);
-    // (The model's grip rakes back, the boxes' forward: the fist follows it.)
-    box(0.042, 0.072, 0.06, glove, 0.006, -0.07, 0.04, hand, model ? -0.25 : 0.3);
-    box(0.016, 0.016, 0.05, glove, 0.022, -0.024, 0.0, hand);
-    box(0.044, 0.06, 0.05, glove, -0.004, -0.06, -0.29, hand, -0.08);
-    box(0.02, 0.016, 0.05, glove, 0.024, -0.03, -0.29, hand);
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.052, 0.36, 10), sleeve);
-    arm.rotation.x = Math.PI / 2 - 0.35;
-    arm.rotation.z = 0.2;
-    arm.position.set(0.035, -0.135, 0.22);
-    hand.add(arm);
-    const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.042, 0.34, 10), sleeve);
-    fore.rotation.x = Math.PI / 2 - 0.2;
-    fore.rotation.z = -0.7;
-    fore.position.set(-0.1, -0.15, -0.16);
-    hand.add(fore);
+    // 67.0: the gloved hands from Blender (models.ts); until they're in, the boxes.
+    if (!model || !(dressHand('hornet', 'grip_R', hand, mats) && dressHand('hornet', 'grip_L', hand, mats))) handBoxes();
+    function handBoxes() {
+      // (The model's grip rakes back, the boxes' forward: the fist follows it.)
+      box(0.042, 0.072, 0.06, glove, 0.006, -0.07, 0.04, hand, model ? -0.25 : 0.3);
+      box(0.016, 0.016, 0.05, glove, 0.022, -0.024, 0.0, hand);
+      box(0.044, 0.06, 0.05, glove, -0.004, -0.06, -0.29, hand, -0.08);
+      box(0.02, 0.016, 0.05, glove, 0.024, -0.03, -0.29, hand);
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.052, 0.36, 10), sleeve);
+      arm.rotation.x = Math.PI / 2 - 0.35;
+      arm.rotation.z = 0.2;
+      arm.position.set(0.035, -0.135, 0.22);
+      hand.add(arm);
+      const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.042, 0.34, 10), sleeve);
+      fore.rotation.x = Math.PI / 2 - 0.2;
+      fore.rotation.z = -0.7;
+      fore.position.set(-0.1, -0.15, -0.16);
+      hand.add(fore);
+    }
   },
 };

@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { Rig } from '../../enemies/Models';
 import type { WeaponId } from '../weapons/armory';
 import { RIG_GUNS, rigGunGeo, rigMuzzle } from './rigGuns';
+import { gunModelsGen, mercModel } from '../weapons/models';
 import type { EnemyLook } from '../types';
 import type { TeamId } from '../../combat/Team';
 
@@ -168,7 +169,9 @@ const _col = new THREE.Color();
 function buildMerc(team: TeamId, kitId: OperatorKit, frame: 'gunner' | 'light'): Rig {
   rigStats.built++;
   const kit = KITS[kitId];
-  const key = `${frame}/${kitId}/${team}`;
+  // 67.0: the Blender operator (models.ts) once it's loaded, else the 22.0 boxes.
+  const model = mercModel();
+  const key = `${frame}/${kitId}/${team}/${model ? `m${gunModelsGen()}` : 'boxes'}`;
   const cached = templates.get(key);
   const parts = new Map<string, { layer: Layer; geo: THREE.BufferGeometry; m: THREE.Matrix4 }[]>();
   const pivots = new Map<string, THREE.Group>();
@@ -181,8 +184,8 @@ function buildMerc(team: TeamId, kitId: OperatorKit, frame: 'gunner' | 'light'):
     return g;
   };
   // Records a part on a pivot (only the first rig of a template needs them).
-  const add = (on: string, geo: THREE.BufferGeometry, layer: Layer, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => {
-    if (cached) return;
+  const add = (on: string, geo: THREE.BufferGeometry, layer: Layer, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0, always = false) => {
+    if (cached || (model && !always)) return;
     const list = parts.get(on) ?? [];
     parts.set(on, list);
     list.push({ layer, geo, m: new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(_e.set(rx, ry, rz)), new THREE.Vector3(1, 1, 1)) });
@@ -235,7 +238,7 @@ function buildMerc(team: TeamId, kitId: OperatorKit, frame: 'gunner' | 'light'):
     const fore = pv(`fore${side}`, arm, 0, -ARM.upper, 0);
     add(`fore${side}`, taper(0.085, 0.3, 0.085, 0.1, 0.1), 'cloth', 0, -0.16, 0);
     add(`fore${side}`, taper(0.1, 0.17, 0.1, 0.105, 0.11), 'armor', 0, -0.2, 0);
-    if (light) add(`fore${side}`, box(0.012, 0.45, 0.05), 'boots', 0, -0.42, 0.03); // the blade
+    if (light) add(`fore${side}`, box(0.012, 0.45, 0.05), 'boots', 0, -0.42, 0.03, 0, 0, 0, true); // the blade
     const hand = pv(`hand${side}`, fore, 0, -ARM.lower, 0);
     add(`hand${side}`, box(0.06, 0.085, 0.08), 'boots', sx * 0.012, 0, 0);
     arms[side] = [arm, fore, hand];
@@ -253,6 +256,17 @@ function buildMerc(team: TeamId, kitId: OperatorKit, frame: 'gunner' | 'light'):
     add(`knee${side}`, taper(0.13, 0.1, 0.26, 0.12, 0.18, -0.02), 'boots', 0, -0.45, 0.04);
   }
 
+  // 67.0: the model's parts, each pivot's in its own space (the light frame narrower, its torso shorter).
+  if (model && !cached) {
+    const slim = (name: string) =>
+      !light ? null : name === 'body' ? new THREE.Matrix4().makeScale(0.85, 1, 1) : name === 'torso' ? new THREE.Matrix4().makeScale(0.85, 0.917, 1) : name.startsWith('arm') ? new THREE.Matrix4().makeScale(0.9, 1, 1) : null;
+    for (const [name, list] of Object.entries(model)) {
+      const into = parts.get(name) ?? [];
+      parts.set(name, into);
+      for (const p of list) into.push({ layer: p.role as Layer, geo: p.geo, m: slim(name) ?? new THREE.Matrix4() });
+    }
+  }
+
   // Merge each pivot's parts once per template: body layers with vertex colours, glow and visor apart.
   let tpl = cached;
   if (!tpl) {
@@ -265,8 +279,9 @@ function buildMerc(team: TeamId, kitId: OperatorKit, frame: 'gunner' | 'light'):
         const sel = list.filter((p) => (group === 'body' ? BODY_LAYERS.includes(p.layer) : p.layer === group));
         if (!sel.length) continue;
         const geos = sel.map((p) => {
-          const g = p.geo.clone().applyMatrix4(p.m);
-          g.deleteAttribute('uv');
+          // (The model's parts are indexed, the boxes not: all of them unindexed to merge.)
+          const g = (p.geo.index ? p.geo.toNonIndexed() : p.geo.clone()).applyMatrix4(p.m);
+          if (g.getAttribute('uv')) g.deleteAttribute('uv');
           if (group === 'body') {
             _col.setHex(colourOf(p.layer));
             const n = g.attributes.position.count, c = new Float32Array(n * 3);

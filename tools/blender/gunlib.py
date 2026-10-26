@@ -40,9 +40,14 @@ PREVIEW = {
 }
 
 
-def reset():
+HAND_ROLES = ("glove", "pad", "sleeve", "cuff")
+PREVIEW["military"].update({"glove": ((0.16, 0.15, 0.11), 0.05, 0.8), "pad": ((0.09, 0.1, 0.07), 0.1, 0.6), "sleeve": ((0.42, 0.42, 0.37), 0.0, 0.9), "cuff": ((0.06, 0.06, 0.055), 0.2, 0.6)})
+PREVIEW["blaster"].update({"glove": ((0.05, 0.05, 0.06), 0.05, 0.8), "pad": ((0.12, 0.13, 0.16), 0.4, 0.4), "sleeve": ((0.07, 0.08, 0.11), 0.0, 0.9), "cuff": ((0.1, 0.8, 1.0), 0.0, 0.5)})
+
+
+def reset(roles=ROLES):
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    for r in ROLES:
+    for r in roles:
         m = bpy.data.materials.new(r)
         m.use_nodes = True
 
@@ -211,8 +216,9 @@ def taper(ob, axis="y", factor=0.2):
 
 # ------------------------------------------------------------------ the gun
 class Gun:
-    def __init__(self, gid):
+    def __init__(self, gid, groups=("body", "slide", "mag")):
         self.id = gid
+        self.groups = groups
         self.parts = []  # (object, group)
 
     def add(self, ob, role, group="body", bev=0.0012, seg=3, angle=40.0):
@@ -237,7 +243,7 @@ class Gun:
         """Join each group into one object (smooth shading, weighted normals, box UVs), in glTF axes.
         `decimate`: a collapse ratio for the bots' low-detail copy."""
         out = {}
-        for group in ("body", "slide", "mag"):
+        for group in self.groups:
             obs = [o for o, g in self.parts if g == group]
             if not obs:
                 continue
@@ -331,12 +337,14 @@ def preview(objs, path, finish="military", views=("side", "three", "top"), res=(
     sc.render.film_transparent = False
     sc.view_settings.view_transform = "AgX"
     for r, (col, met, rough) in PREVIEW[finish].items():
-        m = role_mat(r)
+        m = bpy.data.materials.get(r)
+        if m is None:
+            continue
         b = m.node_tree.nodes.get("Principled BSDF")
         b.inputs["Base Color"].default_value = (*col, 1)
         b.inputs["Metallic"].default_value = met
         b.inputs["Roughness"].default_value = rough
-        if r == "glow" and finish == "blaster":
+        if r in ("glow", "cuff") and finish != "military":
             b.inputs["Emission Color"].default_value = (*col, 1)
             b.inputs["Emission Strength"].default_value = 6
     world = bpy.data.worlds.new("w")
@@ -440,3 +448,48 @@ def rail_raw(z0, z1, y, w=0.021, h=0.0075, pitch=0.01):
         cs.append(box_raw(w + 0.01, h * 0.5, pitch * 0.48, 0, y + h * 0.95, z))
         z += pitch
     return cut_many(r, cs)
+
+
+def seg_raw(p0, p1, w, h, up=(0.0, 1.0, 0.0), w1=None, h1=None, name="seg"):
+    """A box from p0 to p1 (three's space), w x h across (w1 x h1 at p1: tapered); `up` steers its h."""
+    a, b = Vector(p0), Vector(p1)
+    z = b - a
+    L = z.length
+    z.normalize()
+    x = Vector(up).cross(z)
+    if x.length < 1e-6:
+        x = Vector((1, 0, 0)).cross(z)
+    x.normalize()
+    y = z.cross(x)
+    bm = bmesh.new()
+    w1 = w if w1 is None else w1
+    h1 = h if h1 is None else h1
+    vs = []
+    for t, ww, hh in ((0.0, w, h), (L, w1, h1)):
+        for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+            vs.append(bm.verts.new(a + z * t + x * (sx * ww / 2) + y * (sy * hh / 2)))
+    f = lambda *i: bm.faces.new([vs[k] for k in i])
+    f(0, 3, 2, 1)
+    f(4, 5, 6, 7)
+    for i in range(4):
+        j = (i + 1) % 4
+        f(i, j, j + 4, i + 4)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return _link(name, bm)
+
+
+def sphere_raw(r, x=0.0, y=0.0, z=0.0, seg=12, rings=8, sx=1.0, sy=1.0, sz=1.0, name="sphere"):
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=seg, v_segments=rings, radius=r)
+    _xf(bm, Matrix.Translation((x, y, z)) @ Matrix.Diagonal((sx, sy, sz, 1)))
+    return _link(name, bm)
+
+
+def tube_between(p0, p1, r0, r1, seg=16, name="limb"):
+    """A tapered cylinder from p0 (radius r0) to p1 (r1)."""
+    a, b = Vector(p0), Vector(p1)
+    d = b - a
+    ob = cyl_raw(r0, d.length, 0, 0, 0, seg=seg, r2=r1, name=name)
+    q = Vector((0, 0, 1)).rotation_difference(d.normalized())
+    ob.data.transform(Matrix.Translation((a + b) / 2) @ q.to_matrix().to_4x4())
+    return ob

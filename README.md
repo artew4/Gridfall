@@ -45,6 +45,7 @@ The main menu (redesigned in 45.0) is big type and one word a button: **PLAY**, 
 
 ## Gunplay
 
+- **Hands and operators from Blender (67.0):** your hands are gloved (fingers wrapped round the grip, the index finger on the trigger, armoured knuckles, a wrist band that glows on the neon maps, a sleeve in the map's kit), the support hand round the SMG's foregrip or under the handguard and the pump. The bots are modelled operators: a helmet in the team's colour with a visor and its strip, a respirator, a plate carrier with MOLLE and magazine pouches, a radio, a pack with the spine lights, shoulder pads with their patches, bracers, knee pads, shin guards, boots.
 - **The guns, modelled in Blender (66.0):** the four guns are hard-surface models (bevelled edges, serrations, ports, rails, vents, ribbed grips, a working slide, pump and magazine), built by Python scripts in `tools/blender/` and loaded as GLB files. Each part has a role (frame, steel, polymer, furniture, trim, glow), so they still wear each map's finish: black and camo in the desert, gunmetal with neon strips in Tokyo, white and carbon on Maglev. The bots carry the same guns, cut down to about 2,500 triangles each.
 - **The armory (13.0; four guns since 21.0):** every gun works on every map, and each wins somewhere and loses somewhere. Pick one with **1 / 2 / 3 / 4** while a match starts, after any spawn while you're still in the spawn area (23.0: within 12 m of where you spawned, until you leave it or fire), or (in TDM) while you wait to respawn, for your next life:
 
@@ -83,6 +84,7 @@ The main menu (redesigned in 45.0) is big type and one word a button: **PLAY**, 
 ## Technical highlights
 
 ### Rendering: one engine, a distinct look per world
+- **Hands and operators from Blender (67.0):** `tools/blender/hands.py` builds three hand poses (fingers as chains of segments bent round the grip's section), placed per gun by `src/entities/weapons/handFit.json`, which `tools/blender/viewmodel.py` also reads to render a gun in its hands without the game. `tools/blender/merc.py` models the operator one node per pivot of the bots' rig, in each pivot's own space, with the rig's layers as materials, so the animation, the IK, the hitboxes and the team colouring are unchanged (about 11k triangles a body).
 - **Guns from Blender, made by code (66.0):** `tools/blender/guns.py` models each gun headless in Blender (profiles, booleans, bevels, weighted normals, box UVs for the camo and carbon textures) on the old box models' numbers, so the sights, muzzle, grip and magazine stay where the game expects them. It exports a full model for your hands (21–32k triangles) and a decimated one for the bots (about 2,400). The game swaps each part's material for the map's finish. A test reads the GLBs and checks the nodes, roles, budget and that every sight line is clear.
 - **Stylized PBR:** physically based materials through a custom post chain: scene → viewmodel → bloom → per-world colour grade → ACES filmic output. The HUD is HTML over the canvas, so the grade never touches it.
 - **Bloom only from light sources:** an HDR threshold of 1.0, so neon, lamps, muzzle flashes and sun glints bloom; lit walls and sand never do.
@@ -130,7 +132,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **563 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **568 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;
@@ -184,7 +186,7 @@ npm run build     # type-check, then a production build into dist/ (based at /Gr
 npm run preview   # serve that build at http://localhost:4173/Gridfall/
 ```
 
-The guns are rebuilt with `/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P tools/blender/guns.py` (Blender 5.2; `-- --only jackal --preview /tmp/prev` renders previews). Node 20.19+ or 22.12+. The dev server serves from `/`; production builds are based at `/Gridfall/` for GitHub Pages. `BASE_PATH=/ npm run build` builds for a domain root.
+The guns are rebuilt with `/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P tools/blender/guns.py` (the hands with `hands.py`, the operator with `merc.py`) (Blender 5.2; `-- --only jackal --preview /tmp/prev` renders previews). Node 20.19+ or 22.12+. The dev server serves from `/`; production builds are based at `/Gridfall/` for GitHub Pages. `BASE_PATH=/ npm run build` builds for a domain root.
 
 ## Deployment
 

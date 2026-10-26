@@ -3010,8 +3010,30 @@ The ask: start making models, in Blender: the guns, as good as they can be and i
 - In the game: every gun from the hip and aimed on the Desert and Neon Block (the red dot and the holo centred, the pistol's dot in its notch, the bead over the rib), the menu's turntable, four merc rigs holding them (aimed, at the hip).
 - Performance, the Desert fight (12v12): 60 fps, 158 draw calls, CPU p95 3.1 ms, GPU p50 5.4 ms, no long tasks.
 
+## 67.0: the hands and the operators modelled in Blender
+
+Branch `feature/models-hands-chars-67.0`, from `feature/gun-models-66.0` @ `f7b14a5` (64.0–66.0, not merged yet).
+
+The ask: a model of the hands and gloves; good models for the characters.
+
+### The hands (`tools/blender/hands.py`, `public/models/hands.glb`, 18k triangles)
+- Three poses, a node each: `grip_R` (the right hand on a pistol grip: the palm on its side and back strap, three fingers round the front strap, the index along the trigger guard curling to the trigger, the thumb over the top and down the far side), `grip_L` (mirrored, every finger round: the SMG's foregrip, the pistol's support), `cup_L` (under a fore-end: the palm under it, the fingers up its right side, the thumb along its left).
+- Fingers are chains of tapered, bevelled segments with rounded joints, each bent about the grip's axis by angles worked out from the grip's section (46°, 55°, 60° round a 3 × 4.5 cm grip); armour on the first segments, the knuckle guard and the back of the hand; a gauntlet, a wrist band and a sleeve with a rolled edge and folds.
+- Roles: glove, pad (the theme's polymer), sleeve, cuff (the wrist band: the sleeve's stripe, lit on the neon finish as the 13.0 cuff was).
+- Placement per gun in `src/entities/weapons/handFit.json` (the game and `tools/blender/viewmodel.py`, which renders a gun in its hands from the eye and the sides without the game). Each gun's build puts its poses on its hand group (the shotgun's support hand on the pump, now in a hands group the menu hides); the boxes stay as the fallback.
+
+### The operator (`tools/blender/merc.py`, `public/models/merc.glb`, 11k triangles)
+- One node per pivot of the merc rig (body, torso, head, arms, forearms, hands, thighs, shins), in that pivot's space, with the rig's layers as materials (armor, cloth, team, webbing, boots, glow, visor): operators.ts takes the model's parts in place of its boxes and merges them as before (the kit's and the team's colours in vertex colours, the glow and the visor apart), so the animation, the IK on the guns, the hitboxes, the hit flash and the team colours are the rig's. The light frame takes the same model narrower (×0.85) with its torso shorter.
+- What's on it: a cut helmet shell in the team's colour, ear guards with their dials, side rails, a wraparound visor with its strip, a respirator with two filters, a balaclava; a plate carrier (the front plate angled out, the back plate), cummerbund and shoulder straps, MOLLE across the plate, the chest rig's band and three pouches with flaps (team colour), a radio and its antenna, a pack, the spine lights; shoulder pads with their patches, a strap, elbow pads, bracers, gloved fists with four fingers, a knuckle guard and a thumb; a belt with a buckle and pouches, a groin plate, thigh plates and pouches, knee pads, shin guards, boots with soles and toe caps.
+
+### Checks
+- Tests 568 (+5, `models67.test.ts`: the hands' nodes and roles, the poses every gun uses exist, the sleeves run back to the eye; the operator's nodes are the rig's pivots, its parts the rig's layers, its accents where they were, the soles on the ground and the helmet's top at 1.9–2.05 m; the GLB reader shared with 66.0's tests).
+- In the game: the guns in their hands from the hip on the Desert and Neon Block (the wrist band lit), merc rigs aimed and at the hip in the night and the corporate kits.
+- Performance (12v12 fights): Desert 60 fps, GPU p50 5.6 ms (5.4 with the box operators), CPU p95 3.0 ms; Neon Docks 60 fps, GPU p50 6.1 ms; no long tasks.
+
 ## Next
 Human playtest:
+- 67.0 items: the gloved hands on each gun (where a finger sinks into the gun or floats; the pistol's two hands), the wrist band; the operators at fighting distance in the dark and on Maglev's white (readable, team colours, silhouette), anything odd when they crouch, slide or die.
 - 66.0 items: the four guns in your hands on each finish (desert camo, neon, Maglev white): detail, too dark or too busy; the sights; the hands on the raked grips; the bots' guns at fighting distance; anything that pops in when a map starts.
 - 65.0 items: do the bots come from different places match to match (and still make sense); do they keep up with you running for the middle, or now get there too fast; anyone still standing about or staring at the floor (where); the snipers' foot shuffle.
 - 64.0 items: the two modes (Team Deathmatch's length at 6 kills a player, the match point's radar: tense or too easy; Breakthrough's decisive assault and the comeback; the death camera and picking a zone with A/D).

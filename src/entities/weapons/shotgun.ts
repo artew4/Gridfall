@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { WeaponBuild, WeaponSpec } from '../types';
-import { dressGun } from './models';
+import { dressGun, dressHand } from './models';
 
 /**
  * "Boar" pump-action shotgun: receiver and barrel, stock and fore-end, a magazine tube under the
@@ -105,14 +105,19 @@ export const BOAR_SHOTGUN: WeaponSpec = {
       box(0.008, 0.008, 0.16, steel, 0.018, 0.01, -0.21, slide); // action bars
       box(0.008, 0.008, 0.16, steel, -0.018, 0.01, -0.21, slide);
     }
-    // The support hand on the pump, so the hand racks it too.
-    box(0.052, 0.05, 0.085, glove, -0.008, -0.03, -0.32, slide, 0.1);
-    box(0.02, 0.016, 0.06, glove, 0.03, 0.006, -0.32, slide);
-    const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.042, 0.34, 10), sleeve);
-    fore.rotation.x = Math.PI / 2 - 0.2;
-    fore.rotation.z = -0.7;
-    fore.position.set(-0.1, -0.13, -0.17);
-    slide.add(fore);
+    // The support hand on the pump, so the hand racks it too (67.0: a hands group: the menu hides it).
+    const pumpHand = new THREE.Group();
+    pumpHand.userData.hands = true;
+    slide.add(pumpHand);
+    if (!model || !dressHand('shotgun', 'cup_L', pumpHand, mats)) {
+      box(0.052, 0.05, 0.085, glove, -0.008, -0.03, -0.32, pumpHand, 0.1);
+      box(0.02, 0.016, 0.06, glove, 0.03, 0.006, -0.32, pumpHand);
+      const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.042, 0.34, 10), sleeve);
+      fore.rotation.x = Math.PI / 2 - 0.2;
+      fore.rotation.z = -0.7;
+      fore.position.set(-0.1, -0.13, -0.17);
+      pumpHand.add(fore);
+    }
 
     // The shell being loaded (the reload pushes it up into the loading port, one at a time).
     cyl(0.0105, 0.06, hull, 0, 0, 0, mag, 10);
@@ -122,13 +127,17 @@ export const BOAR_SHOTGUN: WeaponSpec = {
     const hand = new THREE.Group();
     hand.userData.hands = true;
     gun.add(hand);
-    // (The model's grip rakes back, the boxes' forward: the fist follows it.)
-    box(0.044, 0.074, 0.062, glove, 0.006, -0.064, model ? 0.085 : 0.075, hand, model ? -0.2 : 0.3);
-    box(0.016, 0.016, 0.05, glove, 0.022, -0.02, 0.035, hand);
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.052, 0.36, 10), sleeve);
-    arm.rotation.x = Math.PI / 2 - 0.35;
-    arm.rotation.z = 0.2;
-    arm.position.set(0.035, -0.13, 0.25);
-    hand.add(arm);
+    // 67.0: the gloved hands from Blender (models.ts); until they're in, the boxes.
+    if (!model || !(dressHand('shotgun', 'grip_R', hand, mats))) handBoxes();
+    function handBoxes() {
+      // (The model's grip rakes back, the boxes' forward: the fist follows it.)
+      box(0.044, 0.074, 0.062, glove, 0.006, -0.064, model ? 0.085 : 0.075, hand, model ? -0.2 : 0.3);
+      box(0.016, 0.016, 0.05, glove, 0.022, -0.02, 0.035, hand);
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.052, 0.36, 10), sleeve);
+      arm.rotation.x = Math.PI / 2 - 0.35;
+      arm.rotation.z = 0.2;
+      arm.position.set(0.035, -0.13, 0.25);
+      hand.add(arm);
+    }
   },
 };
