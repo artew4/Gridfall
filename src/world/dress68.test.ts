@@ -71,13 +71,49 @@ describe('68.0: the dresser', () => {
 describe('68.0: the military kit', () => {
   const g = readGlb('props/military');
   it('its props, each in roles the maps paint, in budget; the bag light (walls are hundreds)', () => {
-    expect(Object.keys(g.nodes).sort()).toEqual(['bag', 'case', 'crate', 'drum', 'hesco']);
-    const roles = ['wood', 'metal', 'rope', 'label', 'plastic', 'paint', 'canvas', 'liner', 'wire'];
+    // (69.0: and the pallet, the jersey barrier, the tyre, the spool.)
+    expect(Object.keys(g.nodes).sort()).toEqual(['bag', 'case', 'crate', 'drum', 'hesco', 'jersey', 'pallet', 'spool', 'tyre']);
+    const roles = ['wood', 'metal', 'rope', 'label', 'plastic', 'paint', 'canvas', 'liner', 'wire', 'concrete', 'rubber', 'cable'];
     for (const parts of Object.values(g.nodes)) for (const p of parts) expect(roles).toContain(p.role);
     const tris = (n: string) => g.nodes[n].reduce((a, p) => a + p.tris.length, 0);
     expect(tris('bag')).toBeLessThanOrEqual(64);
     expect(tris('hesco')).toBeLessThan(600);
-    expect(g.tris).toBeLessThan(8000);
+    expect(g.tris).toBeLessThan(16000);
+    expect(tris('pallet')).toBeLessThan(1200);
+    expect(tris('jersey')).toBeLessThan(1200);
     expect(g.nodes.crate.some((p) => p.role === 'label')).toBe(true);
+  });
+});
+
+describe('69.0: cargo and instanced props', () => {
+  const KIT2 = { ...KIT, pallet: [part(1.2, 0.144, 0.8, 'wood')], drum: [part(0.58, 0.88, 0.58, 'paint')] };
+  it('a cargo box is crates on pallets in a grid, inside its bounds, the stencil the map\'s', () => {
+    StaticBuilder.registry = [];
+    const b = new StaticBuilder();
+    const d = new Dresser(b, KIT2, { ...mats, paint: new THREE.MeshBasicMaterial() });
+    const cargo = new THREE.MeshBasicMaterial();
+    d.rule(cargo, 'stack', { label: cargo });
+    // 2.5 x 1.0 x 1.2: two columns, one crate high on a pallet each.
+    b.add(new THREE.BoxGeometry(2.5, 1.0, 1.2), cargo, 0, 0.5, 0);
+    expect(d.stats.byKind.pallet).toBe(2);
+    expect(d.stats.byKind.crate).toBe(2);
+    const all = new THREE.Box3();
+    for (const p of StaticBuilder.registry!) all.union(p.box);
+    expect(all.max.x).toBeLessThanOrEqual(1.25 + 1e-6);
+    expect(all.max.y).toBeLessThanOrEqual(1.0 + 1e-6);
+    expect(all.max.z).toBeLessThanOrEqual(0.6 + 1e-6);
+    StaticBuilder.registry = null;
+  });
+
+  it('instances: one mesh per role, the model scaled to the size asked', () => {
+    const b = new StaticBuilder();
+    const d = new Dresser(b, KIT2, { ...mats, paint: new THREE.MeshBasicMaterial() });
+    const g = new THREE.Group();
+    d.instances('drum', [new THREE.Matrix4(), new THREE.Matrix4().makeTranslation(2, 0, 0)], g, undefined, { size: [0.6, 0.9, 0.6] });
+    const im = g.children[0] as THREE.InstancedMesh;
+    expect(im.count).toBe(2);
+    im.geometry.computeBoundingBox();
+    expect(im.geometry.boundingBox!.max.y).toBeCloseTo(0.9, 5);
+    expect(im.geometry.boundingBox!.max.x).toBeCloseTo(0.3, 5);
   });
 });

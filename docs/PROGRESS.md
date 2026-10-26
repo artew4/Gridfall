@@ -3053,8 +3053,35 @@ The ask: models for the maps and the environment, one after another, each done w
 - Performance, the Desert fight (12v12, 5 runs each): GPU p50 5.5–5.7 ms with boxes, 6.1–6.3 with the kit; 60 fps; CPU unchanged within the machine's noise.
 - In the game: the yard's sandbag ring and walls, the outer walls, the HESCO perimeter, the barracks' crates (their stencils), the motor pool's drums.
 
+## 69.0: the environment in Blender, step 2: the other military maps
+
+Branch `feature/env-military2-69.0`, from `feature/env-military-68.0` @ `14c63d2` (64.0–68.0, not merged yet).
+
+The ask: step 2 of [ENVIRONMENT_PLAN.md](ENVIRONMENT_PLAN.md).
+
+### The kit grows (`tools/blender/props_military.py`, 13.5k triangles)
+- `pallet` (a EUR pallet: seven deck boards, nine blocks, the bottom boards), `jersey` (a concrete barrier: its stepped profile, the lifting slots through the foot, a key at each end, rebar loops), `tyre` (lying flat: a squashed torus, two rows of tread blocks), `spool` (bolted flanges, the cable wound on in two layers, the axle).
+- New roles: concrete, rubber, cable.
+
+### The dresser grows (`src/world/Dress.ts`)
+- `stack`: cargo: crates on pallets in a grid over the box (columns about 1.25 × 1.05 m, crates about 0.9 m tall, each a hair inside its cell so the joins show), the crates' stencil the map's.
+- `instances`: the kit into instanced meshes (one per role) where a map places instances; the model scaled to a size (Old Port's barriers fill their 2.2 × 1.0 × 0.6 colliders) or filling a unit box (the hull's crates).
+- `militaryMats`: the kit's roles in plain materials from the Desert's textures, tinted per map; the unused ones are freed with the map.
+
+### The maps
+- Deep Jungle's firebase: 1,782 sandbags, 140 HESCO cells, 14 crates (`7.62 × 440`, `RIFLES`, `DANGER`, `MEDICAL`), 8 jersey barriers (their own material now: the concrete is the buildings' too), 8 drums in the olive and rust steel.
+- Crash Site: 1,392 sandbags, 92 HESCO cells.
+- Old Port: the cargo (156 pallets, 284 crates: `PORT 3 · CARGO`), the hull's crates (instanced), 22 barriers and 20 drums (instanced).
+- The Desert: the tyre stack and the two cable spools.
+
+### Checks
+- Tests 574 (+2: cargo as crates on pallets inside its box; instances one mesh per role, scaled to the size asked; the kit's test takes the new props).
+- In the game: the firebase's crates and barriers, its HESCO and bunker bags; the Crash Site's HESCO run; Old Port's cargo stacks.
+- Performance (12v12 fights): Old Port 60 fps, GPU p50 5.8 ms; Crash Site 7.9 (6.2–8.0 without the kit: the fight differs run to run); the Desert 6.1; CPU p95 2.2–3.0 ms.
+
 ## Next
 Human playtest:
+- 69.0 items: Deep Jungle's, the Crash Site's and Old Port's new cover (the cargo stacks, the barriers, the drums), the Desert's tyres and spools; then the word for step 3 (containers, vehicles, generators).
 - 68.0 items: the Desert's sandbag walls, HESCO, crates, cases and drums (look, scale, anything floating or sunk into the ground, a stencil the wrong way); the frame rate where the long sandbag walls are in view; then the word for step 2.
 - 67.0 items: the gloved hands on each gun (where a finger sinks into the gun or floats; the pistol's two hands), the wrist band; the operators at fighting distance in the dark and on Maglev's white (readable, team colours, silhouette), anything odd when they crouch, slide or die.
 - 66.0 items: the four guns in your hands on each finish (desert camo, neon, Maglev white): detail, too dark or too busy; the sights; the hands on the raked grips; the bots' guns at fighting distance; anything that pops in when a map starts.

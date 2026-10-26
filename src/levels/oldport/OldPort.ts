@@ -6,6 +6,8 @@ import { addContainer } from '../../world/Containers';
 import { chainLinkTexture } from '../../world/Textures';
 import { plankTexture } from '../jungle/textures';
 import { crateTexture } from '../desert/textures';
+import { Dresser, militaryMats } from '../../world/Dress';
+import { propKit } from '../../entities/weapons/models';
 import type { Shaft } from '../jungle/GodRays';
 import {
   ATRIUM, BAFFLES, BARRELS, BARRIERS, BASE, BLOCKERS, CONT, COURT, CRADLE, DOCK, FIRE, GATES, LAMP, LAMPS, QUAY_X, SHIP, PASSAGES, STANDS, STAND_R, UNDER_COVER, SPINE, SPINE_SEGMENTS, SPINE_STAIR, STACKS, STACK_B, WALK, WH, WHI, WH_STAIR, X_W, Z_END, lanesOf, spawnsOf, zoneAt,
@@ -104,6 +106,11 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
     fence: new THREE.MeshStandardMaterial({ map: chainLinkTexture(), color: 0xc4c8cc, roughness: 0.5, metalness: 0.6, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide, envMapIntensity: 0.5 }),
     glass: new THREE.MeshStandardMaterial({ color: 0xbfd2d8, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.35, envMapIntensity: 1.2, depthWrite: false }),
   };
+  // 69.0: the military kit (Dress.ts): the cargo (crates on pallets, the stencil the port's), the
+  // drums, the jersey barriers. Without the kit, boxes.
+  const kit = propKit('military');
+  const dress = kit ? new Dresser(b, kit, militaryMats({ wood: 0xcfc0a8 })) : null;
+  dress?.rule(m.crate, 'stack', { label: m.crate });
   // The warehouse's own materials carry a faint warm emissive: the bounce light of a sunlit room (the
   // sky light alone left its inside near black against the sun outside; real rooms are lit by their
   // floors and walls). Outside, in the sun, it is lost in the direct light.
@@ -551,7 +558,7 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
       scene.add(im);
     };
     inst('hullStands', new THREE.CylinderGeometry(STAND_R, STAND_R * 1.15, 1, 12), m.steel, standM);
-    inst('hullCrates', new THREE.BoxGeometry(1, 1, 1), m.crate, crateM);
+    if (!dress?.instances('crate', crateM, scene, { label: m.crate }, { unit: true })) inst('hullCrates', new THREE.BoxGeometry(1, 1, 1), m.crate, crateM);
     inst('hullLampCables', new THREE.CylinderGeometry(0.015, 0.015, 1, 4), m.steelDark, cableM, false);
     // The lamp: a cone shade over an emissive bulb, one geometry (merged), one material each.
     const shade = new THREE.ConeGeometry(0.32, 0.26, 12, 1, true);
@@ -764,11 +771,15 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
       im.name = 'microCover';
       scene.add(im);
     };
-    inst(barrier, std(null, 0xc9c3b6, 0.92, 0, 0.35), bm);
-    inst(drum, std(null, 0x5f7f86, 0.6, 0.35, 0.5), dm);
+    // 69.0: the kit's barriers (the collider's 2.2 x 1.0 x 0.6) and drums.
+    if (!dress?.instances('jersey', bm, scene, { concrete: std(null, 0xc9c3b6, 0.92, 0, 0.35) }, { size: [2.2, 1.0, 0.6] })) inst(barrier, std(null, 0xc9c3b6, 0.92, 0, 0.35), bm);
+    if (!dress?.instances('drum', dm, scene, { paint: std(null, 0x5f7f86, 0.6, 0.35, 0.5) }, { size: [0.6, 0.9, 0.6] })) inst(drum, std(null, 0x5f7f86, 0.6, 0.35, 0.5), dm);
   }
 
+  dress?.finish(scene);
+  if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.dispose();
   scene.traverse((o) => {
     if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).userData.staticMerged) {
       o.castShadow = true;

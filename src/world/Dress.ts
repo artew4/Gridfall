@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { StaticBuilder } from './Builder';
 import type { MercPart } from '../entities/weapons/models';
+import { canvasTexture, hescoTexture, rubberTexture, woodTexture } from '../levels/desert/textures';
 
 /*
   68.0, the dresser (docs/ENVIRONMENT_PLAN.md): a map's prop boxes drawn as Blender models.
@@ -11,7 +12,10 @@ import type { MercPart } from '../entities/weapons/models';
   its bounds, merged into the map's static meshes like any box (no draw calls added). The collider
   was added apart and is untouched: what the bots walk, what stops a round, what the tests measure.
 
-    crate, case   one model stretched to the box (turned a quarter so its long side runs the box's)
+    crate, case,  one model stretched to the box (turned a quarter so its long side runs the box's)
+    jersey
+    stack         69.0: cargo: crates on pallets in a grid over the box (columns about 1.25 x 1.05 m,
+                  crates about 0.9 m tall), each a hair inside its cell so the joins show
     hesco         cells along the run, as many as fit a metre each, the height and depth the box's
     sandbag       courses of bags laid bond-wise (every other course offset by half a bag), each bag
                   a little turned and sized from a seed, so no two walls are the same
@@ -20,7 +24,7 @@ import type { MercPart } from '../entities/weapons/models';
   stencil texture). The label panels' UVs are planar over each panel (the back one unmirrored).
 */
 
-export type DressKind = 'crate' | 'case' | 'hesco' | 'sandbag' | 'drum';
+export type DressKind = 'crate' | 'case' | 'hesco' | 'sandbag' | 'drum' | 'jersey' | 'stack' | 'tyre' | 'spool' | 'pallet';
 type Over = Partial<Record<string, THREE.Material>>;
 
 interface Node {
@@ -64,12 +68,14 @@ function labelUV(geo: THREE.BufferGeometry) {
 
 export class Dresser {
   /** DEV: the boxes it took and the models it laid. */
-  stats = { boxes: 0, pieces: 0, byKind: {} as Record<string, number>, big: [] as number[][] };
+  stats = { boxes: 0, pieces: 0, byKind: {} as Record<string, number>, big: [] as number[][], at: {} as Record<string, number[][]> };
   private nodes = new Map<string, Node>();
   private rules = new Map<THREE.Material, { kind: DressKind; over?: Over }>();
   private rnd = mulberry(68);
   /** Geometry made here (the panels' UVs): freed once the map is built. */
   private owned: THREE.BufferGeometry[] = [];
+  /** The materials something was drawn in (the kit's own unused ones are freed). */
+  private used = new Set<THREE.Material>();
   /** The bags (thousands on a map): one instanced mesh per role, not merged geometry. */
   private bagAt: THREE.Matrix4[] = [];
   /** The walls' boxes: they cast the walls' shadows (thousands of bags in the shadow pass cost 0.5 ms). */
@@ -108,7 +114,10 @@ export class Dresser {
     const world = _m.multiplyMatrices(m, _t);
     for (const p of node.parts) {
       const mat = over?.[p.role] ?? this.mats[p.role];
-      if (mat) this.b.addMatrix(p.geo, mat, world);
+      if (mat) {
+        this.used.add(mat);
+        this.b.addMatrix(p.geo, mat, world);
+      }
     }
     this.stats.pieces++;
     this.stats.byKind[kind] = (this.stats.byKind[kind] ?? 0) + 1;
@@ -124,6 +133,7 @@ export class Dresser {
     for (const p of node.parts) {
       const mat = this.mats[p.role];
       if (!mat) continue;
+      this.used.add(mat);
       const geo = p.geo.clone().applyMatrix4(recentre);
       const im = new THREE.InstancedMesh(geo, mat, this.bagAt.length);
       this.bagAt.forEach((m, i) => im.setMatrixAt(i, m));
@@ -155,6 +165,11 @@ export class Dresser {
   dispose() {
     this.owned.forEach((g) => g.dispose());
     this.owned = [];
+    for (const m of Object.values(this.mats))
+      if (m.userData.dressOwn && !this.used.has(m)) {
+        (m as THREE.MeshStandardMaterial).map?.dispose();
+        m.dispose();
+      }
   }
 
   private box(geo: THREE.BoxGeometry, mat: THREE.Material, m: THREE.Matrix4): boolean {
@@ -166,7 +181,11 @@ export class Dresser {
     const L = along ? w : d, D = along ? d : w;
     const base = new THREE.Matrix4().multiplyMatrices(m, _t.makeTranslation(0, -h / 2, 0));
     if (!along) base.multiply(_r.makeRotationY(Math.PI / 2));
-    const ok = rule.kind === 'sandbag' ? this.bags(base, L, h, D) : rule.kind === 'hesco' ? this.cells(base, L, h, D) : this.one(rule.kind, base, L, h, D, rule.over);
+    // DEV: where the first few of each kind are (for screenshots).
+    const seen = (this.stats.at[rule.kind] ??= []);
+    if (seen.length < 4) seen.push([+m.elements[12].toFixed(1), +m.elements[13].toFixed(1), +m.elements[14].toFixed(1)]);
+    const ok =
+      rule.kind === 'sandbag' ? this.bags(base, L, h, D) : rule.kind === 'hesco' ? this.cells(base, L, h, D) : rule.kind === 'stack' ? this.stack(base, L, h, D, rule.over) : this.one(rule.kind, base, L, h, D, rule.over);
     if (ok) this.stats.boxes++;
     return ok;
   }
@@ -177,6 +196,56 @@ export class Dresser {
     if (!n) return false;
     const s = _s.makeScale(L / n.size.x, h / n.size.y, D / n.size.z);
     return this.place(kind, base.clone().multiply(s), over);
+  }
+
+  /** 69.0: crates on pallets in a grid over the box (cargo). */
+  private stack(base: THREE.Matrix4, L: number, h: number, D: number, over?: Over) {
+    const crate = this.nodes.get('crate'), pal = this.nodes.get('pallet');
+    if (!crate || !pal) return false;
+    const nx = Math.max(1, Math.round(L / 1.25)), nz = Math.max(1, Math.round(D / 1.05));
+    const cx = L / nx, cz = D / nz, ph = Math.min(0.144, h * 0.2);
+    const ny = Math.max(1, Math.round((h - ph) / 0.9)), cy = (h - ph) / ny;
+    for (let i = 0; i < nx; i++)
+      for (let k = 0; k < nz; k++) {
+        const x = -L / 2 + (i + 0.5) * cx, z = -D / 2 + (k + 0.5) * cz;
+        const at = (y: number) => base.clone().multiply(new THREE.Matrix4().makeTranslation(x, y, z));
+        this.place('pallet', at(0).multiply(_s.makeScale(cx / pal.size.x, ph / pal.size.y, cz / pal.size.z)));
+        for (let j = 0; j < ny; j++) {
+          // A hair inside the cell (the joins between crates show), a crate a little narrower up the stack.
+          const k2 = 0.965 - j * 0.02;
+          this.place('crate', at(ph + j * cy).multiply(_s.makeScale((cx * k2) / crate.size.x, (cy * 0.99) / crate.size.y, (cz * k2) / crate.size.z)), over);
+        }
+      }
+    return true;
+  }
+
+  /**
+   * 69.0: models into instanced meshes (one per role) for maps that place their pieces as instances:
+   * each matrix puts the model's base centre (`size`: the model scaled to it first; `unit`: the matrix
+   * scales a unit box centred on the origin, as the map's own instanced boxes did; the model fills it).
+   */
+  instances(kind: DressKind | 'bag', ms: THREE.Matrix4[], parent: THREE.Object3D, over?: Over, fit?: { unit?: boolean; size?: [number, number, number] }) {
+    const node = this.nodes.get(kind);
+    if (!node || !ms.length) return false;
+    const recentre = new THREE.Matrix4().makeTranslation(-(node.min.x + node.size.x / 2), -node.min.y, -(node.min.z + node.size.z / 2));
+    const size = fit?.unit ? [1, 1, 1] : fit?.size;
+    if (size) recentre.premultiply(new THREE.Matrix4().makeScale(size[0] / node.size.x, size[1] / node.size.y, size[2] / node.size.z));
+    if (fit?.unit) recentre.premultiply(new THREE.Matrix4().makeTranslation(0, -0.5, 0));
+    for (const p of node.parts) {
+      const mat = over?.[p.role] ?? this.mats[p.role];
+      if (!mat) continue;
+      this.used.add(mat);
+      const im = new THREE.InstancedMesh(p.geo.clone().applyMatrix4(recentre), mat, ms.length);
+      ms.forEach((m, i) => im.setMatrixAt(i, m));
+      im.instanceMatrix.needsUpdate = true;
+      im.computeBoundingSphere();
+      im.castShadow = im.receiveShadow = true;
+      im.userData.dressed = true;
+      parent.add(im);
+    }
+    this.stats.byKind[kind] = (this.stats.byKind[kind] ?? 0) + ms.length;
+    this.stats.pieces += ms.length;
+    return true;
   }
 
   /** HESCO cells down the run. */
@@ -221,4 +290,33 @@ export class Dresser {
     }
     return true;
   }
+}
+
+/**
+ * 69.0: the military kit's roles in plain materials, from the Desert's textures (a map tints them: its
+ * HESCO greener, its wood darker); a map passes its own where it has them.
+ */
+export function militaryMats(tint: Partial<Record<string, number>> = {}, own: Partial<Record<string, THREE.Material>> = {}): Record<string, THREE.Material> {
+  const std = (map: THREE.Texture | null, color: number, rough = 0.9, metal = 0, env = 0.3) => new THREE.MeshStandardMaterial({ map, color, roughness: rough, metalness: metal, envMapIntensity: env });
+  const liner = hescoTexture();
+  liner.wrapS = liner.wrapT = THREE.RepeatWrapping;
+  liner.repeat.set(1.7, 1.7);
+  const t = (k: string, c: number) => tint[k] ?? c;
+  const base: Record<string, THREE.Material> = {
+    wood: std(woodTexture(), t('wood', 0xffffff), 0.85),
+    metal: std(null, t('metal', 0x3a3b38), 0.5, 0.7, 0.5),
+    rope: std(canvasTexture('#7a6646'), t('rope', 0xffffff), 0.95),
+    label: std(woodTexture(), 0xffffff, 0.85),
+    plastic: std(null, t('plastic', 0x3d3f34), 0.55, 0.05, 0.5),
+    paint: std(null, t('paint', 0x4a5232), 0.6, 0.3, 0.5),
+    canvas: std(canvasTexture('#ad9670'), t('canvas', 0xffffff), 0.97),
+    liner: std(liner, t('liner', 0xffffff), 0.95),
+    wire: std(null, t('wire', 0x3a3b38), 0.5, 0.6, 0.5),
+    concrete: std(null, t('concrete', 0xb9b5ac), 0.92, 0, 0.25),
+    rubber: std(rubberTexture(), t('rubber', 0xffffff), 0.9, 0, 0.2),
+    cable: std(null, t('cable', 0x1b1c1e), 0.6, 0.1, 0.3),
+  };
+  // (Marked: the dresser frees those of them no prop used.)
+  for (const m of Object.values(base)) m.userData.dressOwn = true;
+  return { ...base, ...own } as Record<string, THREE.Material>;
 }

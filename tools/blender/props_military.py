@@ -11,6 +11,10 @@ box, HESCO cells tiled along a run, sandbags laid in courses, drums where the ba
          rope handles, a panel each side for the stencil (role `label`: the map's crate texture)
   case   a hard equipment case (1.0 x 0.42 x 0.5): the shell, the lid's seam, ribs, latches, a handle
   drum   an oil drum (0.58 x 0.88): rolling hoops, chimes, the lid and its bungs
+  pallet (69.0) a EUR pallet (1.2 x 0.144 x 0.8): deck boards, blocks, the bottom boards
+  jersey (69.0) a concrete barrier (2.0 x 0.81 x 0.6): its stepped profile, the lifting slots, rebar loops
+  tyre   (69.0) a truck tyre lying flat (0.9 x 0.28): the tread's blocks, the sidewall, the bead
+  spool  (69.0) a cable spool (1.4 x 0.95): two bolted flanges, the cable wound on the drum
 
 Roles: wood, metal, rope, label, plastic, paint, canvas, liner, wire.
 
@@ -29,8 +33,8 @@ import gunlib as L  # noqa: E402
 from gunlib import box_raw, cut, cut_many, cyl_raw, prism_raw, seg_raw  # noqa: E402
 from mathutils import Matrix, Vector  # noqa: E402
 
-ROLES = ("wood", "metal", "rope", "label", "plastic", "paint", "canvas", "liner", "wire")
-NODES = ("bag", "hesco", "crate", "case", "drum")
+ROLES = ("wood", "metal", "rope", "label", "plastic", "paint", "canvas", "liner", "wire", "concrete", "rubber", "cable")
+NODES = ("bag", "hesco", "crate", "case", "drum", "pallet", "jersey", "tyre", "spool")
 L.PREVIEW["props"] = {
     "wood": ((0.36, 0.25, 0.14), 0.0, 0.85),
     "metal": ((0.1, 0.1, 0.095), 0.7, 0.5),
@@ -41,6 +45,9 @@ L.PREVIEW["props"] = {
     "canvas": ((0.45, 0.38, 0.25), 0.0, 0.95),
     "liner": ((0.5, 0.42, 0.3), 0.0, 0.95),
     "wire": ((0.12, 0.12, 0.12), 0.7, 0.5),
+    "concrete": ((0.5, 0.49, 0.46), 0.0, 0.92),
+    "rubber": ((0.03, 0.03, 0.03), 0.0, 0.85),
+    "cable": ((0.05, 0.05, 0.06), 0.1, 0.6),
 }
 
 
@@ -160,6 +167,62 @@ def drum(g):
     g.add(cyl_raw(0.02, 0.016, -0.17, H, -0.06, seg=10, axis="y"), "metal", n, bev=0.003, seg=1)
 
 
+def pallet(g):
+    n = "pallet"
+    W, D = 1.2, 0.8
+    for i in range(7):
+        z = -D / 2 + 0.05 + i * (D - 0.1) / 6
+        g.box("wood", W, 0.022, 0.1 if i in (0, 3, 6) else 0.085, 0, 0.133, z, group=n, bev=0.003, seg=1)
+    for z in (-D / 2 + 0.05, 0, D / 2 - 0.05):
+        g.box("wood", W, 0.022, 0.1, 0, 0.1, z, group=n, bev=0.003, seg=1)
+        for x in (-W / 2 + 0.07, 0, W / 2 - 0.07):
+            g.box("wood", 0.14, 0.078, 0.1, x, 0.05, z, group=n, bev=0.004, seg=1)
+    for x in (-W / 2 + 0.07, 0, W / 2 - 0.07):
+        g.box("wood", 0.14, 0.022, D, x, 0.011, 0, group=n, bev=0.003, seg=1)
+
+
+def jersey(g):
+    n = "jersey"
+    LEN = 2.0
+    body = prism_raw([(-0.3, 0.0), (0.3, 0.0), (0.3, 0.075), (0.2, 0.33), (0.08, 0.81), (-0.08, 0.81), (-0.2, 0.33), (-0.3, 0.075)], -LEN / 2, LEN / 2)
+    # Lifting slots through the foot, a key at each end.
+    cut_many(body, [box_raw(0.3, 0.09, 0.8, x, 0.045, 0) for x in (-0.5, 0.5)] + [box_raw(0.04, 0.5, 0.12, s * LEN / 2, 0.35, 0) for s in (-1, 1)])
+    g.add(body, "concrete", n, bev=0.012, seg=2)
+    for x in (-0.6, 0.6):
+        g.add(L.torus_raw(0.05, 0.008, 0, 0, 0, seg=12, ring=6), "metal", n, bev=0)
+        g.parts[-1][0].data.transform(Matrix.Translation((x, 0.81, 0)) @ Matrix.Diagonal((1, 1.2, 1, 1)))
+
+
+def tyre(g):
+    n = "tyre"
+    # A torus flattened (the section 0.28 tall), the tread's blocks round its outside.
+    t = L.torus_raw(0.33, 0.13, 0, 0, 0, seg=28, ring=10)
+    t.data.transform(Matrix.Translation((0, 0.14, 0)) @ Matrix.Rotation(math.pi / 2, 4, "X") @ Matrix.Diagonal((1, 1, 1.08, 1)))
+    g.add(t, "rubber", n, bev=0)
+    for i in range(18):
+        a = i / 18 * math.pi * 2
+        for y in (0.07, 0.21):
+            g.add(box_raw(0.06, 0.06, 0.08, 0, y, 0, ry=0), "rubber", n, bev=0.006, seg=1)
+            g.parts[-1][0].data.transform(Matrix.Rotation(-a, 4, "Y") @ Matrix.Translation((0.452, 0, (0.02 if y > 0.1 else -0.02))))
+
+
+def spool(g):
+    n = "spool"
+    R, H = 0.7, 0.95
+    for y in (0.045, H - 0.045):
+        g.add(cyl_raw(R, 0.09, 0, y, 0, seg=28, axis="y"), "wood", n, bev=0.006, seg=1)
+        for i in range(8):
+            a = i / 8 * math.pi * 2
+            g.add(cyl_raw(0.018, 0.1, math.cos(a) * 0.5, y, math.sin(a) * 0.5, seg=8, axis="y"), "metal", n, bev=0)
+    g.add(cyl_raw(0.3, H - 0.18, 0, H / 2, 0, seg=20, axis="y"), "wood", n, bev=0)
+    # The cable wound on: coils stacked up the drum, two layers.
+    for k, r in enumerate((0.34, 0.39)):
+        for i in range(11):
+            g.add(L.torus_raw(r, 0.028, 0, 0, 0, seg=18, ring=4), "cable", n, bev=0)
+            g.parts[-1][0].data.transform(Matrix.Translation((0, 0.12 + i * 0.065 + k * 0.03, 0)) @ Matrix.Rotation(math.pi / 2, 4, "X"))
+    g.add(cyl_raw(0.12, H + 0.02, 0, H / 2, 0, seg=16, axis="y"), "metal", n, bev=0)
+
+
 def build():
     L.reset(ROLES)
     g = L.Gun("props_military", groups=NODES)
@@ -168,6 +231,10 @@ def build():
     crate(g)
     case(g)
     drum(g)
+    pallet(g)
+    jersey(g)
+    tyre(g)
+    spool(g)
     return g
 
 
@@ -187,10 +254,10 @@ def main():
     if opts["preview"]:
         os.makedirs(opts["preview"], exist_ok=True)
         # Laid out in a row for the stills.
-        x = -2.6
+        x = -5.4
         for name in NODES:
             objs[name].data.transform(Matrix.Translation((x, 0, 0)))
-            x += 1.3
+            x += 1.35 if name != "jersey" else 2.2
         L.preview(objs, os.path.join(opts["preview"], "military"), "props", views=("three", "front", "top"), res=(1500, 700))
         print("PREVIEW done")
 

@@ -275,7 +275,7 @@ export function mercModel(): Readonly<Record<string, readonly MercPart[]>> | nul
 // ------------------------------------------------------------------ 68.0: the environment's kits
 /** The prop kits (tools/blender/props_*.py) and their nodes (docs/ENVIRONMENT_PLAN.md). */
 const PROP_KITS: Record<string, readonly string[]> = {
-  military: ['bag', 'hesco', 'crate', 'case', 'drum'],
+  military: ['bag', 'hesco', 'crate', 'case', 'drum', 'pallet', 'jersey', 'tyre', 'spool'],
 };
 const propKits = new Map<string, Record<string, MercPart[]>>();
 

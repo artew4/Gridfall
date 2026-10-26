@@ -45,6 +45,7 @@ The main menu (redesigned in 45.0) is big type and one word a button: **PLAY**, 
 
 ## Gunplay
 
+- **The military maps' cover, modelled (69.0):** the same kit on Deep Jungle's firebase (its crates stencilled in Thai, jersey barriers with their rebar loops, drums), the Crash Site's HESCO and sandbags, and Old Port's cargo, crates on pallets in stacks; the Desert's tyres and cable spools too.
 - **The Desert's cover, modelled (68.0):** the sandbag walls are laid bag by bag (courses offset by half a bag, each bag a little turned), the HESCO barriers are wire-framed cells with their liners bulging, the crates are wooden supply crates with battens, iron corners, rope handles and their stencils, the cases hard cases, the barrels oil drums. Where you can stand, shoot through or take cover is exactly as before. The plan for the rest of the maps: [docs/ENVIRONMENT_PLAN.md](docs/ENVIRONMENT_PLAN.md).
 - **Hands and operators from Blender (67.0):** your hands are gloved (fingers wrapped round the grip, the index finger on the trigger, armoured knuckles, a wrist band that glows on the neon maps, a sleeve in the map's kit), the support hand round the SMG's foregrip or under the handguard and the pump. The bots are modelled operators: a helmet in the team's colour with a visor and its strip, a respirator, a plate carrier with MOLLE and magazine pouches, a radio, a pack with the spine lights, shoulder pads with their patches, bracers, knee pads, shin guards, boots.
 - **The guns, modelled in Blender (66.0):** the four guns are hard-surface models (bevelled edges, serrations, ports, rails, vents, ribbed grips, a working slide, pump and magazine), built by Python scripts in `tools/blender/` and loaded as GLB files. Each part has a role (frame, steel, polymer, furniture, trim, glow), so they still wear each map's finish: black and camo in the desert, gunmetal with neon strips in Tokyo, white and carbon on Maglev. The bots carry the same guns, cut down to about 2,500 triangles each.
@@ -134,7 +135,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **572 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **574 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;

@@ -5,6 +5,8 @@ import type { Glows } from '../../world/Glows';
 import { mulberry32 } from '../../core/math';
 import { fitStairWidth } from '../../world/StairFit';
 import * as T from '../jungle/textures';
+import { Dresser, militaryMats } from '../../world/Dress';
+import { propKit } from '../../entities/weapons/models';
 import { hescoTexture, sandbagTexture } from '../desert/textures';
 import type { TreeInfo } from '../jungle/Base';
 import type { FoliageSite } from '../jungle/Foliage';
@@ -71,6 +73,11 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     red: hdr(4, 0.3, 0.2),
     amber: hdr(4.2, 2.4, 0.6),
   };
+  // 69.0: the military kit (Dress.ts): the sandbags and the HESCO. Without the kit, boxes.
+  const kit = propKit('military');
+  const dress = kit ? new Dresser(b, kit, militaryMats({ liner: 0xc8cbb0, canvas: 0xc4c4a6 })) : null;
+  dress?.rule(m.sandbag, 'sandbag');
+  dress?.rule(m.hesco, 'hesco');
 
   // ---------------------------------------------------------------- helpers
   const solid = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material, surface: Collider['surface'] = 'concrete', tile = 2) => {
@@ -625,7 +632,10 @@ export function buildCrashSite(scene: THREE.Scene, col: CollisionWorld, glows: G
     taken.push([x, z, Math.max(w, d) * 0.75]);
   });
 
+  dress?.finish(scene);
+  if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.dispose();
   scene.traverse((o) => {
     if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).userData.staticMerged) {
       o.castShadow = true;

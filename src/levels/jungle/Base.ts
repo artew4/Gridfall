@@ -8,6 +8,8 @@ import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import type { Zone } from '../Level';
 import { BASE, CLIFF, CLIFF_RECESS, JUNGLE_EXTENT, ROAD, STRIP, TDM_YARD, baseDist, jungleHeight, roadX } from './Terrain';
 import * as T from './textures';
+import { Dresser, militaryMats } from '../../world/Dress';
+import { propKit } from '../../entities/weapons/models';
 import { crateTexture, hescoTexture, rubberTexture, sandbagTexture, stencilTexture } from '../desert/textures';
 
 /*
@@ -152,6 +154,17 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     b.add(worldBox(x1 - x0, y1 - y0, z1 - z0, tile), mat, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
     return col.add(x0, y0, z0, x1, y1, z1, surface);
   };
+  // 69.0: the military kit (Dress.ts; docs/ENVIRONMENT_PLAN.md step 2): the sandbags, the HESCO, the
+  // crates with their stencils, the jersey barriers, the drums. Without the kit, boxes.
+  const kit = propKit('military');
+  const dress = kit ? new Dresser(b, kit, militaryMats({ liner: 0xc8cbb0, canvas: 0xc4c4a6, wood: 0xd8d0c0 })) : null;
+  dress?.rule(m.sandbag, 'sandbag');
+  dress?.rule(m.hesco, 'hesco');
+  for (const c of Object.values(crates)) dress?.rule(c, 'crate', { label: c });
+  /** The jersey barriers' own material (the concrete is the buildings' too). */
+  const jerseyMat = m.concrete.clone();
+  dress?.rule(jerseyMat, 'jersey', { concrete: m.concrete });
+
   /** A box with its texture once per face (crates, containers). */
   const crate = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material, surface: Collider['surface'] = 'wood') => {
     b.add(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), mat, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
@@ -164,7 +177,7 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     return c;
   };
   const bags = (x0: number, z0: number, x1: number, z1: number, h = 1.05, y0 = 0) => vaultable(x0, z0, x1, z1, h, m.sandbag, 'sand', y0);
-  const jersey = (x0: number, z0: number, x1: number, z1: number) => vaultable(x0, z0, x1, z1, 0.95, m.concrete);
+  const jersey = (x0: number, z0: number, x1: number, z1: number) => vaultable(x0, z0, x1, z1, 0.95, jerseyMat);
   /** Something standing on the forest floor: from under the lowest corner to h above the highest. */
   const onGround = (x0: number, z0: number, x1: number, z1: number, h: number, mat: THREE.Material, surface: Collider['surface'] = 'concrete') => {
     const ys = [jungleHeight(x0, z0), jungleHeight(x1, z0), jungleHeight(x0, z1), jungleHeight(x1, z1), jungleHeight((x0 + x1) / 2, (z0 + z1) / 2)];
@@ -646,7 +659,9 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
   const barrels = (x: number, z: number, n: number, alongX = true) => {
     for (let i = 0; i < n; i++) {
       const cx = alongX ? x + i * 0.62 : x, cz = alongX ? z : z + i * 0.62;
-      b.add(new THREE.CylinderGeometry(0.3, 0.3, 0.92, 14), i % 3 === 1 ? m.rust : m.olive, cx, 0.46, cz);
+      // 69.0: oil drums (each turned its own way), in the olive and rust steel.
+      const at = new THREE.Matrix4().compose(new THREE.Vector3(cx, 0, cz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (cx * 7.3 + cz * 3.1) % (Math.PI * 2)), new THREE.Vector3(1, 0.92 / 0.88, 1));
+      if (!dress?.place('drum', at, { paint: i % 3 === 1 ? m.rust : m.olive })) b.add(new THREE.CylinderGeometry(0.3, 0.3, 0.92, 14), i % 3 === 1 ? m.rust : m.olive, cx, 0.46, cz);
       col.addCylinder(cx, cz, 0.3, 0, 0.92, 'metal');
     }
   };
@@ -936,7 +951,10 @@ export function buildBase(scene: THREE.Scene, col: CollisionWorld, glows: Glows)
     }
   }
 
+  dress?.finish(scene);
+  if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  dress?.dispose();
   scene.traverse((o) => {
     if (o.userData.staticMerged) {
       o.castShadow = true;

@@ -156,6 +156,8 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
           return std(t, 0xffffff, 0.95);
         })(),
         wire: std(null, 0x3a3b38, 0.5, 0.6, 0.5),
+        rubber: std(T.rubberTexture(), 0xffffff, 0.9, 0, 0.2),
+        cable: std(null, 0x1b1c1e, 0.6, 0.1, 0.3),
       })
     : null;
   dress?.rule(m.sandbag, 'sandbag');
@@ -555,13 +557,20 @@ export function buildOutpost(scene: THREE.Scene, col: CollisionWorld, glows: Glo
   };
   /** A cable spool: an upright drum with flanges (the flange radius is the collider). */
   const spool = (x: number, z: number) => {
-    b.add(new THREE.CylinderGeometry(0.42, 0.42, 0.8, 12), m.wood, x, 0.45, z);
-    for (const y of [0.05, 0.9]) b.add(new THREE.CylinderGeometry(0.7, 0.7, 0.1, 16), m.wood, x, y, z);
+    // 69.0: the kit's spool (bolted flanges, the cable wound on).
+    if (!dress?.place('spool', new THREE.Matrix4().compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), x), new THREE.Vector3(1, 1, 1)))) {
+      b.add(new THREE.CylinderGeometry(0.42, 0.42, 0.8, 12), m.wood, x, 0.45, z);
+      for (const y of [0.05, 0.9]) b.add(new THREE.CylinderGeometry(0.7, 0.7, 0.1, 16), m.wood, x, y, z);
+    }
     col.addCylinder(x, z, 0.7, 0, 0.95, 'wood');
   };
   /** Stack of tyres. */
   const tyres = (x: number, z: number, n: number) => {
-    for (let i = 0; i < n; i++) b.add(new THREE.CylinderGeometry(0.42, 0.42, 0.26, 14), rubber, x, 0.13 + i * 0.27, z);
+    // 69.0: the kit's tyres (0.84 across: the collider's), each turned and a little off the one under it.
+    for (let i = 0; i < n; i++) {
+      const at = new THREE.Matrix4().compose(new THREE.Vector3(x + Math.sin(i * 2.1) * 0.02, i * 0.27, z + Math.cos(i * 1.7) * 0.02), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), i * 1.3), new THREE.Vector3(0.84 / 0.92, 0.27 / 0.28, 0.84 / 0.92));
+      if (!dress?.place('tyre', at)) b.add(new THREE.CylinderGeometry(0.42, 0.42, 0.26, 14), rubber, x, 0.13 + i * 0.27, z);
+    }
     col.addCylinder(x, z, 0.42, 0, n * 0.27, 'wood');
   };
   /** Scrap pile: rusted plates, an engine block, a sheet of roofing on top (axis-aligned, stacked). */
