@@ -2860,8 +2860,24 @@ The playtest: teach the bots to climb through windows; no menu on Esc after he d
 - Desert: `world` clean, `stress` 0/32,000 (3,000 samples: 2 in 96,000, a hut's window edge and a slab's side in the Cistern, both a sprint jump into a corner), graph all reachable, levelAI 510/512 (the two old failures).
 - Self-play: Desert 3, Docks 2, stuck 0.
 
+## 59.0: the Desert's score, again
+
+Branch `feature/desert-music-59.0`, from `feature/bots-hud-music-58.0` @ `3f3f1fb` (58.0, not merged yet).
+
+The playtest on 58.0's darksynth: the worst yet; make it like the dynamic background of Cyberpunk 2077, as cool and driving as it gets.
+
+### What changed
+- New voices (Instruments.ts): `slam` (a heavy kick: a fast sweep, a long sub, a click, a hard clip, pumping the mix), `crack` (a big snare: a pitched body, a long bright noise tail through a clip, the hall), `tick` (tight sixteenth hats), `growl` (an FM saw pair and a square an octave down through a hard drive and a resonant lowpass an LFO sweeps; a clean sub under it; slides), `power` (distorted power chords through a cabinet's band: chugs, walls), `glitch` (bursts of random blips and noise), `impact` (a deep boom and a crack), `scream` (the hook's synth brass: saws and a pulse through a drive, a bright opening filter, a lot of delay).
+- The theme (`DESERT_THEME`): an industrial combat score in F♯ Phrygian at 136 (F♯m D Em G, two bars each), half-time. From the first second: the kick on one and the and-of-two, the snare on three with rolls into every fourth bar, sixteenth ticks, the growl playing a two-bar riff with an eighth-note filter sweep and a slide up, a dark bed. With the fight: power-chord chugs on the riff's accents (a held wall at the top), a fast square arp through the delay, the hook (a fixed four-bar synth-brass motif, the same every time), and at the top the kick on every beat, glitch bursts, impacts with a crash every eight bars and a riser into them. The 58.0 darksynth is gone.
+- Level: −14…−15 dB RMS through the limiter (the Docks' −15…−18), peaks under full scale (`gain` 0.52: 0.62 went 0.7 dB over).
+- DEV: `__dev.musicWav({ id, parts })` renders a theme to a WAV (base64) over [bars, intensity] parts, as the game mixes it: to listen to without playing.
+
+### Checks
+- Tests 546 (the desert's: the half-time drums, the ticks and the riff from the first bar with nothing else; the fight's layers; the hook and the arp in F♯ Phrygian, the hook the same each time round). The music tests now bring a layer in only from its intensity up, as the game does.
+
 ## Next
 Human playtest:
+- 59.0 items: the Desert's new score (the drive, the riff, the hook; too busy, too loud over the guns).
 - 58.0 items: the bots diving through the Desert's windows; any bot still jumping on the spot (where); Esc while dead; the capture line under the crosshair (too big, too small, in the way); the full board when you're out; the Desert's new music (drive, too busy, too loud next to the guns).
 - 57.0 items: wallbangs (do you notice them, are the shares right: 60% through a sheet feels like too much or too little; is it clear what can be shot through); the window dive (does it trigger when you want it and never when you don't; the duck under the lintel; which windows you'd want it on that it misses).
 - 56.0 items: the Desert's middle (the Cistern: do you use the arms by the gates, is the hall a good fight or a trap; the sinkhole: dropping in, the slabs; the hoist as a landmark; the head-high HESCO: the middle shut off enough from the flanks, or too shut; the roofs' sheds and shades: enough cover from the Blocks; the blast walls and containers in the dunes; the hall's light: dark enough to feel underground, bright enough to fight in).

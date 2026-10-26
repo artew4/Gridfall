@@ -15,7 +15,7 @@ describe('music manager', () => {
   });
 });
 
-import { D_MINOR, DESERT_THEME, HIJAZ, HIJAZ_KAR, JUNGLE_THEME, makePhrase, type ThemeDef } from './Themes';
+import { FS_PHRYGIAN, DESERT_THEME, HIJAZ, HIJAZ_KAR, JUNGLE_THEME, makePhrase, type ThemeDef } from './Themes';
 import { mulberry32 } from '../../core/math';
 
 /** Play a theme's every layer for `bars` bars at `intensity`, recording each instrument call. */
@@ -27,6 +27,8 @@ function record(def: ThemeDef, bars: number, intensity = 1) {
   for (let bar = 0; bar < bars; bar++) for (let step = 0; step < 16; step++) {
     const chord = def.chords[Math.floor(bar / def.barsPerChord) % def.chords.length];
     for (const l of def.layers) {
+      // (A layer plays only from its intensity up, as PatternTheme brings it in.)
+      if (l.on > 0 && intensity < l.on) continue;
       layer = l.id;
       l.play({ I, bus: {} as never, t: 0, step, bar, chord, s16: 60 / def.bpm / 4, intensity, rnd });
     }
@@ -50,24 +52,29 @@ describe('25.0: the jungle theme is drums and bass only', () => {
   });
 });
 
-describe('58.0: the desert theme drives (darksynth in D minor)', () => {
-  it('from the first bar (no fight): four on the floor, rolling sixteenths of bass, hats and a pad', () => {
+describe('59.0: the desert theme is an industrial combat score (F♯ Phrygian, half-time)', () => {
+  it('from the first bar (no fight): the half-time kick and the snare on three, sixteenth ticks, the growl riff, a bed', () => {
     const calm = record(DESERT_THEME, 4, 0);
-    const kicks = calm.filter((c) => c.fn === 'kick').length, bass = calm.filter((c) => c.fn === 'bass').length;
-    expect(kicks).toBe(16);
-    expect(bass).toBe(64);
-    for (const f of ['hat', 'pad']) expect(calm.some((c) => c.fn === f), f).toBe(true);
-    expect(DESERT_THEME.bpm).toBeGreaterThanOrEqual(120);
+    const at = (fn: string) => calm.filter((c) => c.fn === fn);
+    expect(at('slam').length).toBe(10);
+    expect(at('crack').length).toBeGreaterThanOrEqual(4);
+    expect(at('tick').length).toBe(64);
+    expect(at('growl').length).toBe(32);
+    expect(at('pad').length).toBeGreaterThan(0);
+    for (const f of ['power', 'scream', 'glitch', 'pluck']) expect(at(f).length, f).toBe(0);
   });
-  it('in a fight: the arp, the snare and clap, the saw lead, stabs and the riser', () => {
-    const used = new Set(record(DESERT_THEME, 16, 1).map((c) => c.fn));
-    for (const f of ['pluck', 'snare', 'clap', 'lead', 'stab', 'riser', 'crash']) expect(used.has(f), f).toBe(true);
+  it('in a fight: the chugs, the arp, the hook, glitches, impacts, the riser and the kick on every beat', () => {
+    const hot = record(DESERT_THEME, 16, 1);
+    for (const f of ['power', 'pluck', 'scream', 'glitch', 'impact', 'riser', 'crash']) expect(hot.some((c) => c.fn === f), f).toBe(true);
+    expect(hot.filter((c) => c.fn === 'slam').length).toBeGreaterThan(record(DESERT_THEME, 16, 0).filter((c) => c.fn === 'slam').length);
   });
-  it('every melodic note is in D minor, the maqam gone', () => {
-    const dm = new Set(D_MINOR.map((n) => n % 12));
-    expect([...dm].sort((a, b) => a - b)).toEqual([0, 2, 4, 5, 7, 9, 10]);
-    for (const c of record(DESERT_THEME, 16, 1)) if (c.fn === 'lead' || c.fn === 'pluck') expect(dm.has((c.args[0] as number) % 12), String(c.args[0])).toBe(true);
-    expect(record(DESERT_THEME, 16, 1).some((c) => c.fn === 'darbuka' || c.fn === 'flute' || c.fn === 'bowed')).toBe(false);
+  it('the hook and the arp are in F♯ Phrygian, and the hook is the same every time round', () => {
+    const ph = new Set(FS_PHRYGIAN.map((n) => n % 12));
+    expect([...ph].sort((a, b) => a - b)).toEqual([1, 2, 4, 6, 7, 9, 11]);
+    const hot = record(DESERT_THEME, 16, 1);
+    for (const c of hot) if (c.fn === 'scream' || c.fn === 'pluck') expect(ph.has((c.args[0] as number) % 12), String(c.args[0])).toBe(true);
+    const hook = hot.filter((c) => c.fn === 'scream').map((c) => c.args[0]);
+    expect(hook.slice(0, hook.length / 4)).toEqual(hook.slice(hook.length / 4, hook.length / 2));
   });
   it('phrases walk by step and end on the tonic or the fifth', () => {
     const r = mulberry32(11);

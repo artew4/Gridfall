@@ -530,4 +530,168 @@ export class Instruments {
     const o = this.osc('triangle', 620, t, 0.06);
     o.connect(this.env(t, 0.12 * vel * k, 0.001, 0.05)).connect(bus.drums);
   }
+
+  // ---------------------------------------------------------------- 59.0: the Desert's combat score (heavy)
+  /**
+   * A heavy kick: a fast sweep (230 → 48 Hz) for the punch, a long sub tail, a square click for the
+   * attack, all through a hard clip; it pumps the bass and the synths.
+   */
+  slam(bus: TrackBus, t: number, vel = 1, opts: { pump?: number; release?: number } = {}) {
+    const o = this.osc('sine', 230, t, 0.6);
+    o.frequency.exponentialRampToValueAtTime(52, t + 0.045);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.45);
+    const g = this.env(t, 1.0 * vel, 0.001, 0.5);
+    const d = this.drive(3.2);
+    o.connect(g).connect(d).connect(bus.drums);
+    const c = this.osc('square', 1800, t, 0.012);
+    c.connect(this.filt('highpass', 1200)).connect(this.env(t, 0.22 * vel, 0.0005, 0.01)).connect(bus.drums);
+    bus.duck(t, opts.pump ?? 0.7, opts.release ?? 0.24);
+  }
+
+  /** A big snare: a pitched body, a long bright noise tail through a clip, a gated hall send. */
+  crack(bus: TrackBus, t: number, vel = 1, opts: { tail?: number; room?: number } = {}) {
+    const o = this.osc('triangle', 240, t, 0.15);
+    o.frequency.exponentialRampToValueAtTime(170, t + 0.08);
+    o.connect(this.env(t, 0.5 * vel, 0.001, 0.12)).connect(bus.drums);
+    const tail = opts.tail ?? 0.32;
+    const n = this.noiseSrc(t, tail + 0.05);
+    const hp = this.filt('highpass', 1400, 0.7);
+    const pk = this.filt('peaking', 4200, 1);
+    pk.gain.value = 5;
+    const g = this.env(t, 0.55 * vel, 0.001, tail);
+    const d = this.drive(2.2);
+    n.connect(hp).connect(pk).connect(g).connect(d).connect(bus.drums);
+    const s = this.ctx.createGain();
+    s.gain.value = (opts.room ?? 0.5) * vel;
+    g.connect(s).connect(bus.reverbIn);
+  }
+
+  /** Tight sixteenth hats (a closed tick, open on request), a little bandpassed grit. */
+  tick(bus: TrackBus, t: number, vel = 1, open = false) {
+    const n = this.noiseSrc(t, open ? 0.3 : 0.04);
+    const hp = this.filt('highpass', open ? 7000 : 9000);
+    n.connect(hp).connect(this.env(t, (open ? 0.1 : 0.075) * vel, 0.0005, open ? 0.24 : 0.025)).connect(bus.drums);
+  }
+
+  /**
+   * The growl: an FM saw pair (the modulator at the note's pitch, its index enveloped), a square an
+   * octave down, through a hard drive and a resonant lowpass whose cutoff an LFO (`rate` Hz, synced by
+   * the caller) sweeps from `lo` to `hi`; a clean sine sub under it. `from`: slide in from that note.
+   */
+  growl(bus: TrackBus, t: number, note: number, dur: number, vel = 1, opts: { lo?: number; hi?: number; rate?: number; index?: number; drive?: number; from?: number } = {}) {
+    const f = midi(note);
+    const lo = opts.lo ?? 220, hi = opts.hi ?? 1600;
+    const lp = this.filt('lowpass', lo, 9);
+    const lfo = this.ctx.createOscillator();
+    lfo.type = 'triangle';
+    lfo.frequency.value = opts.rate ?? 4;
+    const lg = this.ctx.createGain();
+    lg.gain.value = (hi - lo) / 2;
+    lp.frequency.setValueAtTime((hi + lo) / 2, t);
+    lfo.connect(lg).connect(lp.frequency);
+    lfo.start(t);
+    lfo.stop(t + dur + 0.15);
+    // FM: a modulator at the note's frequency on both carriers' frequency, its depth falling.
+    const mod = this.osc('sine', f, t, dur + 0.1);
+    const mg = this.ctx.createGain();
+    const idx = (opts.index ?? 2.2) * f;
+    mg.gain.setValueAtTime(idx, t);
+    mg.gain.exponentialRampToValueAtTime(Math.max(1, idx * 0.25), t + Math.min(dur, 0.3));
+    mod.connect(mg);
+    const pre = this.ctx.createGain();
+    pre.gain.value = 0.5;
+    for (const det of [-14, 14]) {
+      const o = this.osc('sawtooth', opts.from ? midi(opts.from) : f, t, dur + 0.1, det);
+      if (opts.from) o.frequency.exponentialRampToValueAtTime(f, t + 0.06);
+      mg.connect(o.frequency);
+      o.connect(pre);
+    }
+    const sq = this.osc('square', f / 2, t, dur + 0.1);
+    if (opts.from) sq.frequency.exponentialRampToValueAtTime(f / 2, t + 0.06);
+    sq.connect(pre);
+    const d = this.drive(opts.drive ?? 5);
+    const g = this.env(t, 0.24 * vel, 0.003, 0.05, 0.85, Math.max(0, dur - 0.05), 0.04);
+    pre.connect(d).connect(lp).connect(g).connect(bus.bass);
+    const sub = this.osc('sine', f / 2, t, dur + 0.1);
+    sub.connect(this.env(t, 0.38 * vel, 0.003, 0.04, 0.9, Math.max(0, dur - 0.04), 0.04)).connect(bus.bass);
+  }
+
+  /**
+   * A distorted power chord (root, fifth, octave): detuned saws through a hard clip and a cabinet's
+   * band (highpass 110, lowpass 3.2 k): a chug when short, a wall when held.
+   */
+  power(bus: TrackBus, t: number, root: number, dur: number, vel = 1) {
+    const pre = this.ctx.createGain();
+    pre.gain.value = 0.35;
+    for (const iv of [0, 7, 12]) for (const det of [-9, 9]) this.osc('sawtooth', midi(root + iv), t, dur + 0.1, det).connect(pre);
+    const d = this.drive(7);
+    const hp = this.filt('highpass', 110, 0.7);
+    const lp = this.filt('lowpass', 3200, 0.9);
+    const g = this.env(t, 0.1 * vel, 0.002, 0.06, 0.8, Math.max(0, dur - 0.06), 0.05);
+    pre.connect(d).connect(hp).connect(lp).connect(g).connect(bus.synth);
+    const s = this.ctx.createGain();
+    s.gain.value = 0.25;
+    g.connect(s).connect(bus.reverbIn);
+  }
+
+  /** A glitch: `n` blips of noise and square at random pitches across `dur` s (a stutter, a data burst). */
+  glitch(bus: TrackBus, t: number, dur: number, vel = 1, n = 8) {
+    const hp = this.filt('highpass', 400);
+    hp.connect(bus.lead);
+    const s = this.ctx.createGain();
+    s.gain.value = 0.3;
+    hp.connect(s).connect(bus.delayIn);
+    for (let i = 0; i < n; i++) {
+      const tt = t + (dur * i) / n;
+      const len = (dur / n) * (0.4 + Math.random() * 0.5);
+      if (Math.random() < 0.5) {
+        const o = this.osc('square', 200 + Math.random() * 2400, tt, len);
+        o.connect(this.env(tt, 0.06 * vel, 0.0008, len)).connect(hp);
+      } else {
+        const nz = this.noiseSrc(tt, len);
+        nz.connect(this.filt('bandpass', 800 + Math.random() * 6000, 4)).connect(this.env(tt, 0.2 * vel, 0.0008, len)).connect(hp);
+      }
+    }
+  }
+
+  /** An impact: a deep boom (65 → 28 Hz), a noise crack, the hall. */
+  impact(bus: TrackBus, t: number, vel = 1) {
+    const o = this.osc('sine', 65, t, 1.6);
+    o.frequency.exponentialRampToValueAtTime(28, t + 1.4);
+    o.connect(this.env(t, 0.9 * vel, 0.002, 1.4)).connect(bus.drums);
+    const n = this.noiseSrc(t, 0.4);
+    const g = this.env(t, 0.35 * vel, 0.001, 0.35);
+    n.connect(this.filt('lowpass', 2500)).connect(g).connect(bus.drums);
+    const s = this.ctx.createGain();
+    s.gain.value = 0.8;
+    g.connect(s).connect(bus.reverbIn);
+  }
+
+  /**
+   * The hook's voice: a hard-synced-sounding lead (two saws a fifth-octave apart, pulse under them)
+   * through a drive and a bright lowpass, lots of delay: the synth brass of a night city.
+   */
+  scream(bus: TrackBus, t: number, note: number, dur: number, vel = 1, opts: { from?: number; glide?: number } = {}) {
+    const f = midi(note);
+    const pre = this.ctx.createGain();
+    pre.gain.value = 0.4;
+    for (const [ratio, type, det] of [[1, 'sawtooth', -8], [1, 'sawtooth', 8], [2, 'square', 0], [0.5, 'sawtooth', 0]] as [number, OscillatorType, number][]) {
+      const o = this.osc(type, (opts.from ? midi(opts.from) : f) * ratio, t, dur + 0.2, det);
+      if (opts.from) o.frequency.exponentialRampToValueAtTime(f * ratio, t + (opts.glide ?? 0.07));
+      o.connect(pre);
+    }
+    const d = this.drive(3);
+    const lp = this.filt('lowpass', 900, 3);
+    lp.frequency.setValueAtTime(900, t);
+    lp.frequency.exponentialRampToValueAtTime(4200, t + 0.08);
+    lp.frequency.exponentialRampToValueAtTime(2200, t + Math.max(0.12, dur));
+    const g = this.env(t, 0.07 * vel, 0.005, 0.1, 0.8, Math.max(0, dur - 0.1), 0.12);
+    pre.connect(d).connect(lp).connect(g).connect(bus.lead);
+    const dl = this.ctx.createGain();
+    dl.gain.value = 0.5;
+    g.connect(dl).connect(bus.delayIn);
+    const r = this.ctx.createGain();
+    r.gain.value = 0.45;
+    g.connect(r).connect(bus.reverbIn);
+  }
 }

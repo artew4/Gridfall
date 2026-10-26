@@ -120,6 +120,10 @@ export function installDevTools(game: Game) {
     async musicSpectrum(opts: { ids?: string[]; seconds?: number; intensity?: number } = {}) {
       return (await import('./MusicRender')).musicSpectrum(opts);
     },
+    /** 59.0: a theme rendered to a WAV (base64) over [bars, intensity] parts, to listen to. */
+    async musicWav(opts: { id?: string; parts?: [number, number][] } = {}) {
+      return (await import('./MusicRender')).musicWav(opts);
+    },
     lock() {
       game.input.locked = true;
       if (game.state === 'paused') g.resume();

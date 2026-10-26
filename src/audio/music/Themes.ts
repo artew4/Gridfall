@@ -261,93 +261,123 @@ export function makePhrase(rnd: () => number, start: number, lo: number, hi: num
 
 
 /*
-  58.0, the desert re-scored (the playtest: "the music on the Desert is awful; it needs something
-  dynamic, cyberpunk and pumping that drives the game"): darksynth in D minor at 128, i–VI–III–VII
-  (Dm B♭ F C), and it drives from the first bar: a four-on-the-floor kick pumping the mix, a rolling
-  sixteenth bass (the octave on the off-sixteenths, a driven filter snapping open on each), offbeat
-  hats, a dark pad. As the fight grows: a sixteenth arpeggio of the chord through the tempo delay, a
-  snare and clap on two and four with a fill into every fourth bar, a saw lead playing phrases of the
-  scale (by step, landing on the tonic or the fifth, sliding into notes), and at the top stabs, a
-  riser into every eighth bar and a crash on its downbeat. (The 25.0 maqam theme went with it.)
+  59.0, the desert re-scored again (the playtest on 58.0's darksynth: "the worst; make it like the
+  dynamic background of Cyberpunk 2077, as cool and as driving as it gets"). Industrial combat score in
+  F♯ Phrygian at 136 (F♯m D Em G), half-time: a heavy kick on one and the and-of-two, a big snare on three, sixteenth
+  ticks; a growling FM bass playing a one-bar riff over the chords (F♯ D E G, two bars each, G the
+  Phrygian's flat second), its filter swept by an eighth-note LFO, a slide up into the bar's end; from
+  the first second it moves. As the fight grows: distorted power-chord chugs on the riff's accents, a
+  fast arp through the delay, the hook (a screaming synth-brass motif, four bars, the same every time:
+  something to remember), and at the top glitch bursts, impacts, a riser into every eighth bar and the
+  kick on every beat under the half-time snare. (58.0's darksynth and 25.0's maqam are gone; the
+  maqam's scales stay as data.)
 */
-/** D natural minor from D4, two octaves (the lead's phrases walk it). */
-export const D_MINOR = [62, 64, 65, 67, 69, 70, 72, 74, 76, 77, 79, 81, 82, 84, 86];
+/** F♯ Phrygian from F♯3 (F♯ G A B C♯ D E), two octaves. */
+export const FS_PHRYGIAN = [54, 55, 57, 59, 61, 62, 64, 66, 67, 69, 71, 73, 74, 76, 78];
 
-/** The phrase each melodic layer is playing (made at the start of every second bar). */
-const desertPhrase: Record<string, Phrase> = {};
-function phraseStep(key: string, c: StepCtx, lo: number, hi: number, startDeg: number) {
-  const pos = (c.bar % 2) * 16 + c.step;
-  if (pos === 0 || !desertPhrase[key]) desertPhrase[key] = makePhrase(c.rnd, startDeg, lo, hi);
-  return desertPhrase[key].find(([s]) => s === pos) ?? null;
-}
-
-/** The arpeggio's order over the chord's tones (two octaves): up, and a turn at the top. */
-const ARP = [0, 1, 2, 3, 4, 3, 2, 1, 0, 2, 4, 6, 5, 3, 2, 1];
+/** The bass riff, two bars (step, length in steps, interval over the chord's root; `slide`: in from a semitone under). */
+const RIFF: [number, number, number, boolean?][][] = [
+  [[0, 3, 0], [3, 2, 0], [6, 2, 0], [8, 2, 12], [10, 1, 0], [11, 2, 0], [14, 2, 1, true]],
+  [[0, 2, 0], [2, 1, 0], [3, 2, 0], [6, 2, 7], [8, 4, 0], [12, 1, 12], [13, 1, 0], [14, 1, 12], [15, 1, 0]],
+];
+/** The hook, four bars (step from the hook's start, MIDI note, length in steps). */
+const HOOK: [number, number, number][] = [
+  [0, 66, 6], [6, 67, 2], [8, 69, 4], [12, 67, 2], [14, 66, 2],
+  [16, 64, 8], [24, 61, 6], [30, 62, 2],
+  [32, 66, 6], [38, 67, 2], [40, 69, 3], [43, 71, 3], [46, 73, 2],
+  [48, 74, 4], [52, 73, 4], [56, 69, 4], [60, 67, 4],
+];
+/** The arp's order over the chord's tones (sixteenths). */
+const ARP16 = [0, 2, 1, 3, 2, 4, 3, 5, 4, 3, 2, 1, 0, 1, 2, 3];
 
 export const DESERT_THEME: ThemeDef = {
   id: 'desert_theme',
-  bpm: 128,
-  gain: 0.7,
+  bpm: 136,
+  // (Measured: 0.62 put the peak 0.7 dB over full scale before the limiter; 0.52 sits with the Docks.)
+  gain: 0.52,
   barsPerChord: 2,
   chords: [
-    { root: 38, pad: [50, 53, 57, 62] },
-    { root: 34, pad: [50, 53, 58, 62] },
-    { root: 41, pad: [53, 57, 60, 65] },
-    { root: 36, pad: [52, 55, 60, 64] },
+    { root: 42, pad: [54, 57, 61, 66] },
+    { root: 38, pad: [50, 54, 57, 62] },
+    { root: 40, pad: [52, 55, 59, 64] },
+    { root: 43, pad: [55, 59, 62, 67] },
   ],
-  scale: D_MINOR,
+  scale: FS_PHRYGIAN,
   layers: [
-    // The engine: four on the floor, pumping everything else.
-    { id: 'kick', on: 0, off: 0, level: 0.85, part: 'drums', play: (c) => { if (c.step % 4 === 0) c.I.kick(c.bus, c.t, c.step === 0 ? 1 : 0.9, { pump: 0.45, release: 0.18, drive: 1.6 }); } },
     {
-      // Rolling sixteenths: root, root, octave, root; accents on the beat; the filter snapping open.
-      id: 'bass', on: 0, off: 0, level: 0.8, part: 'bass',
+      // Half-time: the kick on one and the and-of-two (a pickup into three in odd bars), pumping all.
+      id: 'kick', on: 0, off: 0, level: 0.9, part: 'drums',
       play: (c) => {
-        const up = c.step % 4 === 2;
-        const note = c.chord.root + 12 + (up ? 12 : 0);
-        c.I.bass(c.bus, c.t, note, c.s16 * 0.85, c.step % 4 === 0 ? 0.95 : up ? 0.75 : 0.6, { cutoff: 260 + c.intensity * 260, env: 1500 + c.intensity * 1800, drive: 2.2, detune: 7 });
-      },
-    },
-    { id: 'hats', on: 0, off: 0, level: 0.45, part: 'drums', play: (c) => { if (c.step % 4 === 2) c.I.hat(c.bus, c.t, 0.55, c.step === 14 && c.bar % 2 === 1); else if (c.step % 2 === 1 && c.intensity > 0.3) c.I.hat(c.bus, c.t, 0.22); } },
-    { id: 'pad', on: 0, off: 0, level: 0.4, part: 'synth', play: (c) => { if (c.step === 0 && c.bar % 2 === 0) c.I.pad(c.bus, c.t, c.chord.pad, c.s16 * 32 - 0.2, 0.75, 1100); } },
-    {
-      // The arpeggio: the chord's tones over two octaves in sixteenths, through the delay.
-      id: 'arp', on: 0.18, off: 0.1, level: 0.5, part: 'synth',
-      play: (c) => {
-        const tones = [...c.chord.pad.slice(0, 3).map((n) => n + 12), ...c.chord.pad.slice(0, 3).map((n) => n + 24)].sort((a, b) => a - b);
-        const n = tones[ARP[c.step] % tones.length];
-        c.I.pluck(c.bus, c.t, n, c.step % 4 === 0 ? 0.85 : 0.6, { type: 'sawtooth', cutoff: 2600 + c.intensity * 2400, decay: 0.16, delay: 0.45 });
+        if (c.step === 0 || c.step === 6 || (c.bar % 2 === 1 && c.step === 15)) c.I.slam(c.bus, c.t, c.step === 0 ? 1 : 0.85, { pump: 0.72 });
       },
     },
     {
-      // Two and four, a clap doubling the snare; a fill of sixteenths into every fourth bar.
-      id: 'snare', on: 0.32, off: 0.22, level: 0.7, part: 'drums',
+      // The snare on three; into every fourth bar a roll; a ghost before the one.
+      id: 'snare', on: 0, off: 0, level: 0.75, part: 'drums',
       play: (c) => {
-        if (c.step === 4 || c.step === 12) {
-          c.I.snare(c.bus, c.t, 0.85, 200, 0.3);
-          c.I.clap(c.bus, c.t, 0.55);
-        }
-        if (c.bar % 4 === 3 && c.step >= 13) c.I.snare(c.bus, c.t, 0.35 + (c.step - 13) * 0.15, 220, 0.2);
+        if (c.step === 8) c.I.crack(c.bus, c.t, 1, { room: 0.55 });
+        if (c.bar % 4 === 3 && c.step >= 12) c.I.crack(c.bus, c.t, 0.35 + (c.step - 12) * 0.15, { tail: 0.12, room: 0.2 });
+        else if (c.step === 15 && c.bar % 2 === 0) c.I.crack(c.bus, c.t, 0.25, { tail: 0.08, room: 0 });
       },
     },
     {
-      // The lead: a saw phrase on the scale, an octave over the arp, sliding into its long notes.
-      id: 'lead', on: 0.55, off: 0.42, level: 0.55, part: 'lead',
+      // Sixteenth ticks, accented on the eighths, an open one into three.
+      id: 'ticks', on: 0, off: 0, level: 0.5, part: 'drums',
+      play: (c) => c.I.tick(c.bus, c.t, c.step % 4 === 0 ? 0.9 : c.step % 2 === 0 ? 0.6 : 0.35 + c.intensity * 0.25, c.step === 6 && c.bar % 2 === 1),
+    },
+    {
+      // The riff: the growl's filter swept by an eighth-note LFO, opening with the fight.
+      id: 'growl', on: 0, off: 0, level: 0.85, part: 'bass',
       play: (c) => {
-        const n = phraseStep('lead', c, 0, 11, 4);
+        const hit = RIFF[c.bar % 2].find(([st]) => st === c.step);
+        if (!hit) return;
+        const [, len, iv, slide] = hit;
+        const note = c.chord.root + iv;
+        const rate = (136 / 60) * 2;
+        c.I.growl(c.bus, c.t, note, c.s16 * len * 0.92, iv === 0 && c.step === 0 ? 1 : 0.85, { lo: 180 + c.intensity * 220, hi: 900 + c.intensity * 2200, rate, index: 1.6 + c.intensity * 1.6, ...(slide ? { from: note - 1 } : {}) });
+      },
+    },
+    // A dark bed under it all.
+    { id: 'pad', on: 0, off: 0, level: 0.35, part: 'synth', play: (c) => { if (c.step === 0 && c.bar % 2 === 0) c.I.pad(c.bus, c.t, c.chord.pad.map((n) => n - 12), c.s16 * 32 - 0.2, 0.7, 700); } },
+    {
+      // Power chords on the riff's accents (a held wall on the chord's first bar at the top).
+      id: 'chug', on: 0.28, off: 0.18, level: 0.7, part: 'synth',
+      play: (c) => {
+        const r = c.chord.root + 12;
+        if (c.intensity > 0.85 && c.step === 0 && c.bar % 2 === 0) return c.I.power(c.bus, c.t, r, c.s16 * 7, 0.9);
+        if (c.step === 0 || c.step === 3 || c.step === 6 || c.step === 11 || (c.bar % 2 === 1 && c.step === 14)) c.I.power(c.bus, c.t, r, c.s16 * 0.9, c.step === 0 ? 1 : 0.75);
+      },
+    },
+    {
+      // A fast arp of the chord (two octaves) through the delay.
+      id: 'arp', on: 0.42, off: 0.3, level: 0.45, part: 'synth',
+      play: (c) => {
+        const tones = [...c.chord.pad.slice(0, 3).map((n) => n + 12), ...c.chord.pad.slice(0, 3).map((n) => n + 24)];
+        c.I.pluck(c.bus, c.t, tones[ARP16[c.step] % tones.length], c.step % 4 === 0 ? 0.8 : 0.55, { type: 'square', cutoff: 3600, decay: 0.09, delay: 0.5 });
+      },
+    },
+    {
+      // The hook: four bars, the same every time, screaming over the chug.
+      id: 'hook', on: 0.58, off: 0.45, level: 0.6, part: 'lead',
+      play: (c) => {
+        const pos = (c.bar % 4) * 16 + c.step;
+        const n = HOOK.find(([st]) => st === pos);
         if (!n) return;
-        const note = D_MINOR[n[1]];
-        const from = n[2] >= 4 && c.rnd() < 0.5 ? note - 2 : undefined;
-        c.I.lead(c.bus, c.t, note, c.s16 * n[2] * 0.92, 0.8, { type: 'sawtooth', cutoff: 3400, vibrato: 0.6, ...(from ? { from, glide: 0.07 } : {}) });
+        const prev = HOOK[HOOK.indexOf(n) - 1];
+        c.I.scream(c.bus, c.t, n[1], c.s16 * n[2] * 0.95, 0.9, n[2] >= 4 && prev ? { from: prev[1], glide: 0.06 } : {});
       },
     },
     {
-      // The top: stabs on the off-beats, a riser into every eighth bar, a crash on its downbeat.
-      id: 'peak', on: 0.78, off: 0.64, level: 0.55, part: 'synth',
+      // The top: the kick on every beat, glitch bursts, impacts, a riser into every eighth bar.
+      id: 'peak', on: 0.75, off: 0.62, level: 0.6, part: 'drums',
       play: (c) => {
-        if (c.step === 3 || c.step === 6 || c.step === 11) c.I.stab(c.bus, c.t, c.chord.pad.map((p) => p + 12), 0.55);
-        if (c.bar % 8 === 6 && c.step === 0) c.I.riser(c.bus, c.t, c.t + c.s16 * 32, 0.6);
-        if (c.bar % 8 === 0 && c.step === 0) c.I.crash(c.bus, c.t, 0.5);
+        if (c.step === 4 || c.step === 12) c.I.slam(c.bus, c.t, 0.8, { pump: 0.5 });
+        if (c.bar % 2 === 1 && c.step === 12) c.I.glitch(c.bus, c.t, c.s16 * 4, 0.8, 12);
+        if (c.bar % 8 === 0 && c.step === 0) {
+          c.I.impact(c.bus, c.t, 0.9);
+          c.I.crash(c.bus, c.t, 0.5);
+        }
+        if (c.bar % 8 === 6 && c.step === 0) c.I.riser(c.bus, c.t, c.t + c.s16 * 32, 0.7);
       },
     },
   ],
