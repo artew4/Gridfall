@@ -146,6 +146,8 @@ export class NeonBlockLevel implements LevelRuntime {
   startAudio() {
     // 25.0: the city without its rain bed.
     this.game.audio.setAmbience('city-dry');
+    // 63.0: its open ground is wet: footsteps on it splash.
+    this.game.audio.setWetGround(true);
   }
 
   private under(p: THREE.Vector3) {

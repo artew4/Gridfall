@@ -295,6 +295,27 @@ export class CollisionWorld {
     return hit;
   }
 
+  /**
+   * 63.0: what the feet stand on (the footsteps' material): the surface of the highest walkable thing
+   * under (x, z) within `reach` of the feet (the terrain's own, the street plane's concrete), and
+   * whether something is overhead within 30 m (indoors, under a roof: no rain on that floor).
+   */
+  groundSurfaceAt(x: number, z: number, feetY: number, reach = 0.35): { surface: Surface; covered: boolean } {
+    let h = -Infinity, surface: Surface = this.terrain ? this.terrain.surface : 'concrete';
+    if (this.terrain) h = this.terrain.height(x, z);
+    else if (!(feetY < -0.6 || this.inHole(x, z))) h = 0;
+    const r = 0.2;
+    for (const c of this.query(x - r, z - r, x + r, z + r)) {
+      if (!c.floor || (!c.solid && c.kind !== 'ramp')) continue;
+      if (x + r < c.min.x || x - r > c.max.x || z + r < c.min.z || z - r > c.max.z) continue;
+      const top = c.kind === 'ramp' ? this.rampHeight(c, x, z) : c.max.y;
+      if (top > feetY + reach || top <= h) continue;
+      h = top;
+      surface = c.surface;
+    }
+    return { surface, covered: this.ceilingAbove(x, z, 0.15, feetY + 0.3) < feetY + 30 };
+  }
+
   /** Highest walkable surface under a point that is no more than `reach` above the feet. */
   groundHeightAt(x: number, z: number, radius: number, feetY: number, reach = 0.3): number {
     let h: number;

@@ -534,7 +534,7 @@ export abstract class Enemy implements Combatant {
       const prev = Math.floor(this.walkPhase / Math.PI);
       this.walkPhase += hs * dt * (this.heavy ? 2.4 : 2.0);
       if (Math.floor(this.walkPhase / Math.PI) !== prev && hs > 1 && this.stepIdx++ % 1 === 0) {
-        if (this.pos.distanceToSquared(ctx.player.pos) < 400) ctx.audio.enemyStep(this.pos, this.heavy);
+        if (this.pos.distanceToSquared(ctx.player.pos) < 400) ctx.audio.enemyStep(this.pos, this.heavy, ctx.audio.stepSurface?.(ctx.col.groundSurfaceAt(this.pos.x, this.pos.z, this.pos.y)));
       }
       this.animate(dt, ctx, hs);
     }

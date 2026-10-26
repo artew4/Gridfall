@@ -245,6 +245,8 @@ export class TokyoLevel implements LevelRuntime {
   startAudio() {
     const audio = this.game.audio;
     audio.setAmbience('city');
+    // 63.0: its open ground is wet: footsteps on it splash.
+    audio.setWetGround(true);
     this.hums = [];
     for (const g of this.signs) {
       if (g.hum) this.hums.push({ glow: g, h: audio.addHum(g.pos, 100 + Math.random() * 20), last: 1 });

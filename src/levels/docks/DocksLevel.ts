@@ -163,6 +163,8 @@ export class DocksLevel implements LevelRuntime {
 
   startAudio() {
     this.game.audio.setAmbience('city');
+    // 63.0: its open ground is wet: footsteps on it splash.
+    this.game.audio.setWetGround(true);
   }
 
   private inside(p: THREE.Vector3) {

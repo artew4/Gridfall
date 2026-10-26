@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { rand } from '../core/math';
 import type { GunSound } from '../entities/types';
 import { pumpLayers, reloadRecipe, type Layer, type ReloadKind, type ReloadStage } from './ReloadSynth';
+import { SfxBank } from './sfx/SfxBank';
+import type { StepSurface } from './sfx/Designs';
 
 type V3 = { x: number; y: number; z: number };
 
@@ -10,6 +12,9 @@ type V3 = { x: number; y: number; z: number };
  * a layered gunshot through a procedurally generated "narrow alley" reverb, footsteps and UI cues.
  */
 export type VolumeGroup = 'master' | 'music' | 'sfx';
+
+/** 63.0: each gun's report level (the designed buffers peak alike; the shotgun is the loudest, the SMG the quietest). */
+const GUN_VOL: Record<string, number> = { pistol: 1.0, smg: 0.75, rifle: 1.1, shotgun: 1.3 };
 
 export class AudioEngine {
   ctx!: AudioContext;
@@ -55,6 +60,13 @@ export class AudioEngine {
   private flapTimer = 5;
   private rumble: { g: GainNode; lp: BiquadFilterNode; whine: OscillatorNode; wg: GainNode } | null = null;
   private hums: { gain: GainNode; base: number }[] = [];
+  /**
+   * 63.0: the sound effects as designed buffers (sfx/Designs.ts), rendered when the audio starts; a
+   * sound plays its buffer once its key is ready, its live synthesis until then.
+   */
+  readonly bank = new SfxBank();
+  /** 63.0: the level's open ground is wet (rain, or just after it): footsteps on concrete splash. */
+  private wetGround = false;
 
   start() {
     if (this.started) {
@@ -120,6 +132,36 @@ export class AudioEngine {
     this.brown = this.noiseBuffer('brown');
     this.levelBus = ctx.createGain();
     this.levelBus.connect(this.amb);
+    void this.bank.build(ctx);
+  }
+
+  /**
+   * 63.0: a buffer from the bank (a variant, a touch of pitch either way) out through `out` (positional
+   * if `pos`, with its reverb send). False if the key isn't rendered yet: the caller synthesises.
+   */
+  private sample(key: string, pos: V3 | null, send: number, vol: number, bus: GainNode = this.sfx, pitch = 0.04) {
+    const buf = this.bank.pick(key);
+    if (!buf) return false;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = 1 + (Math.random() * 2 - 1) * pitch;
+    const g = this.ctx.createGain();
+    g.gain.value = vol;
+    src.connect(g).connect(this.out(pos, send, bus));
+    src.start(this.now());
+    return true;
+  }
+
+  /** 63.0: the level's open ground is wet (footsteps on open concrete splash). */
+  setWetGround(on: boolean) {
+    this.wetGround = on;
+  }
+
+  /** 63.0: a footstep's material from what the feet stand on (Collision.groundSurfaceAt). */
+  stepSurface(g: { surface: string; covered: boolean }): StepSurface {
+    const s = g.surface;
+    if (s === 'metal' || s === 'wood' || s === 'sand') return s;
+    return this.wetGround && !g.covered ? 'wet' : 'concrete';
   }
 
   /** A looping source that belongs to the loaded level (stopped by clearLevel). */
@@ -130,6 +172,7 @@ export class AudioEngine {
 
   /** Stops and disconnects every sound the loaded level started (level switch). */
   clearLevel() {
+    this.wetGround = false;
     if (!this.started) return;
     for (const n of this.levelNodes) {
       try {
@@ -928,6 +971,8 @@ export class AudioEngine {
       this.insects.gain.setTargetAtTime(0.05, t, 0.05);
       this.insects.gain.setTargetAtTime(0.35, t + 1.2, 2.2);
     }
+    // 63.0: the designed report (the live layers below until the bank is ready).
+    if (this.sample(`shot_${kind}`, null, kind === 'shotgun' ? 0.9 : 0.55, GUN_VOL[kind], this.sfx, 0.03)) return;
     if (kind === 'rifle') return this.rifleShot();
     if (kind === 'smg') return this.smgShot();
     if (kind === 'shotgun') return this.shotgunShot();
@@ -998,12 +1043,14 @@ export class AudioEngine {
   /** Pump action: the fore-end racked back (cha) and slammed forward (chunk), as the reload's last stage. */
   pump() {
     if (!this.started) return;
+    if (this.sample('shotgun_pump', null, 0.15, 0.7, this.ui, 0.02)) return;
     this.play(pumpLayers(), this.out(null, 0.15, this.ui));
   }
 
   /** Holster: cloth rustle and a soft clip; draw: a quick metallic slide. */
   holster(away: boolean) {
     if (!this.started) return;
+    if (!away && this.sample('draw', null, 0.08, 0.5)) return;
     const t = this.now();
     const o = this.out(null, 0.08);
     if (away) {
@@ -1018,6 +1065,7 @@ export class AudioEngine {
 
   dryFire() {
     if (!this.started) return;
+    if (this.sample('dry', null, 0.05, 0.6)) return;
     const o = this.out(null, 0.05);
     this.tone(o, 'square', 2600, 2400, 0.08, 0.001, 0.015);
     this.burst(o, this.white, 'bandpass', 3000, 2, 0.1, 0.001, 0.02);
@@ -1026,6 +1074,9 @@ export class AudioEngine {
   /** 26.0: a stage of a reload, synthesised for the gun in hand (ReloadSynth's recipes). */
   reload(stage: ReloadStage, kind: ReloadKind = 'rifle') {
     if (!this.started) return;
+    // 63.0: the designed stage (a shotgun's 'in' is a shell, its 'rack' the pump).
+    const key = kind === 'shotgun' ? (stage === 'in' ? 'shotgun_in' : stage === 'rack' ? 'shotgun_pump' : '') : `${kind}_${stage}`;
+    if (key && this.sample(key, null, 0.1, 0.65, this.sfx, 0.03)) return;
     const r = reloadRecipe(kind, stage);
     if (r.length) this.play(r, this.out(null, 0.1));
   }
@@ -1044,12 +1095,15 @@ export class AudioEngine {
 
   shellBounce(pos: V3, strength: number) {
     if (!this.started) return;
+    if (this.sample('casing', pos, 0.05, 0.35 * strength, this.sfx, 0.06)) return;
     const o = this.out(pos, 0.05);
     this.metal(o, rand(3800, 5200), 0.04 * strength, 0.07, [1, 1.6, 2.9]);
   }
 
   hitSurface(pos: V3, surface: string) {
     if (!this.started) return;
+    const im = surface === 'metal' || surface === 'wood' || surface === 'sand' || surface === 'glass' ? surface : surface === 'flesh' ? 'body' : 'concrete';
+    if (this.sample(`impact_${im}`, pos, 0.35, 0.9, this.sfx, 0.08)) return;
     const o = this.out(pos, 0.35);
     if (surface === 'metal') {
       this.metal(o, rand(900, 1500), 0.18, 0.35);
@@ -1069,6 +1123,10 @@ export class AudioEngine {
 
   hitEnemy(pos: V3, armor: boolean) {
     if (!this.started) return;
+    if (this.sample('impact_body', pos, 0.25, 1, this.sfx, 0.06)) {
+      if (armor) this.metal(this.out(pos, 0.25), rand(700, 1000), 0.12, 0.2);
+      return;
+    }
     const o = this.out(pos, 0.25);
     this.tone(o, 'sine', 140, 55, 0.5, 0.002, 0.12);
     this.burst(o, this.white, 'lowpass', 2500, 0.8, 0.35, 0.001, 0.09);
@@ -1081,6 +1139,7 @@ export class AudioEngine {
 
   hitmarker(kill = false) {
     if (!this.started) return;
+    if (this.sample(kill ? 'kill' : 'hit', null, 0, kill ? 0.45 : 0.35, this.ui, 0.01)) return;
     const o = this.out(null, 0, this.ui);
     this.tone(o, 'sine', kill ? 1500 : 2300, kill ? 1500 : 2300, 0.07, 0.001, 0.035);
     if (kill) this.tone(o, 'sine', 2250, 2250, 0.06, 0.001, 0.12, this.now() + 0.06);
@@ -1119,8 +1178,9 @@ export class AudioEngine {
     this.muffle.frequency.exponentialRampToValueAtTime(20000, t + 0.7);
   }
 
-  footstep(intensity: number) {
+  footstep(intensity: number, surface: StepSurface = 'concrete') {
     if (!this.started) return;
+    if (this.sample(`step_${surface}`, null, 0.08, 0.5 * intensity, this.sfx, 0.06)) return;
     const t = this.now();
     const o = this.out(null, 0.08);
     this.burst(o, this.white, 'bandpass', rand(900, 1500), 1.0, 0.12 * intensity, 0.003, 0.07, t);
@@ -1131,17 +1191,34 @@ export class AudioEngine {
   /** 12.0: a slide: grit under the boots, a low scrape that dies away with the speed. */
   slide(intensity: number) {
     if (!this.started) return;
+    if (this.sample('slide', null, 0.12, 0.6 * intensity, this.sfx, 0.05)) return;
     const t = this.now();
     const o = this.out(null, 0.12);
     this.burst(o, this.pink, 'lowpass', 1400, 0.7, 0.32 * intensity, 0.02, 0.95, t, 300);
     this.burst(o, this.white, 'bandpass', 2600, 1.2, 0.07 * intensity, 0.01, 0.6, t, 900);
   }
 
-  land() {
+  land(surface: StepSurface = 'concrete') {
     if (!this.started) return;
+    if (this.sample('land', null, 0.1, 0.55, this.sfx, 0.05)) {
+      this.sample(`step_${surface}`, null, 0.08, 0.45, this.sfx, 0.05);
+      return;
+    }
     const o = this.out(null, 0.1);
     this.tone(o, 'sine', 100, 40, 0.4, 0.002, 0.15);
     this.burst(o, this.pink, 'lowpass', 900, 0.6, 0.35, 0.005, 0.25);
+  }
+
+  /** 63.0: hands on a ledge or a sill, the body hauled over. */
+  mantle() {
+    if (!this.started) return;
+    if (!this.sample('mantle', null, 0.08, 0.5)) this.footstep(0.9);
+  }
+
+  /** 63.0: the push-off of a jump (cloth and kit). */
+  jump() {
+    if (!this.started) return;
+    this.sample('jump', null, 0.05, 0.35);
   }
 
   // ------------------------------------------------------------------ enemies & world
@@ -1155,6 +1232,9 @@ export class AudioEngine {
   /** A bot's shot. 13.0: `gun` (an armory weapon) decides the report; without it, the look's voice does. */
   enemyShot(pos: V3, gun?: GunSound) {
     if (!this.started) return;
+    // 63.0: the same gun as his, heard from where it was fired (its designed far report).
+    const g = gun ?? 'rifle';
+    if (this.sample(`far_${g}`, pos, g === 'shotgun' ? 1.0 : 0.7, GUN_VOL[g] * 0.9, this.sfx, 0.05)) return;
     const o = this.out(pos, gun === 'shotgun' ? 1.0 : gun === 'smg' ? 0.4 : 0.7);
     if (gun === 'smg') {
       // 21.0: an SMG at range, a quick high rattle.
@@ -1201,6 +1281,7 @@ export class AudioEngine {
   /** A round snapping past him: a sharp supersonic crack (46.0: every round is a bullet). */
   roundWhiz(pos: V3) {
     if (!this.started) return;
+    if (this.sample('whiz', pos, 0.1, 0.55, this.sfx, 0.08)) return;
     const o = this.out(pos, 0.1);
     this.burst(o, this.white, 'highpass', 3500, 0.8, 0.22, 0.0005, 0.025);
   }
@@ -1242,8 +1323,9 @@ export class AudioEngine {
     this.burst(o, this.white, 'bandpass', 3500, 1.5, 0.35, 0.02, 0.14, this.now(), 600);
   }
 
-  enemyStep(pos: V3, heavy: boolean) {
+  enemyStep(pos: V3, heavy: boolean, surface: StepSurface = 'concrete') {
     if (!this.started) return;
+    if (this.sample(`step_${surface}`, pos, 0.05, heavy ? 0.45 : 0.32, this.sfx, 0.07)) return;
     const o = this.out(pos, 0.05);
     this.burst(o, this.pink, 'lowpass', heavy ? 500 : 900, 0.6, heavy ? 0.25 : 0.12, 0.004, 0.1);
     if (heavy) this.metal(o, 300, 0.03, 0.08, [1, 2.2]);

@@ -252,7 +252,7 @@ export class Player {
       if (idx !== this.lastStepIdx) {
         this.lastStepIdx = idx;
         // Crouched steps are quiet (11.0).
-        this.audio.footstep((this.sprinting ? 1 : 0.7) * lerp(1, HANDLING.crouchStepVol, this.crouch));
+        this.audio.footstep((this.sprinting ? 1 : 0.7) * lerp(1, HANDLING.crouchStepVol, this.crouch), this.floorSound());
       }
     }
 
@@ -278,14 +278,16 @@ export class Player {
       this.crouchToggle = false;
       this.vel.y = JUMP_V;
       this.onGround = false;
-      this.audio.footstep(0.6);
+      this.audio.footstep(0.6, this.floorSound());
+      this.audio.jump?.();
     } else if (legs && this.alive && this.onGround && input.pressed.has('Space') && this.crouch > 0.3) {
       // Space while crouched stands up instead of jumping (as long as there's room).
       this.crouchToggle = false;
     } else if (legs && this.alive && this.onGround && input.pressed.has('Space')) {
       this.vel.y = JUMP_V;
       this.onGround = false;
-      this.audio.footstep(0.6);
+      this.audio.footstep(0.6, this.floorSound());
+      this.audio.jump?.();
     }
     this.vel.y -= GRAVITY * dt;
     // Sub-stepped so no step moves the body more than MAX_STEP: at 20–30 FPS a sprint covers
@@ -342,7 +344,7 @@ export class Player {
     if (this.pos.y <= ground) {
       if (!this.wasOnGround && this.fallSpeed > 3) {
         this.landDip.impulse(-Math.min(this.fallSpeed, 8) * 0.25);
-        this.audio.land();
+        this.audio.land(this.floorSound());
         // Only genuinely long falls hurt (none of the district's drops do; high parapets guard the rest).
         const drop = this.peakY - ground;
         if (drop > 10) this.damage((drop - 10) * 12, this.pos.clone().setY(this.pos.y - 1), time);
@@ -377,7 +379,7 @@ export class Player {
     this.mantleExit = Math.max(MANTLE.exit, Math.hypot(this.vel.x, this.vel.z) * 0.8);
     this.mantleSide = Math.random() < 0.5 ? -1 : 1;
     this.sprinting = false;
-    this.audio.footstep(0.9);
+    this.audio.mantle?.();
   }
 
   /** 43.0: the pull-up (Mantle.mantlePos): up, then over the lip; he lands on it moving forward. */
@@ -415,7 +417,12 @@ export class Player {
     this.peakY = this.pos.y;
     this.fallSpeed = 0;
     this.landDip.impulse(-0.5);
-    this.audio.footstep(0.8);
+    this.audio.footstep(0.8, this.floorSound());
+  }
+
+  /** 63.0: what his boots are on, for the footsteps (Collision.groundSurfaceAt, the level's wet ground). */
+  private floorSound() {
+    return this.audio.stepSurface?.(this.col.groundSurfaceAt(this.pos.x, this.pos.z, this.pos.y)) ?? 'concrete';
   }
 
   private startSlide(speed: number) {

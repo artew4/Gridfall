@@ -2898,8 +2898,28 @@ Branch `feature/tokyo-track-62.0`, from `main` @ `ea78aa0` (61.0).
 - Maglev Terminal (a white hall in daylight) played `tokyo_theme` too: it has its own slot now (`maglev_theme`), the procedural Tokyo score as before.
 - The loop: the track winds down from 162 s (−18…−20 dB, its intro's level): the next pass (its foggy intro) comes in at 164.5 s, where the rhythm matches the start's, over 1.5 s (`loopStart` 0.1, `loopEnd` 166, `xfade` 1.5). Checked live on Neon Block.
 
+## 63.0: designed sound effects
+
+Branch `feature/sfx-63.0`, from `main` @ `65da049` (62.0).
+
+The ask: proper sounds for everything (shots, reloads, impacts, footsteps on each surface), made here. Every effect was 2–5 oscillators and noise bursts patched together live on each play.
+
+### The bank (src/audio/sfx)
+- `Dsp.ts`: sample-level DSP on Float32Arrays (seeded noise in three colours, an RBJ biquad with a gliding cutoff, envelopes, pitch sweeps, damped modes, soft clipping, debris grains, early reflections, the finish), so a sound is layered as a designer layers one.
+- `Designs.ts`: the recipes. Guns: a transient crack, a driven body under a falling lowpass, a low thump, the slide or bolt (metal modes), a tail with early reflections; each gun its own proportions (the SMG high and short, the shotgun huge and long) and a far version for the bots' shots (the crack and thump softened, the top rolled off, more tail). Reloads per gun and stage (the magazine out, in, the slide, the bolt or charging handle; the shotgun's shell and pump), dry fire, the draw, brass bouncing. Impacts on concrete (chips, dust), metal (a ping), wood (a thock, splinters), glass (shards), sand (a puff), a body (a thud, no gore); the whiz of a near miss. Footsteps (a heel and a toe) on concrete, metal, wood, sand, wet ground and gravel; the landing, the jump, the slide, the mantle; the hit tick and the kill chime.
+- `SfxBank.ts`: 193 buffers (2–10 variants a sound) rendered when the audio starts, a key at a time between frames (132 ms of work over 310 ms); a variant at random, never the last one, a touch of pitch.
+- The engine plays a sound's buffer once its key is ready, its old synthesis until then (and as a fallback).
+
+### The footsteps' surface
+- `Collision.groundSurfaceAt`: the surface of what the feet stand on (the terrain's, the street's concrete) and whether something is overhead. His steps, landings and the bots' steps take it: metal catwalks ring, wood knocks, the Desert's and the Crash Site's ground crunch. `AudioEngine.setWetGround` (Tokyo, Neon Block, the Docks): open concrete splashes.
+
+### Checks
+- Tests 547 (+1: every design renders finite, starts at once (the cloth rustles swell in), peaks at its level, its variants differ; the whole bank fast). Profiled after a first pass whose shots were 70–92% under 200 Hz: rebalanced (the crack and the tail up, the thump down): 14–71% now, the shotgun the deepest.
+- In play (Docks, GPU): no frame over 25 ms, no long task.
+
 ## Next
 Human playtest:
+- 63.0 items: the new sound effects (each gun's report, the reloads, the impacts, the footsteps per surface; anything thin, harsh or too loud next to the music).
 - 59.0 items: the Desert's new score (the drive, the riff, the hook; too busy, too loud over the guns).
 - 58.0 items: the bots diving through the Desert's windows; any bot still jumping on the spot (where); Esc while dead; the capture line under the crosshair (too big, too small, in the way); the full board when you're out; the Desert's new music (drive, too busy, too loud next to the guns).
 - 57.0 items: wallbangs (do you notice them, are the shares right: 60% through a sheet feels like too much or too little; is it clear what can be shot through); the window dive (does it trigger when you want it and never when you don't; the duck under the lintel; which windows you'd want it on that it misses).
