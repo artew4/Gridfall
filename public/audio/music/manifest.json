@@ -2,6 +2,10 @@
   "desert_theme": { "file": "desert_theme.mp3", "gain": 1, "loopStart": 0.08, "loopEnd": 157.572, "xfade": 0.8 },
   "tokyo_theme": [
     { "file": "tokyo_theme.mp3", "gain": 1, "loopStart": 0.1, "loopEnd": 166.0, "xfade": 1.5 },
-    { "file": "black_rain_and_bamboo.mp3", "gain": 1, "loopStart": 0.09, "loopEnd": 178.5, "xfade": 2.5 }
+    { "file": "black_rain_and_bamboo.mp3", "gain": 1, "loopStart": 0.09, "loopEnd": 178.5, "xfade": 2.5 },
+    { "file": "midnight_at_the_crossing.mp3", "gain": 1, "loopStart": 0.09, "loopEnd": 166.5, "xfade": 2.5 }
+  ],
+  "docks_theme": [
+    { "file": "black_water_harbor.mp3", "gain": 1, "loopStart": 0.1, "loopEnd": 159.5, "xfade": 2.5 }
   ]
 }

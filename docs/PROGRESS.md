@@ -3394,6 +3394,19 @@ The ask: "Black Rain and Bamboo" (generated outside the game, Gemini) as Tokyo N
 - Tests 659 (+2, `music.test.ts`: the next file never the current, every one comes up; the manifest's two files present with their windows).
 - Human playtest: the switch between the two in a long match (Neon Block, ~3 min in): no hole, no jump in loudness.
 
+## 88.0: Neon Docks' track, Tokyo's third
+
+Branch `feature/music-88.0`, from `feature/tokyo-tracks-87.0` @ `6fc9ce9` (87.0 not merged yet).
+
+The ask: two tracks generated outside the game (Gemini) in place, and the prompts that made them kept.
+
+- `black_water_harbor.mp3` ("Black Water Harbor", 2:58) as `docks_theme`: Neon Docks' first file (the procedural placeholder before). A 8 s intro rising from −27 dB, its body at −11…−16 dB, an outro from 158 s fading to silence at 176 s: `loopStart` 0.1, `loopEnd` 159.5, `xfade` 2.5 (the outro's start crossfading into the intro). Old Port names `docks_theme` too: it plays it until it has its own.
+- `midnight_at_the_crossing.mp3` ("Midnight at the Crossing", 2:57, about 130 BPM) the third of `tokyo_theme`'s files: `loopStart` 0.09, `loopEnd` 166.5, `xfade` 2.5 (its fade from 165 s).
+- `docs/MUSIC_PROMPTS.md`: every prompt that worked with its file, what works (a short prompt: a genre, the tempo, 3–4 instruments, the place as a picture; no sound effects; don'ts only for a known failure), and Old Port's prompt, not generated yet (daylight: an organic action palette, not neon).
+- Checked live: Neon Docks and Old Port play Black Water Harbor; Neon Block over 6 loads: Midnight 4, Black Rain 2 (Violet Hour none: 9% for 6 loads at a third each; the pick is `nextFile`'s, tested).
+- Tests 659 (`music.test.ts`'s manifest check takes the three and the docks' one).
+- Human playtest: Black Water Harbor's loop on Neon Docks (~2:40 in): the outro into the intro.
+
 ## Next
 Human playtest:
 - 86.0 items: Neon Docks: the neon's light on the apron by the warehouse ends, the signs in the puddles, the dying tube, the manhole steam (in a sightline?), the oil.
