@@ -5,6 +5,9 @@ import type { Glow, Glows } from '../../world/Glows';
 import type { BuildCtx, Mats } from '../../world/City';
 import { addSign, type SignSpec } from '../../world/Signs';
 import { applyWet } from '../../world/Ground';
+import { bakeSpill, Spill, type SpillSource } from '../../world/Spill';
+import { StreetKit } from '../../world/StreetKit';
+import type { SignCatch } from '../../world/Storefronts';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import type { RainAreas } from '../../world/Rain';
 import { chainLinkTexture, concreteTexture as pavedTexture, perforatedTexture } from '../../world/Textures';
@@ -12,7 +15,7 @@ import { concreteTexture, steelTexture } from '../jungle/textures';
 import { corrugatedTexture, crateTexture } from '../desert/textures';
 import { Dresser, militaryMats } from '../../world/Dress';
 import { propKits } from '../../entities/weapons/models';
-import { BARGES, BASE, CAB, CONT, CRANE_STAIR, DECK, DEPOT, END_Z, EXITS, HALL, MAZE, QG, QUAY_WALLS, QUAY_X, TOWER, WEST_X, WH, lanesOf, mz, spawnsOf, stackColor, zoneAt } from './DocksLayout';
+import { BARGES, BASE, CAB, CONT, CRANE_STAIR, DECK, DEPOT, DRAINS, END_Z, EXITS, HALL, MAZE, QG, QUAY_WALLS, QUAY_X, TOWER, WEST_X, WH, lanesOf, mz, spawnsOf, stackColor, zoneAt } from './DocksLayout';
 import type { Zone } from '../Level';
 
 /*
@@ -39,6 +42,10 @@ export interface DocksResult {
   indoor: { x0: number; z0: number; x1: number; z1: number; y0: number; h: number };
   /** Lane waypoints that were found blocked when built (must be empty). */
   laneProblems: string[];
+  /** 86.0: the neon's light on the apron, the signs and tubes for the puddles, the manholes' steam. */
+  spill: Spill;
+  signPool: SignCatch[];
+  steamEmitters: THREE.Vector4[];
 }
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -50,7 +57,7 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   const hdr = (r: number, g: number, bl: number) => new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, bl) });
 
   const ground = std(pavedTexture(), 0x8a8e94, 0.7, 0, 1.15);
-  applyWet(ground, time, { puddles: true, wet: 0.88 });
+  applyWet(ground, time, { puddles: true, wet: 0.88, oil: true });
   const whFloor = std(concreteTexture('#5d605c', 1), 0xffffff, 0.6, 0, 0.9);
   applyWet(whFloor, time, { puddles: false, wet: 0.3 });
   const steel = (paint: string) => std(steelTexture(paint, 14), 0xffffff, 0.55, 0.35, 0.7);
@@ -722,16 +729,28 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
   hang(6, 8, false);
   hang(-6, -8, false);
   // Neon tubes on the warehouse corners and along the end walls (no lights: halos and the rain).
-  const tube = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.MeshBasicMaterial, color: THREE.Color) => {
+  // 86.0: the neon's light on the wet apron (Spill.ts: baked, no lights) and its glows for the puddles.
+  const spillFrom: SpillSource[] = [];
+  const neon: Glow[] = [];
+  const tube = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.MeshBasicMaterial, color: THREE.Color, mode: Glow['mode'] = 'buzz') => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.08, x1 - x0), Math.max(0.08, y1 - y0), Math.max(0.08, z1 - z0)), mat);
+    // (86.0: a dying tube its own material: its flicker its own.)
+    if (mode !== 'buzz') mesh.material = mat = mat.clone();
     mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
     scene.add(mesh);
-    glows.add({ pos: mesh.position.clone(), color, radius: 6, base: 0.8, mode: 'buzz', haloSize: 1.6, haloStrength: 0.25 });
+    const g = glows.add({ pos: mesh.position.clone(), color, radius: 6, base: 0.8, mode, haloSize: 1.6, haloStrength: 0.25 });
+    if (mode !== 'buzz') g.materials.push({ mat, base: mat.color.clone() });
+    neon.push(g);
   };
   for (const s of [1, -1]) {
     const tc = s > 0 ? new THREE.Color(0.6, 0.42, 1) : new THREE.Color(0.3, 0.5, 1);
     tube(-12, WH.h - 0.4, s * (WH.z1 + 0.06), 12, WH.h - 0.32, s * (WH.z1 + 0.14), s > 0 ? m.magenta : m.cyan, tc);
-    for (const x of [WH.x0 - 0.1, WH.x1 + 0.1]) tube(x - 0.04, 0.4, s * (WH.z1 + 0.1) - 0.04, x + 0.04, WH.h - 0.4, s * (WH.z1 + 0.1) + 0.04, s > 0 ? m.magenta : m.cyan, tc);
+    for (const x of [-9, -3, 3, 9]) spillFrom.push({ kind: 'pool', x, z: s * (WH.z1 + 0.8), h: WH.h - 0.4, radius: 6, colour: tc, power: 0.12 });
+    for (const x of [WH.x0 - 0.1, WH.x1 + 0.1]) {
+      // (86.0: one corner's tube dying, on OMEGA's end.)
+      tube(x - 0.04, 0.4, s * (WH.z1 + 0.1) - 0.04, x + 0.04, WH.h - 0.4, s * (WH.z1 + 0.1) + 0.04, s > 0 ? m.magenta : m.cyan, tc, s < 0 && x > 0 ? 'dying' : 'buzz');
+      spillFrom.push({ kind: 'pool', x: x + Math.sign(x) * 0.5, z: s * (WH.z1 + 0.6), h: 2.4, radius: 4.5, colour: tc, power: s < 0 && x > 0 ? 0.08 : 0.2 });
+    }
   }
   // Ship lights (glows only): masthead whites and port reds.
   for (const z of [-80, -40, 0, 40, 80]) {
@@ -752,7 +771,31 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     { text: 'ALPHA', color: '#3aa0ff', style: 'box', vertical: false, mount: 'wall', face: 'n', wall: BASE.z0, x: 0, y: 2.6, z: BASE.z0 - 0.12, size: 3.2, floorY: 0 },
     { text: 'OMEGA', color: '#ff3040', style: 'box', vertical: false, mount: 'wall', face: 's', wall: -BASE.z0, x: 0, y: 2.6, z: -BASE.z0 + 0.12, size: 3.2, floorY: 0 },
   ];
-  for (const s of signs) addSign(ctx, s);
+  for (const spec of signs) {
+    const g = addSign(ctx, spec);
+    neon.push(g);
+    // Its light on the apron under it (a dim, coloured pool: Tokyo's 84.0 for the docks).
+    spillFrom.push({ kind: 'pool', x: g.pos.x, z: g.pos.z, h: Math.max(2.5, g.pos.y), radius: 4 + spec.size, colour: g.color.clone(), power: spec.style === 'box' ? 0.12 : 0.22 });
+  }
+  // 86.0: manholes and drain grates on the apron (the street kit's: flush, no colliders), steam out of
+  // a few lids; only where nothing stands (a lid under a container is no lid).
+  const street = new StreetKit(ctx, []);
+  const steamEmitters: THREE.Vector4[] = [];
+  const clear = (x: number, z: number) => !col.blocked(v(x, 0.05, z), 0.5, 1.5);
+  for (const s of [1, -1]) {
+    for (const [x, z, steam] of DRAINS.manholes) {
+      if (!clear(x, z * s)) continue;
+      street.manhole(x, z * s);
+      if (steam) steamEmitters.push(new THREE.Vector4(x, 0.1, z * s, 0.4));
+    }
+    for (const z of DRAINS.grates) for (const x of [WH.x1 + 0.6, WH.x0 - 0.6]) if (clear(x, z * s)) street.grate(x, z * s);
+  }
+  (globalThis as unknown as { __docksStreet?: unknown }).__docksStreet = street.stats;
+  const spill = new Spill(bakeSpill(spillFrom, GX0, -GZ, GX1, GZ, 4));
+  // (Docks' paving brighter than Tokyo's asphalt: a softer gain.)
+  spill.gain.value.set(12, 5);
+  for (const mat of [ground, whFloor]) spill.apply(mat);
+  const signPool: SignCatch[] = neon.map((g) => ({ pos: g.pos.clone(), colour: g.color, glow: g, intensity: 10 }));
   dress?.finish(scene);
   if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
@@ -927,6 +970,9 @@ export function buildDocks(scene: THREE.Scene, col: CollisionWorld, glows: Glows
     catcherPicks: [
       ...lamps.slice(0, 4).map((g) => [g.pos.x, g.pos.y, g.pos.z] as [number, number, number]),
     ],
+    spill,
+    signPool,
+    steamEmitters,
     // 15.0: roofless: no longer indoors (no muffled rain, no shaded viewmodel). 32.0: roofed: indoors again.
     indoor: { x0: WH.x0, z0: WH.z0, x1: WH.x1, z1: WH.z1, y0: 0, h: WH.h },
     laneProblems,

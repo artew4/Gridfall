@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BARGES, BASE, CAB, CONT, CRANE_STAIR, DEPOT, EXITS, HALL, MAZE, MAZE_WEST, QG, QUAY_WALLS, QUAY_X, TOWER, WEST_X, WH, inBase, lanesOf, spawnsOf, stackColor, zoneAt } from './DocksLayout';
+import { BARGES, BASE, CAB, CONT, CRANE_STAIR, DEPOT, DRAINS, EXITS, HALL, MAZE, MAZE_WEST, QG, QUAY_WALLS, QUAY_X, TOWER, WEST_X, WH, inBase, lanesOf, spawnsOf, stackColor, zoneAt } from './DocksLayout';
 
 describe('Neon Docks layout', () => {
   it('three lanes per team: containers (through the maze), warehouse, waterfront (the quay, through the crane nest); OMEGA\'s mirrored and reversed', () => {
@@ -185,5 +185,20 @@ describe('49.0: the docks reworked', () => {
     expect(DEPOT.wall.top).toBeGreaterThan(DEPOT.stack.top + 1.6);
     expect(zoneAt(-64, DEPOT.stack.top, 18)?.name).toBe('SNIPER STACK');
     expect(MAZE_WEST).toBeGreaterThan(WEST_X);
+  });
+});
+
+describe('86.0: the apron drains', () => {
+  it('lids on the apron: outside the warehouse, on this side of the quay fence, inside the yards; some steaming', () => {
+    for (const [x, z] of DRAINS.manholes) {
+      expect(x > WH.x0 - 0.5 && x < WH.x1 + 0.5 && z < WH.z1 + 0.5).toBe(false);
+      expect(x).toBeLessThan(QUAY_X - 0.5);
+      expect(x).toBeGreaterThan(WEST_X + 0.5);
+      expect(z).toBeLessThan(BASE.z1);
+    }
+    expect(DRAINS.manholes.filter((m) => m[2]).length).toBeGreaterThanOrEqual(2);
+  });
+  it("the grates along the warehouse's long walls, inside its length", () => {
+    for (const z of DRAINS.grates) expect(z + 0.45).toBeLessThan(WH.z1);
   });
 });

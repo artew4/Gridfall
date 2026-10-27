@@ -5,7 +5,8 @@ import type { FrameInfo, IntroLike, LevelData, LevelInfo, LevelLook, LevelRuntim
 import { buildDocks, type DocksResult } from './Docks';
 import { BARGES, BASE, DEPOT, DOCKS_AI, QG, DOCKS_TEAM_SIZE, QUAY_X, SPAWN_PADS, SPAWN_ZONES, WEST_X, inBase, lanesOf } from './DocksLayout';
 import { DesertIntro } from '../desert/DesertIntro';
-import { Rain } from '../../world/Rain';
+import { Rain, Steam } from '../../world/Rain';
+import { smokeTexture } from '../../world/Textures';
 import { ReflectionCatchers } from '../../world/ReflectionCatchers';
 import { WET4, createStreak, updateStreaks } from '../../world/Ground';
 import { damp } from '../../core/math';
@@ -93,7 +94,8 @@ export class DocksLevel implements LevelRuntime {
     game.weaponScene.environment = this.env.texture;
     pmrem.dispose();
 
-    this.catchers = new ReflectionCatchers(game.glows.list, this.docks.catcherPicks, { intensity: 12, distance: 16, height: 4 });
+    // 86.0: and every neon sign and tube, the nearest eight lit.
+    this.catchers = new ReflectionCatchers(game.glows.list, this.docks.catcherPicks, { intensity: 12, distance: 16, height: 4 }, this.docks.signPool);
     for (const g of game.glows.list) {
       if (!g.reflect) continue;
       const m = createStreak(g, game.time, game.fog);
@@ -156,6 +158,8 @@ export class DocksLevel implements LevelRuntime {
     // 32.0: lighter rain ("unplayable"): 6,000 streaks (was 14,000), 60% as wide, at half the opacity,
     // lit half as hard by the lamps, and none within 2 m of the eye (they crossed the screen).
     this.rain = new Rain(game.scene, game.glows, game.time, game.fog, { ...this.docks.rain, holes: game.col.holes }, DOCKS_RAIN);
+    // 86.0: steam out of the apron's manholes (lit by the same glows).
+    new Steam(game.scene, game.glows, game.time, this.docks.steamEmitters, smokeTexture(), game.fog);
     // The rain and the floods: enemies see as far as you do (the fog's 90% distance, ~95 m).
     game.ctx.sightRange = fogRange(game.fog.density);
     game.weapon.setLights({ sky: 0x56628c, ground: 0x241e2a, hemi: 0.9, key: 0xe8cfb0, keyI: 1.6, rim: 0x8a78d0, rimI: 0.8 });
@@ -175,7 +179,7 @@ export class DocksLevel implements LevelRuntime {
   update(f: FrameInfo) {
     const game = this.game;
     game.glows.update(f.elapsed, f.camPos);
-    this.catchers.update();
+    this.catchers.update(f.camPos);
     updateStreaks(this.streaks, f.camPos);
     this.rain.update(f.elapsed, f.camPos);
     this.indoors = damp(this.indoors, this.inside(f.camPos) ? 1 : 0, 6, f.rawDt);
@@ -244,6 +248,7 @@ export class DocksLevel implements LevelRuntime {
     const game = this.game;
     WET4.value = 1;
     this.catchers.dispose();
+    this.docks.spill.dispose();
     this.env.dispose();
     this.rain?.dispose();
     game.audio.setUnderground(0);

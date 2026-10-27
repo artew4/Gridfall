@@ -265,3 +265,12 @@ export const SPAWN_ZONES = {
     { id: 'C' as const, x: 24, y: 0, z: 48, r: 5, yaw: Math.PI },
   ],
 };
+
+/**
+ * 86.0: the apron's drains (south half; mirrored): manhole lids [x, z, steaming] and the kerb grates
+ * along the warehouse's long walls (z). Laid only where nothing stands (Docks.ts checks the colliders).
+ */
+export const DRAINS = {
+  manholes: [[30, 10, true], [38, 30, true], [26, 52, false], [5, 34, true], [-8, 40, false], [-36, 22, false]] as [number, number, boolean][],
+  grates: [6, 16, 22],
+};

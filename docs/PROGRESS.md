@@ -3368,8 +3368,22 @@ The ask: Tokyo's work (78.0 storefronts, 84.0 light and wet) on Neon Block.
 - Perf (code-toggle A/B: decals and no spill vs the models and the spill, ABAB on AC): fight GPU p50 6.24/6.25 ms vs 6.23/6.15, the same.
 - Tests 655 (+3, `storefronts85.test.ts`: a window's light and a sign 0.3 m out for each lit slot; a 3.4 m front's sign under the slab; the flickers' glows driving their materials and reflections). World checks (Neon Block, Tokyo): no clusters, no entries; no shader fails to compile.
 
+## 86.0: Neon Docks' light and wet
+
+Branch `feature/docks-light-86.0`, from `feature/neonblock-light-85.0` @ `12f01e4` (83.1–85.0 not merged yet).
+
+The ask: Tokyo's work (85.0 on Neon Block) on Neon Docks. The docks have no shops: no storefronts were added (a shop on a warehouse or a container would be out of place); what fits a port came over.
+
+- The neon's light on the wet apron (Spill.ts, 4 texels a metre: no mullions here, soft pools): under each of the 7 signs in its colour, the warehouse ends' tubes (top and corners), baked into the apron's paving and the warehouse floor; a softer gain than Tokyo's (12/5: the docks' paving is lighter, at 18/6 the alley by the warehouse read as grey paint).
+- Signs in the puddles: the catchers' pool takes the 13 signs and tubes (with their glows: the flickering ПОРТ/СКЛАД and the dying tube flicker in the puddles too) beyond the 4 masts' picks.
+- A dying tube on OMEGA's east corner (its own material).
+- Oil films in the apron's puddles. The street kit's manhole lids (8) and drain grates (10, along the warehouse's long walls) on the apron, laid only where no collider stands (`DRAINS` in DocksLayout.ts); steam out of 4 lids (Steam, lit by the glows).
+- Perf (code-toggle A/B, the spill, the pool and the steam, ABAB): fight GPU p50 8.22/7.60 ms on vs 6.66/8.23 off: noise both ways, no consistent cost.
+- Tests 657 (+2, `docks.test.ts`: the lids on the apron (out of the warehouse, inside the quay fence and the yards), some steaming; the grates within the warehouse's length: the first list had one 10 m past it, in the open). World check: no clusters, no entries; no shader fails to compile.
+
 ## Next
 Human playtest:
+- 86.0 items: Neon Docks: the neon's light on the apron by the warehouse ends, the signs in the puddles, the dying tube, the manhole steam (in a sightline?), the oil.
 - 85.0 items: Neon Block's arcade and Main Street fronts (readable in the smog, anything you bump into that isn't solid, an awning or eave in the way), their light on the street.
 - 84.0 items: Tokyo at street level: the shops' light on the pavement (too bright, too flat?), the overpass's sodium lamps and girders, the signs in the puddles as you walk (any popping?), the oil films, the flickering signs, the manhole steam (in the way?).
 - 83.1 items: the overpass, the train and the metro canopy now actually in the game (83.0's were boxes).

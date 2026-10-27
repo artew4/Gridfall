@@ -45,6 +45,7 @@ The main menu (redesigned in 45.0) is big type and one word a button: **PLAY**, 
 
 ## Gunplay
 
+- **Neon Docks' light and wet (86.0):** the warehouse's neon and signs light the wet apron in their colours and reflect in the puddles as you pass, a dying tube on OMEGA's corner, oil films in the puddles, manholes and drain grates on the apron, steam from the lids.
 - **Neon Block's storefronts (85.0):** the arcade's and Main Street's shops are Tokyo's modelled fronts with their rooms behind the glass, lit signs, izakaya eaves, entrances and graffitied shutters; their light on the wet street, their signs in the puddles, oil in the road's puddles.
 - **Tokyo's light and wet (84.0):** the shops' windows light the pavement in front of them (konbini white, izakaya amber), their frames casting fans of shadow; sodium lamps under the railway overpass light its girders and pool on the street; the lit signs nearest you reflect in the puddles; oil films in some puddles; wet road paint; a few signs flicker (one dying, one stuttering, one that won't start); steam from the manholes.
 - **Tokyo's landmarks (83.0):** the railway overpass on riveted plate girders and capped piers with catenary masts over it, the commuter train with its cabs, roof air conditioners, single-arm pantographs on the wire and bellows between the cars, the metro's arched glass canopy.
@@ -150,7 +151,7 @@ Survival and deathmatch need opposite AI, so Gridfall runs two separate brains.
 - **Drop-in soundtrack:** put `jungle_theme.mp3` (or `menu_theme`, `tokyo_theme`, `desert_theme`, `docks_theme`; .mp3/.ogg/.m4a/.wav) in `public/audio/music/`, and it streams instead of the synth. No code change ([details](public/audio/music/README.md)).
 
 ### Built to be checked
-- **655 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
+- **657 unit tests** (Vitest) for the pure parts: perception maths, tactics, the arena director (spotting, flank claims), the bots' range heuristics, retreats and flanks, timetables, terrain, the storm cycle, collision, pools, stair fitting, and frame-rate independence of the ADS, crouch and slide.
 - **In-browser validation tools** drive the real game:
   - a 0.5 m-grid world scan for escapes, traps and invisible walls;
   - 64,000-run stress tests of the real character controller;
