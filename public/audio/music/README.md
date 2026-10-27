@@ -34,3 +34,14 @@ Gridfall plays one track per place, crossfading over 2 s when the place changes:
 A file that fades out or has silence at its ends can loop seamlessly with a loop window in
 `manifest.json` (60.0): `{ "desert_theme": { "file": "desert_theme.mp3", "loopStart": 0.18, "loopEnd": 157.746, "xfade": 1 } }`:
 it plays from the start, and from `loopEnd − xfade` the next pass (from `loopStart`) crossfades in.
+
+**Several tracks for one place** (87.0): give the track a list in `manifest.json`. Each time the place starts, one of them plays at random; at its end (or its `loopEnd`) another one at random crossfades in, never the same one twice running:
+
+```json
+"tokyo_theme": [
+  { "file": "tokyo_theme.mp3", "loopStart": 0.1, "loopEnd": 166.0, "xfade": 1.5 },
+  { "file": "black_rain_and_bamboo.mp3", "loopStart": 0.09, "loopEnd": 178.5, "xfade": 2.5 }
+]
+```
+
+A file without `loopEnd` plays to its end, crossfading over its last 1.5 s.

@@ -3381,6 +3381,19 @@ The ask: Tokyo's work (85.0 on Neon Block) on Neon Docks. The docks have no shop
 - Perf (code-toggle A/B, the spill, the pool and the steam, ABAB): fight GPU p50 8.22/7.60 ms on vs 6.66/8.23 off: noise both ways, no consistent cost.
 - Tests 657 (+2, `docks.test.ts`: the lids on the apron (out of the warehouse, inside the quay fence and the yards), some steaming; the grates within the warehouse's length: the first list had one 10 m past it, in the open). World check: no clusters, no entries; no shader fails to compile.
 
+## 87.0: Tokyo Night's two tracks
+
+Branch `feature/tokyo-tracks-87.0`, from `main` @ `5397342`.
+
+The ask: "Black Rain and Bamboo" (generated outside the game, Gemini) as Tokyo Night's second track; the tracks played at random.
+
+- The file at `public/audio/music/black_rain_and_bamboo.mp3` (3:02, about 140 BPM by onsets, −12…−14 dB RMS through its body, a quiet 18 s intro at −17; it winds down from 177 s and is silent from 179 s).
+- A track of several files (`manifest.json`: a list for the track id, each entry as before): `FileSource` starts on one at random and, at its `loopEnd − xfade` (or its end, crossfading over 1.5 s, a file without a window), crossfades into another at random, never the same one twice running (`nextFile`). The idle element loads the next file while the current one plays. A track of one file plays as before.
+- `tokyo_theme` is the two (Tokyo Night's story and Neon Block): "Violet Hour" with its 59.0 window, "Black Rain" with `loopStart` 0.09, `loopEnd` 178.5, `xfade` 2.5 (its fade into the next track's start: the onsets don't match well anywhere in its last minute, correlation ≤ 0.33, so a longer crossfade over its wind-down instead).
+- Checked live on Neon Block (4 loads: 2 of each at the start); "Black Rain" jumped to 4 s before its end: at 176 s "Violet Hour" came in over 2.5 s and the old pass stopped.
+- Tests 659 (+2, `music.test.ts`: the next file never the current, every one comes up; the manifest's two files present with their windows).
+- Human playtest: the switch between the two in a long match (Neon Block, ~3 min in): no hole, no jump in loudness.
+
 ## Next
 Human playtest:
 - 86.0 items: Neon Docks: the neon's light on the apron by the warehouse ends, the signs in the puddles, the dying tube, the manhole steam (in a sightline?), the oil.

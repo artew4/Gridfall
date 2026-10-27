@@ -17,7 +17,9 @@ import { PATTERN_THEMES, PatternTheme } from './Themes';
   Sources, per track, decided once per session:
    - a file, if public/audio/music/<id>.(mp3|ogg|m4a|wav) exists (or manifest.json names one):
      streamed through an <audio> element into Web Audio (MediaElementAudioSourceNode), looped. A
-     streamed file never holds a decoded copy in memory (a decoded 3-minute stereo track is ~60 MB);
+     streamed file never holds a decoded copy in memory (a decoded 3-minute stereo track is ~60 MB).
+     87.0: the manifest can give a track several files: one at random each time it starts, another
+     at random when it ends (Tokyo Night's two);
    - else the procedural placeholder (Themes.ts; Tokyo keeps its Score), whose layers follow the
      combat intensity.
 
@@ -40,11 +42,12 @@ const EXTENSIONS = ['mp3', 'ogg', 'm4a', 'wav'];
  * Optional public/audio/music/manifest.json: { "<id>": { "file": "name.mp3", "gain": 0.8 } }. 60.0: a
  * loop window, for a file that fades out or has silence at its ends: `loopStart`/`loopEnd` (s) and a
  * crossfade `xfade` (s): it plays from the start, and from `loopEnd − xfade` the next pass, from
- * `loopStart`, fades in over it.
+ * `loopStart`, fades in over it. 87.0: a list of these for a track of several files, played at random.
  */
 export interface MusicManifest {
-  [id: string]: { file: string; gain?: number; loopStart?: number; loopEnd?: number; xfade?: number };
+  [id: string]: ManifestFile | ManifestFile[];
 }
+type ManifestFile = { file: string; gain?: number; loopStart?: number; loopEnd?: number; xfade?: number };
 type LoopWindow = { start: number; end: number; xfade: number };
 
 /** A playing source behind a track slot. */
@@ -77,37 +80,74 @@ export function fadeCurve(up: boolean, n = 32) {
   return c;
 }
 
+/** A manifest's file as played. */
+export function manifestEntry(m: ManifestFile): FileEntry {
+  return { url: `${DIR}${m.file}`, gain: m.gain ?? 1, loop: m.loopEnd ? { start: m.loopStart ?? 0, end: m.loopEnd, xfade: m.xfade ?? 1.5 } : null };
+}
+
+/** A track's file: its URL, level (0..1) and loop window (null: looped whole). */
+interface FileEntry {
+  url: string;
+  gain: number;
+  loop: LoopWindow | null;
+}
+
+/** 87.0: the next of `n` files after `cur`, at random, never the same one twice running (when there are two). */
+export function nextFile(n: number, cur: number, rnd: () => number) {
+  if (n <= 1) return 0;
+  const k = Math.floor(rnd() * (n - 1));
+  return k >= cur ? k + 1 : k;
+}
+
 /**
  * Streams a looping file: memory stays flat whatever its length. 60.0: with a loop window two elements
- * take turns, crossfaded (equal power) from `end − xfade`, the next starting at `start`.
+ * take turns, crossfaded (equal power) from `end − xfade`, the next starting at `start`. 87.0: a track
+ * may have several files: it starts on one at random and, at its end, crossfades into another at
+ * random (the idle element loads it while the current one plays).
  */
 class FileSource implements Source {
   readonly kind = 'file' as const;
   private els: HTMLAudioElement[] = [];
   private nodes: MediaElementAudioSourceNode[] = [];
   private gains: GainNode[] = [];
+  /** Each element's file's level. */
+  private levels: GainNode[] = [];
+  /** Each element's file (an index into `list`). */
+  private at: number[] = [];
   private cur = 0;
   /** ctx time the running crossfade ends (-1: none). */
   private xfadeEnd = -1;
   private playing = false;
 
-  constructor(private ctx: AudioContext, url: string, out: AudioNode, gain: number, private loop: LoopWindow | null = null) {
-    const master = ctx.createGain();
-    master.gain.value = gain;
-    master.connect(out);
-    for (let i = 0; i < (loop ? 2 : 1); i++) {
+  constructor(private ctx: AudioContext, private list: FileEntry[], out: AudioNode, private rnd: () => number = Math.random) {
+    const first = Math.floor(rnd() * list.length);
+    // One file without a loop window: the element loops it itself.
+    const turns = list.length > 1 || list[0].loop;
+    for (let i = 0; i < (turns ? 2 : 1); i++) {
       const el = new Audio();
-      el.src = url;
-      el.loop = !loop;
+      el.loop = !turns;
       el.preload = 'auto';
       const node = ctx.createMediaElementSource(el);
       const g = ctx.createGain();
       g.gain.value = i === 0 ? 1 : 0;
-      node.connect(g).connect(master);
+      const lv = ctx.createGain();
+      node.connect(g).connect(lv).connect(out);
       this.els.push(el);
       this.nodes.push(node);
       this.gains.push(g);
+      this.levels.push(lv);
+      this.at.push(-1);
+      this.queue(i, i === 0 ? first : nextFile(list.length, first, rnd));
     }
+  }
+
+  /** Puts file `k` on element `i` (a new file only if it changes: a same-file pass keeps its buffer). */
+  private queue(i: number, k: number) {
+    if (this.at[i] !== k) {
+      this.els[i].src = this.list[k].url;
+      this.at[i] = k;
+    }
+    this.levels[i].gain.value = this.list[k].gain;
   }
 
   start() {
@@ -118,23 +158,26 @@ class FileSource implements Source {
   setIntensity() {}
 
   update() {
-    const L = this.loop;
-    if (!L || !this.playing) return;
+    if (this.els.length < 2 || !this.playing) return;
     const now = this.ctx.currentTime;
     if (this.xfadeEnd >= 0) {
       if (now >= this.xfadeEnd) {
-        // The old pass has faded out: stop it, ready for the next turn.
-        this.els[1 - this.cur].pause();
+        // The old pass has faded out: stop it, and load the one after the current on it.
+        const old = 1 - this.cur;
+        this.els[old].pause();
         this.xfadeEnd = -1;
+        this.queue(old, nextFile(this.list.length, this.at[this.cur], this.rnd));
       }
       return;
     }
-    const a = this.els[this.cur];
-    if (a.currentTime < L.end - L.xfade && !a.ended) return;
+    const a = this.els[this.cur], L = this.list[this.at[this.cur]].loop;
+    // (A file without a window: to its end, once its length is known.)
+    const end = L ? L.end : a.duration, xfade = L ? L.xfade : 1.5;
+    if (!Number.isFinite(end) || (a.currentTime < end - xfade && !a.ended)) return;
     const nxt = 1 - this.cur, b = this.els[nxt];
-    b.currentTime = L.start;
+    b.currentTime = this.list[this.at[nxt]].loop?.start ?? 0;
     void b.play().catch(() => {});
-    const d = Math.max(0.05, L.xfade);
+    const d = Math.max(0.05, xfade);
     this.gains[this.cur].gain.cancelScheduledValues(now);
     this.gains[nxt].gain.cancelScheduledValues(now);
     this.gains[this.cur].gain.setValueCurveAtTime(fadeCurve(false), now, d);
@@ -158,6 +201,7 @@ class FileSource implements Source {
       const el = this.els[i];
       el.pause();
       this.nodes[i].disconnect();
+      this.levels[i].disconnect();
       // Release the stream: an element with no source drops its buffers.
       el.removeAttribute('src');
       el.load();
@@ -166,7 +210,8 @@ class FileSource implements Source {
 
   debug() {
     const el = this.els[this.cur];
-    return { file: el.currentSrc || '(released)', time: +el.currentTime.toFixed(1), ...(this.loop ? { loop: this.loop, pass: this.cur, crossfading: this.xfadeEnd >= 0 } : {}) };
+    const L = this.list[this.at[this.cur]].loop;
+    return { file: el.currentSrc || '(released)', time: +el.currentTime.toFixed(1), of: this.list.length, ...(L ? { loop: L } : {}), ...(this.els.length > 1 ? { pass: this.cur, crossfading: this.xfadeEnd >= 0 } : {}) };
   }
 }
 
@@ -202,7 +247,7 @@ export class MusicManager {
   private duckFilter: BiquadFilterNode | null = null;
   private shared: { I: Instruments; reverb: AudioNode } | null = null;
   private slots: Slot[] = [];
-  private files = new Map<TrackId, { url: string; gain: number; loop: LoopWindow | null } | null>();
+  private files = new Map<TrackId, FileEntry[] | null>();
   private probing: Promise<void> | null = null;
   private suspended = false;
   private intensity = 0;
@@ -245,24 +290,33 @@ export class MusicManager {
         /* no manifest */
       }
     }
+    const exists = async (name: string) => {
+      try {
+        // A 2-byte range GET, not HEAD: Vite's dev server answers HEAD for a public file with its
+        // index.html fallback. Static hosts honour either; the body is dropped at once.
+        const r = await fetch(`${DIR}${name}`, { headers: { Range: 'bytes=0-1' }, cache: 'no-cache' });
+        const audio = r.ok && (r.headers.get('content-type') ?? '').startsWith('audio/');
+        void r.body?.cancel().catch(() => {});
+        return audio;
+      } catch {
+        return false;
+      }
+    };
     await Promise.all(
       TRACKS.map(async (id) => {
-        const names = (manifest[id]?.file ? [manifest[id].file] : EXTENSIONS.map((e) => `${id}.${e}`)).filter(has);
-        for (const name of names) {
-          try {
-            // A 2-byte range GET, not HEAD: Vite's dev server answers HEAD for a public file with its
-            // index.html fallback. Static hosts honour either; the body is dropped at once.
-            const r = await fetch(`${DIR}${name}`, { headers: { Range: 'bytes=0-1' }, cache: 'no-cache' });
-            const audio = r.ok && (r.headers.get('content-type') ?? '').startsWith('audio/');
-            void r.body?.cancel().catch(() => {});
-            if (audio) {
-              const m = manifest[id];
-              const loop = m?.loopEnd ? { start: m.loopStart ?? 0, end: m.loopEnd, xfade: m.xfade ?? 1.5 } : null;
-              this.files.set(id, { url: `${DIR}${name}`, gain: m?.gain ?? 1, loop });
-              return;
-            }
-          } catch {
-            /* try the next */
+        const m = manifest[id];
+        if (m) {
+          // The manifest's files (87.0: one or a list), those that are there.
+          const list = (Array.isArray(m) ? m : [m]).filter((f) => f?.file && has(f.file));
+          const found = await Promise.all(list.map((f) => exists(f.file)));
+          const entries = list.filter((_, i) => found[i]).map(manifestEntry);
+          this.files.set(id, entries.length ? entries : null);
+          return;
+        }
+        for (const name of EXTENSIONS.map((e) => `${id}.${e}`).filter(has)) {
+          if (await exists(name)) {
+            this.files.set(id, [{ url: `${DIR}${name}`, gain: 1, loop: null }]);
+            return;
           }
         }
         this.files.set(id, null);
@@ -276,7 +330,7 @@ export class MusicManager {
     this.stats.created++;
     if (file) {
       this.stats.files++;
-      return new FileSource(ctx, file.url, out, file.gain, file.loop);
+      return new FileSource(ctx, file, out);
     }
     this.stats.procedural++;
     const def = PATTERN_THEMES[id];
@@ -375,7 +429,7 @@ export class MusicManager {
       current: this.current,
       live: this.live,
       slots: this.slots.map((s) => ({ id: s.id, kind: s.source?.kind ?? 'pending', fading: s.endAt !== Infinity, ...(s.source ? { src: s.source.debug() } : {}) })),
-      files: Object.fromEntries([...this.files].map(([k, v]) => [k, v?.url ?? null])),
+      files: Object.fromEntries([...this.files].map(([k, v]) => [k, v ? v.map((f) => f.url) : null])),
       stats: { ...this.stats },
     };
   }

@@ -90,3 +90,36 @@ describe('59.0: the desert theme is an industrial combat score (F♯ Phrygian, h
   });
 });
 void midiHz;
+
+describe('87.0: a track of several files', () => {
+  it('the next file is never the current one, and every other one comes up', async () => {
+    const { nextFile } = await import('./MusicManager');
+    const rnd = mulberry32(3);
+    for (const n of [2, 3, 5]) {
+      const seen = new Set<number>();
+      let cur = 0;
+      for (let i = 0; i < 200; i++) {
+        const k = nextFile(n, cur, rnd);
+        expect(k).not.toBe(cur);
+        expect(k >= 0 && k < n).toBe(true);
+        seen.add(k);
+        cur = k;
+      }
+      expect(seen.size).toBe(n);
+    }
+    expect(nextFile(1, 0, rnd)).toBe(0);
+  });
+  it("the manifest gives Tokyo Night its two, each with a loop window inside the file's music", async () => {
+    // @ts-ignore (node in the test runner)
+    const fs = await import('node:fs');
+    const m = JSON.parse(fs.readFileSync('public/audio/music/manifest.json', 'utf8'));
+    const { manifestEntry } = await import('./MusicManager');
+    const tokyo = m.tokyo_theme as { file: string }[];
+    expect(tokyo.map((f) => f.file)).toEqual(['tokyo_theme.mp3', 'black_rain_and_bamboo.mp3']);
+    for (const f of tokyo) {
+      expect(fs.existsSync(`public/audio/music/${f.file}`)).toBe(true);
+      const e = manifestEntry(f);
+      expect(e.loop!.end - e.loop!.xfade).toBeGreaterThan(e.loop!.start + 60);
+    }
+  });
+});
