@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { FRAG, planThrow } from '../../combat/Explosives';
+import type { LiveGrenade } from '../../combat/Grenades';
 import type { Combatant } from '../../combat/Team';
 import type { EnemyCtx } from '../Enemy';
 import { hostilesOf } from '../Enemy';
@@ -106,6 +108,17 @@ export function flankPoint(c: { x: number; z: number }, from: { x: number; z: nu
 }
 
 /** What the brain drives (ArenaGunner / ArenaRunner). */
+/**
+ * 90.0, the bots' frags: one a life; a look for a throw every `think` s (±30%), the team's throws
+ * `teamGap` s apart; at a target `min`..`max` m off, one it lost behind cover `hidden` s ago or one
+ * standing still in its sight (a `camper` roll each look); no teammate within `clear` m of where it
+ * lands; landing within `slack` m of it, else a `retry` s wait. It runs from a frag within `dodge` m
+ * it sees (or within `feel` m), after its reaction (`react`, s). It cooks its own: `cook` s of fuse
+ * left when it leaves the hand (the arc planned to land and roll in that time).
+ */
+export const NADE = { perLife: 1, think: 1.2, teamGap: 5, min: 7, max: 30, hidden: [0.8, 5] as [number, number], camper: 0.12, clear: 6, slack: 4, retry: 3, dodge: 7, feel: 3, react: [0.4, 0.9] as [number, number], cook: 2.1 };
+const FLEE_TURNS = [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8];
+
 export interface ArenaBody extends Combatant {
   readonly kind: 'gunner' | 'runner';
   readonly speed: number;
@@ -388,6 +401,13 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (sp > 0.5) _v.set(this.chaseAt.x + (this.chaseVel.x / sp) * l, this.chaseAt.y, this.chaseAt.z + (this.chaseVel.z / sp) * l);
     this.goal = this.snapGoal(ctx, _v, this.chaseAt.y) ?? this.chaseAt.clone();
   }
+
+  /** 90.0: frags left this life, the next look for a throw, the frag it is running from, when it looks again, its reaction (s). */
+  nades = NADE.perLife;
+  private fragT = 0;
+  private fleeing: LiveGrenade | null = null;
+  private nadeLookT = 0;
+  private nadeReact = NADE.react[0] + Math.random() * (NADE.react[1] - NADE.react[0]);
 
   constructor(readonly self: ArenaBody, persona?: Persona) {
     this.persona = persona ?? drawPersona();
@@ -1714,7 +1734,12 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     const room = why === 'retreat' ? true : why === 'push' ? v > S.pushFloor : this.sprintNow ? v > floor : v >= S.reserve;
     const ok = !STAMINA.on || (why !== null && this.stamina.canSprint && room);
     const sprint = ok ? full : run;
-    if (this.swing) {
+    // 90.0: a frag it has noticed near it: away from it first, whatever it was doing.
+    const nade = this.swing ? null : this.nadeToFlee(ctx, now);
+    if (gunner && !nade) this.considerFrag(ctx, A, T, tv, now);
+    if (nade) {
+      this.flee(ctx, nade, full, desired);
+    } else if (this.swing) {
       this.melee(dt, ctx, desired);
     } else if (this.state === 'engage' && gunner && T && Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z) > this.reachOf(T, now)) {
       // Out of effective range: sprint up (no shots, see gun()) until it is in range.
@@ -1932,6 +1957,107 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     if (this.state === 'break') st.breakT += dt;
     if (crouch > 0.5) st.crouchT += dt;
     return crouch;
+  }
+
+  /**
+   * 90.0: the frag it runs from: the nearest one within NADE.dodge m that can hurt it (the other
+   * team's, or its own) and that it has noticed (in its sight, or close; after its reaction time).
+   * Looked for every 0.15 s.
+   */
+  private nadeToFlee(ctx: EnemyCtx, now: number): LiveGrenade | null {
+    const G = ctx.grenades;
+    if (!G) return null;
+    const me = this.self;
+    if (now >= this.nadeLookT) {
+      this.nadeLookT = now + 0.15;
+      let best: LiveGrenade | null = null, bd = NADE.dodge;
+      for (const g of G.live) {
+        if (!g.active || g.fuse < 0.1 || (g.team === me.team && g.by !== me)) continue;
+        if (g.age < this.nadeReact && g.by !== me) continue;
+        const d = Math.hypot(g.body.pos.x - me.pos.x, g.body.pos.z - me.pos.z);
+        if (d >= bd || Math.abs(g.body.pos.y - me.pos.y) > 3) continue;
+        if (d > NADE.feel && !ctx.col.lineOfSight(_v.set(me.pos.x, me.pos.y + 1.5, me.pos.z), _miss.copy(g.body.pos).setY(g.body.pos.y + 0.12))) continue;
+        best = g;
+        bd = d;
+      }
+      if (best && best !== this.fleeing) {
+        G.stats.dodges++;
+        if (best.by !== me) me.bark('nade', ctx);
+      }
+      this.fleeing = best;
+    }
+    const g = this.fleeing;
+    if (g && (!g.active || g.fuse <= 0)) this.fleeing = null;
+    return this.fleeing;
+  }
+
+  /** 90.0: away from the frag at `speed`, round what's in the way (the clear one of seven headings). */
+  private flee(ctx: EnemyCtx, g: LiveGrenade, speed: number, desired: THREE.Vector3) {
+    const me = this.self;
+    let ax = me.pos.x - g.body.pos.x, az = me.pos.z - g.body.pos.z;
+    const l = Math.hypot(ax, az);
+    if (l < 0.05) {
+      me.facing(_f);
+      ax = -_f.x;
+      az = -_f.y;
+    } else {
+      ax /= l;
+      az /= l;
+    }
+    for (const a of FLEE_TURNS) {
+      const c = Math.cos(a), s = Math.sin(a);
+      const dx = ax * c - az * s, dz = ax * s + az * c;
+      if (me.open(ctx, dx, dz, 2.5)) {
+        desired.set(dx * speed, 0, dz * speed);
+        return;
+      }
+    }
+    desired.set(ax * speed, 0, az * speed);
+  }
+
+  /**
+   * 90.0: a frag at a target in cover. A gunner with one left, the team's last throw NADE.teamGap s
+   * ago, at a target NADE.min..max m off: one it lost behind something in the last few seconds (where
+   * it was last seen), or one standing still in its sight. Never where a teammate stands. The arc is
+   * planned through the map (Explosives.planThrow); none that lands near it, no throw (for a while).
+   */
+  private considerFrag(ctx: EnemyCtx, A: ArenaCtx, T: Combatant | null, tv: boolean, now: number) {
+    const G = ctx.grenades;
+    const me = this.self;
+    if (!G || !T || !T.alive || this.nades <= 0 || now < this.fragT || me.airborne || me.sliding) return;
+    this.fragT = now + NADE.think * (0.7 + Math.random() * 0.6);
+    if (now - (G.teamLast[me.team] ?? -Infinity) < NADE.teamGap) return;
+    if (this.state !== 'engage' && this.state !== 'push' && this.state !== 'hunt' && this.state !== 'hold' && this.state !== 'chase') return;
+    const c = A.director.contacts.get(T.uid);
+    let at: THREE.Vector3 | null = null;
+    if (tv) {
+      if (Math.hypot(T.vel.x, T.vel.z) < 1.2 && Math.random() < NADE.camper) at = T.pos;
+    } else if (c && now - c.seenT > NADE.hidden[0] && now - c.seenT < NADE.hidden[1]) at = c.pos;
+    if (!at) return;
+    const d = Math.hypot(at.x - me.pos.x, at.z - me.pos.z);
+    G.stats.looks++;
+    if (d < NADE.min || d > NADE.max) {
+      G.stats.range++;
+      return;
+    }
+    for (const f of ctx.friends ?? [])
+      if (f.alive && f !== me && Math.hypot(f.pos.x - at.x, f.pos.z - at.z) < NADE.clear) {
+        G.stats.mates++;
+        return;
+      }
+    me.facing(_f);
+    const from = _v.set(me.pos.x + _f.x * 0.3, me.pos.y + 1.55, me.pos.z + _f.y * 0.3);
+    const v = planThrow(ctx.col, from, at, FRAG, NADE.slack, NADE.cook);
+    if (!v) {
+      G.stats.noArc++;
+      this.fragT = now + NADE.retry;
+      return;
+    }
+    if (!G.throw(from, v, me, NADE.cook)) return;
+    this.nades--;
+    G.teamLast[me.team] = now;
+    G.stats.botThrows++;
+    me.bark('frag', ctx);
   }
 
   /** Lateral movement round the target (dir -1 also backs off), keeping to the range band. */

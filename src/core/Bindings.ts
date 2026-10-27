@@ -7,6 +7,8 @@ export const KEYS = {
   crouch: 'KeyC',
   /** Objective overview (held). */
   objective: 'Tab',
+  /** 90.0: a frag. */
+  grenade: 'KeyG',
 } as const;
 
 export type Action = keyof typeof KEYS;
@@ -17,6 +19,7 @@ export const KEY_LABEL: Record<Action, string> = {
   reload: 'R',
   crouch: 'C',
   objective: 'TAB',
+  grenade: 'G',
 };
 
 /** Keys the browser would otherwise act on (focus change, scrolling). */

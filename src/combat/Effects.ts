@@ -10,6 +10,8 @@ interface P {
   size: number; grow: number; stretch: number;
   life: number; max: number;
   drag: number; gravity: number; bounce: number;
+  /** 90.0: the height it bounces on (0.02: the street; a blast's debris on the floor it went off on). */
+  floor: number;
 }
 
 /** CPU-simulated, GPU-instanced particle pool. One draw call per blend mode. */
@@ -25,7 +27,7 @@ export class Particles {
 
   constructor(scene: THREE.Scene, private capacity: number, additive: boolean, fog: THREE.FogExp2) {
     for (let i = 0; i < capacity; i++) {
-      this.pool.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, r: 1, g: 1, b: 1, a: 1, size: 0.1, grow: 0, stretch: 0, life: 0, max: 1, drag: 0, gravity: 0, bounce: 0 });
+      this.pool.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, r: 1, g: 1, b: 1, a: 1, size: 0.1, grow: 0, stretch: 0, life: 0, max: 1, drag: 0, gravity: 0, bounce: 0, floor: 0.02 });
     }
     const geo = new THREE.InstancedBufferGeometry();
     const base = new THREE.PlaneGeometry(1, 1);
@@ -111,6 +113,7 @@ export class Particles {
     p.drag = 0;
     p.gravity = 0;
     p.bounce = 0;
+    p.floor = 0.02;
     Object.assign(p, o);
     if (o.life !== undefined) p.max = o.life;
   }
@@ -140,8 +143,8 @@ export class Particles {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.z += p.vz * dt;
-      if (p.bounce > 0 && p.y < 0.02) {
-        p.y = 0.02;
+      if (p.bounce > 0 && p.y < p.floor) {
+        p.y = p.floor;
         p.vy = -p.vy * p.bounce;
         p.vx *= 0.6;
         p.vz *= 0.6;
@@ -175,7 +178,8 @@ export class Effects {
 
   constructor(scene: THREE.Scene, fog: THREE.FogExp2) {
     this.add = new Particles(scene, 900, true, fog);
-    this.smoke = new Particles(scene, 300, false, fog);
+    // 90.0: 420 (a blast's smoke and debris on top of a firefight's puffs).
+    this.smoke = new Particles(scene, 420, false, fog);
 
     this.casings = new Casings(scene, 256);
     this.casings.onBounce = (x, y, z, k) => this.onShellBounce(_bounce.set(x, y, z), k);
@@ -387,13 +391,76 @@ export class Effects {
     this.casings.spawn(pos.x, pos.y, pos.z, right.x, right.y, right.z, up.x, up.y, up.z, floorY, loud);
   }
 
-  private decal(pos: THREE.Vector3, normal: THREE.Vector3) {
+  /**
+   * 90.0: a blast on a face: the flash, the fireball, fragments and sparks, debris thrown up and back
+   * down onto that floor, a dust ring along it, the smoke column, the scorch.
+   */
+  explosion(pos: THREE.Vector3, normal: THREE.Vector3, scale = 1) {
+    const x = pos.x + normal.x * 0.15, y = pos.y + normal.y * 0.15, z = pos.z + normal.z * 0.15;
+    const floor = pos.y + 0.03;
+    // The flash: one white-hot sprite for a few frames.
+    this.add.spawn({ x, y: y + 0.4, z, r: 4, g: 3, b: 2.1, size: 2.6 * scale, life: 0.07 });
+    // The fireball: many puffs flung out, growing, orange burning out (dim each: together they glow,
+    // apart they show the ball's shape instead of one white blot).
+    for (let i = 0; i < 30; i++) {
+      const v = _bounce.set(rand(-1, 1), rand(0.15, 1.3), rand(-1, 1)).normalize().multiplyScalar(rand(2.5, 7.5) * scale);
+      const hot = rand(0.55, 1);
+      this.add.spawn({
+        x, y: y + 0.25, z, vx: v.x, vy: v.y, vz: v.z,
+        r: 2.6 * hot, g: 1.05 * hot * hot, b: 0.26 * hot, size: rand(0.35, 0.7) * scale, grow: 3.2 * scale, life: rand(0.25, 0.5), drag: 5.5,
+      });
+    }
+    // Fragments: hot, fast streaks in every direction (most of them low).
+    for (let i = 0; i < 44; i++) {
+      const v = _bounce.set(rand(-1, 1), rand(-0.15, 0.9), rand(-1, 1)).normalize().multiplyScalar(rand(14, 32));
+      this.add.spawn({
+        x, y, z, vx: v.x, vy: v.y, vz: v.z,
+        r: 5, g: 3, b: 1.4, size: rand(0.012, 0.022), stretch: 0.012, life: rand(0.18, 0.45), gravity: 9, drag: 0.8, bounce: 0.3, floor,
+      });
+    }
+    // Debris: dark chunks of grit thrown up, falling back and bouncing on the floor.
+    for (let i = 0; i < 26; i++) {
+      this.smoke.spawn({
+        x, y, z, vx: rand(-4, 4), vy: rand(3, 9), vz: rand(-4, 4),
+        r: 0.07, g: 0.065, b: 0.06, a: 1, size: rand(0.06, 0.12), life: rand(1.4, 2.4), gravity: 13, drag: 0.4, bounce: 0.25, floor,
+      });
+    }
+    // The dust ring along the floor.
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2 + rand(-0.15, 0.15), sp = rand(4, 7) * scale;
+      this.smoke.spawn({
+        x, y: floor + 0.15, z, vx: Math.cos(a) * sp, vy: rand(0.1, 0.5), vz: Math.sin(a) * sp,
+        r: 0.36, g: 0.33, b: 0.3, a: 0.42, size: 0.5 * scale, grow: 1.9 * scale, life: rand(1.1, 1.8), drag: 2.6,
+      });
+    }
+    // The smoke: a thick dark column rolling up and spreading, slow to clear.
+    for (let i = 0; i < 28; i++) {
+      const k = rand(0, 1);
+      this.smoke.spawn({
+        x: x + rand(-0.7, 0.7), y: y + rand(0, 1.6), z: z + rand(-0.7, 0.7),
+        vx: rand(-0.9, 0.9), vy: rand(0.6, 2.4), vz: rand(-0.9, 0.9),
+        r: 0.13 + 0.08 * k, g: 0.12 + 0.07 * k, b: 0.11 + 0.06 * k, a: rand(0.8, 0.95),
+        size: rand(1.0, 1.7) * scale, grow: 1.5 * scale, life: rand(3.5, 6), drag: 1.2,
+      });
+    }
+    this.sparks(pos, normal, 18, new THREE.Color(1, 0.6, 0.25), 9);
+    // Embers drifting down for a while.
+    for (let i = 0; i < 14; i++) {
+      this.add.spawn({
+        x: x + rand(-0.8, 0.8), y: y + rand(0.3, 1.6), z: z + rand(-0.8, 0.8), vx: rand(-0.6, 0.6), vy: rand(0.4, 1.8), vz: rand(-0.6, 0.6),
+        r: 3, g: 1.2, b: 0.3, size: rand(0.015, 0.03), life: rand(0.9, 1.8), gravity: 1.2, drag: 1.2,
+      });
+    }
+    this.decal(pos, normal, 9 * scale);
+  }
+
+  private decal(pos: THREE.Vector3, normal: THREE.Vector3, size = 1) {
     const i = this.decalIdx;
     this.decalIdx = (this.decalIdx + 1) % 48;
     this.dummy.position.copy(pos).addScaledVector(normal, 0.01);
     this.dummy.lookAt(pos.clone().add(normal));
     this.dummy.rotateZ(rand(0, 6.28));
-    const s = rand(0.7, 1.3);
+    const s = rand(0.7, 1.3) * size;
     this.dummy.scale.set(s, s, s);
     this.dummy.updateMatrix();
     this.decals.setMatrixAt(i, this.dummy.matrix);

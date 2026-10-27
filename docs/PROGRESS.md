@@ -3417,6 +3417,25 @@ Branch `feature/oldport-track-89.0`, from `feature/music-88.0` @ `3da9d3e` (87.0
 - Tests 659 (the manifest check takes it).
 - Human playtest: Old Port's loop (~2:55 in).
 
+## 90.0: Explosives, step 1: frag grenades
+
+Branch `feature/explosives-90.0`, from `feature/oldport-track-89.0` @ `2f98ec3` (87.0–89.0 not merged yet).
+
+The ask: Battlefield-style destruction ("a hard fight"). The plan in five steps: `docs/DESTRUCTION_PLAN.md`. The game had no explosives: step 1 is them (90.0 the frag, 90.1 a rocket launcher).
+
+- `Explosives.ts` (pure): the blast (`blastShare`: a share of full health, 1.25 within 2.5 m, falling squared to nothing at 8 m; `exposure`: none behind a wall past 1.4 m, its chest or head in the blast's sight), the body in flight (`stepBody`: 120 Hz substeps, bounces off what blocks a body with restitution 0.32 and friction 0.62, settles on a floor face, rolls to a stop, rolls off an edge), the bots' throw (`throwVelocity`: the low arc or the lob at a speed; `planThrow`: the first of six arcs that lands within the slack, simulated through the map), the feed's tag (`recentBlast`).
+- `Blast.ts`: a blast in the world: everyone in reach hurt (a bot's knock and stagger by the damage; friendly fire off, the thrower's own blast hurts him as the world's), bots further out suppressed, lamps and cabinets within 60% of its reach hit, one point light for the flash, the bang, the player's shake and (within 9 m) shell shock: the world's sound under a falling lowpass and a 3.15 kHz ring over it for a few seconds (the music untouched).
+- `Grenades.ts`: a pool of 24 in one InstancedMesh (body, fuse head, spoon), tumbling in the air, rolling on the ground (about the axis across their way), a clink at each hard bounce by surface; at the fuse's end the blast at the floor under it.
+- `Effects.explosion`: the flash, 30 dim fireball puffs (together a ball, not one white blot: the first try's single bright sprite read as a white disc), 44 fragments, 26 debris bouncing on the blast's floor (particles take a floor height now, not only the street's), a dust ring, 28 smoke puffs that fill a corridor for 3–6 s, embers, a 2 m scorch. The smoke pool 300 → 420.
+- Sounds (Designs.ts): `blast` (crack, a driven brown-noise body, a sub thump 78 → 26 Hz, fragments and grit for 1.5 s, the roll off the walls), `far_blast` (past ~45 m: the low rumble), `nade_bounce`, `throw`.
+- The player: G (Bindings, the controls sheet), two a life (refilled at a spawn; none in the story), thrown over the view at 19 m/s with his own speed, the gun dipped for 0.55 s; the frags on the ammo panel (diamonds). The red of a wound only within 4 m (the first try reddened the screen from 10 m).
+- The bots (DeathmatchAI): a look every ~1.2 s for a throw: one a life, the team's 5 s apart; at a target 7–30 m off that it lost behind cover 0.8–5 s ago (where it was last seen) or that stands still in its sight (a 12% roll); no teammate within 6 m of the point; cooked (2.1 s left), the arc planned through the map within 4 m. "Frag out!" They run from a frag within 7 m in their sight (3 m unseen) after 0.4–0.9 s, the clear one of seven headings away. "Grenade!" New bark kinds `frag` and `nade` (priority 3).
+- The feed shows FRAG for a blast's kill.
+- Tuned on self-play (150 game s, GPU): at 17 m/s and 9–28 m, Old Port's bots threw 2 (most looks out of range); at 19 m/s and 7–30 m, slack 4: Old Port 8 thrown (3 hurt), Neon Docks 13 (7 hurt, 3 killed), Neon Block 13 (8 hurt, 4 killed); the bots dodged 11, 26, 23 times. A frag at a bot's feet with 0.6 s on it: hurt 58 of 150 (it ran).
+- Not measured: perf A/B (a blast is ~170 particles for a few seconds, one light; nothing runs between blasts but the pool's loop).
+- Tests 668 (+9, `explosives90.test.ts`).
+- Human playtest: a frag's reach and damage (too strong, too weak?); how often the bots throw; the ringing; the smoke's thickness in a corridor.
+
 ## Next
 Human playtest:
 - 86.0 items: Neon Docks: the neon's light on the apron by the warehouse ends, the signs in the puddles, the dying tube, the manhole steam (in a sightline?), the oil.

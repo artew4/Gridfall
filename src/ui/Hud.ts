@@ -38,6 +38,9 @@ export class Hud {
   private ammo = el('div', 'panel ammo');
   private ammoCur = el('span', 'cur');
   private reloadEl = el('div', 'reload');
+  /** 90.0: the frags he carries. */
+  private nadesEl = el('div', 'nades');
+  private nadesKey = '';
   private waveNum = el('span', 'num');
   private waveJp = el('span', 'jp');
   private remain = el('div', 'remain');
@@ -78,7 +81,7 @@ export class Hud {
 
     const val = el('div', 'val');
     val.append(this.ammoCur, el('span', 'max', '/ ∞'));
-    this.ammo.append(val, this.pipWrap, this.reloadEl, this.weaponLabel);
+    this.ammo.append(val, this.pipWrap, this.reloadEl, this.weaponLabel, this.nadesEl);
     this.setWeapon('KITSUNE-9', fl('smg'), 12, 3);
 
     const wave = el('div', 'panel wave');
@@ -138,7 +141,8 @@ export class Hud {
           <kbd>R</kbd><span>RELOAD</span><kbd>1–4</kbd><span>WEAPON</span>
           <kbd>SHIFT</kbd><span>SPRINT</span><kbd>SPACE</kbd><span>JUMP · CLIMB</span>
           <kbd>C</kbd><span>CROUCH · SLIDE</span><kbd>E</kbd><span>INTERACT</span>
-          <kbd>X</kbd><span>HOLSTER</span><kbd>ESC</kbd><span>PAUSE</span>
+          <kbd>X</kbd><span>HOLSTER</span><kbd>G</kbd><span>GRENADE</span>
+          <kbd>ESC</kbd><span>PAUSE</span>
         </div>
       </div>`;
     this.pause.id = 'pause';
@@ -348,6 +352,20 @@ export class Hud {
     this.pips.forEach((p, i) => p.classList.toggle('off', i >= a));
     this.ammo.classList.toggle('low', a <= this.lowAmmo && !reloading);
     this.reloadEl.textContent = reloading ? 'RELOADING' : a === 0 ? 'PRESS R' : '';
+  }
+
+  /** 90.0: the frags left (a diamond each, G). */
+  setGrenades(n: number, max: number) {
+    const key = `${n}/${max}`;
+    if (key === this.nadesKey) return;
+    this.nadesKey = key;
+    if (max <= 0) {
+      this.nadesEl.innerHTML = '';
+      return;
+    }
+    let d = '';
+    for (let i = 0; i < max; i++) d += `<i class="${i < n ? 'on' : ''}"></i>`;
+    this.nadesEl.innerHTML = `${d}<span>G · FRAG</span>`;
   }
 
   /** The ammo panel only while the weapon is out. */

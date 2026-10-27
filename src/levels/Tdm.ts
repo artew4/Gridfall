@@ -1,5 +1,6 @@
 import { fl } from '../ui/Flavor';
 import * as THREE from 'three';
+import { recentBlast } from '../combat/Explosives';
 import { heightFogAt } from '../world/HeightFog';
 import type { Game } from '../core/Game';
 import type { ModeRules, TdmData } from './Level';
@@ -1357,7 +1358,8 @@ export class TdmRules implements ModeRules {
     this.spawner?.noteDeath(v.pos, this.now);
     this.zoner?.noteDeath(v.pos, this.now);
     if (by && by.team !== v.team) this.fronts?.kill(by.team, v.pos.x, v.pos.y, v.pos.z, this.now);
-    const weapon = by ? this.armOf(by)?.tag : undefined;
+    // 90.0: a blast's kill is the frag's (or the launcher's), whoever's gun it was.
+    const weapon = recentBlast(v, this.now) ?? (by ? this.armOf(by)?.tag : undefined);
     // 29.0: a final death is marked OUT in the feed.
     g.tdmHud.kill(by, v, weapon, !granted);
     const vs = this.slotOf(v);

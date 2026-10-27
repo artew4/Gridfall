@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Grenades } from '../combat/Grenades';
 import { disposeRig, type Rig } from './Models';
 import type { EnemyLook } from '../entities/types';
 import { NEON_SYNTHS } from '../entities/enemies/neon';
@@ -76,6 +77,8 @@ export interface EnemyCtx {
   /** TDM: the other team's spawn (never a goal), and the lanes from this team's base. */
   avoid?: (p: THREE.Vector3) => boolean;
   lanes?: THREE.Vector3[][];
+  /** 90.0: frags in flight and on the ground (thrown, dodged). */
+  grenades?: Grenades;
 }
 
 const _solo: Combatant[] = [];

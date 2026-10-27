@@ -17,6 +17,9 @@ import { CollisionWorld, exitDist, PIERCE, pierceOf, type RayHit } from '../worl
 import { Glows } from '../world/Glows';
 import type { Zone } from '../world/Zones';
 import { Effects } from '../combat/Effects';
+import { Blasts } from '../combat/Blast';
+import { Grenades } from '../combat/Grenades';
+import { FRAG } from '../combat/Explosives';
 import { Interactives } from '../gameplay/Interactives';
 import { Player } from '../player/Player';
 import { SafetyNet } from '../player/SafetyNet';
@@ -96,6 +99,9 @@ function savedSetting(): SettingId {
  * Everything about a particular place (geometry, lights, weather, its story) is the loaded level's;
  * every level gets a fresh scene and collision world, and a switch frees the previous one.
  */
+/** 90.0: frags a life. */
+export const MAX_NADES = 2;
+
 export class Game {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.05, 500);
@@ -170,6 +176,12 @@ export class Game {
   safety!: SafetyNet;
   weapon!: Weapon;
   projectiles!: Projectiles;
+  /** 90.0: frags in flight, and every blast's damage, light and sound. */
+  grenades!: Grenades;
+  blasts!: Blasts;
+  /** 90.0: the frags he carries this life (MAX_NADES at a spawn), and his throw's pause on the gun. */
+  nades = MAX_NADES;
+  private throwT = 0;
   nav!: Nav;
   waves = new Waves();
   barkView!: BarkView;
@@ -419,6 +431,20 @@ export class Game {
       this.waves.squad.player.pressureT = this.playerUnit.pressureT = this.elapsed;
       this.damagePlayer(dmg, from, by);
     };
+    // 90.0: the blasts hurt everyone in reach (him and every bot), shake and deafen him by how close.
+    this.blasts = new Blasts(s, this.col, this.fx, this.audio, {
+      victims: () => [this.playerUnit, ...this.ctx.enemies],
+      ctx: () => this.ctx,
+      now: () => this.elapsed,
+      ear: () => this.camera.position,
+      felt: (d) => {
+        const k = Math.max(0, 1 - d / 22);
+        this.player.trauma = Math.min(1, this.player.trauma + k * k * 0.95);
+        // (The red of a wound only right by it: the blast's own hurt draws the rest.)
+        if (d < 4) this.damageFx = Math.min(1, this.damageFx + 0.3 * (1 - d / 4));
+      },
+    });
+    this.grenades = new Grenades(s, this.col, this.audio, this.blasts);
     // A round cracking past him counts as pressure too (the rushers' opening).
     this.projectiles.onWhiz = () => (this.waves.squad.player.pressureT = this.playerUnit.pressureT = this.elapsed);
     // 52.0: the graph's links (and the vault links) from the cache when this geometry was built before
@@ -461,6 +487,7 @@ export class Game {
       squad: this.waves.squad,
       damagePlayer: (dmg, f) => this.damagePlayer(dmg, f),
       fog: this.fog,
+      grenades: this.grenades,
     };
     yield { f: 0.7, what: 'COVER AND LANES', creep: 0.8 };
     level.attach();
@@ -963,6 +990,11 @@ export class Game {
       this.armPlayer();
       this.weapon.reset();
     }
+    // 90.0: his frags (none in the story: its scenes are scripted), and none left over from before.
+    this.nades = this.maxNades;
+    this.throwT = 0;
+    this.grenades.clear();
+    this.blasts.clear();
     this.zone = null;
     this.interaction.reset();
     this.rules.begin(fromCheckpoint);
@@ -1160,6 +1192,32 @@ export class Game {
   }
 
   /**
+   * 90.0: a frag thrown along his view (a little over it), from by his right shoulder, his own speed
+   * added; the gun dips for the throw. One at a time (the throw's pause), none mid-mantle.
+   */
+  private get maxNades() {
+    return this.mode === 'story' ? 0 : MAX_NADES;
+  }
+
+  private throwGrenade() {
+    if (this.nades <= 0 || this.throwT > 0 || this.player.mantling || this.player.held) return;
+    if (this.state !== 'play' || !this.player.alive) return;
+    const dir = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3();
+    viewBasis(this.player.viewPitch(this.elapsed), this.player.viewYaw(this.elapsed), dir, right, up);
+    const eye = this.camera.getWorldPosition(new THREE.Vector3());
+    const from = eye.clone().addScaledVector(right, 0.18).addScaledVector(up, -0.05).addScaledVector(dir, 0.35);
+    // Not out through a wall in front of the face: from the eye, then.
+    if (!this.col.lineOfSight(eye, from)) from.copy(eye);
+    const vel = dir.clone().addScaledVector(up, 0.22).normalize().multiplyScalar(FRAG.speed).add(this.player.vel);
+    this.grenades.throw(from, vel, this.playerUnit);
+    this.nades--;
+    this.throwT = 0.55;
+    this.weapon.raiseTarget = 0.15;
+    this.audio.throwWhoosh();
+    this.rules.onGunshot?.(from);
+  }
+
+  /**
    * The cone a round leaves in now (radians): the weapon's own, plus movement, bloom and air. 11.0:
    * ADS halves the base and takes 75% off movement and 60% off bloom; a crouch takes 30% off movement
    * and bloom (and 15% off the base). Shared by the shot and the crosshair.
@@ -1232,6 +1290,7 @@ export class Game {
       if (controls && this.player.alive) {
         if (input.pressed.has(KEYS.holster)) this.weapon.toggleHolster();
         if (input.pressed.has(KEYS.reload)) this.weapon.startReload();
+        if (input.pressed.has(KEYS.grenade)) this.throwGrenade();
         // 36.0: the trigger is held through TDM's pre-match countdown.
         if (input.mouseDown && !this.player.held && !this.player.mantling && this.weapon.tryFire()) this.shoot();
       }
@@ -1282,6 +1341,7 @@ export class Game {
       this.hud.setHealth(this.player.health, this.player.maxHealth);
       this.hud.setStamina(this.player.stamina.frac, this.player.stamina.exhausted);
       this.hud.setAmmo(this.weapon.ammo, this.weapon.reloading);
+      this.hud.setGrenades(this.nades, this.maxNades);
       this.hud.setArmed(this.weapon.visible);
       this.hud.setWave(this.waves.wave, this.waves.remaining, this.waves.state === 'break');
       this.hud.root.classList.toggle('holstered', this.weapon.holstered);
@@ -1326,6 +1386,8 @@ export class Game {
     this.weapon.reset();
     this.weapon.raiseTarget = 1;
     this.weapon.setHolstered(false, true);
+    this.nades = this.maxNades;
+    this.throwT = 0;
     this.playerAttacker = null;
     this.respawning = false;
     this.state = 'play';
@@ -1537,6 +1599,13 @@ export class Game {
     const playing = this.state === 'play' || this.state === 'dead';
     this.level.update({ dt, rawDt, elapsed: this.elapsed, camPos, player: this.player, playing, mode: this.mode });
     this.fx.update(dt);
+    this.grenades.update(dt);
+    this.blasts.update(dt);
+    // 90.0: the gun comes back up after a throw.
+    if (this.throwT > 0) {
+      this.throwT -= dt;
+      if (this.throwT <= 0 && !this.weapon.holstered) this.weapon.raiseTarget = 1;
+    }
 
     this.level.lightWeapon(this.weapon, camPos);
     const md = this.state === 'play' ? this.input.mouseDX : 0;

@@ -55,6 +55,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .ammo .pips.many .pip { width: 0.1875rem; height: 0.625rem; }
 .ammo.low .pip, .ammo.low .val .cur { color: var(--red); background: var(--red); }
 .ammo.low .val .cur { background: none; }
+/* 90.0: the frags. */
+.ammo .nades { display: flex; gap: 0.3125rem; justify-content: flex-end; align-items: center; margin-top: 0.375rem; font-size: 0.75rem; letter-spacing: 0.12em; color: var(--cyan-dim); }
+.ammo .nades i { width: 0.5rem; height: 0.5rem; transform: rotate(45deg); border: 1px solid var(--cyan-dim); }
+.ammo .nades i.on { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 0.25rem rgba(120,235,255,0.5); }
+.ammo .nades span { margin-left: 0.25rem; }
 .ammo .reload { font-size: 0.75rem; letter-spacing: 0.3em; color: var(--red); height: 0.75rem; }
 .wave { left: 50%; top: 1.375rem; transform: translateX(-50%); text-align: center; border-top: 1px solid var(--cyan-dim); padding-top: 0.5rem; min-width: 11.25rem; }
 .wave .num { font-size: 1.375rem; font-weight: 300; letter-spacing: 0.2em; }

@@ -220,12 +220,55 @@ function step(s: StepSurface): Design {
 }
 
 const MOVES: Record<string, Design> = {
+  // 90.0: a frag's throw: the arm's swish, the spoon flying off.
+  throw: (r, sr) => { const o = secs(0.32, sr); nz(o, r, sr, 0, 0.22, 0.7, { type: 'bandpass', f: 500, q: 1.2, to: 1900 }, { a: 0.012, t60: 0.18 }, 'pink'); ring(o, r, sr, 0.12, 3300, [1, 1.9, 2.8], 0.25, 0.08); return finish(o, sr, 0.7); },
   land: (r, sr) => { const o = secs(0.45, sr); thump(o, sr, 0, 95, 40, 0.18, 1, 1.8); nz(o, r, sr, 0, 0.2, 0.6, { type: 'lowpass', f: 900, q: 0.7 }, { a: 0.003, t60: 0.15 }, 'brown'); grains(o, r, sr, { n: 16, at: 0.01, spread: 0.15, fLo: 2000, fHi: 6000, amp: 0.15, len: 5 }); return finish(o, sr, 0.85); },
   jump: (r, sr) => { const o = secs(0.3, sr); nz(o, r, sr, 0, 0.2, 0.6, { type: 'bandpass', f: 1500, q: 0.8 }, { a: 0.02, t60: 0.14 }, 'pink'); nz(o, r, sr, 0, 0.04, 0.4, { type: 'highpass', f: 2200 }, { a: 0.002, t60: 0.03 }); return finish(o, sr, 0.6); },
   slide: (r, sr) => { const o = secs(1.0, sr); nz(o, r, sr, 0, 1.0, 1, { type: 'lowpass', f: 1500, q: 0.7, to: 450 }, { a: 0.03, t60: 0.9 }, 'pink'); grains(o, r, sr, { n: 160, at: 0, spread: 0.8, fLo: 1500, fHi: 5500, amp: 0.18, len: 4 }); return finish(o, sr, 0.85); },
   mantle: (r, sr) => { const o = secs(0.4, sr); nz(o, r, sr, 0, 0.04, 0.8, { type: 'bandpass', f: 1200, q: 1 }, { a: 0.001, t60: 0.03 }); nz(o, r, sr, 0.07, 0.04, 0.7, { type: 'bandpass', f: 1050, q: 1 }, { a: 0.001, t60: 0.03 }); nz(o, r, sr, 0.03, 0.3, 0.4, { type: 'bandpass', f: 1800, q: 0.8 }, { a: 0.03, t60: 0.22 }, 'pink'); return finish(o, sr, 0.7); },
   hit: (r, sr) => { const o = secs(0.08, sr); ring(o, r, sr, 0, 2900, [1, 2], 1, 0.045); nz(o, r, sr, 0, 0.006, 0.6, { type: 'highpass', f: 6000 }, { t60: 0.005 }); return finish(o, sr, 0.7); },
   kill: (r, sr) => { const o = secs(0.35, sr); ring(o, r, sr, 0, 2900, [1, 2], 0.8, 0.045); ring(o, r, sr, 0.045, 1100, [1, 1.5, 2], 1, 0.22); return finish(o, sr, 0.75); },
+};
+
+// ------------------------------------------------------------------ 90.0: explosives
+/**
+ * A frag going off: the crack of the charge, the blast's body (brown noise, its top falling fast,
+ * driven hard), the pressure wave (a sub thump), fragments and grit raining down for a second and a
+ * half, the rolling tail off the buildings. `far`: past ~45 m the crack and the top gone, a low
+ * rumble and a longer roll.
+ */
+function blast(far: boolean): Design {
+  return (rng, sr) => {
+    const len = far ? 3.2 : 2.8;
+    const out = secs(len, sr);
+    const p = rng.range(0.92, 1.08);
+    if (!far) {
+      nz(out, rng, sr, 0, 0.02, 1.4, { type: 'highpass', f: 1800 * p }, { a: 0.0002, t60: 0.02 }, 'white', 2.2);
+      nz(out, rng, sr, 0, 0.5, 1.6, { type: 'lowpass', f: 5200 * p, q: 0.8, to: 420 }, { a: 0.0006, t60: 0.38 }, 'brown', 4);
+    } else nz(out, rng, sr, 0.004, 0.8, 1.3, { type: 'lowpass', f: 900 * p, q: 0.8, to: 160 }, { a: 0.006, t60: 0.6 }, 'brown', 2.5);
+    thump(out, sr, 0, 78 * p, 26, far ? 1.1 : 0.85, far ? 1.1 : 1.5, 2.2);
+    if (!far) {
+      // Fragments and grit: the first ones sharp, then the patter of what was thrown up landing.
+      grains(out, rng, sr, { n: 70, at: 0.01, spread: 0.25, fLo: 2500, fHi: 7000, amp: 0.32, len: 3 });
+      grains(out, rng, sr, { n: 120, at: 0.35, spread: 1.4, fLo: 1200, fHi: 5000, amp: 0.16, len: 6 });
+    }
+    // The tail: the bang rolling back off the walls and away.
+    const tail = secs(len, sr);
+    nz(tail, rng, sr, 0, len, 1, { type: 'lowpass', f: far ? 600 : 1300, q: 0.6, to: 140 }, { a: 0.05, t60: far ? 2.4 : 1.9 }, 'brown');
+    mix(out, tail, 0.02, far ? 0.9 : 0.7, sr);
+    reflect(out, sr, [[0.07 + rng.range(0, 0.03), 0.3], [0.16 + rng.range(0, 0.05), 0.22], [0.31 + rng.range(0, 0.08), 0.14]], far ? 700 : 1600);
+    sat(out, 1.4);
+    return finish(out, sr, 0.92);
+  };
+}
+
+/** A grenade's body hitting the ground or a wall: a dull steel clink and a knock. */
+const NADE_BOUNCE: Design = (r, sr) => {
+  const o = secs(0.3, sr);
+  ring(o, r, sr, 0, r.range(1500, 2100), [1, 2.32, 3.7, 5.1], 0.7, 0.12);
+  nz(o, r, sr, 0, 0.03, 0.8, { type: 'bandpass', f: 900, q: 1 }, { t60: 0.025 });
+  thump(o, sr, 0, 260, 140, 0.05, 0.35);
+  return finish(o, sr, 0.8);
 };
 
 /** Every buffer the bank renders: its key, how many variants, the design. */
@@ -236,4 +279,7 @@ export const DESIGNS: [string, number, Design][] = [
   ['whiz', 5, WHIZ],
   ...(['concrete', 'metal', 'wood', 'sand', 'wet', 'gravel'] as const).map((k) => [`step_${k}`, 8, step(k)] as [string, number, Design]),
   ...Object.entries(MOVES).map(([k, d]) => [k, k === 'slide' ? 2 : 3, d] as [string, number, Design]),
+  ['blast', 4, blast(false)],
+  ['far_blast', 3, blast(true)],
+  ['nade_bounce', 4, NADE_BOUNCE],
 ];

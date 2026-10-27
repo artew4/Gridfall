@@ -1100,6 +1100,65 @@ export class AudioEngine {
     this.metal(o, rand(3800, 5200), 0.04 * strength, 0.07, [1, 1.6, 2.9]);
   }
 
+  /** 90.0: his throw (his own arm: no position). */
+  throwWhoosh() {
+    if (!this.started) return;
+    this.sample('throw', null, 0.05, 0.6, this.sfx, 0.06);
+  }
+
+  /** 90.0: a grenade bouncing (`k` 0..1, how hard), off `surface`. */
+  grenadeBounce(pos: V3, k: number, surface: string) {
+    if (!this.started) return;
+    const soft = surface === 'sand' || surface === 'wood' ? 0.55 : 1;
+    if (this.sample('nade_bounce', pos, 0.15, 0.5 * k * soft, this.sfx, 0.08)) return;
+    this.metal(this.out(pos, 0.15), rand(1500, 2100), 0.1 * k * soft, 0.12, [1, 2.32, 3.7]);
+  }
+
+  /**
+   * 90.0: a blast at `pos`, `d` m from the listener: the near bang within 45 m, the far rumble past it
+   * (and both in between, crossfaded); close by, the ears ring (deafen).
+   */
+  explosion(pos: V3, d: number) {
+    if (!this.started) return;
+    const near = Math.max(0, Math.min(1, (60 - d) / 30));
+    if (near > 0 && !this.sample('blast', pos, 0.9, 1.6 * near, this.sfx, 0.05)) {
+      const o = this.out(pos, 0.9);
+      this.burst(o, this.brown, 'lowpass', 2400, 0.8, 1.4 * near, 0.002, 0.9, this.now(), 200);
+      this.tone(o, 'sine', 80, 28, 1.2 * near, 0.003, 0.8);
+    }
+    if (near < 1) this.sample('far_blast', pos, 1.2, 1.4 * (1 - near * 0.7), this.sfx, 0.05);
+    if (d < 9) this.deafen(1 - d / 9);
+  }
+
+  private ring: { osc: OscillatorNode; g: GainNode } | null = null;
+  /**
+   * 90.0: shell shock (`k` 0..1): the world's sound muffled and a high ring over it, both fading over
+   * a few seconds. The music stays (it is after the muffle).
+   */
+  deafen(k: number) {
+    if (!this.started || k <= 0) return;
+    const t = this.now();
+    const f = this.muffle.frequency;
+    f.cancelScheduledValues(t);
+    f.setValueAtTime(Math.min(f.value, 20000), t);
+    f.exponentialRampToValueAtTime(Math.max(260, 2600 * (1 - k)), t + 0.03);
+    f.setTargetAtTime(20000, t + 0.4 + 1.6 * k, 0.9 + 1.4 * k);
+    if (!this.ring) {
+      const osc = this.ctx.createOscillator();
+      osc.frequency.value = 3150;
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      osc.connect(g).connect(this.sfxVol);
+      osc.start();
+      this.ring = { osc, g };
+    }
+    const g = this.ring.g.gain;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(0.05 * k, t + 0.05);
+    g.setTargetAtTime(0, t + 0.3, 0.8 + 1.6 * k);
+  }
+
   hitSurface(pos: V3, surface: string) {
     if (!this.started) return;
     const im = surface === 'metal' || surface === 'wood' || surface === 'sand' || surface === 'glass' ? surface : surface === 'flesh' ? 'body' : 'concrete';

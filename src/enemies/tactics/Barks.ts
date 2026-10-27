@@ -29,7 +29,10 @@ export type BarkKind =
   | 'otherFlankR'
   // 55.0, the instincts: after a wounded one, paying back a teammate's killer.
   | 'chase'
-  | 'payback';
+  | 'payback'
+  // 90.0: a frag out, a frag at its feet.
+  | 'frag'
+  | 'nade';
 
 export type Voice = 'synth' | 'human';
 
@@ -58,6 +61,8 @@ export const BARK_LINES: Record<Voice, Record<BarkKind, string[]>> = {
     otherFlankR: ['You go left, I’ve got right!', 'Taking the right!'],
     chase: ['He’s hit, after him!', 'He’s running, finish him!', 'I’ve got him, he’s hurt!'],
     payback: ['You’ll pay for that!', 'I saw who did that!', 'That one’s mine!'],
+    frag: ['Frag out!', 'Grenade out!', 'Fire in the hole!'],
+    nade: ['Grenade!', 'Get clear!', 'Nade, move!'],
   },
   synth: {
     contact: ['TARGET ACQUIRED', 'CONTACT'],
@@ -82,19 +87,21 @@ export const BARK_LINES: Record<Voice, Record<BarkKind, string[]>> = {
     otherFlankR: ['RIGHT VECTOR'],
     chase: ['TARGET DAMAGED. PURSUING', 'PURSUIT'],
     payback: ['HOSTILE MARKED', 'RETALIATING'],
+    frag: ['ORDNANCE OUT', 'DEPLOYING CHARGE'],
+    nade: ['EXPLOSIVE DETECTED', 'EVADE'],
   },
 };
 
 /** Higher wins the floor (and may cut the global gap). */
 export const BARK_PRIORITY: Record<BarkKind, number> = {
   contact: 3, lost: 3, go: 3, blown: 2, flankL: 2, flankR: 2, reload: 2, pinned: 2, suppress: 1, heard: 2, search: 1, giveup: 1, manDown: 1, moving: 0,
-  kill: 2, withYou: 3, coverYou: 3, flankWhile: 3, otherFlankL: 3, otherFlankR: 3, chase: 3, payback: 2,
+  kill: 2, withYou: 3, coverYou: 3, flankWhile: 3, otherFlankL: 3, otherFlankR: 3, chase: 3, payback: 2, frag: 3, nade: 3,
 };
 
 /** Seconds before the same kind may be heard again from anyone. */
 export const BARK_KIND_COOLDOWN: Record<BarkKind, number> = {
   contact: 6, lost: 6, go: 5, blown: 3, flankL: 5, flankR: 5, reload: 4, pinned: 4, suppress: 7, heard: 6, search: 10, giveup: 20, manDown: 6, moving: 8,
-  kill: 4, withYou: 8, coverYou: 6, flankWhile: 8, otherFlankL: 8, otherFlankR: 8, chase: 5, payback: 8,
+  kill: 4, withYou: 8, coverYou: 6, flankWhile: 8, otherFlankL: 8, otherFlankR: 8, chase: 5, payback: 8, frag: 3, nade: 3,
 };
 
 export const BARK_GAP = 1.3;
