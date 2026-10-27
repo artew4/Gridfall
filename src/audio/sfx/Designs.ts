@@ -272,6 +272,24 @@ const ROCKET_LAUNCH: Design = (r, sr) => {
   return finish(o, sr, 0.9);
 };
 
+/** 91.0: masonry giving way: a dull thud, a spill of brick and grit, dust's hiss. */
+const CRUMBLE: Design = (r, sr) => {
+  const o = secs(1.0, sr);
+  thump(o, sr, 0, 95 * r.range(0.9, 1.1), 40, 0.22, 0.9, 1.6);
+  nz(o, r, sr, 0, 0.3, 0.8, { type: 'lowpass', f: 1400, q: 0.7, to: 400 }, { a: 0.002, t60: 0.2 }, 'brown', 2);
+  grains(o, r, sr, { n: 70, at: 0.01, spread: 0.7, fLo: 900, fHi: 4200, amp: 0.3, len: 7 });
+  return finish(o, sr, 0.85);
+};
+
+/** 91.0: boards breaking: a crack, the wood's knock, splinters. */
+const SPLINTER: Design = (r, sr) => {
+  const o = secs(0.6, sr);
+  nz(o, r, sr, 0, 0.02, 1.1, { type: 'highpass', f: 2200 }, { a: 0.0003, t60: 0.02 }, 'white', 1.6);
+  ring(o, r, sr, 0.002, r.range(380, 520), [1, 2.4, 3.9, 5.6], 0.7, 0.09);
+  grains(o, r, sr, { n: 40, at: 0.01, spread: 0.35, fLo: 1500, fHi: 5000, amp: 0.25, len: 4 });
+  return finish(o, sr, 0.85);
+};
+
 /** A grenade's body hitting the ground or a wall: a dull steel clink and a knock. */
 const NADE_BOUNCE: Design = (r, sr) => {
   const o = secs(0.3, sr);
@@ -293,4 +311,6 @@ export const DESIGNS: [string, number, Design][] = [
   ['far_blast', 3, blast(true)],
   ['nade_bounce', 4, NADE_BOUNCE],
   ['rocket_launch', 3, ROCKET_LAUNCH],
+  ['crumble', 4, CRUMBLE],
+  ['splinter', 4, SPLINTER],
 ];

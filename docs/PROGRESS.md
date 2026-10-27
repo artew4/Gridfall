@@ -3451,6 +3451,19 @@ The plan's choice (a): a pickup on the map, not a class.
 - The bots don't take it up yet (step 3 of the plan).
 - Human playtest: the launcher's look in hand and through its sight; the rocket's speed; the spots (a fair run for both sides?); how many rockets.
 
+## 91.0: Destruction, step 2: destructible walls (Old Port)
+
+Branch `feature/destruction-91.0`, from `feature/rpg-90.1` @ `ba52c4f` (87.0–90.1 not merged yet).
+
+- `Destruction.ts`: a destructible piece is a box whose thin side is its thickness, drawn whole (merged per material; a piece hidden by collapsing its 36 vertices) until a cell of it crumbles: then a grid of cells (0.5 m, wood 0.4 m; the full thickness each) in a mesh of its own. Textures laid in world space (whole and broken read the same). A cell's health by kind (brick 100, concrete 150, wood 30). A round chips its cell (× 0.45 for brick, 0.3 concrete, 0.9 wood) and a third as much each neighbour: a dozen on one spot hole brick (7–15 in the test). A blast breaks every cell within its `breach`, hurts the ring to its `crack`: a frag (0.5 / 1.5 m, 120) a 1.2 m hole at a wall's foot, a rocket (1.1 / 2.6 m, 220) one about 3 m across (the first numbers took a 4.6 m bite: the test wall went whole). Below half health a cell crumbles (drawn 72–92% of itself and askew: the ragged edge); at none it is gone. What a hole cuts off from the bottom row (and the top one where a piece reaches the eaves) falls whole (`unsupported`). The piece's collider becomes the fewest boxes over what stands (`greedyRects`): rounds, sight and bodies go through the holes. `reset` puts every piece back (a new match).
+- `Debris.ts`: a pool of 360 chunks in one InstancedMesh, the wall's colour (varied): two thrown off each broken cell, a cut-off cell dropping whole; bouncing on the floor under them, at rest 14 s, then sinking.
+- `CollisionWorld.remove`, `Collider.wreck` (a round's hit: the player's in `shoot`, pierced walls too; the bots' in Projectiles at half a player round's); `BlastSpec.breach` (Blasts go at the walls after the bodies: the wall that stood between still shielded them); dust, `crumble` and `splinter` sounds; the static shadow map drawn again after a change (at most 5 a second).
+- Old Port: the warehouse's yard wall and ends (their lintels concrete) and the yards' stone walls (both halves) break; the back wall, against the boundary, doesn't. 100 pieces. The colliders added in the map's order (the nav cache's fingerprint unchanged).
+- Checked live (GPU): two rockets into the yard wall: a hole the ray passes through (to x -31 inside), brick chunks flying, rubble, the warehouse seen through it, walked into. The worst case: 26 rockets along the yard wall (702 cells, 58 fallen): +46 draw calls, +31k triangles, frames unchanged (p50 16.7 ms, p95 18.7, vsync). A cell mesh is made only at the first crumble (a chip shows nothing): the first try made one for every piece a burst touched (11 from one rifle magazine). 150 s of bots: no wall opened (their rounds chip; their frags fell in the open). World check: the 4 narrow gaps on the deck there before (90.1 has them), nothing new.
+- Tests 681 (+7, `destruction91.test.ts`).
+- Not yet: the bots don't know (holes aren't in their nav, a gone wall stays a cover spot: step 3); the rubble has no collider; wood and steel; the other maps.
+- Human playtest: how a hole looks and how big; rounds to a hole; the rubble; frames in a long match with a lot broken.
+
 ## Next
 Human playtest:
 - 86.0 items: Neon Docks: the neon's light on the apron by the warehouse ends, the signs in the puddles, the dying tube, the manhole steam (in a sightline?), the oil.

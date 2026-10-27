@@ -41,6 +41,8 @@ export interface Collider {
   pierce?: number;
   /** Called when a player bullet hits this collider. */
   onHit?: (hit: RayHit) => void;
+  /** 91.0: a destructible piece's: a round (anyone's) struck it along `dir` with a gun's `dmg`. */
+  wreck?: (hit: RayHit, dir: THREE.Vector3, dmg: number) => void;
   /** Moves at runtime (e.g. the metro train): kept out of the static grid, always queried. */
   dynamic?: boolean;
   /** Broadphase dedupe stamp. */
@@ -132,6 +134,14 @@ export class CollisionWorld {
       kind: 'box',
       stamp: 0,
     });
+  }
+
+  /** 91.0: a collider out of the world (a destructible piece's, replaced as it breaks). */
+  remove(c: Collider) {
+    const i = this.colliders.indexOf(c);
+    if (i < 0) return;
+    this.colliders.splice(i, 1);
+    this.dirty = true;
   }
 
   addCentered(cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, surface: Surface = 'concrete') {

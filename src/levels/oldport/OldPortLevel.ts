@@ -152,7 +152,8 @@ export class OldPortLevel implements LevelRuntime {
     this.sun.shadow.radius = 2;
     s.add(this.sun, this.sun.target);
 
-    this.port = buildOldPort(s, game.col, SUN_DIR);
+    // 91.0: its warehouse's yard wall and ends, and the yards' stone walls, break.
+    this.port = buildOldPort(s, game.col, SUN_DIR, game.destruction);
     if (this.port.laneProblems.length) console.warn('[oldport] nav nodes or lanes on blocked floor', this.port.laneProblems);
 
     // Sun shafts through the broken skylights onto the upper floor.

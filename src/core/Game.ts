@@ -23,6 +23,8 @@ import { FRAG } from '../combat/Explosives';
 import { Rockets } from '../combat/Rockets';
 import { LauncherPickups, launcherSpots } from '../gameplay/Pickups';
 import { RAM_LAUNCHER } from '../entities/weapons/rpg';
+import { Destruction, KINDS } from '../world/Destruction';
+import { Debris } from '../world/Debris';
 import { Interactives } from '../gameplay/Interactives';
 import { Player } from '../player/Player';
 import { SafetyNet } from '../player/SafetyNet';
@@ -104,6 +106,7 @@ function savedSetting(): SettingId {
  * every level gets a fresh scene and collision world, and a switch frees the previous one.
  */
 /** 90.0: frags a life. */
+const _v3 = new THREE.Vector3();
 export const MAX_NADES = 2;
 /** 90.1: rockets a launcher pickup gives (one in the tube), and the most he carries. */
 export const LAUNCHER_LOAD = 3;
@@ -194,6 +197,12 @@ export class Game {
   pickups: LauncherPickups | null = null;
   /** `loaded`: one in the tube; `carried`: the rest; `out`: the launcher in hand (else his gun). */
   launcher: { loaded: boolean; carried: number; out: boolean } | null = null;
+  /** 91.0: the map's destructible walls (Old Port's so far), their chunks; the world changed (shadows to redraw). */
+  destruction!: Destruction;
+  debris!: Debris;
+  private worldChanged = false;
+  private shadowT = 0;
+  private crumbleT = 0;
   /** The launcher's last rocket gone: back to the gun this many seconds on. */
   private dropT = 0;
   nav!: Nav;
@@ -404,6 +413,12 @@ export class Game {
     // 8.1: brass lands on the real floor (terrain, catwalks, roofs), looked up twice per casing.
     this.fx.casings.floorAt = (x, z, y) => this.col.groundHeightAt(x, z, 0.02, y, 0.3);
     this.fx.onShellBounce = (p, k) => this.audio.shellBounce(p, k);
+    // 91.0: the destructible walls (the level adds its pieces as it builds) and their chunks.
+    this.debris = new Debris(s, this.col);
+    this.destruction = new Destruction(s, this.col, {
+      broke: (p, kind, size, falling) => this.wallBroke(p, kind, size, falling),
+      changed: () => (this.worldChanged = true),
+    });
     this.weapon.setLights(null);
     const level = levelEntry(id).create(this);
     this.level = level;
@@ -451,6 +466,7 @@ export class Game {
       ctx: () => this.ctx,
       now: () => this.elapsed,
       ear: () => this.camera.position,
+      breach: (at, b) => this.destruction.blast(at, b),
       felt: (d) => {
         const k = Math.max(0, 1 - d / 22);
         this.player.trauma = Math.min(1, this.player.trauma + k * k * 0.95);
@@ -636,6 +652,7 @@ export class Game {
     this.waves.reset(this.scene);
     this.barkView.clear();
     this.projectiles.clear();
+    this.rockets?.clear();
     this.fx.clear();
     this.lightPool?.dispose();
     this.lightPool = null;
@@ -1071,6 +1088,11 @@ export class Game {
     this.grenades.clear();
     this.rockets.clear();
     this.blasts.clear();
+    // 91.0: the walls whole again for a new run, the rubble gone.
+    if (!fromCheckpoint) {
+      this.destruction.reset();
+      this.debris.clear();
+    }
     this.pickups?.reset();
     this.dropT = 0;
     this.zone = null;
@@ -1216,7 +1238,8 @@ export class Game {
         if (p <= 0 || pierced >= PIERCE.max) break;
         const out = exitDist(wh.collider!, _shotIn.copy(wh.point).addScaledVector(pd, 0.002), pd);
         if (out > PIERCE.maxThrough) break;
-        // In and out: a hole each side, the round on a little bent.
+        // In and out: a hole each side, the round on a little bent. 91.0: what it goes through chipped.
+        wh.collider!.wreck?.(wh, pd, w.damage);
         this.fx.impact(wh.point, wh.normal, wh.surface);
         if (surfaceSounds++ < 2) this.audio.hitSurface(wh.point, wh.surface);
         _shotIn.addScaledVector(pd, out + 0.01);
@@ -1249,6 +1272,8 @@ export class Game {
       } else if (wh) {
         this.fx.impact(wh.point, wh.normal, wh.surface);
         if (surfaceSounds++ < 2) this.audio.hitSurface(wh.point, wh.surface);
+        // 91.0: a destructible piece chipped (every pellet).
+        wh.collider?.wreck?.(wh, pd, w.damage);
         // Cabinets, lamps and other shootable props: once per trigger pull, however many pellets.
         if (wh.collider?.onHit && !props.has(wh.collider)) {
           props.add(wh.collider);
@@ -1287,6 +1312,27 @@ export class Game {
     this.player.recoil.fire(w.recoil, k);
     this.player.kickRoll.impulse(rand(-c.roll, c.roll) * k);
     this.player.trauma = Math.min(1, this.player.trauma + c.trauma * k);
+  }
+
+  /**
+   * 91.0: a wall's cell broke at `p`: chunks thrown off both faces (a cut-off cell drops whole), dust,
+   * the crumble or the splinter (one at a time, a few times a second).
+   */
+  private wallBroke(p: THREE.Vector3, kind: keyof typeof KINDS, size: number, falling: boolean) {
+    const colour = KINDS[kind].colour;
+    if (falling) this.debris.throw(p, _v3.set(rand(-0.6, 0.6), rand(-0.5, 0.5), rand(-0.6, 0.6)), size * 0.95, colour);
+    else
+      for (let i = 0; i < 2; i++)
+        this.debris.throw(p, _v3.set(rand(-4, 4), rand(1, 4.5), rand(-4, 4)), size * rand(0.3, 0.5), colour);
+    const dust = kind === 'wood' ? [0.42, 0.36, 0.28] : kind === 'brick' ? [0.5, 0.38, 0.32] : [0.6, 0.58, 0.54];
+    this.fx.smoke.spawn({
+      x: p.x, y: p.y, z: p.z, vx: rand(-0.8, 0.8), vy: rand(0.1, 0.8), vz: rand(-0.8, 0.8),
+      r: dust[0], g: dust[1], b: dust[2], a: 0.5, size: size * 0.9, grow: 1.3, life: rand(1.2, 2.2), drag: 2,
+    });
+    if (this.crumbleT <= 0) {
+      this.crumbleT = 0.07;
+      this.audio.crumble(p, KINDS[kind].sound, falling);
+    }
   }
 
   /**
@@ -1701,6 +1747,16 @@ export class Game {
     this.fx.update(dt);
     this.grenades.update(dt);
     this.rockets.update(dt);
+    this.debris.update(dt);
+    this.crumbleT -= dt;
+    // 91.0: a wall changed: the static shadows drawn again (at most five times a second).
+    this.shadowT -= dt;
+    if (this.worldChanged && this.shadowT <= 0) {
+      this.worldChanged = false;
+      this.shadowT = 0.2;
+      const r = this.renderer.renderer;
+      if (!r.shadowMap.autoUpdate) r.shadowMap.needsUpdate = true;
+    }
     this.blasts.update(dt);
     // 90.1: the launchers on the map (TDM), and back to the gun after the last rocket.
     if (this.pickups && this.mode === 'tdm') this.pickups.update(dt, this.player.alive && this.state === 'play' ? this.player.pos : null, () => this.takeLauncher());

@@ -25,6 +25,10 @@ the particle pools, the procedural sound bank.
    brick and concrete chip under rounds and hole under a blast (or long fire on one spot); container
    steel dents and tears under a rocket. Debris on simple physics (a pool of ~300, asleep after a few
    seconds, then rubble: low cover to vault).
+   91.0 did the core with brick and concrete on Old Port (its warehouse, its yards' stone walls): the
+   hole's ragged edge from crumbled cells (drawn smaller and askew), not yet pre-fractured pieces; the
+   rubble seen only (no collider). Still to come here: wood (the crates are dressed kit models), the
+   container steel, the pre-fractured edges.
 3. **The bots in a breaking map (92.0).** Nav links re-made round a hole (`walkable()` within ~15 m,
    the path memos dropped); cover spots that are gone dropped, rubble's added; a bot leaves cover
    that is being taken apart, fires a rocket at the wall a target hides behind, goes through a fresh

@@ -23,6 +23,8 @@ export interface BlastWorld {
   ear(): THREE.Vector3;
   /** The player felt it at `d` metres. */
   felt(d: number): void;
+  /** 91.0: the walls in reach bitten into. */
+  breach?(at: THREE.Vector3, s: NonNullable<BlastSpec['breach']>): void;
 }
 
 const _p = new THREE.Vector3();
@@ -87,6 +89,8 @@ export class Blasts {
       _hit.collider = col;
       col.onHit({ ..._hit, point: q.clone(), normal: _hit.normal.clone() });
     }
+    // 91.0: then the walls (the wall that stood between still shielded what was behind it).
+    if (s.breach) this.w.breach?.(at, s.breach);
     this.fx.explosion(at, normal, size);
     this.flash = 1;
     this.light.position.copy(c).addScaledVector(normal, 0.6);

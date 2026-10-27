@@ -1100,6 +1100,14 @@ export class AudioEngine {
     this.metal(o, rand(3800, 5200), 0.04 * strength, 0.07, [1, 1.6, 2.9]);
   }
 
+  /** 91.0: a wall's cell giving way (`falling`: a cut-off piece dropping, louder). */
+  crumble(pos: V3, sound: 'masonry' | 'wood', falling: boolean) {
+    if (!this.started) return;
+    const key = sound === 'wood' ? 'splinter' : 'crumble';
+    if (this.sample(key, pos, 0.5, falling ? 1.0 : 0.7, this.sfx, 0.1)) return;
+    this.burst(this.out(pos, 0.5), this.brown, 'lowpass', 1200, 0.7, 0.5, 0.003, 0.3);
+  }
+
   /** 90.1: a rocket fired at `pos` (the tube's report). */
   rocketLaunch(pos: V3) {
     if (!this.started) return;

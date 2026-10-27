@@ -255,6 +255,8 @@ export class Projectiles {
         if (out <= PIERCE.maxThrough) {
           this.fx.impact(hit.point, hit.normal, hit.surface);
           this.audio.hitSurface(hit.point, hit.surface);
+          // 91.0: it chips what it goes through (half a player round's: the bots' fights wear cover, slowly).
+          hit.collider?.wreck?.(hit, dir, b.dmg * 10);
           b.pos.copy(this.closest).addScaledVector(dir, out + 0.02);
           this.fx.impact(b.pos, this.seg.copy(dir), hit.surface);
           b.dmg *= p;
@@ -266,9 +268,10 @@ export class Projectiles {
       }
       if (hit || b.life <= 0) {
         if (hit) {
-          // A bullet: an ordinary impact on whatever it struck.
+          // A bullet: an ordinary impact on whatever it struck (91.0: a destructible piece chipped).
           this.fx.impact(hit.point, hit.normal, hit.surface);
           this.audio.hitSurface(hit.point, hit.surface);
+          hit.collider?.wreck?.(hit, dir, b.dmg * 10);
         }
         this.deactivate(b);
         continue;

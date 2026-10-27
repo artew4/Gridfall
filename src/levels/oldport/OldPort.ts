@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Destruction } from '../../world/Destruction';
 import { StaticBuilder, worldBox } from '../../world/Builder';
 import type { Collider, CollisionWorld } from '../../world/Collision';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
@@ -68,7 +69,7 @@ export function carve(r: R, holes: R[]): R[] {
   return out;
 }
 
-export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: THREE.Vector3): OldPortResult {
+export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: THREE.Vector3, wreck: Destruction | null = null): OldPortResult {
   const b = new StaticBuilder();
   const std = (map: THREE.Texture | null, color: number | string, rough = 0.85, metal = 0, env = 0.5) =>
     new THREE.MeshStandardMaterial({ map, color, roughness: rough, metalness: metal, envMapIntensity: env });
@@ -145,8 +146,12 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   /** Something only seen (inside a collider, or out of reach). */
   const deco = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, mat: THREE.Material, tile = 2) =>
     b.add(worldBox(x1 - x0, y1 - y0, z1 - z0, tile), mat, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
-  /** Waist-high cover on the ground (vault it if ≤ 1.05 m), both halves. */
+  /** Waist-high cover on the ground (vault it if ≤ 1.05 m), both halves. 91.0: the stone walls break. */
   const low2 = (x0: number, z0: number, x1: number, z1: number, h: number, mat: THREE.Material, surface: Collider['surface'] = 'concrete', y = 0) => {
+    if (wreck && mat === m.stone) {
+      for (const [a, c] of [[z0, z1], [-z1, -z0]]) wreck.add(x0, y, a, x1, y + h, c, mat, 'concrete', surface, { tile: 1, vault: h <= 1.05 });
+      return;
+    }
     for (const c of solid2(x0, y, z0, x1, y + h, z1, mat, surface, 1)) c.vault = h <= 1.05;
   };
   const cyl = (x: number, z: number, r: number, y0: number, h: number, mat: THREE.Material, surface: Collider['surface'] = 'metal', seg = 14) => {
@@ -225,9 +230,19 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
    * x ∈ [c0, c1]. Solid stretches, and the pieces under and over each opening (a stone lintel), are
    * one box each. Openings must not overlap along the wall.
    */
-  const wall = (alongX: boolean, a0: number, a1: number, c0: number, c1: number, y0: number, h: number, mat: THREE.Material, openings: Opening[]) => {
+  const wall = (alongX: boolean, a0: number, a1: number, c0: number, c1: number, y0: number, h: number, mat: THREE.Material, openings: Opening[], breaks = false) => {
+    const top = y0 + h;
     const piece = (p0: number, p1: number, ya: number, yb: number, mt: THREE.Material) => {
       if (p1 - p0 < 0.01 || yb - ya < 0.01) return;
+      // 91.0: a breakable wall's pieces (brick; its lintels concrete), held up from below and from
+      // the eaves where they reach them.
+      if (breaks && wreck) {
+        const kind = mt === m.stone ? 'concrete' : 'brick';
+        const opts = { tile: 2, hangs: yb >= top - 0.01 };
+        if (alongX) wreck.add(p0, ya, c0, p1, yb, c1, mt, kind, 'concrete', opts);
+        else wreck.add(c0, ya, p0, c1, yb, p1, mt, kind, 'concrete', opts);
+        return;
+      }
       if (alongX) solid(p0, ya, c0, p1, yb, c1, mt, 'concrete', 2);
       else solid(c0, ya, p0, c1, yb, p1, mt, 'concrete', 2);
     };
@@ -306,7 +321,8 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
       { at: 31 * s, w: 1.8, y0: UP + 1.0, y1: UP + 2.6 },
     );
   }
-  wall(false, -WH.z, WH.z, WH.x1 - WH.t, WH.x1, 0, WH.eave, wh.brick, eastOpenings);
+  // 91.0: the yard's wall and the ends break (the back wall, against the boundary, does not).
+  wall(false, -WH.z, WH.z, WH.x1 - WH.t, WH.x1, 0, WH.eave, wh.brick, eastOpenings, true);
   // End walls: the main door (x -35.5) and two windows upstairs over the aprons.
   for (const s of [1, -1]) {
     const [c0, c1] = s > 0 ? [WH.z - WH.t, WH.z] : [-WH.z, -WH.z + WH.t];
@@ -314,7 +330,7 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
       { at: -35.5, w: 4, y0: 0, y1: 3.6 },
       { at: -41.5, w: 2, y0: UP + 1.0, y1: UP + 2.6 },
       { at: -30.5, w: 2, y0: UP + 1.0, y1: UP + 2.6 },
-    ]);
+    ], true);
   }
   // A stone plinth and string course outside (seen), the painted name on the east wall.
   // (The plinth stops at the doors: a 3.3 rule, nothing seen where you walk without being solid.)
@@ -800,6 +816,7 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
   dress?.finish(scene);
   if (dress) (globalThis as unknown as { __dress?: unknown }).__dress = dress.stats;
   b.build(scene);
+  wreck?.build();
   dress?.afterBuild(scene);
   dress?.dispose();
   scene.traverse((o) => {
