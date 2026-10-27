@@ -89,7 +89,9 @@ export class Rockets {
   private pool: Rocket[] = [];
   private mesh: THREE.InstancedMesh;
   /** DEV: fired, gone off (by what: a wall or the ground, a body, the end of its reach). */
-  stats = { fired: 0, wall: 0, body: 0, spent: 0 };
+  stats = { fired: 0, wall: 0, body: 0, spent: 0, botFired: 0 };
+  /** 92.0: each team's last bot rocket (the bots space theirs out). */
+  teamLast: Partial<Record<TeamId, number>> = {};
 
   constructor(scene: THREE.Scene, private col: CollisionWorld, private fx: Effects, private audio: AudioEngine, private blasts: Blasts, private w: RocketWorld) {
     this.mesh = new THREE.InstancedMesh(rocketGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.4 }), N);
@@ -198,6 +200,7 @@ export class Rockets {
 
   /** Every rocket gone (a reset, a level unload: their hiss with them). */
   clear() {
+    this.teamLast = {};
     for (let i = 0; i < N; i++) {
       const r = this.pool[i];
       r.active = false;

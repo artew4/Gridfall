@@ -66,7 +66,7 @@ export class LauncherPickups {
   readonly spots: PickupSpot[] = [];
   private t = 0;
   /** DEV: taken. */
-  stats = { taken: 0 };
+  stats = { taken: 0, bots: 0 };
 
   constructor(scene: THREE.Scene, at: readonly THREE.Vector3[], private respawn = 40) {
     const ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(RING).multiplyScalar(2.2), transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -107,6 +107,19 @@ export class LauncherPickups {
         this.stats.taken++;
       }
     }
+  }
+
+  /** 92.0: a bot passing within `r` m of an available launcher takes it (true). */
+  takeNear(p: THREE.Vector3, r: number): boolean {
+    for (const s of this.spots) {
+      if (s.wait > 0 || Math.hypot(p.x - s.pos.x, p.z - s.pos.z) > r || Math.abs(p.y - s.pos.y) > 1.2) continue;
+      s.wait = this.respawn;
+      s.group.visible = false;
+      this.stats.taken++;
+      this.stats.bots++;
+      return true;
+    }
+    return false;
   }
 
   /** All back (a new match). */

@@ -460,7 +460,8 @@ export class Destruction {
       lo[piece.va] = piece.min[piece.va] + v0 * piece.cv;
       hi[piece.va] = piece.min[piece.va] + v1 * piece.cv;
       const c = this.col.add(lo.x, lo.y, lo.z, hi.x, hi.y, hi.z, piece.surface);
-      c.vault = piece.vault && hi.y - piece.min.y <= 1.05;
+      // 92.0: what's left of a wall below the waist can be vaulted (its foot after a hole).
+      c.vault = hi.y - piece.min.y <= 1.05;
       this.tag(c, piece);
       piece.cols.push(c);
     }

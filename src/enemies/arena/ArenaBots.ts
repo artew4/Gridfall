@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { launcherProp } from '../../entities/weapons/rpg';
+
+/** 92.0: the slung launcher's model (made once). */
+let SLUNG: THREE.Group | null = null;
 import { setRigGun } from '../../entities/enemies/operators';
 import { Gunner, Runner, type EnemyCtx } from '../Enemy';
 import type { EnemyLook } from '../../entities/types';
@@ -187,6 +191,19 @@ export class ArenaGunner extends Gunner implements ArenaBody {
 
   suppress(_amount: number, ctx: EnemyCtx) {
     if (this.alive) this.brain.onNearMiss(this.ctxNow ?? ctx, null);
+  }
+
+  /** 92.0: the launcher slung across its back (one shared model, cloned: no geometry of its own). */
+  private sling: THREE.Object3D | null = null;
+  carryLauncher(on: boolean) {
+    if (on && !this.sling) {
+      SLUNG ??= launcherProp();
+      this.sling = SLUNG.clone();
+      this.sling.position.set(0.05, 0.08, -0.2);
+      this.sling.rotation.set(Math.PI / 2, 0, 0.6);
+      this.rig.torso.add(this.sling);
+    }
+    if (this.sling) this.sling.visible = on;
   }
 
   protected onDeath(ctx: EnemyCtx) {

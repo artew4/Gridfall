@@ -87,3 +87,32 @@ export function buildCoverSpots(col: CollisionWorld, nav: Nav, authored: THREE.V
 function key(p: THREE.Vector3) {
   return `${Math.round(p.x / 1.2)},${Math.round(p.y)},${Math.round(p.z / 1.2)}`;
 }
+
+const _o = new THREE.Vector3();
+const _dir = new THREE.Vector3();
+/** 92.0: the eight ways a spot's cover is looked for (and how far, at its waist). */
+const AROUND = Array.from({ length: 8 }, (_, i) => [Math.cos((i / 8) * Math.PI * 2), Math.sin((i / 8) * Math.PI * 2)] as const);
+
+/** 92.0: a spot still has cover: something solid at its waist within `reach` m one way or another. */
+export function hasCover(col: CollisionWorld, p: THREE.Vector3, reach = 1.1): boolean {
+  _o.set(p.x, p.y + 0.75, p.z);
+  for (const [x, z] of AROUND) if (col.raycast(_o, _dir.set(x, 0, z), reach)) return true;
+  return false;
+}
+
+/**
+ * 92.0: a wall broke near `at`: the spots within `r` m of it left with nothing to hide behind are
+ * dropped from `spots` (in place: every team's context reads the same list). Returns how many.
+ */
+export function dropCover(col: CollisionWorld, spots: THREE.Vector3[], at: THREE.Vector3, r: number): number {
+  let k = 0, n = 0;
+  for (const p of spots) {
+    if (Math.hypot(p.x - at.x, p.z - at.z) <= r && Math.abs(p.y - at.y) < 4 && !hasCover(col, p)) {
+      n++;
+      continue;
+    }
+    spots[k++] = p;
+  }
+  spots.length = k;
+  return n;
+}

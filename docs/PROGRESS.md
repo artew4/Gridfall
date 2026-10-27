@@ -3464,6 +3464,19 @@ Branch `feature/destruction-91.0`, from `feature/rpg-90.1` @ `ba52c4f` (87.0–9
 - Not yet: the bots don't know (holes aren't in their nav, a gone wall stays a cover spot: step 3); the rubble has no collider; wood and steel; the other maps.
 - Human playtest: how a hole looks and how big; rounds to a hole; the rubble; frames in a long match with a lot broken.
 
+## 92.0: Destruction, step 3: the bots in a breaking map
+
+Branch `feature/bots-destruction-92.0`, from `feature/destruction-91.0` @ `9a44a1f` (87.0–91.0 not merged yet).
+
+- `Nav.relinkNear(p)`: every pair of nodes within 14 m of a hole (and of each other) not linked yet is tested again as at the build (clear, walkable, faceless; a vault over the wall's remains for the vault links); holes only open ways. The route memos dropped. 2–5 ms a hole on Old Port (859 nodes), half a second after the wall settles (one site per 6 m: a rocket's hole is one). `snapshot`/`restore`: the links before the first break come back with the walls at a new match.
+- `dropCover`: the cover spots within 4 m of a hole with nothing solid at their waist within 1.1 m any of eight ways are dropped from the list in place (every team context reads the game's through its prototype); restored with the walls. A bot holding, recovering or breaking within 3 m of a breaking cell drops its goal and moves ("Cover's blown!", `onCoverLost`).
+- What's left of a wall below the waist is vaultable (bodies and the vault links).
+- The bots take the launchers (passing within 2.2 m of one: 2 rockets; it rides slung on the back, `carryLauncher`). `considerRocket` (every 0.5 s): at a target in its sight 10–70 m off by others of its side (within 4.5 m) or standing still, or at anyone else on a 30% roll a look; or at the breakable wall a target it lost in the last 4 s hides behind (the target within 6 m past it). Never with a teammate within 6 m of the impact, never closer than 10 m (past the rocket's 9 m reach: the test caught 9), facing it within 0.3 rad; the team's rockets 4 s apart, its own 3.5 s. "RPG!" (a new bark kind, `rocket`).
+- Self-play, Old Port, 240 game s (GPU): launchers taken 6 times (all by bots), at most 2 carriers at once, 9 bot rockets (the first rules, groups and the still only: 4), 62 wall cells broken, 2 holes relinked (5 walked links, 1 vault link), 19 blasts hurting 11; no errors.
+- Tests 686 (+5, `bots92.test.ts`: a link through a hole after a rocket and not before, a snapshot puts it back, a cover spot goes with its wall, the bots' rocket range past its blast).
+- Not yet: the slung launcher reads weakly on the back (an upright tube behind the shoulders); the rubble is no cover; wood, steel and the other maps (steps 4–5).
+- Human playtest: a bot's rocket coming at you (fair? enough warning in "RPG!" and the hiss?); bots through fresh holes; how often they get the launchers.
+
 ## Next
 Human playtest:
 - 86.0 items: Neon Docks: the neon's light on the apron by the warehouse ends, the signs in the puddles, the dying tube, the manhole steam (in a sightline?), the oil.

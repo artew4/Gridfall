@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FRAG, planThrow } from '../../combat/Explosives';
 import type { LiveGrenade } from '../../combat/Grenades';
+import type { RayHit } from '../../world/Collision';
 import type { Combatant } from '../../combat/Team';
 import type { EnemyCtx } from '../Enemy';
 import { hostilesOf } from '../Enemy';
@@ -118,6 +119,11 @@ export function flankPoint(c: { x: number; z: number }, from: { x: number; z: nu
  */
 export const NADE = { perLife: 1, think: 1.2, teamGap: 5, min: 7, max: 30, hidden: [0.8, 5] as [number, number], camper: 0.12, clear: 6, slack: 4, retry: 3, dodge: 7, feel: 3, react: [0.4, 0.9] as [number, number], cook: 2.1 };
 const FLEE_TURNS = [0, 0.6, -0.6, 1.2, -1.2, 1.8, -1.8];
+/** 92.0, the bots' launcher (considerRocket). */
+export const ROCKET_AI = { think: 0.5, teamGap: 4, reload: 3.5, min: 10, max: 70, group: 2, groupR: 4.5, any: 0.3, hidden: 4, clear: 6, cone: 0.3, spread: 0.02, carry: 2 };
+const _rk = new THREE.Vector3();
+const _rd = new THREE.Vector3();
+const _rh: RayHit = { dist: 0, point: new THREE.Vector3(), normal: new THREE.Vector3(), surface: 'concrete' };
 
 export interface ArenaBody extends Combatant {
   readonly kind: 'gunner' | 'runner';
@@ -150,6 +156,8 @@ export interface ArenaBody extends Combatant {
   wallAhead(ctx: EnemyCtx, dx: number, dz: number, out?: { wall: boolean }): number;
   /** 58.0: dive through a window ahead, if there is one (true: the dive started). */
   diveThrough?(ctx: EnemyCtx, dx: number, dz: number): boolean;
+  /** 92.0: the launcher slung on its back (shown while it carries rockets). */
+  carryLauncher?(on: boolean): void;
   /** Room for the body `dist` m along (dx, dz). */
   open(ctx: EnemyCtx, dx: number, dz: number, dist: number): boolean;
   bark(kind: BarkKind, ctx: EnemyCtx): void;
@@ -405,6 +413,9 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
   /** 90.0: frags left this life, the next look for a throw, the frag it is running from, when it looks again, its reaction (s). */
   nades = NADE.perLife;
   private fragT = 0;
+  /** 92.0: rockets it carries (a launcher picked up), its next look for a shot. */
+  rockets = 0;
+  private rocketT = 0;
   private fleeing: LiveGrenade | null = null;
   private nadeLookT = 0;
   private nadeReact = NADE.react[0] + Math.random() * (NADE.react[1] - NADE.react[0]);
@@ -1737,6 +1748,7 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     // 90.0: a frag it has noticed near it: away from it first, whatever it was doing.
     const nade = this.swing ? null : this.nadeToFlee(ctx, now);
     if (gunner && !nade) this.considerFrag(ctx, A, T, tv, now);
+    if (gunner && !nade && this.rockets > 0) this.considerRocket(ctx, A, T, tv, now);
     if (nade) {
       this.flee(ctx, nade, full, desired);
     } else if (this.swing) {
@@ -2058,6 +2070,72 @@ export class DeathmatchBrain implements Thinker, SenseAgent {
     G.teamLast[me.team] = now;
     G.stats.botThrows++;
     me.bark('frag', ctx);
+  }
+
+  /**
+   * 92.0: the launcher (taken from a pickup: `rockets` carried). A rocket at a target in its sight
+   * ROCKET_AI.min..max m off that stands by others of its side (`group` within `groupR` m) or still,
+   * or at anyone else on an `any` roll a look; or at the wall a target it lost a moment ago hides behind, when that wall
+   * breaks (a destructible piece in the line: the rocket opens it). Never where a teammate stands
+   * within `clear` m of the impact, never closer than `min`; facing it (`cone`); the team's rockets
+   * `teamGap` s apart, its own `reload` s.
+   */
+  private considerRocket(ctx: EnemyCtx, A: ArenaCtx, T: Combatant | null, tv: boolean, now: number) {
+    const R = ctx.rockets;
+    const me = this.self;
+    if (!R || !T || !T.alive || now < this.rocketT || me.airborne || me.sliding) return;
+    this.rocketT = now + ROCKET_AI.think;
+    if (now - (R.teamLast[me.team] ?? -Infinity) < ROCKET_AI.teamGap) return;
+    const eye = _v.set(me.pos.x, me.pos.y + 1.55, me.pos.z);
+    let at: THREE.Vector3 | null = null;
+    if (tv) {
+      const d = Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z);
+      if (d < ROCKET_AI.min || d > ROCKET_AI.max) return;
+      let group = 0;
+      for (const h of hostilesOf(ctx)) if (h !== T && h.alive && Math.hypot(h.pos.x - T.pos.x, h.pos.z - T.pos.z) < ROCKET_AI.groupR) group++;
+      const still = Math.hypot(T.vel.x, T.vel.z) < 1.2;
+      // A group, or one standing still: at once; anyone else in its sight, now and then.
+      if (group < ROCKET_AI.group - 1 && !still && Math.random() > ROCKET_AI.any) return;
+      // At its feet: the blast takes it whatever the aim's error.
+      at = _rk.set(T.pos.x, T.pos.y + 0.4, T.pos.z);
+    } else {
+      const c = A.director.contacts.get(T.uid);
+      if (!c || now - c.seenT > ROCKET_AI.hidden) return;
+      const goal = _rk.set(c.pos.x, c.pos.y + 1.2, c.pos.z);
+      const dir = _rd.subVectors(goal, eye);
+      const len = dir.length();
+      dir.divideScalar(len || 1);
+      const hit = ctx.col.raycast(eye, dir, len, _rh);
+      // A breakable wall between, the target close behind it: at the wall.
+      if (!hit?.collider?.wreck || len - hit.dist > 6 || hit.dist < ROCKET_AI.min) return;
+      at = _rk.copy(hit.point);
+    }
+    for (const f of ctx.friends ?? []) if (f.alive && f !== me && f.pos.distanceTo(at) < ROCKET_AI.clear) return;
+    if (Math.hypot(at.x - me.pos.x, at.z - me.pos.z) < ROCKET_AI.min) return;
+    me.facing(_f);
+    const dx = at.x - me.pos.x, dz = at.z - me.pos.z, dl = Math.hypot(dx, dz) || 1;
+    if ((_f.x * dx + _f.y * dz) / dl < Math.cos(ROCKET_AI.cone)) return;
+    const from = eye.clone().add(_rd.set(_f.x * 0.5, 0, _f.y * 0.5));
+    const dir = at.clone().sub(from).normalize();
+    dir.x += (Math.random() - 0.5) * ROCKET_AI.spread;
+    dir.y += (Math.random() - 0.5) * ROCKET_AI.spread;
+    dir.z += (Math.random() - 0.5) * ROCKET_AI.spread;
+    if (!R.fire(from, dir.normalize(), me)) return;
+    this.rockets--;
+    this.rocketT = now + ROCKET_AI.reload;
+    R.teamLast[me.team] = now;
+    R.stats.botFired++;
+    me.carryLauncher?.(this.rockets > 0);
+    me.bark('rocket', ctx);
+  }
+
+  /** 92.0: the cover it is behind (or making for) was blown away: it moves now. */
+  onCoverLost(ctx: EnemyCtx) {
+    if (this.state === 'hold' || this.state === 'recover' || this.state === 'break') {
+      this.goal = null;
+      this.urgent = true;
+      this.self.bark('blown', ctx);
+    }
   }
 
   /** Lateral movement round the target (dir -1 also backs off), keeping to the range band. */

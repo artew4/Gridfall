@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Grenades } from '../combat/Grenades';
+import type { Rockets } from '../combat/Rockets';
 import { disposeRig, type Rig } from './Models';
 import type { EnemyLook } from '../entities/types';
 import { NEON_SYNTHS } from '../entities/enemies/neon';
@@ -79,6 +80,8 @@ export interface EnemyCtx {
   lanes?: THREE.Vector3[][];
   /** 90.0: frags in flight and on the ground (thrown, dodged). */
   grenades?: Grenades;
+  /** 92.0: rockets (a bot carrying the launcher fires them). */
+  rockets?: Rockets;
 }
 
 const _solo: Combatant[] = [];
@@ -131,6 +134,10 @@ export abstract class Enemy implements Combatant {
   private lastCtx: EnemyCtx | null = null;
   /** The context of its last update (its own team's). */
   protected get ctxNow() {
+    return this.lastCtx;
+  }
+  /** 92.0: its own team's context, as last seen (null before it first thought). */
+  get teamCtx() {
     return this.lastCtx;
   }
   pos = new THREE.Vector3();

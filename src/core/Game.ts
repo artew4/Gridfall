@@ -25,6 +25,9 @@ import { LauncherPickups, launcherSpots } from '../gameplay/Pickups';
 import { RAM_LAUNCHER } from '../entities/weapons/rpg';
 import { Destruction, KINDS } from '../world/Destruction';
 import { Debris } from '../world/Debris';
+import { dropCover } from '../enemies/tactics/CoverSpots';
+import { ArenaGunner, isArenaBot } from '../enemies/arena/ArenaBots';
+import { ROCKET_AI } from '../enemies/arena/DeathmatchAI';
 import { Interactives } from '../gameplay/Interactives';
 import { Player } from '../player/Player';
 import { SafetyNet } from '../player/SafetyNet';
@@ -107,6 +110,8 @@ function savedSetting(): SettingId {
  */
 /** 90.0: frags a life. */
 const _v3 = new THREE.Vector3();
+/** 92.0: a bot takes a launcher passing this close (m). */
+const BOT_PICKUP = 2.2;
 export const MAX_NADES = 2;
 /** 90.1: rockets a launcher pickup gives (one in the tube), and the most he carries. */
 export const LAUNCHER_LOAD = 3;
@@ -201,6 +206,12 @@ export class Game {
   destruction!: Destruction;
   debris!: Debris;
   private worldChanged = false;
+  /** 92.0: where walls broke since the bots' maps were last brought up to date, and when to do it. */
+  private edits: THREE.Vector3[] = [];
+  private editT = 0;
+  editStats = { sites: 0, walk: 0, vault: 0, cover: 0 };
+  /** 92.0: the bots' maps before the first wall broke (put back with the walls). */
+  private unbroken: { nav: ReturnType<Nav['snapshot']>; cover: THREE.Vector3[] } | null = null;
   private shadowT = 0;
   private crumbleT = 0;
   /** The launcher's last rocket gone: back to the gun this many seconds on. */
@@ -404,6 +415,9 @@ export class Game {
     this.scene.fog = this.fog;
     this.renderer.setScene(this.scene);
     this.col = new CollisionWorld();
+    // 92.0: a new map's own bots' maps (nothing broken yet).
+    this.unbroken = null;
+    this.edits.length = 0;
     this.glows = new Glows();
     this.interactables = [];
     this.occupied.clear();
@@ -532,6 +546,7 @@ export class Game {
       damagePlayer: (dmg, f) => this.damagePlayer(dmg, f),
       fog: this.fog,
       grenades: this.grenades,
+      rockets: this.rockets,
     };
     yield { f: 0.7, what: 'COVER AND LANES', creep: 0.8 };
     level.attach();
@@ -1092,6 +1107,14 @@ export class Game {
     if (!fromCheckpoint) {
       this.destruction.reset();
       this.debris.clear();
+      // 92.0: and the bots' maps of them (in place: every team context reads the same list).
+      this.edits.length = 0;
+      if (this.unbroken) {
+        this.nav.restore(this.unbroken.nav);
+        this.ctx.coverPoints.length = 0;
+        this.ctx.coverPoints.push(...this.unbroken.cover);
+        this.unbroken = null;
+      }
     }
     this.pickups?.reset();
     this.dropT = 0;
@@ -1315,6 +1338,29 @@ export class Game {
   }
 
   /**
+   * 92.0: what a broken wall changes for the bots, a moment after it settles (holes come in bursts):
+   * the nav links near each hole made again (Nav.relinkNear), the cover spots it took away dropped.
+   * The bots right by a breaking wall leave it at once (wallBroke).
+   */
+  private updateWorldEdits(dt: number) {
+    if (!this.edits.length) return;
+    this.editT -= dt;
+    if (this.editT > 0) return;
+    // One site per 6 m (a rocket's hole is a few dozen cells).
+    const sites: THREE.Vector3[] = [];
+    for (const p of this.edits) if (!sites.some((s) => s.distanceTo(p) < 6)) sites.push(p);
+    this.edits.length = 0;
+    this.unbroken ??= { nav: this.nav.snapshot(), cover: this.ctx.coverPoints.slice() };
+    for (const s of sites) {
+      const r = this.nav.relinkNear(s);
+      this.editStats.walk += r.walk;
+      this.editStats.vault += r.vault;
+      this.editStats.cover += dropCover(this.col, this.ctx.coverPoints, s, 4);
+    }
+    this.editStats.sites += sites.length;
+  }
+
+  /**
    * 91.0: a wall's cell broke at `p`: chunks thrown off both faces (a cut-off cell drops whole), dust,
    * the crumble or the splinter (one at a time, a few times a second).
    */
@@ -1333,6 +1379,10 @@ export class Game {
       this.crumbleT = 0.07;
       this.audio.crumble(p, KINDS[kind].sound, falling);
     }
+    // 92.0: the bots' maps once it settles; a bot holding right by it moves now.
+    this.edits.push(p.clone());
+    this.editT = 0.5;
+    for (const e of this.ctx.enemies) if (e.alive && isArenaBot(e) && e.pos.distanceTo(p) < 3) e.brain.onCoverLost(e.teamCtx ?? this.ctx);
   }
 
   /**
@@ -1759,7 +1809,18 @@ export class Game {
     }
     this.blasts.update(dt);
     // 90.1: the launchers on the map (TDM), and back to the gun after the last rocket.
-    if (this.pickups && this.mode === 'tdm') this.pickups.update(dt, this.player.alive && this.state === 'play' ? this.player.pos : null, () => this.takeLauncher());
+    if (this.pickups && this.mode === 'tdm') {
+      this.pickups.update(dt, this.player.alive && this.state === 'play' ? this.player.pos : null, () => this.takeLauncher());
+      // 92.0: a bot passing by one takes it (two rockets).
+      for (const e of this.ctx.enemies) {
+        if (!e.alive || !(e instanceof ArenaGunner) || e.brain.rockets > 0) continue;
+        if (this.pickups.takeNear(e.pos, BOT_PICKUP)) {
+          e.brain.rockets = ROCKET_AI.carry;
+          e.carryLauncher(true);
+        }
+      }
+    }
+    this.updateWorldEdits(dt);
     if (this.dropT > 0) {
       this.dropT -= dt;
       if (this.dropT <= 0 && this.launcher && this.launcher.carried <= 0 && !this.launcher.loaded) {

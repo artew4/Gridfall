@@ -75,6 +75,8 @@ export class Nav {
   climb = new Set<number>();
   private climbLinks: [number, number][] = [];
   private slope: number;
+  /** 92.0: the layout's `faces` rule (kept for the links made at runtime). */
+  private faces: boolean;
   private cost: ((a: THREE.Vector3, b: THREE.Vector3) => number) | null;
 
   /** 52.0: the links computed for this graph (NavCache), and a call when the vault links are built. */
@@ -86,6 +88,7 @@ export class Nav {
    */
   constructor(private col: CollisionWorld, layout: NavLayout, saved?: { edges: number[][]; vaultEdges?: number[][] | null }) {
     this.slope = layout.slope ?? 0;
+    this.faces = !!layout.faces;
     this.cost = layout.cost ?? null;
     // Stored at body height so LOS checks start from the chest of a standing enemy.
     this.nodes = layout.nodes.map((p) => new THREE.Vector3(p.x, p.y + BODY, p.z));
@@ -493,6 +496,69 @@ export class Nav {
       if (Math.hypot(p.x - (a.x + dx * t), p.z - (a.z + dz * t)) < 0.9 && Math.abs(p.y - (a.y + (b.y - a.y) * t)) < 0.6) return true;
     }
     return false;
+  }
+
+  /**
+   * 92.0: a wall came down near `p`: every pair of nodes within `r` of it (and 14 m of each other) not
+   * linked yet is tested again as at the build (clear, walkable, faceless; a vault over what's left
+   * of the wall for the vault links). Holes only open ways: nothing is unlinked. The route memos are
+   * dropped. Returns the links made (walked, vaulted).
+   */
+  relinkNear(p: THREE.Vector3, r = 14): { walk: number; vault: number } {
+    const near: number[] = [];
+    for (let i = 0; i < this.nodes.length; i++) {
+      const n = this.nodes[i];
+      if (Math.hypot(n.x - p.x, n.z - p.z) <= r && Math.abs(n.y - BODY - p.y) < 6) near.push(i);
+    }
+    let walk = 0, vault = 0;
+    const ve = this.vaultEdges;
+    for (const i of near) {
+      const ni = this.nodes[i];
+      for (let j = 0; j < this.nodes.length; j++) {
+        if (j === i) continue;
+        const nj = this.nodes[j];
+        const dx = ni.x - nj.x, dz = ni.z - nj.z, dy = ni.y - nj.y;
+        if (dx * dx + dy * dy + dz * dz >= 196) continue;
+        // (Each pair once: from its lower index when both are near.)
+        if (near.includes(j) && j < i) continue;
+        const rise = 0.5 + (this.faces && this.onTerrain(ni) && this.onTerrain(nj) ? this.slope * Math.hypot(dx, dz) : 0);
+        if (Math.abs(dy) > rise) continue;
+        const linked = this.edges[i].includes(j);
+        if (!linked && this.clear(ni, nj) && this.walkable(ni, nj) && (!this.faces || this.faceless(ni, nj))) {
+          this.edges[i].push(j);
+          this.edges[j].push(i);
+          if (ve && !ve[i].includes(j)) {
+            ve[i].push(j);
+            ve[j].push(i);
+          }
+          walk++;
+          continue;
+        }
+        if (ve && !linked && !ve[i].includes(j) && this.clearVault(ni, nj) && this.clearVault(nj, ni) && this.walkable(ni, nj)) {
+          ve[i].push(j);
+          ve[j].push(i);
+          vault++;
+        }
+      }
+    }
+    if (walk || vault) {
+      this.fields.clear();
+      this.vaultFields.clear();
+    }
+    return { walk, vault };
+  }
+
+  /** 92.0: the links as they are (a match's start: what a reset of the walls goes back to). */
+  snapshot() {
+    return { edges: this.edges.map((e) => e.slice()), vault: this.vaultEdges?.map((e) => e.slice()) ?? null };
+  }
+
+  /** 92.0: the links back to a snapshot (the walls whole again), the route memos dropped. */
+  restore(s: { edges: number[][]; vault: number[][] | null }) {
+    this.edges = s.edges.map((e) => e.slice());
+    if (s.vault) this.vaultEdges = s.vault.map((e) => e.slice());
+    this.fields.clear();
+    this.vaultFields.clear();
   }
 
   /** Opens or closes hand links (e.g. a shuttered stairwell). */
