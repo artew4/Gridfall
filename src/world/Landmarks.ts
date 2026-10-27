@@ -5,6 +5,8 @@ import { applyWear } from './Wear';
 import { applyWet } from './Ground';
 import { planarInto } from './StoreSigns';
 import type { Mats } from './City';
+import type { Glows } from './Glows';
+import type { SpillPool } from './Spill';
 
 /*
   83.0, Night Tokyo's landmarks (docs/TOKYO_PLAN.md, step 5), from tools/blender/props_landmark.py:
@@ -20,6 +22,10 @@ import type { Mats } from './City';
 
   The colliders are the map's (the deck, the piers' boxes); what the kit adds stands where the boxes
   stood or overhead. Without the kit the boxes as before.
+
+  84.0 (step 6, light): sodium lamps on brackets under the girders' faces (overpassLamps): their pools
+  on the street (Spill.ts), their glow, and their light on the steel over them (the girders read at
+  night: evaluated in the steel's shader only, not as THREE lights).
 */
 
 export function landmarkKit(): Record<string, readonly MercPart[]> | null {
@@ -107,4 +113,63 @@ export function metroCanopy(b: { addMatrix(g: THREE.BufferGeometry, m: THREE.Mat
     } else if (mats[p.role]) b.addMatrix(p.geo, mats[p.role], M);
   }
   return true;
+}
+
+/** The overpass's lamps: sodium, on brackets 0.45 m out from the girders' faces, 5.9 m up. */
+export const SODIUM = new THREE.Color(1.0, 0.52, 0.16);
+const MAX_LAMPS = 8;
+
+/**
+ * Lamps under the overpass at `at` ([x, z of the girder face, the side out: ±1]): the brackets and heads
+ * into the builder, a glow each, their light on `steel`; their pools on the ground for the bake.
+ */
+export function overpassLamps(
+  b: { add(g: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number): void },
+  glows: Glows,
+  steel: THREE.Material | null,
+  dark: THREE.Material,
+  at: [number, number, number][],
+): SpillPool[] {
+  const lens = new THREE.MeshBasicMaterial({ color: SODIUM.clone().multiplyScalar(3.2) });
+  const arm = new THREE.BoxGeometry(0.06, 0.06, 0.5), head = new THREE.BoxGeometry(0.5, 0.14, 0.26), face = new THREE.BoxGeometry(0.42, 0.02, 0.2);
+  const pos: THREE.Vector3[] = [];
+  const pools: SpillPool[] = [];
+  for (const [x, z, side] of at.slice(0, MAX_LAMPS)) {
+    const zz = z + side * 0.45;
+    b.add(arm, dark, x, 6.08, z + side * 0.25);
+    b.add(head, dark, x, 5.98, zz);
+    b.add(face, lens, x, 5.9, zz);
+    const p = new THREE.Vector3(x, 5.8, zz);
+    pos.push(p);
+    glows.add({ pos: p.clone(), color: SODIUM.clone(), radius: 7, base: 1.0, haloSize: 3.2, haloStrength: 0.2, mode: 'buzz' });
+    pools.push({ kind: 'pool', x, z: zz + side * 0.6, h: 5.9, radius: 7.5, colour: SODIUM, power: 0.35 });
+  }
+  if (steel instanceof THREE.MeshStandardMaterial) lampLit(steel, pos, SODIUM.clone().multiplyScalar(9));
+  return pools;
+}
+
+/** Patches `mat` to take diffuse light from `lamps` (each `colour`, decay 2, 9 m cutoff). */
+function lampLit(mat: THREE.MeshStandardMaterial, lamps: THREE.Vector3[], colour: THREE.Color) {
+  const prev = mat.onBeforeCompile;
+  const prevKey = mat.customProgramCacheKey.bind(mat);
+  const P = Array.from({ length: MAX_LAMPS }, (_, i) => lamps[i]?.clone() ?? new THREE.Vector3(0, -1e4, 0));
+  mat.onBeforeCompile = (sh, r) => {
+    prev.call(mat, sh, r);
+    sh.uniforms.uLampP = { value: P };
+    sh.uniforms.uLampC = { value: colour };
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>\nuniform vec3 uLampP[${MAX_LAMPS}];\nuniform vec3 uLampC;`)
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+        for (int i = 0; i < ${MAX_LAMPS}; i++) {
+          vec3 lv = (viewMatrix * vec4(uLampP[i], 1.0)).xyz - geometryPosition;
+          float d = length(lv);
+          if (d > 9.0) continue;
+          float k = saturate(dot(geometryNormal, lv / d)) * getDistanceAttenuation(d, 9.0, 2.0);
+          reflectedLight.directDiffuse += k * uLampC * BRDF_Lambert(diffuseColor.rgb);
+        }`,
+      );
+  };
+  mat.customProgramCacheKey = () => `${prevKey()}|lamps`;
 }

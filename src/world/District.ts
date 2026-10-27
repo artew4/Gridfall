@@ -15,6 +15,7 @@ import { worldBox } from './Builder';
 import { mulberry32 } from '../core/math';
 import { ZONES } from './Zones';
 import { buildMetro, METRO_HOLES, type MetroResult } from './Metro';
+import { bakeSpill, ROOM_LIGHT, Spill, type SpillSource } from './Spill';
 
 /*
   Tokyo Vertical District (metres, y up, player starts facing -z):
@@ -65,6 +66,9 @@ export interface DistrictResult {
   metro: MetroResult;
   /** Act 3 objective: the security relay on the Sky Garden. */
   relay: THREE.Vector3;
+  /** 84.0: the light on the street (Spill.ts), and the storefronts' signs for the puddles (ReflectionCatchers' pool). */
+  spill: Spill;
+  signPool: { pos: THREE.Vector3; colour: THREE.Color; glow?: Glow; intensity: number }[];
   /** Where civilians linger. Yaw: direction faced (atan2 of facing x, z). */
   pois: { pos: THREE.Vector3; yaw: number; kind: 'shop' | 'shelter' | 'wait' | 'chat' }[];
 }
@@ -692,6 +696,8 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
   ];
   for (const e of steamEmitters) if (e.y < 0.1) b.add(ventGeo, m.darkMetal, e.x, 0.02, e.z);
   b.add(worldBox(0.6, 0.4, 0.6, 1), m.paintedMetal, -4.75, 3.6, 33);
+  // 84.0: steam out of three manholes in the street's middle (no vent box: the lid is there).
+  steamEmitters.push(new THREE.Vector4(-0.6, 0.1, 35, 0.35), new THREE.Vector4(0, 0.1, -29, 0.4), new THREE.Vector4(-0.8, 0.1, -41, 0.35));
   // Red and violet steam in the back alley and service passage.
   const tint = (x: number, y: number, z: number, c: THREE.Color, mode: Glow['mode'] = 'steady') =>
     glows.add({ pos: new THREE.Vector3(x, y, z), color: c, radius: 6, base: 1.1, haloSize: 3.5, haloStrength: 0.12, mode });
@@ -792,8 +798,36 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
     new THREE.Vector3(20.5, 0, -24), // trackside, behind the pillars
   ];
 
+  // ======================================================================= 84.0: light and wet
+  // The shops' light on the pavement and the overpass lamps' pools, baked (Spill.ts) into the street's
+  // materials; a few signs flickering (their glows drive them); every lit sign in the puddles' pool.
+  const FRONT: Record<string, { width: number; mullions: number[]; sides?: number; door?: number }> = {
+    shop: { width: 3.5, mullions: [-1.2, -0.6, 0, 0.6, 1.2] },
+    izakaya: { width: 3.4, mullions: [-0.72, 0.72], sides: 0.35, door: 1.3 },
+    door: { width: 1.2, mullions: [0] },
+  };
+  const spillFrom: SpillSource[] = [...city.spill];
+  const signPool: DistrictResult['signPool'] = [];
+  for (const f of city.fronts.lit) {
+    const [hex, power] = ROOM_LIGHT[f.room];
+    spillFrom.push({ kind: 'front', x: f.x, z: f.z, ry: f.ry, colour: new THREE.Color(hex), power, ...FRONT[f.kind] });
+    signPool.push({ pos: f.signAt.clone().add(new THREE.Vector3(Math.sin(f.ry), 0, Math.cos(f.ry)).multiplyScalar(0.3)), colour: f.sign, intensity: 14 });
+  }
+  for (const f of city.fronts.flickers) {
+    const g = glows.add({ pos: f.at.clone(), color: f.colour.clone(), radius: 4, base: 0.8, haloSize: 2.2, haloStrength: 0.1, mode: f.mode, onChange: (v) => (f.mat.emissiveIntensity = 1.1 * v) });
+    const twin = signPool.find((p) => p.pos.distanceTo(f.at) < 0.5);
+    if (twin) twin.glow = g;
+  }
+  const bounds = new THREE.Box2(new THREE.Vector2(-46, -59), new THREE.Vector2(49, 49));
+  const spill = new Spill(bakeSpill(spillFrom, bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y));
+  for (const mat of [m.asphalt, m.sidewalk, m.paving]) spill.apply(mat);
+  for (const mat of city.markMats) spill.apply(mat, 0.3);
+  (globalThis as unknown as { __spill?: unknown }).__spill = { fronts: city.fronts.lit.length, pools: city.spill.length, flickers: city.fronts.flickers.length, gain: spill.gain };
+
   const open = ZONES.flatMap((z) => z.rects);
   return {
+    spill,
+    signPool,
     signs,
     steamEmitters,
     coverPoints,
@@ -802,7 +836,7 @@ export function buildDistrict(city: City, wind: () => number): DistrictResult {
     nav: { nodes, links },
     arch,
     kit,
-    bounds: new THREE.Box2(new THREE.Vector2(-46, -59), new THREE.Vector2(49, 49)),
+    bounds,
     start: { x: 0, z: 24, yaw: 0 },
     cabinets,
     medkits,

@@ -84,6 +84,11 @@ export interface WetOptions {
    * street's (the playtest: blinding). Light under the ceiling is untouched; over it, it rolls off.
    */
   lightCap?: number;
+  /**
+   * 84.0: oil on the road: a few of the puddles carry a film that splits what they mirror into a
+   * rainbow (thin-film interference: its thickness drifting, shifting with the view's angle).
+   */
+  oil?: boolean;
 }
 
 /** Patches a MeshStandardMaterial into rain-soaked asphalt/concrete with puddles and animated ripples. */
@@ -155,7 +160,19 @@ export function applyWet(mat: THREE.MeshStandardMaterial, time: { value: number 
             vec3 irr = saturate(dot(geometryNormal, L)) * uCatchCol[i] * getDistanceAttenuation(dist, uCatchRange, 2.0);
             reflectedLight.directSpecular += irr * BRDF_GGX(L, geometryViewDir, geometryNormal, cm) * uWet4;
           }
-        }`,
+        }
+        ${opts.oil ? `{
+          float oil = puddle * smoothstep(0.66, 0.76, wNoise(vWetPos.xz * 0.3 + 17.0)) * (1.0 - smoothstep(14.0, 30.0, camDist));
+          if (oil > 0.0) {
+            // The film's thickness: broad swirls, and the view's angle over the flat (not the ripples': no sparkle).
+            vec3 toEye = normalize(cameraPosition - vWetPos);
+            float th = wFbm(vWetPos.xz * 0.55 + vec2(uTime * 0.015, 0.0)) * 1.6 + toEye.y * 0.8;
+            vec3 film = 0.5 + 0.5 * cos(6.2832 * (th + vec3(0.0, 0.33, 0.67)));
+            vec3 tint = mix(vec3(1.0), film * 1.45, oil * 0.55);
+            reflectedLight.directSpecular *= tint;
+            reflectedLight.indirectSpecular *= tint;
+          }
+        }` : ''}`,
       )
       .replace(
         '#include <metalnessmap_fragment>',
@@ -176,7 +193,7 @@ export function applyWet(mat: THREE.MeshStandardMaterial, time: { value: number 
         }`,
       );
   };
-  mat.customProgramCacheKey = () => `wet-${opts.puddles}-${opts.wet}-${opts.ripples !== false}-${opts.puddleRough ?? 0}-${opts.lightCap ?? 0}`;
+  mat.customProgramCacheKey = () => `wet-${opts.puddles}-${opts.wet}-${opts.ripples !== false}-${opts.puddleRough ?? 0}-${opts.lightCap ?? 0}-${!!opts.oil}`;
 }
 
 /** Stretched, rippling reflection streaks: the Blade Runner smear of neon on wet asphalt. */

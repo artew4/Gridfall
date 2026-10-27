@@ -8,7 +8,8 @@ import { applyWet } from './Ground';
 import { Storefronts } from './Storefronts';
 import { applyWindows } from './Windows';
 import { FacadeDress } from './FacadeDress';
-import { landmarkKit, overpassMats } from './Landmarks';
+import { landmarkKit, overpassLamps, overpassMats } from './Landmarks';
+import type { SpillSource } from './Spill';
 import type { FacadeTex } from './Textures';
 import {
   asphaltTexture,
@@ -102,7 +103,7 @@ function makeMats(time: { value: number }): Mats {
   });
   const at = asphaltTexture();
   const asphalt = new THREE.MeshStandardMaterial({ map: at, roughness: 0.62, metalness: 0.0, envMapIntensity: 1.25 });
-  applyWet(asphalt, time, { puddles: true, wet: 0.9 });
+  applyWet(asphalt, time, { puddles: true, wet: 0.9, oil: true });
   const sidewalk = new THREE.MeshStandardMaterial({ map: ct, color: 0x8a8890, roughness: 0.55, envMapIntensity: 1.0 });
   applyWet(sidewalk, time, { puddles: false, wet: 0.8 });
   const pt = pavingTexture();
@@ -116,6 +117,10 @@ export type StoreKind = keyof Mats['store'];
 export class City {
   mats: Mats;
   ctx: BuildCtx;
+  /** 84.0: light the map throws on the street (the overpass's lamps; the district adds the shops'), for Spill's bake. */
+  spill: SpillSource[] = [];
+  /** 84.0: the road markings' materials (wet; the bake's light on them too). */
+  markMats: THREE.MeshStandardMaterial[] = [];
   /** Gunner cover spots and nav anchors are derived from layout. */
   constructor(public scene: THREE.Scene, public col: CollisionWorld, public glows: Glows, public time: { value: number }, fog: THREE.FogExp2) {
     this.mats = makeMats(time);
@@ -262,6 +267,9 @@ export class City {
       polygonOffsetFactor: -1,
       envMapIntensity: 0.6,
     });
+    // 84.0: wet paint (no puddles of its own: the asphalt's show between the stripes).
+    applyWet(markMat, this.time, { puddles: false, wet: 0.75 });
+    this.markMats.push(markMat);
     for (const l of lines) {
       const g = new THREE.PlaneGeometry(0.15, l.z1 - l.z0);
       g.rotateX(-Math.PI / 2);
@@ -284,6 +292,8 @@ export class City {
       polygonOffsetFactor: -1,
       envMapIntensity: 0.6,
     });
+    applyWet(stopMat, this.time, { puddles: false, wet: 0.75 });
+    this.markMats.push(stopMat);
     const stop = new THREE.PlaneGeometry(3.4, 1.9);
     stop.rotateX(-Math.PI / 2);
     for (const st of stops) {
@@ -321,6 +331,12 @@ export class City {
       }
     }
     b.add(worldBox(160, 0.05, 0.05, 1), m.black, 0, 11.2, z);
+    // 84.0: sodium lamps on the girders' faces (both streets' sides), their light on the steel and the street.
+    const south = z + 2.5 + 0.31, north = z - 2.5 - 0.31;
+    this.spill.push(...overpassLamps(b, this.ctx.glows, lm?.steel ?? null, m.darkMetal, [
+      [-9.5, south, 1], [8.5, south, 1], [21.5, south, 1],
+      [-9.5, north, -1], [0, north, -1], [9, north, -1],
+    ]));
     for (const x of pillars) {
       if (lm) put('pier', x, 0, z, 0, lm);
       else b.add(worldBox(1.2, 6.4, 1.8, 2), m.concrete, x, 3.2, z);

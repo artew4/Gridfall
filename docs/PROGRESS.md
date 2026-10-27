@@ -3342,8 +3342,23 @@ Branch `feature/tokyo-light-84.0`, from `main` @ `b871263` (83.0 merged and depl
 - `propKits83_1.test.ts`: every `.glb` in `public/models/props` is registered and every registered kit has its file, each with the file's nodes (fails on 83.0); the girder under 600 triangles.
 - Tests 642 (+3). Tokyo's world check: no clusters, no entries.
 
+## 84.0: Night Tokyo, step 6: light and wet
+
+Branch `feature/tokyo-light-84.0`, after 83.1 (`bdc731e`).
+
+The ask: step 6 of [TOKYO_PLAN.md](TOKYO_PLAN.md) (the last).
+
+- `Spill.ts`: the shops' light on the pavement, baked once into a light map over the district (8 texels a metre, RGBA8, sqrt-encoded) and read by the street's materials (asphalt, pavements, plaza paving, road paint at 0.3): diffuse with a soft ceiling (the pavement by the glass was whiting out), and a gloss of it by smoothness and Fresnel (the puddles). A front: light spreading from its glass, each mullion's shadow fanning out from the room's light behind; an izakaya's koshi sides dimmer than its doorway. A pool: a lamp overhead. Colours and power by room (`ROOM_LIGHT`). No lights, no draw calls. 63 fronts on the street; the gain 30/9 tuned on screenshots (the wet street's albedo is low).
+- The overpass: 6 sodium lamps on brackets off the girders' faces (5.9 m), their pools in the bake, their glow; their light on the steel in its shader only (the girders read at night: the 83.0 note).
+- Signs in the puddles: `ReflectionCatchers` takes a pool beyond its eight (every storefront lightbox, its colour from the sign atlas's style: `signColour`) and lights the eight nearest the eye each frame, the eighth fading over the last 3 m before the ninth is as near (no pops; sorted in place, no garbage).
+- Flickers: `Glows` modes `dying` (dim, wavering, guttering out every few seconds) and `starter` (a fit of blinks every 11 s, then steady), frame-rate independent; three storefront signs flicker (a dying one, a stuttering one, one that won't start), each its own material driven by a glow (its halo, the rain and its puddle reflection with it).
+- Wet: oil films on a few of the asphalt's puddles (thin-film colours over broad swirls, by the view's angle over the flat: the ripples' normals made it sparkle); the road paint wet. Steam from three manholes (Lantern Street, Railway Street).
+- Perf (code-toggle A/B, the spill and the sign pool, ABAB on AC): fight GPU p50 6.61/6.27 ms on vs 6.21/6.20 off, within the noise (draw calls flip 229–401 on their own).
+- Tests 652 (+10, `light84.test.ts`: a front's fall-off and its mullions' fanning shadows, a pool, the bake's placement and encoding, the rooms' light, the storefronts' lit slots and flickers, the new modes' frame-rate independence, the catchers' nearest eight and fade, the lamps overhead). World checks (Tokyo, Neon Block, Docks): no clusters, no entries; no shader fails to compile on the three.
+
 ## Next
 Human playtest:
+- 84.0 items: Tokyo at street level: the shops' light on the pavement (too bright, too flat?), the overpass's sodium lamps and girders, the signs in the puddles as you walk (any popping?), the oil films, the flickering signs, the manhole steam (in the way?).
 - 83.1 items: the overpass, the train and the metro canopy now actually in the game (83.0's were boxes).
 - 83.0 items: the overpass (girders, piers, masts: seen at all at night?), the train passing (cabs, roofs, pantographs on the wire), the metro canopy; then the word for step 6 (light and wet).
 - 82.0 items: Tokyo's crossings (the signals cycling, the walk signals), the mirrors, the manholes and grates (wet, flush), the izakaya by the Lantern Street pole; then the word for step 5 (landmarks).

@@ -130,6 +130,17 @@ export function signCell(trade: SignTrade, n: number): [number, number, number, 
   return [x / (COLS * CW), 1 - (y + CH) / H, (x + CW) / (COLS * CW), 1 - y / H];
 }
 
+/**
+ * 84.0: the light a trade's `n`th lightbox gives (its ground, letters and accent mixed, linear): what it
+ * lays in the puddles (ReflectionCatchers). The same cell as `signCell` (no canvas needed).
+ */
+export function signColour(trade: SignTrade, n: number) {
+  const t = trade === 'lobby' ? 'building' : trade;
+  const i = n % NAMES[t].length;
+  const [bg, fg, ac] = STYLE[t][i % STYLE[t].length].map((c) => new THREE.Color(c));
+  return bg.multiplyScalar(0.6).add(fg.multiplyScalar(0.25)).add(ac.multiplyScalar(0.15));
+}
+
 /** Planar UVs over a part's bounds (x across, y up), into the rect (u0, v0, u1, v1). */
 export function planarInto(geo: THREE.BufferGeometry, r: [number, number, number, number]) {
   const g = geo.index ? geo.toNonIndexed() : geo.clone();

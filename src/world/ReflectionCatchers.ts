@@ -19,9 +19,16 @@ import { CATCHERS, MAX_CATCHERS } from './Ground';
   still draw each sign's shape; the catchers add its spill on the wet street round them.
 */
 
+/*
+  84.0: more than the shader's eight. The pool also takes the storefronts' lightboxes (no glow: their
+  colour, steady; or the glow of one that flickers), and each frame the eight nearest the eye are lit,
+  the furthest of them fading out as the next one comes as near (no catcher pops on or off).
+*/
+
 export interface Catcher {
   pos: THREE.Vector3;
-  glow: Glow;
+  glow: Glow | null;
+  colour: THREE.Color;
   base: number;
 }
 
@@ -29,9 +36,16 @@ export class ReflectionCatchers {
   readonly list: Catcher[] = [];
   private on = true;
 
-  /** `picks`: sign positions (matched to the nearest glow within 0.6 m). */
-  constructor(glows: Glow[], picks: [number, number, number][], opts = { intensity: 9, distance: 11, height: 2.2 }) {
-    for (const [x, y, z] of picks.slice(0, MAX_CATCHERS)) {
+  private near: { c: Catcher; d: number }[] = [];
+
+  /** `picks`: sign positions (matched to the nearest glow within 0.6 m); `more`: 84.0's pool beyond them. */
+  constructor(
+    glows: Glow[],
+    picks: [number, number, number][],
+    opts = { intensity: 9, distance: 11, height: 2.2 },
+    more: { pos: THREE.Vector3; colour: THREE.Color; glow?: Glow; intensity: number }[] = [],
+  ) {
+    for (const [x, y, z] of more.length ? picks : picks.slice(0, MAX_CATCHERS)) {
       let best: Glow | null = null;
       let bd = 0.6;
       for (const g of glows) {
@@ -42,8 +56,10 @@ export class ReflectionCatchers {
         }
       }
       if (!best) continue;
-      this.list.push({ pos: new THREE.Vector3(best.pos.x, Math.min(best.pos.y, opts.height), best.pos.z), glow: best, base: opts.intensity });
+      this.list.push({ pos: new THREE.Vector3(best.pos.x, Math.min(best.pos.y, opts.height), best.pos.z), glow: best, colour: best.color, base: opts.intensity });
     }
+    for (const m of more)
+      this.list.push({ pos: new THREE.Vector3(m.pos.x, Math.min(m.pos.y, opts.height), m.pos.z), glow: m.glow ?? null, colour: m.colour, base: m.intensity });
     CATCHERS.range.value = opts.distance;
     this.update();
   }
@@ -53,18 +69,28 @@ export class ReflectionCatchers {
     this.update();
   }
 
-  /** After the glows update: follow each sign's flicker and breakage. */
-  update() {
+  /** After the glows update: follow each sign's flicker and breakage; with `eye`, the nearest eight. */
+  update(eye?: THREE.Vector3) {
     const P = CATCHERS.pos.value, C = CATCHERS.col.value;
+    // (Made once, sorted in place: no garbage a frame.)
+    if (this.near.length !== this.list.length) this.near = this.list.map((c) => ({ c, d: 0 }));
+    const near = this.near;
+    if (eye && near.length > MAX_CATCHERS) {
+      for (const n of near) n.d = n.c.pos.distanceTo(eye);
+      near.sort((a, b) => a.d - b.d);
+    }
+    // The next one's distance: the eighth fades out over the last 3 m before it is as near.
+    const next = eye && near.length > MAX_CATCHERS ? near[MAX_CATCHERS].d : Infinity;
     for (let i = 0; i < MAX_CATCHERS; i++) {
-      const c = this.list[i];
-      if (!c || !this.on) {
+      const n = near[i];
+      if (!n || !this.on) {
         C[i].set(0, 0, 0);
         continue;
       }
-      P[i].copy(c.pos);
-      const k = c.base * c.glow.value;
-      C[i].set(c.glow.color.r * k, c.glow.color.g * k, c.glow.color.b * k);
+      P[i].copy(n.c.pos);
+      const fade = next === Infinity ? 1 : Math.min(1, Math.max(0, (next - n.d) / 3));
+      const k = n.c.base * (n.c.glow ? n.c.glow.value : 1) * fade;
+      C[i].set(n.c.colour.r * k, n.c.colour.g * k, n.c.colour.b * k);
     }
   }
 

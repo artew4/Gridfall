@@ -160,7 +160,7 @@ export class TokyoLevel implements LevelRuntime {
     this.catchers = new ReflectionCatchers(game.glows.list, [
       [-3.1, 6.4, 31], [3.2, 5.6, 25], [3.1, 6.8, 37], // Lantern Street
       [12.9, 8.6, 9.5], [-9.5, 8, 13], [8, 6.2, 13.2], [-10, 8.4, -13.2], [13.9, 7, -9], // the plaza
-    ]);
+    ], undefined, d.signPool); // 84.0: and every storefront's sign, the nearest eight lit
 
     for (const g of game.glows.list) {
       if (g.reflect) {
@@ -320,7 +320,7 @@ export class TokyoLevel implements LevelRuntime {
     const game = this.game;
     const { dt, rawDt, camPos } = f;
     game.glows.update(f.elapsed, camPos);
-    this.catchers.update();
+    this.catchers.update(camPos);
     updateStreaks(this.streaks, camPos);
     this.rain.update(f.elapsed, camPos);
     const w = this.rain.uniforms.uWind.value as THREE.Vector2;

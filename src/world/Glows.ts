@@ -2,7 +2,11 @@ import * as THREE from 'three';
 import { glowTexture } from './Textures';
 import { heldNoise } from '../core/math';
 
-export type FlickerMode = 'steady' | 'flicker' | 'broken' | 'blink' | 'buzz';
+/**
+ * 84.0 added: `dying` (a tube at the end of its life: dim and wavering, now and then guttering out),
+ * `starter` (a fluorescent that keeps failing to start: a fit of blinks every ten seconds or so).
+ */
+export type FlickerMode = 'steady' | 'flicker' | 'broken' | 'blink' | 'buzz' | 'dying' | 'starter';
 
 export interface Glow {
   pos: THREE.Vector3;
@@ -148,6 +152,17 @@ export class Glows {
         const burst = Math.sin(t * 0.37 + s) * Math.sin(t * 0.13 + s * 2.0);
         if (burst > 0.55) return heldNoise(t, s) < 0.5 ? 0.15 : 1;
         return 0.95 + 0.05 * Math.sin(t * 60 + s);
+      }
+      case 'dying': {
+        const ph = (t * 0.35 + s) % 5;
+        if (ph < 0.9) return heldNoise(t, s, 9) < 0.5 ? 0.08 : 0.6;
+        return 0.55 + 0.25 * Math.sin(t * 0.9 + s) * Math.sin(t * 2.3 + s * 1.7) + 0.06 * Math.sin(t * 100 + s);
+      }
+      case 'starter': {
+        const ph = (t + s * 3) % 11;
+        if (ph < 1.4) return heldNoise(t, s, 14) < 0.45 ? 0.04 : 0.95;
+        if (ph < 1.7) return 0.04;
+        return 0.97 + 0.03 * Math.sin(t * 50 + s);
       }
       case 'broken': {
         const phase = (t * 0.6 + s) % 7;

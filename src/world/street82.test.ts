@@ -22,7 +22,7 @@ vi.mock('../entities/weapons/models', () => ({ propKits: () => kits }));
 // (No canvases in the test runner.)
 vi.mock('./StoreSigns', () => ({
   awningTexture: () => null, directoryTexture: () => null, norenTexture: () => null, shutterTexture: () => null, signs: () => null,
-  signCell: () => [0, 0, 1, 1], planarInto: (g: THREE.BufferGeometry) => g.clone(),
+  signCell: () => [0, 0, 1, 1], signColour: () => new THREE.Color(), planarInto: (g: THREE.BufferGeometry) => g.clone(),
 }));
 vi.mock('./Interiors', () => ({ ROOMS: ['konbini'], interiorMaterial: () => new THREE.MeshBasicMaterial(), roomUV: (g: THREE.BufferGeometry) => g.clone() }));
 vi.mock('../levels/desert/textures', () => ({ woodTexture: () => new THREE.Texture() }));

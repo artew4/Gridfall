@@ -28,6 +28,6 @@ the map; the street furniture, the vending machines, the stall and the cabinets 
 | 3 ✅ | 80.0 | **Facades above the street**: the windows as rooms (interior mapping, lit and dark, curtains, blinds), balconies with laundry and plants, air conditioners, external stairs, gutters and pipes, vertical signs (tate-kanban) stacks, rooftop tanks and rails | Tokyo's blocks |
 | 4 ✅ | 82.0 | **Street level**: traffic lights and pedestrian signals, street signs, a phone box, newspaper boxes, the vending machines' lit fronts, manholes and drains, bicycle parking, scooters, cones, delivery boxes | Tokyo's streets and plaza |
 | 5 ✅ | 83.0 | **Landmarks**: the fountain plaza, Kenji's ramen stall, the metro entrance and station, the railway overpass (girders, rivets, cables), the train | Tokyo |
-| 6 | 84.0 | **Light and wet**: signs in the puddles, flicker variety, steam vents, wet decals, the shops' light spilling on the pavement | Tokyo |
+| 6 ✅ | 84.0 | **Light and wet**: signs in the puddles, flicker variety, steam vents, wet decals, the shops' light spilling on the pavement; the overpass's sodium lamps | Tokyo |
 
 Each step ends with the playtest's word before the next one starts; the order can change with it.

@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { StaticBuilder } from './Builder';
 import { propKits, type MercPart } from '../entities/weapons/models';
 import { ROOMS, interiorMaterial, roomUV, type Room } from './Interiors';
-import { awningTexture, directoryTexture, norenTexture, planarInto, shutterTexture, signCell, signs, type SignTrade } from './StoreSigns';
+import { awningTexture, directoryTexture, norenTexture, planarInto, shutterTexture, signCell, signColour, signs, type SignTrade } from './StoreSigns';
+import type { FlickerMode } from './Glows';
 import { woodTexture } from '../levels/desert/textures';
 import { applyWear, wearRoles } from './Wear';
 
@@ -49,6 +50,13 @@ export class Storefronts {
   private handed: Partial<Record<SignTrade, number>> = {};
   /** DEV: what was laid (tests, screenshots). */
   stats = { slots: 0, rooms: {} as Record<string, number>, shallow: 0 };
+  /**
+   * 84.0: the lit slots on the street (their light on the pavement: Spill.ts; their signs in the
+   * puddles: ReflectionCatchers), and the few signs that flicker (each its own material, driven by a
+   * Glow the district makes).
+   */
+  lit: { x: number; z: number; ry: number; kind: StoreKind; room: Room; sign: THREE.Color; signAt: THREE.Vector3 }[] = [];
+  flickers: { at: THREE.Vector3; mat: THREE.MeshStandardMaterial; mode: FlickerMode; colour: THREE.Color }[] = [];
 
   constructor(private b: StaticBuilder) {
     const k = propKits();
@@ -146,12 +154,23 @@ export class Storefronts {
     }
     const trade: SignTrade = kind === 'shutter' ? 'closed' : kind === 'door' ? 'building' : room!;
     const n = (this.handed[trade] = (this.handed[trade] ?? -1) + 1) + (key % 3);
+    let signMat = kind === 'shutter' ? this.signOff : this.signOn;
+    if (room) {
+      const signAt = base.clone().add(new THREE.Vector3(0, 3.05 * sy, 0.15).applyQuaternion(q));
+      const colour = signColour(trade, n);
+      if (base.y < 1) this.lit.push({ x: base.x, z: base.z, ry, kind, room, sign: colour, signAt });
+      // One lit sign in seven, three at most: a tube dying, one stuttering, one that will not start.
+      if (key % 7 === 2 && this.flickers.length < 3) {
+        signMat = this.signOn.clone();
+        this.flickers.push({ at: signAt, mat: signMat, mode: (['dying', 'flicker', 'starter'] as const)[this.flickers.length], colour });
+      }
+    }
     for (const p0 of this.kit[NODE[kind]]) {
       const p = flat ? { geo: this.shallow(p0.geo), role: p0.role } : p0;
       let geo = p.geo, mat: THREE.Material | undefined = this.mats[p.role];
       if (p.role === 'signface') {
         geo = planarInto(p.geo, signCell(trade, n));
-        mat = kind === 'shutter' ? this.signOff : this.signOn;
+        mat = signMat;
       } else if (p.role === 'dir') {
         const c = key % 4, u = (c % 2) / 2, v = Math.floor(c / 2) / 2;
         geo = planarInto(p.geo, [u, 1 - v - 0.5, u + 0.5, 1 - v]);
