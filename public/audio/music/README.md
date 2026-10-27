@@ -9,6 +9,9 @@ Gridfall plays one track per place, crossfading over 2 s when the place changes:
 | `desert_theme` | Desert Outpost (survival and TDM) |
 | `docks_theme` | Neon Docks (TDM) |
 | `jungle_theme` | Deep Jungle (survival and TDM) |
+| `favela_theme` | Favelas |
+| `maglev_theme` | Maglev Terminal |
+| `oldport_theme` | Old Port |
 
 **To use your own music:** put a file named after the track id in this folder, for example `docks_theme.mp3`. That's all; reload the page. Supported names: `<id>.mp3`, `<id>.ogg`, `<id>.m4a`, `<id>.wav` (first one found wins).
 

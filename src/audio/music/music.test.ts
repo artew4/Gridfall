@@ -109,7 +109,7 @@ describe('87.0: a track of several files', () => {
     }
     expect(nextFile(1, 0, rnd)).toBe(0);
   });
-  it("the manifest gives Tokyo Night its three and Neon Docks its one, each with a loop window inside the file's music", async () => {
+  it("the manifest gives Tokyo Night its three, Neon Docks and Old Port one each, each with a loop window inside the file's music", async () => {
     // @ts-ignore (node in the test runner)
     const fs = await import('node:fs');
     const m = JSON.parse(fs.readFileSync('public/audio/music/manifest.json', 'utf8'));
@@ -117,7 +117,8 @@ describe('87.0: a track of several files', () => {
     const tokyo = m.tokyo_theme as { file: string }[];
     expect(tokyo.map((f) => f.file)).toEqual(['tokyo_theme.mp3', 'black_rain_and_bamboo.mp3', 'midnight_at_the_crossing.mp3']);
     expect(m.docks_theme.map((f: { file: string }) => f.file)).toEqual(['black_water_harbor.mp3']);
-    for (const f of [...tokyo, ...m.docks_theme]) {
+    expect(m.oldport_theme.file).toBe('the_brass_perimeter.mp3');
+    for (const f of [...tokyo, ...m.docks_theme, m.oldport_theme]) {
       expect(fs.existsSync(`public/audio/music/${f.file}`)).toBe(true);
       const e = manifestEntry(f);
       expect(e.loop!.end - e.loop!.xfade).toBeGreaterThan(e.loop!.start + 60);

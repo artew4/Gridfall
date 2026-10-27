@@ -77,16 +77,17 @@ Dark atmospheric electronic instrumental with a subtle Japanese touch, 120 BPM, 
 Tokyo's other two, `tokyo_theme.mp3` ("Violet Hour Above the Rain", 59.0) and
 `black_rain_and_bamboo.mp3` (87.0), came from prompts not kept here.
 
-### Old Port: not generated yet
+### Old Port: `oldport_theme`
 
-A brick-and-concrete harbour on a clear morning (09:40), mercenaries: daylight, not neon. The
-docks' short form, with an organic action palette. It plays `docks_theme` until it has its own.
+The result: `the_brass_perimeter.mp3` ("The Brass Perimeter"), 89.0. A brick-and-concrete harbour on
+a clear morning (09:40), mercenaries: daylight, not neon. The docks' short form, with an organic
+action palette.
 
 ```
 Gritty cinematic action instrumental, 120 BPM, D minor. Punchy live-sounding drums, a driving distorted bass riff, low staccato strings and bold brass stabs. Tense and determined, like a firefight among old brick warehouses and rusty cranes in a sunlit harbour on a clear morning. Steady driving groove throughout.
 ```
 
-Variant, closer to the game's electronic tracks:
+Variant, closer to the game's electronic tracks (untried):
 
 ```
 Hybrid orchestral-electronic action instrumental, 124 BPM, minor key. A pulsing synth bass, hard punchy drums, low staccato strings and heavy brass hits. Bright but tense, a battle in a sunlit old harbour. Steady driving groove throughout.

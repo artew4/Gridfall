@@ -21,7 +21,8 @@ export const OLDPORT_INFO: LevelInfo = {
   loading: 'OPENING THE OLD PORT…',
   windowTitle: 'Gridfall — Old Port',
   enemies: DESERT_MERCS,
-  music: 'docks_theme',
+  // 89.0: its own (a daylight track; the docks' neon one to 88.0).
+  music: 'oldport_theme',
   teamSize: OLDPORT_TEAM_SIZE,
   tagline: 'THE WAREHOUSE · THE YARD · THE DRY DOCK',
   jpLine: 'СТАРЫЙ ПОРТ · ПРИЧАЛ 3 · 09:40',

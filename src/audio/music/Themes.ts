@@ -555,4 +555,4 @@ export const FAVELA_THEME: ThemeDef = {
   ],
 };
 
-export const PATTERN_THEMES: Record<string, ThemeDef> = { menu_theme: MENU_THEME, desert_theme: DESERT_THEME, docks_theme: DOCKS_THEME, jungle_theme: JUNGLE_THEME, favela_theme: FAVELA_THEME };
+export const PATTERN_THEMES: Record<string, ThemeDef> = { menu_theme: MENU_THEME, desert_theme: DESERT_THEME, docks_theme: DOCKS_THEME, oldport_theme: DOCKS_THEME, jungle_theme: JUNGLE_THEME, favela_theme: FAVELA_THEME };

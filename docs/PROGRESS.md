@@ -3407,6 +3407,16 @@ The ask: two tracks generated outside the game (Gemini) in place, and the prompt
 - Tests 659 (`music.test.ts`'s manifest check takes the three and the docks' one).
 - Human playtest: Black Water Harbor's loop on Neon Docks (~2:40 in): the outro into the intro.
 
+## 89.0: Old Port's own track
+
+Branch `feature/oldport-track-89.0`, from `feature/music-88.0` @ `3da9d3e` (87.0, 88.0 not merged yet).
+
+- `the_brass_perimeter.mp3` ("The Brass Perimeter", 3:00, about 120 BPM; generated from Old Port's prompt in `docs/MUSIC_PROMPTS.md`) as a new slot, `oldport_theme`: Old Port played `docks_theme` (the neon night's Black Water Harbor since 88.0). Without its file the slot plays the docks' procedural placeholder.
+- Its body runs at −10…−22 dB to 176 s, then it stops (−26, −44 dB): `loopStart` 0.1, `loopEnd` 177, `xfade` 1.3 (the crossfade from 175.7 s, the best onset match of its last minute).
+- Checked live: Old Port plays it, Neon Docks still Black Water Harbor.
+- Tests 659 (the manifest check takes it).
+- Human playtest: Old Port's loop (~2:55 in).
+
 ## Next
 Human playtest:
 - 86.0 items: Neon Docks: the neon's light on the apron by the warehouse ends, the signs in the puddles, the dying tube, the manhole steam (in a sightline?), the oil.

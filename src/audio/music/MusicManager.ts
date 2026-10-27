@@ -13,6 +13,7 @@ import { PATTERN_THEMES, PatternTheme } from './Themes';
     docks_theme  Neon Docks
     jungle_theme Deep Jungle
     favela_theme Favelas (40.0)
+    oldport_theme Old Port (89.0; the docks' procedural placeholder without its file)
 
   Sources, per track, decided once per session:
    - a file, if public/audio/music/<id>.(mp3|ogg|m4a|wav) exists (or manifest.json names one):
@@ -30,7 +31,7 @@ import { PATTERN_THEMES, PatternTheme } from './Themes';
 */
 
 // 62.0: Maglev Terminal its own (the Tokyo score procedurally): tokyo_theme is a night-in-the-fog track now.
-export const TRACKS = ['menu_theme', 'tokyo_theme', 'desert_theme', 'docks_theme', 'jungle_theme', 'favela_theme', 'maglev_theme'] as const;
+export const TRACKS = ['menu_theme', 'tokyo_theme', 'desert_theme', 'docks_theme', 'jungle_theme', 'favela_theme', 'maglev_theme', 'oldport_theme'] as const;
 export type TrackId = (typeof TRACKS)[number];
 
 /** Crossfade length (s). */

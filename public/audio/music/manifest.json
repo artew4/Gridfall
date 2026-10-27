@@ -7,5 +7,6 @@
   ],
   "docks_theme": [
     { "file": "black_water_harbor.mp3", "gain": 1, "loopStart": 0.1, "loopEnd": 159.5, "xfade": 2.5 }
-  ]
+  ],
+  "oldport_theme": { "file": "the_brass_perimeter.mp3", "gain": 1, "loopStart": 0.1, "loopEnd": 177.0, "xfade": 1.3 }
 }
