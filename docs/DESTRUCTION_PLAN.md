@@ -16,7 +16,7 @@ the particle pools, the procedural sound bank.
    blast (damage through what's in its sight, a bot thrown back, the thrower hurt by his own), the
    fireball, smoke, debris and scorch, the bang near and far, the shake and the ringing ears; the
    bots running from a frag they notice and throwing at targets in cover. 90.1: a rocket launcher as
-   a pickup on the map.
+   a pickup on the map (the player's; the bots take it up in step 3).
 2. **The destruction core (91.0, Old Port first).** A destructible wall as a grid of ~0.5 m blocks,
    one InstancedMesh per material (a block out: its matrix zeroed); its colliders rebuilt from what
    is left (greedy merge into boxes) and swapped in the collision grid's cells (a remove/replace API).

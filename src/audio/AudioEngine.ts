@@ -1100,6 +1100,58 @@ export class AudioEngine {
     this.metal(o, rand(3800, 5200), 0.04 * strength, 0.07, [1, 1.6, 2.9]);
   }
 
+  /** 90.1: a rocket fired at `pos` (the tube's report). */
+  rocketLaunch(pos: V3) {
+    if (!this.started) return;
+    if (this.sample('rocket_launch', pos, 0.8, 1.3, this.sfx, 0.05)) return;
+    const o = this.out(pos, 0.8);
+    this.burst(o, this.brown, 'lowpass', 2200, 0.8, 1.1, 0.002, 0.4, this.now(), 300);
+    this.tone(o, 'sine', 120, 42, 0.9, 0.003, 0.35);
+  }
+
+  /**
+   * 90.1: a rocket's motor hissing as it flies (a looped band of noise, positioned; the caller moves it
+   * each frame and stops it when the rocket goes off). Null before the audio runs.
+   */
+  rocketHiss(pos: V3): { move(p: V3): void; stop(): void } | null {
+    if (!this.started) return null;
+    const ctx = this.ctx;
+    const src = this.noise(this.white, true);
+    const bp = this.filter('bandpass', 1500, 0.8);
+    const g = ctx.createGain();
+    const t = this.now();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.35, t + 0.05);
+    const p = ctx.createPanner();
+    p.panningModel = 'equalpower';
+    p.distanceModel = 'inverse';
+    p.refDistance = 4;
+    p.rolloffFactor = 1.2;
+    p.positionX.value = pos.x;
+    p.positionY.value = pos.y;
+    p.positionZ.value = pos.z;
+    src.connect(bp).connect(g).connect(p).connect(this.sfx);
+    let live = true;
+    return {
+      move: (q) => {
+        if (!live) return;
+        const n = this.now();
+        p.positionX.setTargetAtTime(q.x, n, 0.02);
+        p.positionY.setTargetAtTime(q.y, n, 0.02);
+        p.positionZ.setTargetAtTime(q.z, n, 0.02);
+      },
+      stop: () => {
+        if (!live) return;
+        live = false;
+        const n = this.now();
+        g.gain.cancelScheduledValues(n);
+        g.gain.setTargetAtTime(0.0001, n, 0.03);
+        src.stop(n + 0.2);
+        setTimeout(() => p.disconnect(), 400);
+      },
+    };
+  }
+
   /** 90.0: his throw (his own arm: no position). */
   throwWhoosh() {
     if (!this.started) return;

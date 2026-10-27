@@ -104,6 +104,9 @@ export class Weapon {
   private stripBase: THREE.Color | null = null;
   muzzleWorld = new THREE.Vector3();
   onReloadDone: () => void = () => {};
+  /** 90.1: may it reload now (the launcher: a rocket carried), and a reload started (one taken). */
+  canReload: () => boolean = () => true;
+  onReloadStart: () => void = () => {};
 
   constructor(public scene: THREE.Scene, public camera: THREE.PerspectiveCamera, private audio: AudioEngine, spec: WeaponSpec = KITSUNE_9) {
     this.stripMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.3, 2.4, 3.0) });
@@ -366,7 +369,7 @@ export class Weapon {
       f.scale.setScalar(rand(0.8, 1.25));
     }
     this.bloom = Math.min(1, this.bloom + this.spec.bloomPerShot);
-    this.audio.gunshot(this.sound);
+    if (!this.spec.launcher) this.audio.gunshot(this.sound);
     this.ammoDisplay.draw(this.ammo, this.spec.mag, false);
     // Auto-reload on empty after the same short beat as before, but on the game clock (pauses with it).
     if (this.ammo === 0) this.autoReloadT = 0.25;
@@ -375,6 +378,8 @@ export class Weapon {
 
   startReload() {
     if (this.holstered || this.reloading || this.ammo === this.spec.mag || this.raise < 0.5) return;
+    if (!this.canReload()) return;
+    this.onReloadStart();
     this.reloading = true;
     this.reloadT = 0;
     this.reloadStage = 0;

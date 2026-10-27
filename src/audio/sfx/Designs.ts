@@ -262,6 +262,16 @@ function blast(far: boolean): Design {
   };
 }
 
+/** 90.1: a rocket leaving the tube: the launch charge's whump, the backblast's roar, the motor lighting. */
+const ROCKET_LAUNCH: Design = (r, sr) => {
+  const o = secs(1.2, sr);
+  thump(o, sr, 0, 125 * r.range(0.95, 1.05), 42, 0.35, 1.2, 2);
+  nz(o, r, sr, 0, 0.45, 1.3, { type: 'lowpass', f: 2600, q: 0.8, to: 350 }, { a: 0.002, t60: 0.32 }, 'brown', 3);
+  nz(o, r, sr, 0.03, 0.9, 0.55, { type: 'bandpass', f: 1800, q: 0.7, to: 900 }, { a: 0.04, t60: 0.7 }, 'white', 1.5);
+  reflect(o, sr, [[0.05, 0.25], [0.12, 0.15]], 2000);
+  return finish(o, sr, 0.9);
+};
+
 /** A grenade's body hitting the ground or a wall: a dull steel clink and a knock. */
 const NADE_BOUNCE: Design = (r, sr) => {
   const o = secs(0.3, sr);
@@ -282,4 +292,5 @@ export const DESIGNS: [string, number, Design][] = [
   ['blast', 4, blast(false)],
   ['far_blast', 3, blast(true)],
   ['nade_bounce', 4, NADE_BOUNCE],
+  ['rocket_launch', 3, ROCKET_LAUNCH],
 ];

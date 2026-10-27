@@ -42,8 +42,8 @@ export class Blasts {
     scene.add(this.light);
   }
 
-  /** A blast at `at` on a face (`normal`), set off by `by` (null: the world), its feed tag. */
-  go(at: THREE.Vector3, normal: THREE.Vector3, s: BlastSpec, by: Combatant | null, tag: string) {
+  /** A blast at `at` on a face (`normal`), set off by `by` (null: the world), its feed tag, its look's `size`. */
+  go(at: THREE.Vector3, normal: THREE.Vector3, s: BlastSpec, by: Combatant | null, tag: string, size = 1) {
     this.stats.blasts++;
     const now = this.w.now();
     const ctx = this.w.ctx();
@@ -87,7 +87,7 @@ export class Blasts {
       _hit.collider = col;
       col.onHit({ ..._hit, point: q.clone(), normal: _hit.normal.clone() });
     }
-    this.fx.explosion(at, normal, 1);
+    this.fx.explosion(at, normal, size);
     this.flash = 1;
     this.light.position.copy(c).addScaledVector(normal, 0.6);
     const ear = this.w.ear();

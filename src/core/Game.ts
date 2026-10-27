@@ -20,6 +20,9 @@ import { Effects } from '../combat/Effects';
 import { Blasts } from '../combat/Blast';
 import { Grenades } from '../combat/Grenades';
 import { FRAG } from '../combat/Explosives';
+import { Rockets } from '../combat/Rockets';
+import { LauncherPickups, launcherSpots } from '../gameplay/Pickups';
+import { RAM_LAUNCHER } from '../entities/weapons/rpg';
 import { Interactives } from '../gameplay/Interactives';
 import { Player } from '../player/Player';
 import { SafetyNet } from '../player/SafetyNet';
@@ -54,6 +57,7 @@ import { PlayerUnit, registerUnit } from '../combat/PlayerUnit';
 import type { Combatant } from '../combat/Team';
 import { ARMORY, ARMORY_ORDER, armoryByKey, type WeaponId } from '../entities/weapons/armory';
 import { gunThemeFor } from '../entities/weapons/theme';
+import type { WeaponSpec } from '../entities/types';
 import { Loadout } from '../gameplay/Loadout';
 import { SpawnZone } from '../gameplay/SpawnZone';
 import { LoadoutView } from '../ui/LoadoutView';
@@ -101,6 +105,9 @@ function savedSetting(): SettingId {
  */
 /** 90.0: frags a life. */
 export const MAX_NADES = 2;
+/** 90.1: rockets a launcher pickup gives (one in the tube), and the most he carries. */
+export const LAUNCHER_LOAD = 3;
+export const LAUNCHER_MAX = 5;
 
 export class Game {
   scene = new THREE.Scene();
@@ -182,6 +189,13 @@ export class Game {
   /** 90.0: the frags he carries this life (MAX_NADES at a spawn), and his throw's pause on the gun. */
   nades = MAX_NADES;
   private throwT = 0;
+  /** 90.1: rockets in flight; the launchers on the map (TDM); the one he carries (null: none). */
+  rockets!: Rockets;
+  pickups: LauncherPickups | null = null;
+  /** `loaded`: one in the tube; `carried`: the rest; `out`: the launcher in hand (else his gun). */
+  launcher: { loaded: boolean; carried: number; out: boolean } | null = null;
+  /** The launcher's last rocket gone: back to the gun this many seconds on. */
+  private dropT = 0;
   nav!: Nav;
   waves = new Waves();
   barkView!: BarkView;
@@ -445,6 +459,20 @@ export class Game {
       },
     });
     this.grenades = new Grenades(s, this.col, this.audio, this.blasts);
+    this.rockets = new Rockets(s, this.col, this.fx, this.audio, this.blasts, { bodies: () => [this.playerUnit, ...this.ctx.enemies] });
+    // 90.1: the launchers halfway along the flank lanes (TDM maps only; they show in TDM only).
+    const lanes = d.tdm?.lanes.alpha;
+    const mid = (ps: readonly THREE.Vector3[]) => ps.reduce((m, p) => m.add(p), new THREE.Vector3()).divideScalar(Math.max(1, ps.length));
+    const spots = (lanes && d.tdm ? launcherSpots(lanes, mid(d.tdm.spawns.alpha), mid(d.tdm.spawns.omega)) : []).map((p) => {
+      const q = p.clone();
+      q.y = this.col.groundHeightAt(q.x, q.z, 0.3, q.y + 0.6, 1);
+      return q;
+    }).filter((p) => Number.isFinite(p.y) && !this.col.blocked(p.clone().setY(p.y + 0.05), 0.4));
+    this.pickups = spots.length ? new LauncherPickups(s, spots) : null;
+    this.weapon.canReload = () => !this.weapon.spec.launcher || (this.launcher?.carried ?? 0) > 0;
+    this.weapon.onReloadStart = () => {
+      if (this.weapon.spec.launcher && this.launcher) this.launcher.carried--;
+    };
     // A round cracking past him counts as pressure too (the rushers' opening).
     this.projectiles.onWhiz = () => (this.waves.squad.player.pressureT = this.playerUnit.pressureT = this.elapsed);
     // 52.0: the graph's links (and the vault links) from the cache when this geometry was built before
@@ -576,7 +604,7 @@ export class Game {
     // 54.1: every gun of the armory built and compiled now (a swap at the spawn built one: a freeze).
     if (!(this.mode === 'story' && this.level.info.storyWeapon))
       this.weapon.prewarm(
-        ARMORY_ORDER.map((id) => ARMORY[id].spec),
+        [...ARMORY_ORDER.map((id) => ARMORY[id].spec), RAM_LAUNCHER],
         () => {
           singlePass(this.weaponScene);
           this.renderer.compile(this.weaponScene, this.weaponCamera);
@@ -667,7 +695,13 @@ export class Game {
   private armPlayer() {
     const story = this.mode === 'story' ? this.level.info.storyWeapon : undefined;
     if (!story) this.loadout.commit();
-    const id = story ?? this.loadout.current;
+    // 90.1: a new life (or run) carries no launcher.
+    this.launcher = null;
+    this.holdGun(story ?? this.loadout.current);
+  }
+
+  /** His gun in hand (`id`, the armory's), in the map's finish. */
+  private holdGun(id: WeaponId) {
     const spec = ARMORY[id].spec;
     // 21.0: the gun wears the map's finish, and handles as itself.
     this.weapon.setSpec(spec, gunThemeFor(this.setting), this.playerUnit?.team ?? 'alpha');
@@ -675,6 +709,47 @@ export class Game {
     // 30.0: what it weighs sets the sprint (Stamina.ts).
     this.player.stamina.profile = WEIGHT[weightOf(spec.sound)];
     this.hud.setWeapon(spec.name, fl(id), spec.mag, this.weapon.lowAmmo);
+    this.hud.setReserve(null);
+  }
+
+  /** 90.1: the launcher in hand (a rocket in the tube if he left one there). */
+  private holdLauncher() {
+    const L = this.launcher;
+    if (!L) return;
+    const spec = RAM_LAUNCHER;
+    this.weapon.setSpec(spec, gunThemeFor(this.setting), this.playerUnit?.team ?? 'alpha');
+    this.weapon.ammo = L.loaded ? 1 : 0;
+    this.player.gun = spec.handling;
+    this.player.stamina.profile = WEIGHT.shotgun;
+    this.hud.setWeapon(spec.name, spec.jp, spec.mag, 0);
+    L.out = true;
+    // An empty tube with rockets carried: load one at once.
+    if (!L.loaded && L.carried > 0) this.weapon.startReload();
+  }
+
+  /** 90.1: walked over a launcher: taken (true) unless he is down or carries a full load. */
+  private takeLauncher(): boolean {
+    if (this.state !== 'play' || !this.player.alive) return false;
+    const L = this.launcher;
+    // (In hand, what's in the tube is the weapon's.)
+    if (L?.out) L.loaded = this.weapon.ammo > 0;
+    if (L && (L.loaded ? 1 : 0) + L.carried >= LAUNCHER_MAX) return false;
+    if (L) L.carried = Math.min(LAUNCHER_MAX - (L.loaded ? 1 : 0), L.carried + LAUNCHER_LOAD);
+    else this.launcher = { loaded: true, carried: LAUNCHER_LOAD - 1, out: false };
+    this.audio.reload('in', 'rifle');
+    if (!this.launcher!.out) this.holdLauncher();
+    return true;
+  }
+
+  /** 90.1: Q: the launcher out, or the gun back (the rocket in the tube stays there). */
+  private swapLauncher() {
+    const L = this.launcher;
+    if (!L || this.weapon.reloading) return;
+    if (L.out) {
+      L.loaded = this.weapon.ammo > 0;
+      L.out = false;
+      this.holdGun(this.loadout.current);
+    } else this.holdLauncher();
   }
 
   /**
@@ -994,7 +1069,10 @@ export class Game {
     this.nades = this.maxNades;
     this.throwT = 0;
     this.grenades.clear();
+    this.rockets.clear();
     this.blasts.clear();
+    this.pickups?.reset();
+    this.dropT = 0;
     this.zone = null;
     this.interaction.reset();
     this.rules.begin(fromCheckpoint);
@@ -1064,6 +1142,20 @@ export class Game {
     const tracer = new THREE.Color(...w.tracer);
     this.fx.muzzleSmoke(muzzle, dir);
     if (w.pellets) this.fx.muzzleSmoke(muzzle, dir);
+    // 90.1: the launcher: a rocket from the tube's mouth (from the eye if a wall is closer), its kick.
+    if (w.launcher) {
+      const from = this.col.lineOfSight(origin, muzzle) ? muzzle : origin;
+      this.rockets.fire(from, dir, this.playerUnit);
+      this.muzzleLight.color.set(w.flash.light);
+      this.muzzleLight.position.copy(muzzle);
+      this.muzzleT = 0.12;
+      this.kick(w);
+      if (this.launcher) {
+        this.launcher.loaded = false;
+        if (this.launcher.carried <= 0) this.dropT = 0.8;
+      }
+      return;
+    }
     // 8.1: brass only from kinetic guns, onto the floor under the port (a catwalk, a roof, the street).
     if (this.weapon.ballistic === 'kinetic') {
       const port = cam.localToWorld(this.weapon.camPoint(w.shell, this.player.ads, new THREE.Vector3()));
@@ -1181,9 +1273,15 @@ export class Game {
       if (anyKill) this.player.trauma = Math.min(1, this.player.trauma + 0.12);
     }
 
-    // Recoil (39.0, per weapon: Recoil.ts): the aim kicked up and sideways, coming back at the gun's
-    // own rate, and the FOV punch; a roll and screen shake on top, seen only. 11.0: a shouldered gun
-    // (ADS) kicks less than half as much, and a crouched stance a little less again.
+    this.kick(w);
+  }
+
+  /**
+   * Recoil (39.0, per weapon: Recoil.ts): the aim kicked up and sideways, coming back at the gun's
+   * own rate, and the FOV punch; a roll and screen shake on top, seen only. 11.0: a shouldered gun
+   * (ADS) kicks less than half as much, and a crouched stance a little less again.
+   */
+  private kick(w: WeaponSpec) {
     const c = w.camera;
     const k = lerp(1, 0.45, this.player.ads) * lerp(1, 0.85, this.player.crouch);
     this.player.recoil.fire(w.recoil, k);
@@ -1291,6 +1389,7 @@ export class Game {
         if (input.pressed.has(KEYS.holster)) this.weapon.toggleHolster();
         if (input.pressed.has(KEYS.reload)) this.weapon.startReload();
         if (input.pressed.has(KEYS.grenade)) this.throwGrenade();
+        if (input.pressed.has(KEYS.launcher) && this.mode !== 'story') this.swapLauncher();
         // 36.0: the trigger is held through TDM's pre-match countdown.
         if (input.mouseDown && !this.player.held && !this.player.mantling && this.weapon.tryFire()) this.shoot();
       }
@@ -1342,6 +1441,7 @@ export class Game {
       this.hud.setStamina(this.player.stamina.frac, this.player.stamina.exhausted);
       this.hud.setAmmo(this.weapon.ammo, this.weapon.reloading);
       this.hud.setGrenades(this.nades, this.maxNades);
+      if (this.weapon.spec.launcher) this.hud.setReserve(this.launcher?.carried ?? 0);
       this.hud.setArmed(this.weapon.visible);
       this.hud.setWave(this.waves.wave, this.waves.remaining, this.waves.state === 'break');
       this.hud.root.classList.toggle('holstered', this.weapon.holstered);
@@ -1600,7 +1700,17 @@ export class Game {
     this.level.update({ dt, rawDt, elapsed: this.elapsed, camPos, player: this.player, playing, mode: this.mode });
     this.fx.update(dt);
     this.grenades.update(dt);
+    this.rockets.update(dt);
     this.blasts.update(dt);
+    // 90.1: the launchers on the map (TDM), and back to the gun after the last rocket.
+    if (this.pickups && this.mode === 'tdm') this.pickups.update(dt, this.player.alive && this.state === 'play' ? this.player.pos : null, () => this.takeLauncher());
+    if (this.dropT > 0) {
+      this.dropT -= dt;
+      if (this.dropT <= 0 && this.launcher && this.launcher.carried <= 0 && !this.launcher.loaded) {
+        this.launcher = null;
+        this.holdGun(this.loadout.current);
+      }
+    }
     // 90.0: the gun comes back up after a throw.
     if (this.throwT > 0) {
       this.throwT -= dt;

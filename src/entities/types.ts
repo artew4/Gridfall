@@ -109,6 +109,8 @@ export interface WeaponSpec {
   falloff?: { near: number; far: number; min: number };
   /** 21.0: a hit shoves the target back (m/s) and staggers it (s): the shotgun's pushback. */
   knock?: { push: number; stagger: number };
+  /** 90.1: it fires rockets (the Game's Rockets), not rounds: no report of a gun, no brass. */
+  launcher?: boolean;
   build(b: WeaponBuild): void;
 }
 

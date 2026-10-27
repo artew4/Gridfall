@@ -179,7 +179,8 @@ export class Effects {
   constructor(scene: THREE.Scene, fog: THREE.FogExp2) {
     this.add = new Particles(scene, 900, true, fog);
     // 90.0: 420 (a blast's smoke and debris on top of a firefight's puffs).
-    this.smoke = new Particles(scene, 420, false, fog);
+    // (90.1: 520: a rocket's trail too.)
+    this.smoke = new Particles(scene, 520, false, fog);
 
     this.casings = new Casings(scene, 256);
     this.casings.onBounce = (x, y, z, k) => this.onShellBounce(_bounce.set(x, y, z), k);

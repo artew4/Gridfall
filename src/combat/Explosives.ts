@@ -32,6 +32,15 @@ export interface BlastSpec {
 /** The frag grenade's blast: dead within 2.5 m, hurt to 8 m. */
 export const FRAG_BLAST: BlastSpec = { kill: 2.5, radius: 8, damage: 1.25, wrap: 1.4, push: 7, stagger: 0.9 };
 
+/** 90.1: the rocket's blast: dead within 3 m, hurt to 9 m, a harder shove. */
+export const ROCKET_BLAST: BlastSpec = { kill: 3, radius: 9, damage: 1.6, wrap: 1.6, push: 9, stagger: 1.2 };
+
+/**
+ * 90.1: the rocket in flight: its speed (m/s), the drop on it (m/s²: nearly straight), how far its
+ * motor carries it (m, then it goes off in the air), a smoke puff every `puffEvery` m of its trail.
+ */
+export const ROCKET = { speed: 58, drop: 1.5, reach: 220, puffEvery: 0.45 };
+
 export interface ThrowSpec {
   /** From the pin to the bang (s). */
   fuse: number;

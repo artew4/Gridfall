@@ -38,6 +38,9 @@ export class Hud {
   private ammo = el('div', 'panel ammo');
   private ammoCur = el('span', 'cur');
   private reloadEl = el('div', 'reload');
+  /** 90.1: what is carried besides the magazine ('/ ∞' for a gun, the rockets for the launcher). */
+  private reserveEl = el('span', 'max', '/ ∞');
+  private reserveText = '/ ∞';
   /** 90.0: the frags he carries. */
   private nadesEl = el('div', 'nades');
   private nadesKey = '';
@@ -80,7 +83,7 @@ export class Hud {
     this.health.append(el('div', 'label', `VITAL${flSpan('vital')}`), bar, this.healthVal);
 
     const val = el('div', 'val');
-    val.append(this.ammoCur, el('span', 'max', '/ ∞'));
+    val.append(this.ammoCur, this.reserveEl);
     this.ammo.append(val, this.pipWrap, this.reloadEl, this.weaponLabel, this.nadesEl);
     this.setWeapon('KITSUNE-9', fl('smg'), 12, 3);
 
@@ -142,7 +145,7 @@ export class Hud {
           <kbd>SHIFT</kbd><span>SPRINT</span><kbd>SPACE</kbd><span>JUMP · CLIMB</span>
           <kbd>C</kbd><span>CROUCH · SLIDE</span><kbd>E</kbd><span>INTERACT</span>
           <kbd>X</kbd><span>HOLSTER</span><kbd>G</kbd><span>GRENADE</span>
-          <kbd>ESC</kbd><span>PAUSE</span>
+          <kbd>Q</kbd><span>RPG · GUN</span><kbd>ESC</kbd><span>PAUSE</span>
         </div>
       </div>`;
     this.pause.id = 'pause';
@@ -352,6 +355,14 @@ export class Hud {
     this.pips.forEach((p, i) => p.classList.toggle('off', i >= a));
     this.ammo.classList.toggle('low', a <= this.lowAmmo && !reloading);
     this.reloadEl.textContent = reloading ? 'RELOADING' : a === 0 ? 'PRESS R' : '';
+  }
+
+  /** 90.1: the reserve beside the magazine's count (null: a gun's endless). */
+  setReserve(n: number | null) {
+    const t = n === null ? '/ ∞' : `/ ${n}`;
+    if (t === this.reserveText) return;
+    this.reserveText = t;
+    this.reserveEl.textContent = t;
   }
 
   /** 90.0: the frags left (a diamond each, G). */

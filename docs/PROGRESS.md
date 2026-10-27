@@ -3436,6 +3436,21 @@ The ask: Battlefield-style destruction ("a hard fight"). The plan in five steps:
 - Tests 668 (+9, `explosives90.test.ts`).
 - Human playtest: a frag's reach and damage (too strong, too weak?); how often the bots throw; the ringing; the smoke's thickness in a corridor.
 
+## 90.1: Explosives, step 1: the rocket launcher
+
+Branch `feature/rpg-90.1`, from `feature/explosives-90.0` @ `c9549a7` (87.0–90.0 not merged yet).
+
+The plan's choice (a): a pickup on the map, not a class.
+
+- `rpg.ts`: RAM RPG, a weapon spec with `launcher` set (Weapon plays no gun report for it; the Game sends its trigger to Rockets): the tube (steel, a wooden heat guard, the venturi), two grips, an iron sight on the left (ADS through it, 0.8 zoom), the warhead in the muzzle as its "magazine" (the reload drops it and brings the next up). One in the tube; a big kick, roll and punch. Not in the loadout (keys 1–4 as before).
+- `Rockets.ts`: a pool of 8 in one InstancedMesh (nose, body, fins); 58 m/s with 1.5 m/s² of drop, 220 m of reach (then it goes off in the air); the motor's flame, a smoke puff every 0.45 m, the backblast's cloud behind the tube; a looped hiss that follows it (`AudioEngine.rocketHiss`), the launch (`rocket_launch`: a whump, the backblast's roar). It goes off at the first wall or the first body of the other side in its way (a bot's hitboxes; the player as a capsule): `ROCKET_BLAST`, dead within 3 m, hurt to 9 m, a harder shove; a bigger fireball (`Blasts.go`'s size). RPG in the feed.
+- `Pickups.ts`: two launchers in TDM, on the first and the last main lanes at the point as far from one team's spawns as from the other's (`fairPoint`; the lanes' middles by length were 8–12 m nearer one base on Old Port and the docks). A launcher turning over an amber ring; walked over: 3 rockets (5 at most), back 40 s later. Placed on all six TDM maps, every spot on the nav graph: Old Port (-41.5, 4.4, 0), (27.6, -4.5, 0); Neon Docks (-36.1, 0, 0), (20.8, 6.5, 0); Neon Block (-22, 7.2, 0), (0, 4.5, 0); Desert (±53.7, 1.1, ±1.2); Favelas (-43, 0, 0), (-5, 6, 0); Maglev (-14.6, -1.5, 0), (26.5, 5, 0).
+- The Game: the launcher held (Q: it and his gun, the rocket in the tube kept), the rockets on the ammo panel (`/ 2`; a reload takes one of them), back to his gun 0.8 s after the last; a new life carries none. Q on the controls sheet. Prewarmed with the armory (no swap compiles).
+- Checked live (GPU): taken (3: one in the tube, `/ 2`), fired, reloaded from the carried (`/ 1`); a rocket down the Desert's long line flies clear, trailing smoke; on a wall, the bigger fireball and the smoke column. The first viewmodel sat too close (half the screen): moved back; the single rocket in the tube showed red (low ammo): not any more.
+- Tests 674 (+6, `rockets901.test.ts`: a wall's face, nearly straight flight, a body of the other side struck and its own side's passed, the blast's size, the spots).
+- The bots don't take it up yet (step 3 of the plan).
+- Human playtest: the launcher's look in hand and through its sight; the rocket's speed; the spots (a fair run for both sides?); how many rockets.
+
 ## Next
 Human playtest:
 - 86.0 items: Neon Docks: the neon's light on the apron by the warehouse ends, the signs in the puddles, the dying tube, the manhole steam (in a sightline?), the oil.
