@@ -161,6 +161,11 @@ export class Spill {
     this.rect = new THREE.Vector4(map.x0, map.z0, 1 / (map.w * map.texel), 1 / (map.h * map.texel));
   }
 
+  /** Level unload (the texture is a uniform's: the scene's disposal doesn't reach it). */
+  dispose() {
+    this.tex.dispose();
+  }
+
   /**
    * Patches a street material to take the light (chains after any existing onBeforeCompile); `scale`
    * for a bright one (the white road paint would glow like a tube at the street's gain).

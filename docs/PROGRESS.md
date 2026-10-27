@@ -3356,8 +3356,21 @@ The ask: step 6 of [TOKYO_PLAN.md](TOKYO_PLAN.md) (the last).
 - Perf (code-toggle A/B, the spill and the sign pool, ABAB on AC): fight GPU p50 6.61/6.27 ms on vs 6.21/6.20 off, within the noise (draw calls flip 229–401 on their own).
 - Tests 652 (+10, `light84.test.ts`: a front's fall-off and its mullions' fanning shadows, a pool, the bake's placement and encoding, the rooms' light, the storefronts' lit slots and flickers, the new modes' frame-rate independence, the catchers' nearest eight and fade, the lamps overhead). World checks (Tokyo, Neon Block, Docks): no clusters, no entries; no shader fails to compile on the three.
 
+## 85.0: Neon Block's storefronts and light
+
+Branch `feature/neonblock-light-85.0`, from `feature/tokyo-light-84.0` @ `b81fcfa` (83.1, 84.0 not merged yet).
+
+The ask: Tokyo's work (78.0 storefronts, 84.0 light and wet) on Neon Block.
+
+- The storefronts: the 32 decal fronts are Tokyo's models (Storefronts.ts), the decals kept as the fallback without the kit. The arcade (16, 3.4 m under its 3.6 m slab, no awnings: shops, izakayas, an entrance, a shutter each side), Block E's Main Street face (8: izakayas and shops with awnings), Block W's (8: shutters and an entrance). In front of a vending machine (the arcade's, Block W's pair) and the bus shelter the front is laid shallow (`keepOut`). Colliders unchanged (the walls').
+- Their light: `Storefronts.light(glows)` (moved out of District.ts, shared): the 24 lit fronts' light baked into the street (asphalt, alley floors, the arcade's paving), their signs in the catchers' pool (the nearest eight beyond the 8 lamps' picks), one flickering sign; oil films in the asphalt's puddles.
+- The spill's texture is disposed with the level now (a uniform's: the scene's disposal didn't reach it; Tokyo too).
+- Perf (code-toggle A/B: decals and no spill vs the models and the spill, ABAB on AC): fight GPU p50 6.24/6.25 ms vs 6.23/6.15, the same.
+- Tests 655 (+3, `storefronts85.test.ts`: a window's light and a sign 0.3 m out for each lit slot; a 3.4 m front's sign under the slab; the flickers' glows driving their materials and reflections). World checks (Neon Block, Tokyo): no clusters, no entries; no shader fails to compile.
+
 ## Next
 Human playtest:
+- 85.0 items: Neon Block's arcade and Main Street fronts (readable in the smog, anything you bump into that isn't solid, an awning or eave in the way), their light on the street.
 - 84.0 items: Tokyo at street level: the shops' light on the pavement (too bright, too flat?), the overpass's sodium lamps and girders, the signs in the puddles as you walk (any popping?), the oil films, the flickering signs, the manhole steam (in the way?).
 - 83.1 items: the overpass, the train and the metro canopy now actually in the game (83.0's were boxes).
 - 83.0 items: the overpass (girders, piers, masts: seen at all at night?), the train passing (cabs, roofs, pantographs on the wire), the metro canopy; then the word for step 6 (light and wet).

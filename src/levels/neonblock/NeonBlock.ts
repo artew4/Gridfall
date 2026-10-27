@@ -6,6 +6,8 @@ import type { Glow, Glows } from '../../world/Glows';
 import type { BuildCtx, Mats } from '../../world/City';
 import { addSign, type SignSpec } from '../../world/Signs';
 import { applyWet } from '../../world/Ground';
+import { Storefronts, type SignCatch, type StoreKind } from '../../world/Storefronts';
+import { bakeSpill, Spill } from '../../world/Spill';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
 import type { RainAreas } from '../../world/Rain';
 import { Dresser, militaryMats, type NeonKind } from '../../world/Dress';
@@ -44,6 +46,10 @@ export interface NeonBlockResult {
   instanced: { name: string; count: number }[];
   /** Point lights placed (the GPU budget). */
   lights: number;
+  /** 85.0: the storefronts' light on the street, their signs for the puddles, how many were laid as models. */
+  spill: Spill;
+  signPool: SignCatch[];
+  fronts: number;
 }
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -98,7 +104,7 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
 
   // ---------------------------------------------------------------- materials
   const asphalt = std(asphaltTexture(), 0xffffff, 0.62, 0, 1.25);
-  applyWet(asphalt, time, { puddles: true, wet: 0.9, ripples: false });
+  applyWet(asphalt, time, { puddles: true, wet: 0.9, ripples: false, oil: true });
   const alleyFloor = std(concreteTexture(), 0x7c7a80, 0.6, 0, 1.0);
   applyWet(alleyFloor, time, { puddles: true, wet: 0.85, ripples: false });
   const paving = std(pavingTexture(), 0xffffff, 0.5, 0, 1.2);
@@ -417,14 +423,25 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
   // (47.0: moved south of the pachinko parlour.)
   solid2(-X_OUT, 0, 22.4, -36.6, 1.0, 23.6, m.wood, 'wood', 1);
   solid2(-37.8, 0, 44, -36.2, 1.8, 45.6, m.wood, 'wood', 1);
-  // The arcade: a vending machine, the shop fronts (decals on the walls).
+  // 85.0: the storefronts (Tokyo's models: Storefronts.ts, the rooms behind the glass, the signs), or
+  // the decals without the kit. One with something in front of it (a vending machine, the bus
+  // shelter) laid shallow; colliders as they were (the walls').
+  const fronts = new Storefronts(b);
+  fronts.keepOut = [[-28, 24.4], [-28, -24.4], [12.5, 18.5], [12.5, -18.5], [-12.6, 32], [-12.6, -32]];
+  /** A slot on a wall: its foot's middle, its turn (0: facing +Z), its height; else the decal. */
+  const front = (kind: StoreKind, x: number, z: number, ry: number, h: number, awning: boolean, decal: () => void) => {
+    if (!fronts.lay(kind, v(x, 0, z), ry, h, awning)) decal();
+  };
+  const STORE: Record<string, number> = { shop: 0, izakaya: 1, shutter: 2, door: 2 };
+  // The arcade: a vending machine, the shop fronts along both its walls (under its 3.6 m slab: no awnings).
   vending2(-28, BW.arcade[0], 's', 'white');
+  const ARC_S: StoreKind[] = ['shop', 'izakaya', 'shop', 'shutter'], ARC_N: StoreKind[] = ['izakaya', 'shop', 'door', 'shop'];
   for (const s of [1, -1]) {
     for (let i = 0; i < 4; i++) {
       const x = BW.x0 + 2.5 + i * 4.4;
       const g = new THREE.PlaneGeometry(4, 3.4);
-      b.add(g, store[i % 3], x, 1.7, s * (BW.arcade[0] + 0.02), 0, s > 0 ? 0 : Math.PI, 0);
-      b.add(g, store[(i + 1) % 3], x, 1.7, s * (BW.arcade[1] - 0.02), 0, s > 0 ? Math.PI : 0, 0);
+      front(ARC_S[i], x, s * BW.arcade[0], s > 0 ? 0 : Math.PI, 3.4, false, () => b.add(g, store[STORE[ARC_S[i]]], x, 1.7, s * (BW.arcade[0] + 0.02), 0, s > 0 ? 0 : Math.PI, 0));
+      front(ARC_N[i], x, s * BW.arcade[1], s > 0 ? Math.PI : 0, 3.4, false, () => b.add(g, store[STORE[ARC_N[i]]], x, 1.7, s * (BW.arcade[1] - 0.02), 0, s > 0 ? Math.PI : 0, 0));
     }
     // Light strips under the arcade ceiling.
     for (const x of [-27, -22, -17]) {
@@ -440,10 +457,16 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
     red.position.set(0, 3.2, 3.05);
     scene.add(red);
   }
-  // Shutters on Block W's and Block E's street faces (decals).
+  // Block W's street face shuttered (one entrance), Block E's its shops and izakayas (awnings out over Main Street).
   for (const s of [1, -1]) {
-    for (const z of [10.5, 19.5, 30.5, 42]) b.add(new THREE.PlaneGeometry(4, 3.2), m.shutter, BW.x1 + 0.02, 1.6, s * z, 0, Math.PI / 2, 0);
-    for (const z of [10.5, 19.5, 33.5, 42]) b.add(new THREE.PlaneGeometry(4, 3.2), store[z > 30 ? 0 : 1], BE.x0 - 0.02, 1.6, s * z, 0, -Math.PI / 2, 0);
+    for (const z of [10.5, 19.5, 30.5, 42]) {
+      const kind: StoreKind = z === 42 ? 'door' : 'shutter';
+      front(kind, BW.x1, s * z, Math.PI / 2, 3.6, false, () => b.add(new THREE.PlaneGeometry(4, 3.2), m.shutter, BW.x1 + 0.02, 1.6, s * z, 0, Math.PI / 2, 0));
+    }
+    for (const z of [10.5, 19.5, 33.5, 42]) {
+      const kind: StoreKind = z > 30 ? 'shop' : 'izakaya';
+      front(kind, BE.x0, s * z, -Math.PI / 2, 3.8, kind === 'shop', () => b.add(new THREE.PlaneGeometry(4, 3.2), store[z > 30 ? 0 : 1], BE.x0 - 0.02, 1.6, s * z, 0, -Math.PI / 2, 0));
+    }
   }
   // Noodle Gap: two stall counters against the buildings' walls (a 0.4–0.6 m slot behind one was
   // too narrow for a body: stepping off into it ended inside geometry), jumped onto, not vaulted.
@@ -1034,7 +1057,15 @@ export function buildNeonBlock(scene: THREE.Scene, col: CollisionWorld, glows: G
     ],
   };
 
+  // 85.0 (Tokyo's 84.0): the fronts' light on the street (Spill.ts), their flickering signs, their signs for the puddles.
+  const lit = fronts.light(glows);
+  const spill = new Spill(bakeSpill(lit.spill, -X_OUT, -Z_END, X_OUT, Z_END));
+  for (const mat of [asphalt, alleyFloor, paving]) spill.apply(mat);
+
   return {
+    spill,
+    signPool: lit.signs,
+    fronts: fronts.stats.slots,
     nav: { nodes, links, drops, slope: 0 },
     spawns: { alpha: spawnsOf('alpha'), omega: spawnsOf('omega') },
     coverPoints: [],

@@ -410,6 +410,7 @@ export class TokyoLevel implements LevelRuntime {
   dispose() {
     WET4.value = 1;
     this.catchers.dispose();
+    this.district.spill.dispose();
     this.env.dispose();
     this.minimap.dispose();
     this.story.dispose();

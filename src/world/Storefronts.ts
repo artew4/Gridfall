@@ -3,7 +3,8 @@ import type { StaticBuilder } from './Builder';
 import { propKits, type MercPart } from '../entities/weapons/models';
 import { ROOMS, interiorMaterial, roomUV, type Room } from './Interiors';
 import { awningTexture, directoryTexture, norenTexture, planarInto, shutterTexture, signCell, signColour, signs, type SignTrade } from './StoreSigns';
-import type { FlickerMode } from './Glows';
+import type { FlickerMode, Glow, Glows } from './Glows';
+import { ROOM_LIGHT, type SpillSource } from './Spill';
 import { woodTexture } from '../levels/desert/textures';
 import { applyWear, wearRoles } from './Wear';
 
@@ -27,6 +28,20 @@ import { applyWear, wearRoles } from './Wear';
 export type StoreKind = 'shutter' | 'shop' | 'izakaya' | 'door';
 const NODE: Record<StoreKind, string> = { shop: 'sf_shop', izakaya: 'sf_izakaya', shutter: 'sf_shutter', door: 'sf_door' };
 const SHOP_ROOMS: Room[] = ['konbini', 'drugstore', 'electronics', 'boutique', 'cafe', 'books'];
+/** 84.0: each front's glass for Spill's bake: its width, the frame's verticals, an izakaya's koshi sides. */
+const GLASS: Partial<Record<StoreKind, { width: number; mullions: number[]; sides?: number; door?: number }>> = {
+  shop: { width: 3.5, mullions: [-1.2, -0.6, 0, 0.6, 1.2] },
+  izakaya: { width: 3.4, mullions: [-0.72, 0.72], sides: 0.35, door: 1.3 },
+  door: { width: 1.2, mullions: [0] },
+};
+
+/** A lit sign for the puddles (ReflectionCatchers' pool beyond its eight). */
+export interface SignCatch {
+  pos: THREE.Vector3;
+  colour: THREE.Color;
+  glow?: Glow;
+  intensity: number;
+}
 
 /** A slot's own number from where it is (stable, spread). */
 function hash(x: number, y: number, z: number) {
@@ -91,6 +106,27 @@ export class Storefronts {
 
   get ready() {
     return !!this.kit;
+  }
+
+  /**
+   * 84.0 (85.0: shared by the maps): what the laid fronts light. The windows' light for Spill's bake,
+   * the signs for the puddles (0.3 m out from each), and a glow driving each flickering sign (its
+   * halo, the rain round it and its reflection flicker with it).
+   */
+  light(glows: Glows): { spill: SpillSource[]; signs: SignCatch[] } {
+    const spill: SpillSource[] = [];
+    const signs: SignCatch[] = [];
+    for (const f of this.lit) {
+      const [hex, power] = ROOM_LIGHT[f.room];
+      spill.push({ kind: 'front', x: f.x, z: f.z, ry: f.ry, colour: new THREE.Color(hex), power, ...GLASS[f.kind]! });
+      signs.push({ pos: f.signAt.clone().add(new THREE.Vector3(Math.sin(f.ry), 0, Math.cos(f.ry)).multiplyScalar(0.3)), colour: f.sign, intensity: 14 });
+    }
+    for (const f of this.flickers) {
+      const g = glows.add({ pos: f.at.clone(), color: f.colour.clone(), radius: 4, base: 0.8, haloSize: 2.2, haloStrength: 0.1, mode: f.mode, onChange: (v) => (f.mat.emissiveIntensity = 1.1 * v) });
+      const twin = signs.find((p) => p.pos.distanceTo(f.at) < 0.5);
+      if (twin) twin.glow = g;
+    }
+    return { spill, signs };
   }
 
   /**

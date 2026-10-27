@@ -87,7 +87,8 @@ export class NeonBlockLevel implements LevelRuntime {
     game.weaponScene.environment = this.env.texture;
     pmrem.dispose();
 
-    this.catchers = new ReflectionCatchers(game.glows.list, this.block.catcherPicks, { intensity: 12, distance: 16, height: 4 });
+    // 85.0: and every storefront's sign, the nearest eight lit.
+    this.catchers = new ReflectionCatchers(game.glows.list, this.block.catcherPicks, { intensity: 12, distance: 16, height: 4 }, this.block.signPool);
     for (const g of game.glows.list) {
       if (!g.reflect) continue;
       const m = createStreak(g, game.time, game.fog);
@@ -157,7 +158,7 @@ export class NeonBlockLevel implements LevelRuntime {
   update(f: FrameInfo) {
     const game = this.game;
     game.glows.update(f.elapsed, f.camPos);
-    this.catchers.update();
+    this.catchers.update(f.camPos);
     updateStreaks(this.streaks, f.camPos);
     this.covered = damp(this.covered, this.under(f.camPos) ? 1 : 0, 6, f.rawDt);
     game.audio.setUnderground(this.covered * 0.35);
@@ -204,6 +205,7 @@ export class NeonBlockLevel implements LevelRuntime {
     clearHeightFog();
     WET4.value = 1;
     this.catchers.dispose();
+    this.block.spill.dispose();
     this.env.dispose();
     game.audio.setUnderground(0);
   }
