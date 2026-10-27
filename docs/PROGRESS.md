@@ -3333,8 +3333,18 @@ The ask: step 5 of [TOKYO_PLAN.md](TOKYO_PLAN.md).
 - Tests 639 (+6, `landmark83.test.ts`: the kit; the girders under the deck's top; the pier within its collider; the pantograph on the wire; the canopy's posts and glass; the train's detail).
 - Tokyo's world check: no clusters, no entries. At night the overpass's steel still reads only faintly from the street (no light of its own under the deck).
 
+## 83.1: the landmark kit registered
+
+Branch `feature/tokyo-light-84.0`, from `main` @ `b871263` (83.0 merged and deployed).
+
+- 83.0 shipped `landmark.glb` without its entry in `models.ts`'s `PROP_KITS`: the game never loaded it, so the overpass, the train and the metro canopy kept their boxes (the tests mocked the kit; nothing failed). Registered; in the browser the overpass's steel mesh is there (0 before).
+- The girder's rivets lost their bevels: 1380 -> 484 triangles a module, the overpass's 106 modules 146k -> 51k triangles (the kit 4.8k -> 3.9k).
+- `propKits83_1.test.ts`: every `.glb` in `public/models/props` is registered and every registered kit has its file, each with the file's nodes (fails on 83.0); the girder under 600 triangles.
+- Tests 642 (+3). Tokyo's world check: no clusters, no entries.
+
 ## Next
 Human playtest:
+- 83.1 items: the overpass, the train and the metro canopy now actually in the game (83.0's were boxes).
 - 83.0 items: the overpass (girders, piers, masts: seen at all at night?), the train passing (cabs, roofs, pantographs on the wire), the metro canopy; then the word for step 6 (light and wet).
 - 82.0 items: Tokyo's crossings (the signals cycling, the walk signals), the mirrors, the manholes and grates (wet, flush), the izakaya by the Lantern Street pole; then the word for step 5 (landmarks).
 - 81.0 items: the Desert in TDM: your arms and rifle, the two teams (told apart at a glance, at range, in the shade; still sand?), their rifles; arcade's player finish.

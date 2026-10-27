@@ -69,10 +69,10 @@ def girder(g):
     # Rivets: a row along each flange, one up each stiffener.
     for y in (0.09, H - 0.09):
         for i in range(10):
-            g.box("rivet", 0.03, 0.03, 0.02, -W / 2 + 0.15 + i * 0.3, y, 0.075, group=n, bev=0.008, seg=1)
+            g.box("rivet", 0.03, 0.03, 0.02, -W / 2 + 0.15 + i * 0.3, y, 0.075, group=n, bev=0)
     for x in (-W / 2 + 0.06, 0.0):
         for k in range(4):
-            g.box("rivet", 0.03, 0.03, 0.02, x, 0.35 + k * 0.27, 0.095, group=n, bev=0.008, seg=1)
+            g.box("rivet", 0.03, 0.03, 0.02, x, 0.35 + k * 0.27, 0.095, group=n, bev=0)
 
 
 def pier(g):
