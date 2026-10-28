@@ -51,8 +51,8 @@ export class Debris {
     scene.add(this.mesh);
   }
 
-  /** A chunk at `at`, thrown at `vel`, `size` m across (a little uneven), in `colour`. */
-  throw(at: THREE.Vector3, vel: THREE.Vector3, size: number, colour: number) {
+  /** A chunk at `at`, thrown at `vel`, `size` m across (a little uneven), in `colour`; 93.0: or `dims` exactly (a board). */
+  throw(at: THREE.Vector3, vel: THREE.Vector3, size: number, colour: number, dims?: THREE.Vector3) {
     const i = this.next;
     this.next = (this.next + 1) % this.capacity;
     const c = this.pool[i];
@@ -63,7 +63,8 @@ export class Debris {
     c.rot.setFromEuler(new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6));
     c.axis.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
     c.spin = 3 + Math.random() * 9;
-    c.size.set(size * (0.7 + Math.random() * 0.5), size * (0.5 + Math.random() * 0.4), size * (0.6 + Math.random() * 0.5));
+    if (dims) c.size.copy(dims);
+    else c.size.set(size * (0.7 + Math.random() * 0.5), size * (0.5 + Math.random() * 0.4), size * (0.6 + Math.random() * 0.5));
     c.restT = -1;
     c.age = 0;
     c.floor = this.col.groundHeightAt(at.x, at.z, 0.05, at.y + 0.2, 0.6);

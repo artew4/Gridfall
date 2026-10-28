@@ -1100,6 +1100,27 @@ export class AudioEngine {
     this.metal(o, rand(3800, 5200), 0.04 * strength, 0.07, [1, 1.6, 2.9]);
   }
 
+  /** 93.0: a span of wall coming down (`k` 0..1: how big). */
+  collapse(pos: V3, k: number) {
+    if (!this.started) return;
+    if (this.sample('collapse', pos, 1.0, 0.9 + 0.7 * k, this.sfx, 0.06)) return;
+    this.burst(this.out(pos, 1.0), this.brown, 'lowpass', 700, 0.7, 1.2 * k, 0.1, 2, this.now(), 150);
+  }
+
+  /** 93.0: a tower starting to go over. */
+  towerFall(pos: V3) {
+    if (!this.started) return;
+    if (this.sample('tower_fall', pos, 0.8, 1.0, this.sfx, 0.06)) return;
+    this.metal(this.out(pos, 0.8), 200, 0.3, 1.0, [1, 1.41, 2.13]);
+  }
+
+  /** 93.0: a tower hitting the ground. */
+  towerCrash(pos: V3) {
+    if (!this.started) return;
+    if (this.sample('tower_crash', pos, 1.0, 1.3, this.sfx, 0.06)) return;
+    this.metal(this.out(pos, 1.0), 260, 0.6, 1.2, [1, 1.47, 2.09, 2.56]);
+  }
+
   /** 91.0: a wall's cell giving way (`falling`: a cut-off piece dropping, louder). */
   crumble(pos: V3, sound: 'masonry' | 'wood', falling: boolean) {
     if (!this.started) return;

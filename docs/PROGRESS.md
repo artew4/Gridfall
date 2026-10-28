@@ -3477,6 +3477,19 @@ Branch `feature/bots-destruction-92.0`, from `feature/destruction-91.0` @ `9a44a
 - Not yet: the slung launcher reads weakly on the back (an upright tube behind the shoulders); the rubble is no cover; wood, steel and the other maps (steps 4–5).
 - Human playtest: a bot's rocket coming at you (fair? enough warning in "RPG!" and the hiss?); bots through fresh holes; how often they get the launchers.
 
+## 93.0: Destruction, step 4: collapses (Old Port)
+
+Branch `feature/collapse-93.0`, from `feature/bots-destruction-92.0` @ `f93827b` (87.0–92.0 not merged yet).
+
+- `Rubble.ts`: what comes down lands in 0.75 m cells on the floor under it; a pour's volume spread over its cell (half or more) and the three nearest (`spreadShares`); a heap up to 1.6 m, drawn as a mound (one InstancedMesh, the colour of what fell), a box collider at 85% of its height once over 0.22 m (a floor; to 1.05 m vaulted, taller a wall). Never in a wall, never added to another floor's heap. A broken cell pours 30% of its volume, a falling one 85%, off either face of its wall.
+- Span slumps (`Destruction`, `SLUMP`): a piece hung from the eaves at least 3 m wide with under 35% of its foot row standing comes down whole, row by row from its foot over 0.7 s, every cell a falling chunk; a cloud of brick dust (up to 60 puffs), the `collapse` roar, the ground shaking by distance, the bots within 7 m scatter.
+- `Collapse.ts`: the dry dock's eight scaffold towers (quay to floor) and the two under the hull, drawn on their own (two meshes each, frame and boards: a first build of one mesh a part would have been ~300 draws). 260 health against blasts (a rocket at one at once, two or three frags beside one); then it tips about its far foot away from the blast, along its narrower side, over 1.25 s (an angle growing as t²), its collider gone at once; a third of the way its boards fly off (debris boards, exact sizes); down, the wreck is poured along its length (steel then boards) and whoever lies under it is crushed (260 to a bot, 130 to him: from the world). The `tower_fall` groan, the `tower_crash`, a dust line, a shake.
+- The bots: heaps change their maps where they land (`Nav.recheckNear`: a link whose way passes within 2.5 m of a heap and is no longer clear is cut, kept as a vault link if it can be vaulted both ways; never a stair's climb); spots beside heaps over 0.85 m added as cover (`addRubbleCover`).
+- A new match puts up the towers, clears the heaps (and the 92.0 snapshot restores the bots' maps).
+- Checked live (GPU): a rocket at the west outer tower: it tipped away and lay along the channel, 42 heaps to 0.88 m, 7 links cut, 10 vault links, 3 opened (its collider gone); five rockets along the foot of a 3.9 m span of the yard wall: it came down to the eaves (113 cells fell), 38 heaps to 1.12 m by the barrels. Self-play 240 s: the bots brought down a tower themselves; 36 heaps, 10 links cut, 9 made, 5 vaults; no errors.
+- Tests 694 (+8, `collapse93.test.ts`); the `collapse` sound started its thump 50 ms in (the bank's 20 ms rule): at once.
+- Human playtest: a span coming down (too easy? too rare?); a tower falling on someone; the heaps as cover; frames when much has come down.
+
 ## Next
 Human playtest:
 - 86.0 items: Neon Docks: the neon's light on the apron by the warehouse ends, the signs in the puddles, the dying tube, the manhole steam (in a sightline?), the oil.

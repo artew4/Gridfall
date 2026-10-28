@@ -548,6 +548,41 @@ export class Nav {
     return { walk, vault };
   }
 
+  /**
+   * 93.0: a heap landed near `p`: the links whose way passes within `r` m of it are tested again;
+   * one a body can no longer walk is cut (kept as a vault link if it can be vaulted both ways). The
+   * stairs' climbing links are the layout's: never cut. Returns the links cut.
+   */
+  recheckNear(p: THREE.Vector3, r: number): { closed: number } {
+    let closed = 0;
+    const ve = this.vaultEdges;
+    for (let i = 0; i < this.nodes.length; i++) {
+      const ni = this.nodes[i];
+      if (Math.hypot(ni.x - p.x, ni.z - p.z) > 14 + r || Math.abs(ni.y - BODY - p.y) > 4) continue;
+      for (const j of this.edges[i].slice()) {
+        if (j < i || (this.climb.has(i) && this.climb.has(j))) continue;
+        const nj = this.nodes[j];
+        // Its way's nearest approach to the heap (flat).
+        const dx = nj.x - ni.x, dz = nj.z - ni.z, l2 = dx * dx + dz * dz;
+        const t = l2 > 1e-6 ? Math.max(0, Math.min(1, ((p.x - ni.x) * dx + (p.z - ni.z) * dz) / l2)) : 0;
+        if (Math.hypot(ni.x + dx * t - p.x, ni.z + dz * t - p.z) > r) continue;
+        if (this.clear(ni, nj)) continue;
+        this.edges[i] = this.edges[i].filter((v) => v !== j);
+        this.edges[j] = this.edges[j].filter((v) => v !== i);
+        if (ve && !(this.clearVault(ni, nj) && this.clearVault(nj, ni))) {
+          ve[i] = ve[i].filter((v) => v !== j);
+          ve[j] = ve[j].filter((v) => v !== i);
+        }
+        closed++;
+      }
+    }
+    if (closed) {
+      this.fields.clear();
+      this.vaultFields.clear();
+    }
+    return { closed };
+  }
+
   /** 92.0: the links as they are (a match's start: what a reset of the walls goes back to). */
   snapshot() {
     return { edges: this.edges.map((e) => e.slice()), vault: this.vaultEdges?.map((e) => e.slice()) ?? null };

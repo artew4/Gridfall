@@ -36,6 +36,9 @@ the particle pools, the procedural sound bank.
 4. **Big set pieces (93.0).** Old Port's dry-dock scaffolds coming down, a span of the warehouse's
    wall falling in and closing a way: a support graph (a piece stands on the ones under it), the
    large ones as authored animations rather than simulated.
+   93.0 did Old Port's: a wide span slumping when its foot is mostly gone (`SLUMP`), the ten scaffold
+   towers tipping over (`Collapse.ts`), and rubble heaps (`Rubble.ts`) that every fall leaves (the
+   cover and the blocks the plan's step 2 left out).
 5. **The other maps (94.0+).** The docks' warehouse, containers and racks; the favelas' brick
    shacks; the desert outpost; Tokyo's glass. Perf measured on each.
 

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Destruction } from '../../world/Destruction';
+import type { Collapse } from '../../world/Collapse';
 import { StaticBuilder, worldBox } from '../../world/Builder';
 import type { Collider, CollisionWorld } from '../../world/Collision';
 import { STAIR_GAP, fitStairWidth } from '../../world/StairFit';
@@ -69,7 +70,7 @@ export function carve(r: R, holes: R[]): R[] {
   return out;
 }
 
-export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: THREE.Vector3, wreck: Destruction | null = null): OldPortResult {
+export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: THREE.Vector3, wreck: Destruction | null = null, towers: Collapse | null = null): OldPortResult {
   const b = new StaticBuilder();
   const std = (map: THREE.Texture | null, color: number | string, rough = 0.85, metal = 0, env = 0.5) =>
     new THREE.MeshStandardMaterial({ map, color, roughness: rough, metalness: metal, envMapIntensity: env });
@@ -496,6 +497,12 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
     for (const c of BLOCKERS.slice(6)) {
       if (c.y0 !== undefined) {
         // A scaffold tower: a steel frame round a stack of staging boards (solid: cover, not a climb).
+        // 93.0: they come down (Collapse.ts): drawn on their own, their colliders in the same order.
+        if (towers) {
+          towers.add(c.x[0], c.y0, c.z[0], c.x[1], c.h, c.z[1], m.rail, m.plank);
+          towers.add(c.x[0], c.y0, -c.z[1], c.x[1], c.h, -c.z[0], m.rail, m.plank);
+          continue;
+        }
         solid2(c.x[0], c.y0, c.z[0], c.x[1], c.h, c.z[1], m.rail, 'metal', 1.5);
         for (let y = c.y0 + 1.5; y < c.h; y += 1.5) deco(c.x[0] - 0.04, y, c.z[0] - 0.04, c.x[1] + 0.04, y + 0.12, c.z[1] + 0.04, m.plank, 1);
         for (let y = c.y0 + 1.5; y < c.h; y += 1.5) deco(c.x[0] - 0.04, y, -c.z[1] - 0.04, c.x[1] + 0.04, y + 0.12, -c.z[0] + 0.04, m.plank, 1);
@@ -541,7 +548,11 @@ export function buildOldPort(scene: THREE.Scene, col: CollisionWorld, sunDir: TH
           const k = solid(x0, F, z0, x1, F + (c.h as number), z1, m.timber, 'wood', 1);
           k.vault = true;
         } else if (c.kind === 'tower') {
-          // A steel frame round staging boards, floor to keel (solid: cover, not a climb).
+          // A steel frame round staging boards, floor to keel (solid: cover, not a climb). 93.0: it comes down.
+          if (towers) {
+            towers.add(x0, F, z0, x1, S.keel, z1, m.rail, m.plank);
+            continue;
+          }
           solid(x0, F, z0, x1, S.keel, z1, m.rail, 'metal', 1.5);
           for (let y = F + 1.2; y < S.keel - 0.3; y += 1.2) deco(x0 - 0.04, y, z0 - 0.04, x1 + 0.04, y + 0.12, z1 + 0.04, m.plank, 1);
         } else {

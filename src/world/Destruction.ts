@@ -34,6 +34,12 @@ export interface KindSpec {
   sound: 'masonry' | 'wood';
 }
 
+/**
+ * 93.0: a span hung from the eaves at least `wide` m across comes down when under `foot` of its foot
+ * row still stands, over `time` s.
+ */
+export const SLUMP = { wide: 3, foot: 0.35, time: 0.7 };
+
 export const KINDS: Record<WallKind, KindSpec> = {
   brick: { hp: 100, round: 0.45, colour: 0x8b5a43, sound: 'masonry' },
   concrete: { hp: 150, round: 0.3, colour: 0xb8b1a3, sound: 'masonry' },
@@ -166,11 +172,18 @@ interface Piece {
   /** The cells' resting vertices (to crumble them from). */
   rest: Float32Array | null;
   crumbled: Uint8Array | null;
+  /** 93.0: coming down (seconds since it began), or null. */
+  slump: number | null;
 }
 
 export interface DestructionHooks {
-  /** A cell broke at `p` (chunks: `chunks` of them; dust): the debris and the sound. */
-  broke(p: THREE.Vector3, kind: WallKind, size: number, falling: boolean): void;
+  /**
+   * A cell broke at `p` (`size` m; `falling`: it drops whole), the axis across its wall (`across`:
+   * where its rubble lands, either side): the debris, the rubble, the sound.
+   */
+  broke(p: THREE.Vector3, kind: WallKind, size: number, falling: boolean, across: 'x' | 'y' | 'z', volume: number): void;
+  /** 93.0: a span came down (its middle, its face's area m²): the dust cloud, the roar, the shake. */
+  slumped?(p: THREE.Vector3, area: number, kind: WallKind): void;
   /** The world changed (the static shadows, the bots' maps). */
   changed(): void;
 }
@@ -183,8 +196,10 @@ export class Destruction {
   /** Each whole mesh's vertices as built (a reset puts them back). */
   private wholeRest = new Map<THREE.Mesh, Float32Array>();
   private pending: { min: THREE.Vector3; max: THREE.Vector3; mat: THREE.Material; piece: Piece }[] = [];
-  /** DEV: pieces broken open, cells gone, fallen. */
-  stats = { opened: 0, cells: 0, fell: 0 };
+  /** DEV: pieces broken open, cells gone, fallen, spans come down. */
+  stats = { opened: 0, cells: 0, fell: 0, slumps: 0 };
+  /** 93.0: the spans coming down now. */
+  private slumping: Piece[] = [];
 
   constructor(private scene: THREE.Scene, private col: CollisionWorld, private hooks: DestructionHooks) {}
 
@@ -207,7 +222,7 @@ export class Destruction {
     if (opts.vault !== undefined) c.vault = opts.vault;
     const piece: Piece = {
       min, max, mat, kind, surface, tile: opts.tile ?? 2, t, ua, va, nu, nv, cu: size[ua] / nu, cv: size[va] / nv,
-      hangs: !!opts.hangs, vault: !!c.vault, cols: [c], whole: null as never, hp: null, alive: null, cells: null, rest: null, crumbled: null,
+      hangs: !!opts.hangs, vault: !!c.vault, cols: [c], whole: null as never, hp: null, alive: null, cells: null, rest: null, crumbled: null, slump: null,
     };
     this.tag(c, piece);
     this.pieces.push(piece);
@@ -247,9 +262,11 @@ export class Destruction {
   /** Every piece whole again (a new match on the same map): its box drawn, its one collider back. */
   reset() {
     let any = false;
+    this.slumping.length = 0;
     for (const piece of this.pieces) {
       if (!piece.hp) continue;
       piece.hp = piece.alive = piece.crumbled = null;
+      piece.slump = null;
       if (!piece.cells) continue;
       any = true;
       for (const c of piece.cols) this.col.remove(c);
@@ -269,7 +286,7 @@ export class Destruction {
       a.clearUpdateRanges();
       a.needsUpdate = true;
     }
-    this.stats = { opened: 0, cells: 0, fell: 0 };
+    this.stats = { opened: 0, cells: 0, fell: 0, slumps: 0 };
     this.hooks.changed();
   }
 
@@ -411,6 +428,17 @@ export class Destruction {
       }
       this.recollide(piece);
       this.hooks.changed();
+      // 93.0: a wide span hung from the eaves with most of its foot gone comes down whole.
+      if (piece.hangs && piece.slump === null && piece.nu * piece.cu >= SLUMP.wide) {
+        let standing = 0;
+        for (let u = 0; u < piece.nu; u++) standing += alive[u];
+        if (standing / piece.nu < SLUMP.foot) {
+          piece.slump = 0;
+          this.slumping.push(piece);
+          this.stats.slumps++;
+          this.hooks.slumped?.(this.centre(piece, Math.floor(piece.nv / 2) * piece.nu + Math.floor(piece.nu / 2), new THREE.Vector3()), piece.nu * piece.cu * piece.nv * piece.cv, piece.kind);
+        }
+      }
     }
     if (hi >= lo) {
       const pos = piece.cells!.geometry.attributes.position as THREE.BufferAttribute;
@@ -425,7 +453,43 @@ export class Destruction {
     this.stats.cells++;
     const a = piece.cells!.geometry.attributes.position.array as Float32Array;
     a.fill(0, i * BOX_V * 3, (i + 1) * BOX_V * 3);
-    this.hooks.broke(this.centre(piece, i, _p).clone(), piece.kind, Math.min(piece.cu, piece.cv), falling);
+    // Its rubble: a falling cell lands nearly whole (bulked up), a blasted one mostly flies off as dust.
+    const vol = piece.cu * piece.cv * (piece.max[piece.t] - piece.min[piece.t]) * (falling ? 0.85 : 0.3);
+    this.hooks.broke(this.centre(piece, i, _p).clone(), piece.kind, Math.min(piece.cu, piece.cv), falling, piece.t, vol);
+  }
+
+  /**
+   * 93.0: the spans coming down, row by row from the foot up over SLUMP.time s (each row's cells
+   * dropping as chunks); at the end the piece holds nothing up and stops nothing.
+   */
+  update(dt: number) {
+    for (let k = this.slumping.length - 1; k >= 0; k--) {
+      const piece = this.slumping[k];
+      const was = piece.slump!;
+      piece.slump = was + dt;
+      const r0 = Math.floor((was / SLUMP.time) * piece.nv), r1 = Math.min(piece.nv, Math.floor((piece.slump / SLUMP.time) * piece.nv) + 1);
+      const alive = piece.alive!;
+      let lo = Infinity, hi = -Infinity;
+      for (let v = r0; v < r1; v++)
+        for (let u = 0; u < piece.nu; u++) {
+          const i = u + v * piece.nu;
+          if (!alive[i]) continue;
+          this.remove(piece, i, true);
+          this.stats.fell++;
+          lo = Math.min(lo, i);
+          hi = Math.max(hi, i);
+        }
+      if (hi >= lo) {
+        const pos = piece.cells!.geometry.attributes.position as THREE.BufferAttribute;
+        pos.addUpdateRange(lo * BOX_V * 3, (hi - lo + 1) * BOX_V * 3);
+        pos.needsUpdate = true;
+      }
+      if (r1 >= piece.nv) {
+        this.slumping.splice(k, 1);
+        this.recollide(piece);
+        this.hooks.changed();
+      }
+    }
   }
 
   /** A cell drawn smaller and askew about its centre (a hash of its index: the same every time). */

@@ -116,3 +116,22 @@ export function dropCover(col: CollisionWorld, spots: THREE.Vector3[], at: THREE
   spots.length = k;
   return n;
 }
+
+/**
+ * 93.0: spots beside the tall heaps (`heaps`: their cells' middles): off each side of a cell, on its
+ * floor, where a body fits and the heap covers it; not within 0.6 m of a spot already listed. Pushed
+ * onto `spots`; returns how many.
+ */
+export function addRubbleCover(col: CollisionWorld, spots: THREE.Vector3[], heaps: THREE.Vector3[]): number {
+  let n = 0;
+  for (const h of heaps)
+    for (const [x, z] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const p = new THREE.Vector3(h.x + x * 0.95, h.y, h.z + z * 0.95);
+      if (spots.some((s) => s.distanceToSquared(p) < 0.36)) continue;
+      if (col.blocked(p.clone().setY(p.y + 0.05), 0.4) || Math.abs(col.groundHeightAt(p.x, p.z, 0.3, p.y + 0.3) - p.y) > 0.3) continue;
+      if (!hasCover(col, p)) continue;
+      spots.push(p);
+      n++;
+    }
+  return n;
+}

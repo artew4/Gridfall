@@ -25,7 +25,9 @@ import { LauncherPickups, launcherSpots } from '../gameplay/Pickups';
 import { RAM_LAUNCHER } from '../entities/weapons/rpg';
 import { Destruction, KINDS } from '../world/Destruction';
 import { Debris } from '../world/Debris';
-import { dropCover } from '../enemies/tactics/CoverSpots';
+import { Rubble } from '../world/Rubble';
+import { Collapse } from '../world/Collapse';
+import { addRubbleCover, dropCover } from '../enemies/tactics/CoverSpots';
 import { ArenaGunner, isArenaBot } from '../enemies/arena/ArenaBots';
 import { ROCKET_AI } from '../enemies/arena/DeathmatchAI';
 import { Interactives } from '../gameplay/Interactives';
@@ -110,6 +112,10 @@ function savedSetting(): SettingId {
  */
 /** 90.0: frags a life. */
 const _v3 = new THREE.Vector3();
+const _v3b = new THREE.Vector3();
+/** 93.0: the towers' boards and steel as rubble and debris. */
+const PLANK = 0x9a7a58;
+const STEEL_WRECK = 0x6f7478;
 /** 92.0: a bot takes a launcher passing this close (m). */
 const BOT_PICKUP = 2.2;
 export const MAX_NADES = 2;
@@ -205,11 +211,14 @@ export class Game {
   /** 91.0: the map's destructible walls (Old Port's so far), their chunks; the world changed (shadows to redraw). */
   destruction!: Destruction;
   debris!: Debris;
+  /** 93.0: the heaps what came down left, and the scaffold towers that come down. */
+  rubble!: Rubble;
+  collapse!: Collapse;
   private worldChanged = false;
   /** 92.0: where walls broke since the bots' maps were last brought up to date, and when to do it. */
   private edits: THREE.Vector3[] = [];
   private editT = 0;
-  editStats = { sites: 0, walk: 0, vault: 0, cover: 0 };
+  editStats = { sites: 0, walk: 0, vault: 0, cover: 0, closed: 0, added: 0 };
   /** 92.0: the bots' maps before the first wall broke (put back with the walls). */
   private unbroken: { nav: ReturnType<Nav['snapshot']>; cover: THREE.Vector3[] } | null = null;
   private shadowT = 0;
@@ -429,8 +438,16 @@ export class Game {
     this.fx.onShellBounce = (p, k) => this.audio.shellBounce(p, k);
     // 91.0: the destructible walls (the level adds its pieces as it builds) and their chunks.
     this.debris = new Debris(s, this.col);
+    this.rubble = new Rubble(s, this.col);
     this.destruction = new Destruction(s, this.col, {
-      broke: (p, kind, size, falling) => this.wallBroke(p, kind, size, falling),
+      broke: (p, kind, size, falling, across, vol) => this.wallBroke(p, kind, size, falling, across, vol),
+      slumped: (p, area, kind) => this.spanFell(p, area, kind),
+      changed: () => (this.worldChanged = true),
+    });
+    this.collapse = new Collapse(s, this.col, {
+      falling: (p) => this.audio.towerFall(p),
+      shed: (p, vel) => this.debris.throw(p, vel, 0, PLANK, _v3b.set(rand(1.1, 1.6), 0.05, rand(0.22, 0.3))),
+      landed: (from, to, width) => this.towerLanded(from, to, width),
       changed: () => (this.worldChanged = true),
     });
     this.weapon.setLights(null);
@@ -480,7 +497,10 @@ export class Game {
       ctx: () => this.ctx,
       now: () => this.elapsed,
       ear: () => this.camera.position,
-      breach: (at, b) => this.destruction.blast(at, b),
+      breach: (at, b) => {
+        this.destruction.blast(at, b);
+        this.collapse.blast(at, b);
+      },
       felt: (d) => {
         const k = Math.max(0, 1 - d / 22);
         this.player.trauma = Math.min(1, this.player.trauma + k * k * 0.95);
@@ -1106,6 +1126,8 @@ export class Game {
     // 91.0: the walls whole again for a new run, the rubble gone.
     if (!fromCheckpoint) {
       this.destruction.reset();
+      this.collapse.reset();
+      this.rubble.clear();
       this.debris.clear();
       // 92.0: and the bots' maps of them (in place: every team context reads the same list).
       this.edits.length = 0;
@@ -1338,6 +1360,58 @@ export class Game {
   }
 
   /**
+   * 93.0: a span of wall came down: a cloud of brick dust rolling out, the roar, the ground shaking
+   * under him by how near; the bots by it scatter.
+   */
+  private spanFell(p: THREE.Vector3, area: number, kind: keyof typeof KINDS) {
+    const dust = kind === 'brick' ? [0.52, 0.4, 0.33] : [0.62, 0.6, 0.56];
+    const n = Math.min(60, Math.round(area * 1.2));
+    for (let i = 0; i < n; i++)
+      this.fx.smoke.spawn({
+        x: p.x + rand(-2.5, 2.5), y: p.y + rand(-3, 2), z: p.z + rand(-2.5, 2.5), vx: rand(-2.5, 2.5), vy: rand(0, 1.2), vz: rand(-2.5, 2.5),
+        r: dust[0], g: dust[1], b: dust[2], a: rand(0.5, 0.75), size: rand(1.2, 2), grow: 1.8, life: rand(3, 5.5), drag: 1.4,
+      });
+    this.audio.collapse(p, Math.min(1, area / 30));
+    const d = this.camera.position.distanceTo(p);
+    const k = Math.max(0, 1 - d / 35);
+    this.player.trauma = Math.min(1, this.player.trauma + k * 0.8);
+    for (const e of this.ctx.enemies) if (e.alive && isArenaBot(e) && e.pos.distanceTo(p) < 7) e.brain.onCoverLost(e.teamCtx ?? this.ctx);
+  }
+
+  /**
+   * 93.0: a tower hit the ground along `from` → `to`: its wreck laid there (rubble of steel and
+   * boards), anyone under it crushed, the crash, a dust ring, the shake.
+   */
+  private towerLanded(from: THREE.Vector3, to: THREE.Vector3, width: number) {
+    const len = from.distanceTo(_v3b.copy(to).setY(from.y));
+    const dir = _v3b.copy(to).sub(from).setY(0).normalize();
+    const side = new THREE.Vector3(dir.z, 0, -dir.x);
+    const q = new THREE.Vector3();
+    for (let a = 0.3; a < len; a += 0.5)
+      for (let s = -width / 2 + 0.25; s <= width / 2 - 0.1; s += 0.5) {
+        q.copy(from).addScaledVector(dir, a).addScaledVector(side, s);
+        q.y = from.y + 0.2;
+        this.rubble.pour(q, 0.2, a / len < 0.5 ? STEEL_WRECK : PLANK);
+      }
+    // Under it: crushed.
+    for (const v of [this.playerUnit, ...this.ctx.enemies]) {
+      if (!v.alive || Math.abs(v.pos.y - from.y) > 2.5) continue;
+      const t = Math.max(0, Math.min(len, (v.pos.x - from.x) * dir.x + (v.pos.z - from.z) * dir.z));
+      const off = Math.hypot(v.pos.x - (from.x + dir.x * t), v.pos.z - (from.z + dir.z * t));
+      if (t > 0.5 && off < width / 2 + 0.5) v.hurt(v.isPlayer ? 130 : 260, q.copy(from).addScaledVector(dir, t).setY(v.pos.y + 3), null);
+    }
+    const mid = from.clone().addScaledVector(dir, len / 2);
+    for (let i = 0; i < 24; i++)
+      this.fx.smoke.spawn({
+        x: mid.x + dir.x * rand(-len / 2, len / 2), y: from.y + 0.3, z: mid.z + dir.z * rand(-len / 2, len / 2), vx: rand(-2, 2), vy: rand(0.2, 1), vz: rand(-2, 2),
+        r: 0.42, g: 0.4, b: 0.37, a: 0.55, size: rand(0.8, 1.3), grow: 1.5, life: rand(2, 3.5), drag: 1.6,
+      });
+    this.audio.towerCrash(mid);
+    const d = this.camera.position.distanceTo(mid);
+    this.player.trauma = Math.min(1, this.player.trauma + Math.max(0, 1 - d / 25) * 0.6);
+  }
+
+  /**
    * 92.0: what a broken wall changes for the bots, a moment after it settles (holes come in bursts):
    * the nav links near each hole made again (Nav.relinkNear), the cover spots it took away dropped.
    * The bots right by a breaking wall leave it at once (wallBroke).
@@ -1355,7 +1429,11 @@ export class Game {
       const r = this.nav.relinkNear(s);
       this.editStats.walk += r.walk;
       this.editStats.vault += r.vault;
+      // 93.0: a heap may close a way (or leave only a vault over it).
+      const x = this.nav.recheckNear(s, 2.5);
+      this.editStats.closed += x.closed;
       this.editStats.cover += dropCover(this.col, this.ctx.coverPoints, s, 4);
+      this.editStats.added += addRubbleCover(this.col, this.ctx.coverPoints, this.rubble.tall(s, 4));
     }
     this.editStats.sites += sites.length;
   }
@@ -1364,8 +1442,14 @@ export class Game {
    * 91.0: a wall's cell broke at `p`: chunks thrown off both faces (a cut-off cell drops whole), dust,
    * the crumble or the splinter (one at a time, a few times a second).
    */
-  private wallBroke(p: THREE.Vector3, kind: keyof typeof KINDS, size: number, falling: boolean) {
+  private wallBroke(p: THREE.Vector3, kind: keyof typeof KINDS, size: number, falling: boolean, across: 'x' | 'y' | 'z' = 'y', vol = 0) {
     const colour = KINDS[kind].colour;
+    // 93.0: its rubble on the floor under it, off either face (a falling cell further out).
+    if (vol > 0) {
+      const q = _v3b.copy(p);
+      if (across !== 'y') q[across] += (Math.random() < 0.5 ? -1 : 1) * rand(0.25, falling ? 1.5 : 0.9);
+      this.rubble.pour(q, vol, colour);
+    }
     if (falling) this.debris.throw(p, _v3.set(rand(-0.6, 0.6), rand(-0.5, 0.5), rand(-0.6, 0.6)), size * 0.95, colour);
     else
       for (let i = 0; i < 2; i++)
@@ -1798,6 +1882,13 @@ export class Game {
     this.grenades.update(dt);
     this.rockets.update(dt);
     this.debris.update(dt);
+    this.destruction.update(dt);
+    this.collapse.update(dt);
+    // 93.0: the heaps poured this frame made solid; the bots' maps brought up to date round them.
+    for (const p of this.rubble.flush()) {
+      this.edits.push(p);
+      this.editT = Math.max(this.editT, 0.3);
+    }
     this.crumbleT -= dt;
     // 91.0: a wall changed: the static shadows drawn again (at most five times a second).
     this.shadowT -= dt;

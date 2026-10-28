@@ -290,6 +290,39 @@ const SPLINTER: Design = (r, sr) => {
   return finish(o, sr, 0.85);
 };
 
+/** 93.0: a span of masonry coming down: a long roar, the ground's thud, bricks raining for two seconds. */
+const COLLAPSE: Design = (r, sr) => {
+  const o = secs(3.2, sr);
+  thump(o, sr, 0, 62 * r.range(0.9, 1.1), 24, 1.2, 1.3, 2);
+  nz(o, r, sr, 0, 2.6, 1.1, { type: 'lowpass', f: 900, q: 0.7, to: 160 }, { a: 0.12, t60: 1.8, hold: 0.3 }, 'brown', 2.4);
+  grains(o, r, sr, { n: 260, at: 0.05, spread: 2.2, fLo: 700, fHi: 3800, amp: 0.3, len: 9 });
+  reflect(o, sr, [[0.09, 0.3], [0.21, 0.2]], 900);
+  return finish(o, sr, 0.9);
+};
+
+/** 93.0: a steel tower going over: the frame's groan, its joints giving. */
+const TOWER_FALL: Design = (r, sr) => {
+  const o = secs(1.4, sr);
+  const g = sweep(Math.ceil(1.3 * sr), 210 * r.range(0.9, 1.1), 95, 1.2, sr);
+  env(g, 0.15, 1.1, sr, 0.2);
+  sat(g, 1.8);
+  mix(o, g, 0, 0.35, sr);
+  ring(o, r, sr, 0.1, 340, [1, 1.41, 2.13, 2.9], 0.35, 0.8);
+  for (let k = 0; k < 4; k++) click(o, r, sr, 0.2 + k * 0.22 + r.range(0, 0.08), r.range(900, 1600), 0.4, 0.06);
+  return finish(o, sr, 0.8);
+};
+
+/** 93.0: a steel tower hitting the ground: the clang, the thud, boards and grit scattering. */
+const TOWER_CRASH: Design = (r, sr) => {
+  const o = secs(2.0, sr);
+  thump(o, sr, 0, 90, 32, 0.5, 1.2, 2);
+  ring(o, r, sr, 0, r.range(240, 300), [1, 1.47, 2.09, 2.56, 3.9], 0.8, 1.4);
+  ring(o, r, sr, 0.03, r.range(520, 640), [1, 1.62, 2.71], 0.4, 0.7);
+  nz(o, r, sr, 0, 0.4, 0.8, { type: 'lowpass', f: 1800, q: 0.7, to: 300 }, { a: 0.002, t60: 0.3 }, 'brown', 2);
+  grains(o, r, sr, { n: 90, at: 0.04, spread: 1.0, fLo: 900, fHi: 4500, amp: 0.28, len: 6 });
+  return finish(o, sr, 0.9);
+};
+
 /** A grenade's body hitting the ground or a wall: a dull steel clink and a knock. */
 const NADE_BOUNCE: Design = (r, sr) => {
   const o = secs(0.3, sr);
@@ -312,5 +345,8 @@ export const DESIGNS: [string, number, Design][] = [
   ['nade_bounce', 4, NADE_BOUNCE],
   ['rocket_launch', 3, ROCKET_LAUNCH],
   ['crumble', 4, CRUMBLE],
+  ['collapse', 2, COLLAPSE],
+  ['tower_fall', 2, TOWER_FALL],
+  ['tower_crash', 2, TOWER_CRASH],
   ['splinter', 4, SPLINTER],
 ];
